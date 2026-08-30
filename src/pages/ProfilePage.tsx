@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useParams, Link, useNavigate } from "react-router-dom";
-import { Globe, Settings, Bookmark, MessageCircle, MoreVertical, Plus } from "lucide-react";
+import { Globe, Settings, Bookmark, MessageCircle, MoreVertical, Plus, Eye, X } from "lucide-react";
 import { useAuth } from "../hooks/useAuth";
 import { useProfileByUsername, useUserPosts, useIsFollowing, useToggleFollow } from "../hooks/useProfile";
 import { useStartConversation } from "../hooks/useMessaging";
@@ -19,9 +19,14 @@ export function ProfilePage() {
   const startConversation = useStartConversation();
   const [menuOpen, setMenuOpen] = useState(false);
 
+  // When true, an owner sees their profile exactly as a visitor
+  // would — owner-only controls hidden, only published (active)
+  // projects shown. Meaningless for non-owners, so it's gated behind
+  // isOwnProfile everywhere it's used below.
+  const [previewingAsVisitor, setPreviewingAsVisitor] = useState(false);
+
   const { data: profile, isLoading } = useProfileByUsername(username!);
   const { data: posts } = useUserPosts(profile?.id ?? "");
-  const { data: projects } = useUserProjects(profile?.id ?? "");
   const [activeTab, setActiveTab] = useState<"posts" | "projects">("posts");
   const isFollowingQuery = useIsFollowing(profile?.id ?? "");
   const toggleFollow = useToggleFollow(profile?.id ?? "");
@@ -31,6 +36,15 @@ export function ProfilePage() {
   const toggleMute = useToggleMute(profile?.id ?? "");
 
   const isOwnProfile = user?.id === profile?.id;
+  // The one flag that actually gates owner-only UI and data below —
+  // true owner-ness AND not currently previewing as a visitor.
+  const showOwnerView = isOwnProfile && !previewingAsVisitor;
+
+  // Owner sees all statuses (to manage drafts/archived); everyone
+  // else — including the owner while previewing — only sees
+  // published (active) projects, same as any other visitor would.
+  const { data: projects } = useUserProjects(profile?.id ?? "", showOwnerView);
+
   const isFollowing = !!isFollowingQuery.data;
   const isBlocked = !!isBlockedQuery.data;
   const isMuted = !!isMutedQuery.data;
@@ -52,11 +66,36 @@ export function ProfilePage() {
   return (
     <div className="min-h-screen bg-canvas pb-24">
       <div className="max-w-xl mx-auto px-4 pt-8">
+        {/* Preview-mode banner — only an owner can ever see this,
+            and it's the one clear way back to their real view. */}
+        {isOwnProfile && previewingAsVisitor && (
+          <div className="flex items-center justify-between bg-accent-soft text-accent text-sm rounded-xl px-4 py-2.5 mb-4">
+            <span className="flex items-center gap-1.5">
+              <Eye size={14} />
+              Viewing your profile as a visitor sees it
+            </span>
+            <button
+              onClick={() => setPreviewingAsVisitor(false)}
+              className="flex items-center gap-1 font-medium"
+            >
+              <X size={14} />
+              Exit
+            </button>
+          </div>
+        )}
+
         <div className="flex items-start justify-between">
           <Avatar src={profile.avatar_url} name={profile.display_name} size="lg" />
 
-          {isOwnProfile ? (
+          {showOwnerView ? (
             <div className="flex items-center gap-2">
+              <button
+                onClick={() => setPreviewingAsVisitor(true)}
+                className="flex items-center gap-1.5 text-sm text-ink-muted border border-border rounded-full px-4 py-2"
+              >
+                <Eye size={16} />
+                View as visitor
+              </button>
               <Link
                 to="/bookmarks"
                 className="flex items-center gap-1.5 text-sm text-ink-muted border border-border rounded-full px-4 py-2"
@@ -72,6 +111,12 @@ export function ProfilePage() {
                 Edit
               </Link>
             </div>
+          ) : isOwnProfile ? (
+            // Own profile, but previewing as a visitor: show none of
+            // the real visitor actions (message/follow/block a
+            // visitor would see for someone else) since those don't
+            // meaningfully apply to yourself — just the plain layout.
+            null
           ) : (
             <div className="flex items-center gap-2 relative">
               <button
@@ -174,7 +219,7 @@ export function ProfilePage() {
           >
             Projects
           </button>
-          {isOwnProfile && activeTab === "projects" && (
+          {showOwnerView && activeTab === "projects" && (
             <Link
               to="/projects/new"
               className="ml-auto flex items-center gap-1 text-sm text-accent font-medium pb-3"
@@ -200,7 +245,7 @@ export function ProfilePage() {
             projects.map((project) => <ProjectCard key={project.id} project={project} />)
           ) : (
             <p className="text-ink-muted text-center py-10 text-sm">
-              {isOwnProfile ? "No projects yet — publish your first one." : "No projects yet."}
+              {showOwnerView ? "No projects yet — publish your first one." : "No projects yet."}
             </p>
           )}
         </div>
