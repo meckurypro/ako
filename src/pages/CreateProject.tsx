@@ -1,8 +1,13 @@
 import { useRef, useState, type FormEvent } from "react";
 import { useNavigate } from "react-router-dom";
 import { ArrowLeft, ImageIcon, FileUp } from "lucide-react";
-import { useCreateProject } from "../hooks/useProjects";
-import { useUploadPostMedia } from "../hooks/useUploadPostMedia";
+import {
+  useCreateProject,
+  PROJECT_TYPE_OPTIONS,
+  PROJECT_TYPE_LABELS,
+  type ProjectType,
+} from "../hooks/useProjects";
+import { useUploadProjectThumbnail } from "../hooks/useUploadProjectThumbnail";
 import { useUploadProjectFile } from "../hooks/useUploadProjectFile";
 import { FormField } from "../components/FormField";
 import { Button } from "../components/Button";
@@ -10,14 +15,18 @@ import { Button } from "../components/Button";
 export function CreateProject() {
   const navigate = useNavigate();
   const createProject = useCreateProject();
-  const uploadThumbnail = useUploadPostMedia(); // reuses the public post-media bucket — thumbnails are meant to be publicly visible, same as post images
+  const uploadThumbnail = useUploadProjectThumbnail();
   const uploadFile = useUploadProjectFile();
 
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
+  const [projectType, setProjectType] = useState<ProjectType>("other");
   const [externalUrl, setExternalUrl] = useState("");
   const [priceUsd, setPriceUsd] = useState("0");
+  const [showPromo, setShowPromo] = useState(false);
+  const [promoPriceUsd, setPromoPriceUsd] = useState("");
   const [thumbnailUrl, setThumbnailUrl] = useState<string | null>(null);
+  const [thumbnailRatio, setThumbnailRatio] = useState<{ width: number; height: number } | null>(null);
   const [filePath, setFilePath] = useState<string | null>(null);
   const [fileName, setFileName] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -30,8 +39,9 @@ export function CreateProject() {
     e.target.value = "";
     if (!file) return;
     try {
-      const url = await uploadThumbnail.mutateAsync(file);
+      const { url, width, height } = await uploadThumbnail.mutateAsync(file);
       setThumbnailUrl(url);
+      setThumbnailRatio({ width, height });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Thumbnail upload failed.");
     }
@@ -69,14 +79,31 @@ export function CreateProject() {
       return;
     }
 
+    let promoPrice: number | null = null;
+    if (showPromo && promoPriceUsd.trim() !== "") {
+      promoPrice = parseFloat(promoPriceUsd);
+      if (Number.isNaN(promoPrice) || promoPrice < 0) {
+        setError("Promo price must be a valid amount.");
+        return;
+      }
+      if (promoPrice >= price) {
+        setError("Promo price must be lower than the actual price.");
+        return;
+      }
+    }
+
     try {
       await createProject.mutateAsync({
         title: title.trim(),
         description: description.trim() || undefined,
+        project_type: projectType,
         external_url: externalUrl.trim() || undefined,
         file_path: filePath ?? undefined,
         thumbnail_url: thumbnailUrl ?? undefined,
+        thumbnail_width: thumbnailRatio?.width,
+        thumbnail_height: thumbnailRatio?.height,
         price_usd: price,
+        promo_price_usd: promoPrice,
       });
       navigate(-1);
     } catch (err) {
@@ -94,11 +121,18 @@ export function CreateProject() {
         <h2 className="font-display text-2xl text-ink mb-6">New project</h2>
 
         <form onSubmit={handleSubmit}>
-          {/* Thumbnail */}
+          {/* Thumbnail — aspect ratio matches whatever was actually
+              uploaded, not a hardcoded 16:9. Falls back to 16:9 only
+              as the empty-state placeholder before anything is chosen. */}
           <button
             type="button"
             onClick={() => thumbnailInputRef.current?.click()}
-            className="w-full aspect-video bg-surface border border-border rounded-xl flex items-center justify-center mb-4 overflow-hidden"
+            style={{
+              aspectRatio: thumbnailRatio
+                ? `${thumbnailRatio.width} / ${thumbnailRatio.height}`
+                : "16 / 9",
+            }}
+            className="w-full bg-surface border border-border rounded-xl flex items-center justify-center mb-4 overflow-hidden"
           >
             {thumbnailUrl ? (
               <img src={thumbnailUrl} alt="" className="w-full h-full object-cover" />
@@ -126,6 +160,27 @@ export function CreateProject() {
             onChange={(e) => setTitle(e.target.value)}
             required
           />
+
+          {/* Project type — dropdown on mobile is friendliest for 8
+              options; a radio group of this size gets unwieldy. */}
+          <div className="mb-4">
+            <label htmlFor="project_type" className="block text-sm font-medium text-ink-muted mb-1.5">
+              Project type
+            </label>
+            <select
+              id="project_type"
+              value={projectType}
+              onChange={(e) => setProjectType(e.target.value as ProjectType)}
+              className="w-full px-4 py-3 rounded-xl border border-border bg-canvas text-ink
+                focus:outline-none focus:ring-2 focus:ring-accent/40 focus:border-accent"
+            >
+              {PROJECT_TYPE_OPTIONS.map((type) => (
+                <option key={type} value={type}>
+                  {PROJECT_TYPE_LABELS[type]}
+                </option>
+              ))}
+            </select>
+          </div>
 
           <div className="mb-4">
             <label className="block text-sm font-medium text-ink-muted mb-1.5">Description</label>
@@ -168,7 +223,7 @@ export function CreateProject() {
             </p>
           </div>
 
-          <div className="mb-6">
+          <div className="mb-4">
             <label className="block text-sm font-medium text-ink-muted mb-1.5">Price (USD)</label>
             <input
               type="number"
@@ -180,6 +235,41 @@ export function CreateProject() {
                 focus:outline-none focus:ring-2 focus:ring-accent/40 focus:border-accent"
             />
             <p className="text-xs text-ink-muted mt-1">Set to 0 for a free project.</p>
+          </div>
+
+          {/* Promo price — optional. Leaving it off shows only the
+              main price with no strikethrough, exactly as before. */}
+          <div className="mb-6">
+            <label className="flex items-center gap-2 text-sm font-medium text-ink-muted mb-2">
+              <input
+                type="checkbox"
+                checked={showPromo}
+                onChange={(e) => {
+                  setShowPromo(e.target.checked);
+                  if (!e.target.checked) setPromoPriceUsd("");
+                }}
+                className="rounded border-border"
+              />
+              Add a promo price
+            </label>
+
+            {showPromo && (
+              <>
+                <input
+                  type="number"
+                  value={promoPriceUsd}
+                  onChange={(e) => setPromoPriceUsd(e.target.value)}
+                  min={0}
+                  step="0.01"
+                  placeholder="Promo price"
+                  className="w-full px-4 py-3 rounded-xl border border-border bg-canvas text-ink
+                    focus:outline-none focus:ring-2 focus:ring-accent/40 focus:border-accent"
+                />
+                <p className="text-xs text-ink-muted mt-1">
+                  Shown next to the actual price, which will appear crossed out. Must be lower than the actual price.
+                </p>
+              </>
+            )}
           </div>
 
           {error && (
