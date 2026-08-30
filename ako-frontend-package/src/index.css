@@ -1,0 +1,29 @@
+@import "tailwindcss";
+
+/*
+  Akọ design tokens.
+  Warm neutral palette, sage-green accent — deliberately NOT the
+  generic AI-tool cream+terracotta or near-black+neon-accent looks.
+  Fraunces (serif, expressive) for headlines/identity moments,
+  Inter (humanist sans) for UI and body text.
+*/
+@theme {
+  --color-canvas: #F7F4EF;        /* warm off-white background */
+  --color-surface: #EDEAE3;       /* card/surface, soft greyish warm */
+  --color-ink: #1F1D1A;           /* near-black text, not pure black */
+  --color-ink-muted: #6B675F;     /* secondary text, muted warm grey */
+  --color-accent: #3D5A45;        /* deep sage green — primary accent */
+  --color-accent-hover: #2F4636;  /* darker sage for hover/active states */
+  --color-accent-soft: #E3E9E1;   /* pale sage tint for subtle backgrounds/badges */
+  --color-border: #DEDAD1;        /* hairline borders on warm neutral */
+  --color-danger: #A64B3F;        /* warm brick-red for destructive/dislike states, not pure red */
+
+  --font-display: "Fraunces", "Lora", Georgia, serif;
+  --font-body: "Inter", -apple-system, BlinkMacSystemFont, sans-serif;
+}
+
+body {
+  background-color: var(--color-canvas);
+  color: var(--color-ink);
+  font-family: var(--font-body);
+}
