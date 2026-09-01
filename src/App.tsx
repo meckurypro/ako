@@ -1,4 +1,3 @@
-// src/App.tsx
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { AuthProvider } from "./hooks/useAuth";
@@ -16,7 +15,7 @@ import { Compose } from "./pages/Compose";
 import { EditPost } from "./pages/EditPost";
 import { PostDetail } from "./pages/PostDetail";
 import { HashtagFeed } from "./pages/HashtagFeed";
-import { Topics } from "./pages/Topics";
+import { Discover } from "./pages/Discover";
 
 import { ProfilePage } from "./pages/ProfilePage";
 import { EditProfile } from "./pages/EditProfile";
@@ -122,7 +121,7 @@ export default function App() {
               path="/topics"
               element={
                 <RequireAuth>
-                  <Topics />
+                  <Discover />
                 </RequireAuth>
               }
             />
@@ -297,6 +296,7 @@ export default function App() {
               }
             />
 
+            {/* Projects */}
             <Route
               path="/projects/new"
               element={
@@ -318,4 +318,4 @@ export default function App() {
       </AuthProvider>
     </QueryClientProvider>
   );
-}
+              }
