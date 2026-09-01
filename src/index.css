@@ -4,8 +4,8 @@
   Akọ design tokens.
   Warm neutral palette, sage-green accent — deliberately NOT the
   generic AI-tool cream+terracotta or near-black+neon-accent looks.
-  Fraunces (serif, expressive) for headlines/identity moments,
-  Inter (humanist sans) for UI and body text.
+  Playfair Display (serif, high-contrast, editorial) for headlines/
+  identity moments, Inter (humanist sans) for UI and body text.
 */
 @theme {
   --color-canvas: #F7F4EF;        /* warm off-white background (was topnav color) */
@@ -18,7 +18,7 @@
   --color-border: #E9E4D8;        /* hairline borders, nudged for brighter surface */
   --color-danger: #A64B3F;        /* warm brick-red for destructive/dislike states, not pure red */
 
-  --font-display: "Fraunces", "Lora", Georgia, serif;
+  --font-display: "Playfair Display", Georgia, serif;
   --font-body: "Inter", -apple-system, BlinkMacSystemFont, sans-serif;
 }
 
