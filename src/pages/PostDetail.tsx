@@ -8,7 +8,10 @@ import { useAuth } from "../hooks/useAuth";
 import { useComments } from "../hooks/useComments";
 import { PostCard } from "../components/PostCard";
 import { CommentThread } from "../components/CommentThread";
+import { PROFILE_ROLES_SELECT, toProfileRoles } from "../lib/profileRoles";
 import type { PostWithAuthor } from "../types/database";
+
+const POST_SELECT = `*, author:profiles!posts_author_id_fkey(id, username, display_name, avatar_url, tier, ${PROFILE_ROLES_SELECT})`;
 
 function usePost(postId: string) {
   return useQuery({
@@ -16,11 +19,18 @@ function usePost(postId: string) {
     queryFn: async (): Promise<PostWithAuthor> => {
       const { data, error } = await supabase
         .from("posts")
-        .select(`*, author:profiles!posts_author_id_fkey(id, username, display_name, avatar_url, tier)`)
+        .select(POST_SELECT)
         .eq("id", postId)
         .single();
       if (error) throw error;
-      return data as unknown as PostWithAuthor;
+
+      const raw = data as any;
+      return {
+        ...raw,
+        author: raw.author
+          ? { ...raw.author, roles: toProfileRoles(raw.author.profile_roles) }
+          : raw.author,
+      } as PostWithAuthor;
     },
     enabled: !!postId,
   });
@@ -48,7 +58,6 @@ function useMarkPostSeen(postId: string, authorId: string | undefined) {
           console.error("Failed to mark post as seen:", error);
           return;
         }
-        // Clears the ring for this author across any open chat list.
         queryClient.invalidateQueries({ queryKey: ["unseen-posts"] });
       });
   }, [postId, user, authorId, queryClient]);
