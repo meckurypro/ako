@@ -6,11 +6,11 @@ export function displayName(profile: {
   return profile.display_name?.trim() || profile.username;
 }
 
-/** Truncated version for compact UI slots (avatars, cards, etc.). */
+/** Truncates a display_name string for compact UI slots (avatars, cards, etc.). */
 export function shortDisplayName(
-  profile: { display_name?: string | null; username: string },
+  name: string | null | undefined,
   maxLength = 20
 ): string {
-  const name = displayName(profile);
-  return name.length > maxLength ? name.slice(0, maxLength).trimEnd() + "…" : name;
+  const n = name?.trim() || "";
+  return n.length > maxLength ? n.slice(0, maxLength).trimEnd() + "…" : n;
 }
