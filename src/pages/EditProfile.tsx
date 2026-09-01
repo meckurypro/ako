@@ -1,13 +1,13 @@
-// src/pages/EditProfile.tsx
 import { useState, useEffect, useRef, type FormEvent } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { ArrowLeft, Camera, Shield } from "lucide-react";
 import { useAuth } from "../hooks/useAuth";
-import { useUpdateProfile } from "../hooks/useProfile";
+import { useUpdateProfile, useUpdateProfileRoles } from "../hooks/useProfile";
 import { useUploadAvatar } from "../hooks/useUploadAvatar";
 import { useRoles } from "../hooks/useRoles";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "../lib/supabase";
+import { PROFILE_ROLES_SELECT } from "../lib/profileRoles";
 import { FormField } from "../components/FormField";
 import { Button } from "../components/Button";
 import { Avatar } from "../components/Avatar";
@@ -20,7 +20,7 @@ function useOwnProfile() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("profiles")
-        .select("*")
+        .select(`*, ${PROFILE_ROLES_SELECT}`)
         .eq("id", user!.id)
         .single();
       if (error) throw error;
@@ -34,6 +34,7 @@ export function EditProfile() {
   const navigate = useNavigate();
   const { data: profile, isLoading } = useOwnProfile();
   const updateProfile = useUpdateProfile();
+  const updateProfileRoles = useUpdateProfileRoles();
   const uploadAvatar = useUploadAvatar();
   const { data: roles } = useRoles();
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -42,7 +43,7 @@ export function EditProfile() {
   const [bio, setBio] = useState("");
   const [websiteUrl, setWebsiteUrl] = useState("");
   const [avatarUrl, setAvatarUrl] = useState("");
-  const [roleId, setRoleId] = useState<string | null>(null);
+  const [roleIds, setRoleIds] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [uploadError, setUploadError] = useState<string | null>(null);
 
@@ -52,9 +53,20 @@ export function EditProfile() {
       setBio(profile.bio ?? "");
       setWebsiteUrl(profile.website_url ?? "");
       setAvatarUrl(profile.avatar_url ?? "");
-      setRoleId(profile.role_id ?? null);
+      const sorted = [...(profile.profile_roles ?? [])].sort(
+        (a: any, b: any) => a.position - b.position
+      );
+      setRoleIds(sorted.map((r: any) => r.role.id));
     }
   }, [profile]);
+
+  function toggleRole(id: string) {
+    setRoleIds((prev) => {
+      if (prev.includes(id)) return prev.filter((r) => r !== id);
+      if (prev.length >= 3) return prev; // cap at 3, ignore further taps
+      return [...prev, id];
+    });
+  }
 
   async function handleFileSelect(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -77,13 +89,15 @@ export function EditProfile() {
     setError(null);
 
     try {
-      await updateProfile.mutateAsync({
-        display_name: displayName,
-        bio,
-        website_url: websiteUrl,
-        avatar_url: avatarUrl,
-        role_id: roleId,
-      });
+      await Promise.all([
+        updateProfile.mutateAsync({
+          display_name: displayName,
+          bio,
+          website_url: websiteUrl,
+          avatar_url: avatarUrl,
+        }),
+        updateProfileRoles.mutateAsync(roleIds),
+      ]);
       navigate(-1);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Couldn't save changes.");
@@ -173,23 +187,30 @@ export function EditProfile() {
           {roles && roles.length > 0 && (
             <div className="mb-4">
               <label className="block text-sm font-medium text-ink-muted mb-1.5">
-                Job or hobby
+                Job or hobby <span className="text-ink-muted/70">({roleIds.length}/3)</span>
               </label>
               <div className="flex flex-wrap gap-2">
-                {roles.map((role) => (
-                  <button
-                    key={role.id}
-                    type="button"
-                    onClick={() => setRoleId(roleId === role.id ? null : role.id)}
-                    className={`px-3 py-1.5 rounded-full text-sm border transition-colors ${
-                      roleId === role.id
-                        ? "bg-accent text-canvas border-accent"
-                        : "bg-canvas text-ink border-border"
-                    }`}
-                  >
-                    {role.label}
-                  </button>
-                ))}
+                {roles.map((role) => {
+                  const selected = roleIds.includes(role.id);
+                  const disabled = !selected && roleIds.length >= 3;
+                  return (
+                    <button
+                      key={role.id}
+                      type="button"
+                      onClick={() => toggleRole(role.id)}
+                      disabled={disabled}
+                      className={`px-3 py-1.5 rounded-full text-sm border transition-colors ${
+                        selected
+                          ? "bg-accent text-canvas border-accent"
+                          : disabled
+                          ? "bg-canvas text-ink-muted/50 border-border cursor-not-allowed"
+                          : "bg-canvas text-ink border-border"
+                      }`}
+                    >
+                      {role.label}
+                    </button>
+                  );
+                })}
               </div>
             </div>
           )}
@@ -200,7 +221,7 @@ export function EditProfile() {
             </p>
           )}
 
-          <Button type="submit" loading={updateProfile.isPending}>
+          <Button type="submit" loading={updateProfile.isPending || updateProfileRoles.isPending}>
             Save changes
           </Button>
         </form>
