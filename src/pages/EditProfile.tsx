@@ -1,9 +1,11 @@
+// src/pages/EditProfile.tsx
 import { useState, useEffect, useRef, type FormEvent } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { ArrowLeft, Camera, Shield } from "lucide-react";
 import { useAuth } from "../hooks/useAuth";
 import { useUpdateProfile } from "../hooks/useProfile";
 import { useUploadAvatar } from "../hooks/useUploadAvatar";
+import { useRoles } from "../hooks/useRoles";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "../lib/supabase";
 import { FormField } from "../components/FormField";
@@ -33,12 +35,14 @@ export function EditProfile() {
   const { data: profile, isLoading } = useOwnProfile();
   const updateProfile = useUpdateProfile();
   const uploadAvatar = useUploadAvatar();
+  const { data: roles } = useRoles();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [displayName, setDisplayName] = useState("");
   const [bio, setBio] = useState("");
   const [websiteUrl, setWebsiteUrl] = useState("");
   const [avatarUrl, setAvatarUrl] = useState("");
+  const [roleId, setRoleId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [uploadError, setUploadError] = useState<string | null>(null);
 
@@ -48,6 +52,7 @@ export function EditProfile() {
       setBio(profile.bio ?? "");
       setWebsiteUrl(profile.website_url ?? "");
       setAvatarUrl(profile.avatar_url ?? "");
+      setRoleId(profile.role_id ?? null);
     }
   }, [profile]);
 
@@ -77,6 +82,7 @@ export function EditProfile() {
         bio,
         website_url: websiteUrl,
         avatar_url: avatarUrl,
+        role_id: roleId,
       });
       navigate(-1);
     } catch (err) {
@@ -163,6 +169,30 @@ export function EditProfile() {
             onChange={(e) => setWebsiteUrl(e.target.value)}
             placeholder="https://"
           />
+
+          {roles && roles.length > 0 && (
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-ink-muted mb-1.5">
+                Job or hobby
+              </label>
+              <div className="flex flex-wrap gap-2">
+                {roles.map((role) => (
+                  <button
+                    key={role.id}
+                    type="button"
+                    onClick={() => setRoleId(roleId === role.id ? null : role.id)}
+                    className={`px-3 py-1.5 rounded-full text-sm border transition-colors ${
+                      roleId === role.id
+                        ? "bg-accent text-canvas border-accent"
+                        : "bg-canvas text-ink border-border"
+                    }`}
+                  >
+                    {role.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
 
           {error && (
             <p className="text-danger text-sm mb-4" role="alert">
