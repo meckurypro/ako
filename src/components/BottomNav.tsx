@@ -18,44 +18,66 @@ export function BottomNav() {
   const unreadCount = useUnreadConversationCount();
 
   const linkClass = ({ isActive }: { isActive: boolean }) =>
-    `flex flex-col items-center gap-0.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+    `flex flex-col items-center gap-1 w-14 text-[11px] font-medium transition-colors ${
       isActive ? "text-accent" : "text-ink-muted"
     }`;
 
   return (
-    <nav className="fixed bottom-0 left-0 right-0 bg-canvas border-t border-border px-2 pt-2 pb-3 flex items-center justify-around z-40">
-      {sideItems.map(({ to, icon: Icon, label }) => (
-        <NavLink key={to} to={to} className={linkClass}>
-          <Icon size={22} strokeWidth={2} />
-          {label}
-        </NavLink>
-      ))}
+    // Floating sheet: rounded top corners + a soft upward shadow instead
+    // of a hard border, so the bar reads as a raised card rather than a
+    // strip with a line under it.
+    <nav className="fixed bottom-0 left-0 right-0 z-40 bg-canvas rounded-t-[28px] shadow-[0_-8px_24px_-6px_rgba(31,29,26,0.12)] px-2 pt-3 pb-[calc(env(safe-area-inset-bottom)+0.75rem)]">
+      <div className="flex items-end justify-around">
+        {sideItems.map(({ to, icon: Icon, label }) => (
+          <NavLink key={to} to={to} className={linkClass}>
+            <Icon size={24} strokeWidth={1.75} />
+            {label}
+          </NavLink>
+        ))}
 
-      {/* The single "new post" entry point — this used to also have a
-          floating action button on the Feed screen, which duplicated
-          this one. This is now the only way to start a post. */}
-      <NavLink to="/compose" aria-label="New post" className="flex flex-col items-center -mt-6">
-        <span className="bg-accent text-canvas rounded-full p-3.5 shadow-lg">
-          <Plus size={24} strokeWidth={2.5} />
-        </span>
-      </NavLink>
+        {/* The single "new post" entry point — this used to also have a
+            floating action button on the Feed screen, which duplicated
+            this one. This is now the only way to start a post.
 
-      <NavLink to="/messages" className={linkClass}>
-        <div className="relative">
-          <MessageCircle size={22} strokeWidth={2} />
-          {unreadCount > 0 && (
-            <span className="absolute -top-1 -right-1 bg-danger text-canvas text-[10px] font-medium rounded-full w-4 h-4 flex items-center justify-center">
-              {unreadCount > 9 ? "9+" : unreadCount}
-            </span>
-          )}
+            The halo behind the button is the bar's own bg-canvas colour,
+            larger than the button itself, so it reads as the bar's
+            material rising up and wrapping around the button — a notch,
+            not a separate floating circle — with a thin canvas-coloured
+            ring visible around the green fill. */}
+        <div className="flex flex-col items-center gap-1 w-14">
+          <div className="relative -mt-9 mb-1">
+            <span
+              aria-hidden
+              className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-[72px] h-[72px] rounded-full bg-canvas shadow-[0_-6px_18px_-6px_rgba(31,29,26,0.12)]"
+            />
+            <NavLink
+              to="/compose"
+              aria-label="New post"
+              className="relative flex items-center justify-center w-14 h-14 rounded-full bg-accent text-canvas shadow-md"
+            >
+              <Plus size={26} strokeWidth={2.25} />
+            </NavLink>
+          </div>
+          <span className="text-[11px] font-medium text-ink-muted">Post</span>
         </div>
-        Messages
-      </NavLink>
 
-      <NavLink to={user ? `/me` : "/login"} className={linkClass}>
-        <User size={22} strokeWidth={2} />
-        Profile
-      </NavLink>
+        <NavLink to="/messages" className={linkClass}>
+          <div className="relative">
+            <MessageCircle size={24} strokeWidth={1.75} />
+            {unreadCount > 0 && (
+              <span className="absolute -top-1 -right-1 bg-danger text-canvas text-[10px] font-medium rounded-full w-4 h-4 flex items-center justify-center">
+                {unreadCount > 9 ? "9+" : unreadCount}
+              </span>
+            )}
+          </div>
+          Messages
+        </NavLink>
+
+        <NavLink to={user ? `/me` : "/login"} className={linkClass}>
+          <User size={24} strokeWidth={1.75} />
+          Profile
+        </NavLink>
+      </div>
     </nav>
   );
 }
