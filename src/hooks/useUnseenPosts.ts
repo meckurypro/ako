@@ -12,6 +12,11 @@ export interface UnseenPostMap {
  * each author's EARLIEST post from the last 24h that the current user
  * hasn't viewed yet (per post_views). Drives the "status ring" on chat
  * avatars — same idea as WhatsApp/IG status rings, but for feed posts.
+ *
+ * refetchOnMount: "always" — don't rely solely on invalidateQueries
+ * firing at exactly the right moment (e.g. before a fast mobile
+ * back-navigation). Every time ConversationList mounts, re-check the
+ * DB directly so a stale ring can't survive a real remount.
  */
 export function useUnseenPosts(authorIds: string[]) {
   const { user } = useAuth();
@@ -46,9 +51,6 @@ export function useUnseenPosts(authorIds: string[]) {
 
       const map: UnseenPostMap = {};
       for (const post of posts) {
-        // posts is already ordered oldest-first, so the first unseen
-        // post we hit per author is the earliest one — skip if we
-        // already found one for this author.
         if (seenIds.has(post.id)) continue;
         if (map[post.author_id]) continue;
         map[post.author_id] = post.id;
@@ -58,5 +60,6 @@ export function useUnseenPosts(authorIds: string[]) {
     },
     enabled: !!user && authorIds.length > 0,
     staleTime: 30_000,
+    refetchOnMount: "always",
   });
 }
