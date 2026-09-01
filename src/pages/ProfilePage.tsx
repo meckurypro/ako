@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useParams, Link, useNavigate } from "react-router-dom";
-import { Globe, Settings, Wallet, MessageCircle, MoreHorizontal, Plus, Eye, X, Archive } from "lucide-react";
+import { Settings, Wallet, MessageCircle, MoreHorizontal, Plus, Eye, X, Archive } from "lucide-react";
 import { useAuth } from "../hooks/useAuth";
 import { useProfileByUsername, useIsFollowing, useToggleFollow } from "../hooks/useProfile";
 import { useUserPostsWithArchived } from "../hooks/usePosts";
@@ -21,10 +21,6 @@ export function ProfilePage() {
   const startConversation = useStartConversation();
   const [menuOpen, setMenuOpen] = useState(false);
 
-  // When true, an owner sees their profile exactly as a visitor
-  // would — owner-only controls hidden, only published (active)
-  // projects shown. Meaningless for non-owners, so it's gated behind
-  // isOwnProfile everywhere it's used below.
   const [previewingAsVisitor, setPreviewingAsVisitor] = useState(false);
   const [showArchived, setShowArchived] = useState(false);
 
@@ -38,17 +34,9 @@ export function ProfilePage() {
   const toggleMute = useToggleMute(profile?.id ?? "");
 
   const isOwnProfile = user?.id === profile?.id;
-  // The one flag that actually gates owner-only UI and data below —
-  // true owner-ness AND not currently previewing as a visitor.
   const showOwnerView = isOwnProfile && !previewingAsVisitor;
 
-  // Owner sees all statuses (to manage drafts/archived); everyone
-  // else — including the owner while previewing — only sees
-  // published (active) projects, same as any other visitor would.
   const { data: projects } = useUserProjects(profile?.id ?? "", showOwnerView);
-
-  // Same idea for posts: only the owner (not previewing) can flip
-  // showArchived on to review/restore their own archived posts.
   const { data: posts } = useUserPostsWithArchived(
     profile?.id ?? "",
     showOwnerView && showArchived
@@ -75,8 +63,8 @@ export function ProfilePage() {
   return (
     <div className="min-h-screen bg-canvas pb-24">
       <div className="max-w-xl mx-auto px-4 pt-8">
-        {/* Preview-mode banner — only an owner can ever see this,
-            and it's the one clear way back to their real view. */}
+
+        {/* Preview-mode banner */}
         {isOwnProfile && previewingAsVisitor && (
           <div className="flex items-center justify-between bg-accent-soft text-accent text-sm rounded-xl px-4 py-2.5 mb-4">
             <span className="flex items-center gap-1.5">
@@ -93,7 +81,7 @@ export function ProfilePage() {
           </div>
         )}
 
-        {/* Action toolbar — owner controls or visitor actions, right-aligned */}
+        {/* Action toolbar */}
         {showOwnerView ? (
           <div className="flex items-center justify-end gap-2">
             <button
@@ -119,10 +107,6 @@ export function ProfilePage() {
             </Link>
           </div>
         ) : isOwnProfile ? (
-          // Own profile, but previewing as a visitor: show none of
-          // the real visitor actions (message/follow/block a
-          // visitor would see for someone else) since those don't
-          // meaningfully apply to yourself.
           null
         ) : (
           <div className="flex items-center justify-end gap-2 relative">
@@ -177,34 +161,35 @@ export function ProfilePage() {
           </div>
         )}
 
-        {/* Header: avatar beside name/username/roles/website */}
+        {/* Header: avatar beside name / roles / handle + website */}
         <div className="flex items-start gap-4 mt-4">
           <Avatar src={profile.avatar_url} name={profile.display_name} size="lg" />
           <div className="flex-1 min-w-0 pt-1">
             <div className="flex items-center gap-2 flex-wrap">
-              <h1 className="font-display text-2xl text-ink truncate">{profile.display_name}</h1>
+              <h1 className="font-medium text-lg text-ink">{profile.display_name}</h1>
               <TierBadge tier={profile.tier} />
             </div>
-            <p className="text-ink-muted text-sm mt-0.5">
+
+            {profile.roles.length > 0 && (
+              <RoleTags roles={profile.roles} className="text-xs text-ink-muted block mt-0.5" />
+            )}
+
+            <p className="text-sm text-ink-muted mt-0.5">
               @{profile.username}
-              {profile.roles.length > 0 && (
+              {profile.website_url && (
                 <>
-                  {" · "}
-                  <RoleTags roles={profile.roles} />
+                  {" / "}
+                  <a
+                    href={profile.website_url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-accent hover:underline"
+                  >
+                    {profile.website_url.replace(/^https?:\/\//, "")}
+                  </a>
                 </>
               )}
             </p>
-            {profile.website_url && (
-              <a
-                href={profile.website_url}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex items-center gap-1.5 text-sm text-accent mt-1 hover:underline"
-              >
-                <Globe size={14} />
-                {profile.website_url.replace(/^https?:\/\//, "")}
-              </a>
-            )}
           </div>
         </div>
 
@@ -221,6 +206,7 @@ export function ProfilePage() {
           </Link>
         </div>
 
+        {/* Tabs */}
         <div className="flex items-center gap-6 mt-6 border-b border-border">
           <button
             onClick={() => setActiveTab("posts")}
@@ -260,6 +246,7 @@ export function ProfilePage() {
           )}
         </div>
 
+        {/* Tab content */}
         <div className="mt-4">
           {isBlocked ? (
             <p className="text-ink-muted text-center py-10 text-sm">
@@ -284,4 +271,4 @@ export function ProfilePage() {
       <BottomNav />
     </div>
   );
-}
+        }
