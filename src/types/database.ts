@@ -1,7 +1,6 @@
-// src/types/database.ts
 // Hand-maintained types matching the SQL schema (00_foundation.sql
-// through 12_payout_accounts_and_withdrawals.sql). Once the schema
-// stabilizes, consider generating these automatically via:
+// through 22_profile_roles.sql). Once the schema stabilizes, consider
+// generating these automatically via:
 //   npx supabase gen types typescript --project-id <ref> > database.ts
 // For now, hand-maintained keeps us honest about what's actually built
 // vs. planned.
@@ -14,6 +13,13 @@ export interface Role {
   sort_order: number;
 }
 
+// A single job/hobby tag attached to a profile, in display order.
+export interface ProfileRole {
+  role_id: string;
+  label: string;
+  position: number; // 1-3
+}
+
 export interface Profile {
   id: string;
   username: string;
@@ -22,7 +28,6 @@ export interface Profile {
   avatar_url: string | null;
   website_url: string | null;
   tier: Tier;
-  role_id: string | null;
   follower_count: number;
   following_count: number;
   is_deleted: boolean;
@@ -30,9 +35,15 @@ export interface Profile {
   updated_at: string;
 }
 
-export interface ProfileWithRole extends Profile {
-  role: Role | null;
+export interface ProfileWithRoles extends Profile {
+  roles: ProfileRole[]; // 0-3, ordered by position
 }
+
+// Enough of a profile to render an author byline anywhere in the app
+// (post card, comment, message, notification).
+export type AuthorSummary = Pick<Profile, "id" | "username" | "display_name" | "avatar_url" | "tier"> & {
+  roles: ProfileRole[];
+};
 
 export interface Category {
   id: string;
@@ -77,7 +88,7 @@ export interface Post {
 // Joined shape used when rendering a feed card — the post plus
 // enough author info to render without a separate fetch per post.
 export interface PostWithAuthor extends Post {
-  author: Pick<Profile, "id" | "username" | "display_name" | "avatar_url" | "tier">;
+  author: AuthorSummary;
 }
 
 export interface Comment {
