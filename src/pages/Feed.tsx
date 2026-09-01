@@ -186,8 +186,12 @@ export function Feed() {
 
   return (
     <div className="min-h-screen bg-canvas pb-24">
-      {/* Header + tabs stick together as one unit, like BottomNav does at the bottom */}
-      <div className="sticky top-0 z-20 bg-canvas">
+      {/* Header + tabs form one continuous bright bg-surface unit, like
+          BottomNav does at the bottom. A single subtle shadow sits on
+          the bottom edge of this whole block, casting onto the canvas
+          content below — there's no shadow/seam between the header and
+          the tabs row, since they're the same surface. */}
+      <div className="sticky top-0 z-20 bg-surface shadow-[0_2px_8px_-4px_rgba(31,29,26,0.10)]">
         <TopHeader showTagline />
 
         <div className="px-4 overflow-x-auto scrollbar-none">
