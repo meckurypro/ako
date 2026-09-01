@@ -1,4 +1,3 @@
-// src/pages/ProfilePage.tsx
 import { useState } from "react";
 import { useParams, Link, useNavigate } from "react-router-dom";
 import { Globe, Settings, Wallet, MessageCircle, MoreHorizontal, Plus, Eye, X, Archive } from "lucide-react";
@@ -10,6 +9,7 @@ import { useIsBlocked, useToggleBlock, useIsMuted, useToggleMute } from "../hook
 import { useUserProjects } from "../hooks/useProjects";
 import { Avatar } from "../components/Avatar";
 import { TierBadge } from "../components/TierBadge";
+import { RoleTags } from "../components/RoleTags";
 import { PostCard } from "../components/PostCard";
 import { ProjectCard } from "../components/ProjectCard";
 import { BottomNav } from "../components/BottomNav";
@@ -93,115 +93,122 @@ export function ProfilePage() {
           </div>
         )}
 
-        <div className="flex items-start justify-between">
-          <Avatar src={profile.avatar_url} name={profile.display_name} size="lg" />
+        {/* Action toolbar — owner controls or visitor actions, right-aligned */}
+        {showOwnerView ? (
+          <div className="flex items-center justify-end gap-2">
+            <button
+              onClick={() => setPreviewingAsVisitor(true)}
+              className="flex items-center gap-1.5 text-sm text-ink-muted border border-border rounded-full px-4 py-2"
+            >
+              <Eye size={16} />
+              Visitor
+            </button>
+            <Link
+              to="/wallet"
+              aria-label="Wallet"
+              className="flex items-center justify-center text-ink-muted border border-border rounded-full p-2"
+            >
+              <Wallet size={16} />
+            </Link>
+            <Link
+              to="/settings/profile"
+              aria-label="Edit profile"
+              className="flex items-center justify-center text-ink-muted border border-border rounded-full p-2"
+            >
+              <Settings size={16} />
+            </Link>
+          </div>
+        ) : isOwnProfile ? (
+          // Own profile, but previewing as a visitor: show none of
+          // the real visitor actions (message/follow/block a
+          // visitor would see for someone else) since those don't
+          // meaningfully apply to yourself.
+          null
+        ) : (
+          <div className="flex items-center justify-end gap-2 relative">
+            <button
+              onClick={handleMessage}
+              disabled={startConversation.isPending || isBlocked}
+              className="flex items-center gap-1.5 text-sm text-ink-muted border border-border rounded-full px-4 py-2 disabled:opacity-40"
+            >
+              <MessageCircle size={16} />
+              Message
+            </button>
+            <button
+              onClick={() => toggleFollow.mutate(isFollowing)}
+              disabled={toggleFollow.isPending || isBlocked}
+              className={`px-5 py-2 rounded-full text-sm font-medium disabled:opacity-40 ${
+                isFollowing ? "bg-accent-soft text-accent" : "bg-accent text-canvas"
+              }`}
+            >
+              {isFollowing ? "Following" : "Follow"}
+            </button>
 
-          {showOwnerView ? (
-            <div className="flex items-center gap-2">
-              <button
-                onClick={() => setPreviewingAsVisitor(true)}
-                className="flex items-center gap-1.5 text-sm text-ink-muted border border-border rounded-full px-4 py-2"
-              >
-                <Eye size={16} />
-                Visitor View
-              </button>
-              <Link
-                to="/wallet"
-                className="flex items-center gap-1.5 text-sm text-ink-muted border border-border rounded-full px-4 py-2"
-              >
-                <Wallet size={16} />
-                Wallet
-              </Link>
-              <Link
-                to="/settings/profile"
-                aria-label="Edit profile"
-                className="flex items-center justify-center text-ink-muted border border-border rounded-full p-2"
-              >
-                <Settings size={16} />
-              </Link>
-            </div>
-          ) : isOwnProfile ? (
-            // Own profile, but previewing as a visitor: show none of
-            // the real visitor actions (message/follow/block a
-            // visitor would see for someone else) since those don't
-            // meaningfully apply to yourself — just the plain layout.
-            null
-          ) : (
-            <div className="flex items-center gap-2 relative">
-              <button
-                onClick={handleMessage}
-                disabled={startConversation.isPending || isBlocked}
-                className="flex items-center gap-1.5 text-sm text-ink-muted border border-border rounded-full px-4 py-2 disabled:opacity-40"
-              >
-                <MessageCircle size={16} />
-                Message
-              </button>
-              <button
-                onClick={() => toggleFollow.mutate(isFollowing)}
-                disabled={toggleFollow.isPending || isBlocked}
-                className={`px-5 py-2 rounded-full text-sm font-medium disabled:opacity-40 ${
-                  isFollowing ? "bg-accent-soft text-accent" : "bg-accent text-canvas"
-                }`}
-              >
-                {isFollowing ? "Following" : "Follow"}
-              </button>
+            <button
+              onClick={() => setMenuOpen((o) => !o)}
+              className="text-ink-muted p-2"
+              aria-label="More options"
+            >
+              <MoreHorizontal size={18} />
+            </button>
 
-              <button
-                onClick={() => setMenuOpen((o) => !o)}
-                className="text-ink-muted p-2"
-                aria-label="More options"
-              >
-                <MoreHorizontal size={18} />
-              </button>
-
-              {menuOpen && (
-                <div className="absolute top-full right-0 mt-1 bg-canvas border border-border rounded-xl shadow-lg py-1 w-40 z-10">
-                  <button
-                    onClick={() => {
-                      toggleMute.mutate(isMuted);
-                      setMenuOpen(false);
-                    }}
-                    className="w-full text-left px-4 py-2.5 text-sm text-ink hover:bg-surface"
-                  >
-                    {isMuted ? "Unmute" : "Mute"}
-                  </button>
-                  <button
-                    onClick={() => {
-                      toggleBlock.mutate(isBlocked);
-                      setMenuOpen(false);
-                    }}
-                    className="w-full text-left px-4 py-2.5 text-sm text-danger hover:bg-surface"
-                  >
-                    {isBlocked ? "Unblock" : "Block"}
-                  </button>
-                </div>
-              )}
-            </div>
-          )}
-        </div>
-
-        <div className="mt-3 flex items-center gap-2 flex-wrap">
-          <h1 className="font-display text-2xl text-ink">{profile.display_name}</h1>
-          <TierBadge tier={profile.tier} />
-        </div>
-        <p className="text-ink-muted text-sm">
-          @{profile.username}
-          {profile.role && <span> · {profile.role.label}</span>}
-        </p>
-
-        {profile.bio && <p className="text-ink mt-3">{profile.bio}</p>}
-
-        {profile.website_url && (
-          <a
-            href={profile.website_url}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="flex items-center gap-1.5 text-sm text-accent mt-2 hover:underline"
-          >
-            <Globe size={14} />
-            {profile.website_url.replace(/^https?:\/\//, "")}
-          </a>
+            {menuOpen && (
+              <div className="absolute top-full right-0 mt-1 bg-canvas border border-border rounded-xl shadow-lg py-1 w-40 z-10">
+                <button
+                  onClick={() => {
+                    toggleMute.mutate(isMuted);
+                    setMenuOpen(false);
+                  }}
+                  className="w-full text-left px-4 py-2.5 text-sm text-ink hover:bg-surface"
+                >
+                  {isMuted ? "Unmute" : "Mute"}
+                </button>
+                <button
+                  onClick={() => {
+                    toggleBlock.mutate(isBlocked);
+                    setMenuOpen(false);
+                  }}
+                  className="w-full text-left px-4 py-2.5 text-sm text-danger hover:bg-surface"
+                >
+                  {isBlocked ? "Unblock" : "Block"}
+                </button>
+              </div>
+            )}
+          </div>
         )}
+
+        {/* Header: avatar beside name/username/roles/website */}
+        <div className="flex items-start gap-4 mt-4">
+          <Avatar src={profile.avatar_url} name={profile.display_name} size="lg" />
+          <div className="flex-1 min-w-0 pt-1">
+            <div className="flex items-center gap-2 flex-wrap">
+              <h1 className="font-display text-2xl text-ink truncate">{profile.display_name}</h1>
+              <TierBadge tier={profile.tier} />
+            </div>
+            <p className="text-ink-muted text-sm mt-0.5">
+              @{profile.username}
+              {profile.roles.length > 0 && (
+                <>
+                  {" · "}
+                  <RoleTags roles={profile.roles} />
+                </>
+              )}
+            </p>
+            {profile.website_url && (
+              <a
+                href={profile.website_url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-1.5 text-sm text-accent mt-1 hover:underline"
+              >
+                <Globe size={14} />
+                {profile.website_url.replace(/^https?:\/\//, "")}
+              </a>
+            )}
+          </div>
+        </div>
+
+        {profile.bio && <p className="text-ink mt-4">{profile.bio}</p>}
 
         <div className="flex items-center gap-5 mt-4">
           <Link to={`/profile/${profile.username}/following`} className="text-sm">
