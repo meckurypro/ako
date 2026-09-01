@@ -62,9 +62,6 @@ export function PostCard({ post }: { post: PostWithAuthor }) {
   const setArchived = useSetPostArchived();
   const editable = isOwner && canEditPost(post);
 
-  // Double-tap-to-like on the content area — a second tap arriving
-  // within the window counts as a double tap; a single tap still
-  // falls through to the normal "open post" Link underneath.
   function handleContentTap() {
     const now = Date.now();
     if (now - lastTapRef.current < DOUBLE_TAP_WINDOW_MS) {
@@ -80,13 +77,11 @@ export function PostCard({ post }: { post: PostWithAuthor }) {
       try {
         await navigator.share({ url });
       } catch {
-        // User cancelled the share sheet — not an error worth surfacing.
         return;
       }
     } else {
       await navigator.clipboard.writeText(url);
     }
-    // Still record the share for the count, same as before.
     toggleShare.mutate(false);
   }
 
@@ -97,10 +92,6 @@ export function PostCard({ post }: { post: PostWithAuthor }) {
     }
   }
 
-  // Built once per render from current reaction state, then handed to
-  // ReactionTray as the row of quick-action buttons under the post.
-  // ReactionTray itself is purely presentational — it just renders
-  // whatever actions it's given (see ReactionTray.tsx).
   const reactionActions: EngagementAction[] = [
     {
       key: "like",
@@ -153,21 +144,25 @@ export function PostCard({ post }: { post: PostWithAuthor }) {
   ];
 
   return (
-    // Two-layer shadow: a tight, slightly more visible "contact" shadow
-    // hugging the top edge, plus a soft, low-opacity ambient shadow with
-    // a small negative spread underneath — gives a subtle 3D lift without
-    // the halo/glow look.
-    <article className="bg-surface rounded-2xl p-4 mb-4 relative shadow-[0_1px_2px_rgba(31,29,26,0.08),0_6px_16px_-6px_rgba(31,29,26,0.13)]">
+    // Two-layer shadow, both increased from before: a visible 1px
+    // "outline" shadow all around (0 0 0 1px, no offset/blur — reads
+    // as a hairline border) plus a softer ambient lift shadow beneath
+    // with a bit more blur and opacity than previously.
+    <article className="bg-surface rounded-2xl p-4 mb-4 relative shadow-[0_0_0_1px_rgba(31,29,26,0.07),0_10px_24px_-6px_rgba(31,29,26,0.16)]">
       <div className="flex items-start gap-3">
         <Link to={`/profile/${post.author.username}`}>
-          <Avatar src={post.author.avatar_url} name={post.author.display_name} />
+          <Avatar src={post.author.avatar_url} name={post.author.display_name} size="xl" />
         </Link>
 
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
+            {/* Name now shares the heading's display font/style, at a
+                slightly lighter weight than the headline (semibold vs
+                bold) to keep hierarchy, with tightened leading so the
+                name+role+timestamp stack lines up against the avatar. */}
             <Link
               to={`/profile/${post.author.username}`}
-              className="font-medium text-ink hover:underline"
+              className="font-display font-semibold text-lg leading-6 text-ink hover:underline"
             >
               {shortDisplayName(post.author.display_name)}
             </Link>
@@ -175,10 +170,10 @@ export function PostCard({ post }: { post: PostWithAuthor }) {
           </div>
 
           {post.author.roles.length > 0 && (
-            <RoleTags roles={post.author.roles} className="text-xs text-ink-muted block" />
+            <RoleTags roles={post.author.roles} className="text-sm font-medium leading-5 text-ink-muted block" />
           )}
 
-          <p className="text-xs text-ink-muted flex items-center gap-1">
+          <p className="text-xs leading-4 text-ink-muted flex items-center gap-1">
             <span>
               {timeAgo(post.created_at)}
               {post.edited_at && " · edited"}
@@ -198,10 +193,6 @@ export function PostCard({ post }: { post: PostWithAuthor }) {
 
           {menuOpen && (
             <>
-              {/* Full-screen backdrop below the menu but above everything
-                  else — a tap anywhere outside the menu lands here and
-                  only closes it, instead of falling through to the post's
-                  own tap-to-like/open-post handlers underneath. */}
               <div
                 className="fixed inset-0 z-10"
                 onClick={() => setMenuOpen(false)}
@@ -315,4 +306,4 @@ export function PostCard({ post }: { post: PostWithAuthor }) {
       </Link>
     </article>
   );
-          }
+    }
