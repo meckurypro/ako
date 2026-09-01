@@ -1,4 +1,5 @@
 // src/pages/EditPost.tsx
+
 import { useEffect, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { X, Image as ImageIcon } from "lucide-react";
@@ -10,6 +11,7 @@ import { useAuth } from "../hooks/useAuth";
 import { MentionTextarea } from "../components/MentionTextarea";
 import type { PostWithAuthor } from "../types/database";
 
+const HEADING_LIMIT = 50;
 const CONTENT_LIMIT = 1000;
 const MAX_MEDIA_FILES = 4;
 
@@ -37,6 +39,7 @@ export function EditPost() {
   const updatePost = useUpdatePost();
   const uploadMedia = useUploadPostMedia();
 
+  const [heading, setHeading] = useState("");
   const [content, setContent] = useState("");
   const [mediaUrls, setMediaUrls] = useState<string[]>([]);
   const [initialized, setInitialized] = useState(false);
@@ -48,11 +51,14 @@ export function EditPost() {
   // work here since the query resolves after first render.
   useEffect(() => {
     if (post && !initialized) {
+      setHeading(post.heading ?? "");
       setContent(post.content);
       setMediaUrls(post.media_urls);
       setInitialized(true);
     }
   }, [post, initialized]);
+
+  const canSave = heading.trim().length > 0 || content.trim().length > 0;
 
   async function handleFileSelect(e: React.ChangeEvent<HTMLInputElement>) {
     const files = Array.from(e.target.files ?? []);
@@ -80,12 +86,13 @@ export function EditPost() {
   }
 
   async function handleSubmit() {
-    if (!content.trim() || !postId) return;
+    if (!canSave || !postId) return;
     setError(null);
 
     try {
       await updatePost.mutateAsync({
         post_id: postId,
+        heading: heading.trim() || undefined,
         content,
         category_id: post?.category_id ?? null,
         media_urls: mediaUrls,
@@ -124,28 +131,23 @@ export function EditPost() {
   }
 
   return (
-    <div className="min-h-screen bg-canvas px-4 pt-4 pb-24">
-      <div className="max-w-xl mx-auto">
-        <div className="flex items-center justify-between mb-4">
-          <button onClick={() => navigate(-1)} className="text-ink-muted">
-            <X size={22} />
-          </button>
-          <button
-            onClick={handleSubmit}
-            disabled={!content.trim() || updatePost.isPending}
-            className="bg-accent text-canvas px-5 py-2 rounded-full text-sm font-medium disabled:opacity-50"
-          >
-            {updatePost.isPending ? "Saving…" : "Save"}
-          </button>
-        </div>
+    <div className="min-h-screen bg-canvas">
+      <div className="max-w-xl mx-auto px-4 pt-4 pb-28">
+        <input
+          value={heading}
+          onChange={(e) => setHeading(e.target.value.slice(0, HEADING_LIMIT))}
+          maxLength={HEADING_LIMIT}
+          placeholder="Heading (optional)"
+          className="w-full font-display text-2xl leading-tight text-ink bg-transparent focus:outline-none placeholder:text-ink-muted/60 mb-1"
+        />
+        <p className="text-xs text-ink-muted mb-3">{heading.length}/{HEADING_LIMIT}</p>
 
         <MentionTextarea
           value={content}
           onChange={setContent}
           maxLength={CONTENT_LIMIT}
           rows={8}
-          autoFocus
-          className="w-full text-lg text-ink bg-transparent resize-none focus:outline-none placeholder:text-ink-muted/60"
+          className="w-full text-base text-ink bg-transparent resize-none focus:outline-none placeholder:text-ink-muted/60"
         />
 
         {mediaUrls.length > 0 && (
@@ -201,6 +203,19 @@ export function EditPost() {
             {error}
           </p>
         )}
+      </div>
+
+      <div className="fixed bottom-0 left-0 right-0 bg-canvas border-t border-border px-4 py-3 flex items-center justify-between z-40">
+        <button onClick={() => navigate(-1)} className="text-ink-muted p-1" aria-label="Close">
+          <X size={22} />
+        </button>
+        <button
+          onClick={handleSubmit}
+          disabled={!canSave || updatePost.isPending}
+          className="bg-accent text-canvas px-5 py-2 rounded-full text-sm font-medium disabled:opacity-50"
+        >
+          {updatePost.isPending ? "Saving…" : "Save"}
+        </button>
       </div>
     </div>
   );
