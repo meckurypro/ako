@@ -186,17 +186,17 @@ export function Feed() {
 
   return (
     <div className="min-h-screen bg-canvas pb-24">
-      {/* Header + tabs now stick together as one unit, like BottomNav does at the bottom */}
+      {/* Header + tabs stick together as one unit, like BottomNav does at the bottom */}
       <div className="sticky top-0 z-20 bg-canvas">
         <TopHeader showTagline />
 
-        <div className="border-b border-border px-4 overflow-x-auto scrollbar-none">
+        <div className="px-4 overflow-x-auto scrollbar-none">
           <div className="max-w-xl mx-auto flex items-center gap-6">
             {TABS.map((tab) => (
               <button
                 key={tab.key}
                 onClick={() => setActiveTab(tab.key)}
-                className={`whitespace-nowrap text-sm font-medium pb-3 pt-3 border-b-2 -mb-px ${
+                className={`whitespace-nowrap text-sm font-medium pb-2 pt-1 border-b-[3px] -mb-px ${
                   activeTab === tab.key ? "text-accent border-accent" : "text-ink-muted border-transparent"
                 }`}
               >
@@ -211,7 +211,7 @@ export function Feed() {
           even when the active tab's content (e.g. Saved with few/no
           items) doesn't fill the screen. */}
       <div
-        className="max-w-xl mx-auto px-4 pt-4 min-h-[70vh]"
+        className="max-w-xl mx-auto px-5 pt-5 min-h-[70vh]"
         onTouchStart={handleTouchStart}
         onTouchEnd={handleTouchEnd}
       >
