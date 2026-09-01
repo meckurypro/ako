@@ -20,11 +20,20 @@ export function useNotifications() {
   return useQuery({
     queryKey: ["notifications", user?.id],
     queryFn: async (): Promise<NotificationWithActor[]> => {
+      if (!user) return [];
+
       const { data, error } = await supabase
         .from("notifications")
         .select(`*, actor:profiles!notifications_actor_id_fkey(username, display_name, avatar_url)`)
+        .eq("user_id", user.id)
+        // Message notifications are surfaced via the dedicated message
+        // icon (see useUnreadConversationCount in useMessaging.ts), not
+        // the notification bell — exclude them here so they aren't
+        // double-counted/double-shown.
+        .neq("type", "message")
         .order("created_at", { ascending: false })
         .limit(50);
+
       if (error) throw error;
       return data as unknown as NotificationWithActor[];
     },
