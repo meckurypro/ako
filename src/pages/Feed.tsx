@@ -127,7 +127,7 @@ function SavedTab() {
   if (isLoading) return <p className="text-ink-muted text-center py-10">Loading…</p>;
   if (error) return <p className="text-danger text-center py-10">Couldn't load your saved posts. Try again.</p>;
   if (!posts || posts.length === 0) {
-    return <EmptyState message="Nothing saved yet. Tap the bookmark icon on a post to keep it here." />;
+    return <EmptyState message="Nothing saved yet. Tap the save icon on a post to keep it here." />;
   }
 
   return (
