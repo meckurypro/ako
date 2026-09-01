@@ -1,6 +1,7 @@
 import { Link, useNavigate } from "react-router-dom";
 import { ArrowLeft } from "lucide-react";
 import { useConversations } from "../hooks/useMessaging";
+import { useUnseenPosts } from "../hooks/useUnseenPosts";
 import { Avatar } from "../components/Avatar";
 import { BottomNav } from "../components/BottomNav";
 
@@ -17,6 +18,8 @@ function timeAgo(dateString: string): string {
 export function ConversationList() {
   const navigate = useNavigate();
   const { data: conversations, isLoading } = useConversations();
+  const authorIds = conversations?.map((c) => c.other_participant.id) ?? [];
+  const { data: unseenPosts } = useUnseenPosts(authorIds);
 
   return (
     <div className="min-h-screen bg-canvas pb-24">
@@ -35,29 +38,54 @@ export function ConversationList() {
             No conversations yet. Message someone from their profile.
           </p>
         ) : (
-          conversations.map((c) => (
-            <Link
-              key={c.id}
-              to={`/messages/${c.id}`}
-              className="flex items-center gap-3 py-3.5 border-b border-border"
-            >
-              <Avatar src={c.other_participant.avatar_url} name={c.other_participant.display_name} />
-              <div className="min-w-0 flex-1">
-                <div className="flex items-center justify-between">
-                  <p className={`text-sm truncate ${c.unread ? "font-semibold text-ink" : "font-medium text-ink"}`}>
-                    {c.other_participant.display_name}
-                  </p>
-                  <span className="text-xs text-ink-muted flex-shrink-0 ml-2">
-                    {timeAgo(c.last_message_at)}
+          conversations.map((c) => {
+            const unseenPostId = unseenPosts?.[c.other_participant.id];
+
+            return (
+              <Link
+                key={c.id}
+                to={`/messages/${c.id}`}
+                className="flex items-center gap-3 py-3.5 border-b border-border"
+              >
+                {unseenPostId ? (
+                  <span
+                    role="link"
+                    aria-label={`View ${c.other_participant.display_name}'s new post`}
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      navigate(`/post/${unseenPostId}`);
+                    }}
+                    className="flex-shrink-0 rounded-full p-[2px] bg-gradient-to-tr from-accent to-accent/50"
+                  >
+                    <span className="block rounded-full bg-canvas p-[2px]">
+                      <Avatar
+                        src={c.other_participant.avatar_url}
+                        name={c.other_participant.display_name}
+                      />
+                    </span>
                   </span>
+                ) : (
+                  <Avatar src={c.other_participant.avatar_url} name={c.other_participant.display_name} />
+                )}
+
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center justify-between">
+                    <p className={`text-sm truncate ${c.unread ? "font-semibold text-ink" : "font-medium text-ink"}`}>
+                      {c.other_participant.display_name}
+                    </p>
+                    <span className="text-xs text-ink-muted flex-shrink-0 ml-2">
+                      {timeAgo(c.last_message_at)}
+                    </span>
+                  </div>
+                  <p className={`text-sm truncate ${c.unread ? "text-ink" : "text-ink-muted"}`}>
+                    {c.last_message?.content ?? "Say hello"}
+                  </p>
                 </div>
-                <p className={`text-sm truncate ${c.unread ? "text-ink" : "text-ink-muted"}`}>
-                  {c.last_message?.content ?? "Say hello"}
-                </p>
-              </div>
-              {c.unread && <div className="w-2 h-2 rounded-full bg-accent flex-shrink-0" />}
-            </Link>
-          ))
+                {c.unread && <div className="w-2 h-2 rounded-full bg-accent flex-shrink-0" />}
+              </Link>
+            );
+          })
         )}
       </div>
 
