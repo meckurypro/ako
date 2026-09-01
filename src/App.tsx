@@ -1,3 +1,4 @@
+// src/App.tsx
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { AuthProvider } from "./hooks/useAuth";
@@ -12,7 +13,9 @@ import { InterestPicker } from "./pages/onboarding/InterestPicker";
 
 import { Feed } from "./pages/Feed";
 import { Compose } from "./pages/Compose";
+import { EditPost } from "./pages/EditPost";
 import { PostDetail } from "./pages/PostDetail";
+import { HashtagFeed } from "./pages/HashtagFeed";
 import { Topics } from "./pages/Topics";
 
 import { ProfilePage } from "./pages/ProfilePage";
@@ -96,6 +99,22 @@ export default function App() {
               element={
                 <RequireAuth>
                   <PostDetail />
+                </RequireAuth>
+              }
+            />
+            <Route
+              path="/post/:postId/edit"
+              element={
+                <RequireAuth>
+                  <EditPost />
+                </RequireAuth>
+              }
+            />
+            <Route
+              path="/hashtag/:tag"
+              element={
+                <RequireAuth>
+                  <HashtagFeed />
                 </RequireAuth>
               }
             />
