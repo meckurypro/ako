@@ -1,3 +1,4 @@
+// src/hooks/useProfile.ts
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "../lib/supabase";
 import { useAuth } from "./useAuth";
@@ -28,6 +29,7 @@ export function useUserPosts(userId: string) {
         .select(`*, author:profiles!posts_author_id_fkey(id, username, display_name, avatar_url, tier)`)
         .eq("author_id", userId)
         .eq("is_deleted", false)
+        .eq("is_archived", false)
         .order("created_at", { ascending: false });
       if (error) throw error;
       return data;
