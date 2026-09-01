@@ -129,7 +129,17 @@ export function PostCard({ post }: { post: PostWithAuthor }) {
           </button>
 
           {menuOpen && (
-            <div className="absolute top-full right-0 mt-1 bg-canvas border border-border rounded-xl shadow-lg py-1 w-48 z-20">
+            <>
+              {/* Full-screen backdrop below the menu but above everything
+                  else — a tap anywhere outside the menu lands here and
+                  only closes it, instead of falling through to the post's
+                  own tap-to-like/open-post handlers underneath. */}
+              <div
+                className="fixed inset-0 z-10"
+                onClick={() => setMenuOpen(false)}
+                aria-hidden="true"
+              />
+              <div className="absolute top-full right-0 mt-1 bg-canvas border border-border rounded-xl shadow-lg py-1 w-48 z-20">
               <button
                 onClick={() => {
                   toggleLike.mutate(isLiked);
@@ -217,13 +227,14 @@ export function PostCard({ post }: { post: PostWithAuthor }) {
                   </button>
                 </>
               )}
-            </div>
+              </div>
+            </>
           )}
         </div>
       </div>
 
       <Link to={`/post/${post.id}`} onClick={handleContentTap} className="block mt-3">
-        <PostContent content={post.content} />
+        <PostContent heading={post.heading} content={post.content} />
       </Link>
 
       <PostMedia mediaUrls={post.media_urls} />
