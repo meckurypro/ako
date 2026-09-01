@@ -1,8 +1,14 @@
+// src/hooks/usePosts.ts
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "../lib/supabase";
 import type { PostWithAuthor } from "../types/database";
 
 const PAGE_SIZE = 15;
+export const POST_EDIT_WINDOW_MS = 15 * 60 * 1000;
+
+export function canEditPost(post: Pick<PostWithAuthor, "created_at">): boolean {
+  return Date.now() - new Date(post.created_at).getTime() <= POST_EDIT_WINDOW_MS;
+}
 
 interface CreatePostInput {
   content: string;
@@ -26,6 +32,7 @@ export function useFeedPosts(interestId?: string, page = 0) {
           `*, author:profiles!posts_author_id_fkey(id, username, display_name, avatar_url, tier)`
         )
         .eq("is_deleted", false)
+        .eq("is_archived", false)
         .order("created_at", { ascending: false })
         .range(page * PAGE_SIZE, page * PAGE_SIZE + PAGE_SIZE - 1);
 
@@ -70,5 +77,117 @@ export function useCreatePost() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["feed-posts"] });
     },
+  });
+}
+
+interface UpdatePostInput {
+  post_id: string;
+  content: string;
+  category_id?: string | null;
+  media_urls?: string[];
+}
+
+/**
+ * Edits a post's content via the update-post edge function — same
+ * reasoning as create-post: edits get re-moderated, and the
+ * 15-minute window is enforced both there and at the DB level (see
+ * the posts_enforce_edit_window trigger), so this can't be bypassed
+ * by calling Supabase directly either.
+ */
+export function useUpdatePost() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (input: UpdatePostInput) => {
+      const { data, error } = await supabase.functions.invoke("update-post", {
+        body: input,
+      });
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+      return data.post;
+    },
+    onSuccess: (post) => {
+      queryClient.invalidateQueries({ queryKey: ["feed-posts"] });
+      queryClient.invalidateQueries({ queryKey: ["user-posts"] });
+      queryClient.invalidateQueries({ queryKey: ["post", post.id] });
+    },
+  });
+}
+
+/**
+ * Soft-deletes a post the author owns. Goes straight through RLS
+ * (no edge function needed) since no content is being written —
+ * the "Authors can update their own posts" policy covers this, and
+ * the edit-window trigger explicitly allows is_deleted to change at
+ * any time regardless of the post's age.
+ */
+export function useDeletePost() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (postId: string) => {
+      const { error } = await supabase
+        .from("posts")
+        .update({ is_deleted: true })
+        .eq("id", postId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["feed-posts"] });
+      queryClient.invalidateQueries({ queryKey: ["user-posts"] });
+    },
+  });
+}
+
+/**
+ * Archives/restores a post — same RLS path as delete. Archived
+ * posts are hidden from the feed and from other people's view of
+ * the profile, but stay visible to the owner via their own
+ * "Archived" filter on their profile.
+ */
+export function useSetPostArchived() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ postId, archived }: { postId: string; archived: boolean }) => {
+      const { error } = await supabase
+        .from("posts")
+        .update({ is_archived: archived })
+        .eq("id", postId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["feed-posts"] });
+      queryClient.invalidateQueries({ queryKey: ["user-posts"] });
+    },
+  });
+}
+
+/**
+ * Fetches a user's own posts including archived ones, for the
+ * "Archived" filter on their own profile. Only ever called with
+ * includeArchived = true when the viewer is confirmed to be the
+ * owner (see ProfilePage) — everyone else always gets the
+ * archived-excluded view from useUserPosts in useProfile.ts.
+ */
+export function useUserPostsWithArchived(userId: string, includeArchived: boolean) {
+  return useQuery({
+    queryKey: ["user-posts", userId, "with-archived", includeArchived],
+    queryFn: async (): Promise<PostWithAuthor[]> => {
+      let query = supabase
+        .from("posts")
+        .select(`*, author:profiles!posts_author_id_fkey(id, username, display_name, avatar_url, tier)`)
+        .eq("author_id", userId)
+        .eq("is_deleted", false);
+
+      if (!includeArchived) {
+        query = query.eq("is_archived", false);
+      }
+
+      const { data, error } = await query.order("created_at", { ascending: false });
+      if (error) throw error;
+      return data as unknown as PostWithAuthor[];
+    },
+    enabled: !!userId,
   });
 }
