@@ -18,7 +18,7 @@ export function TopHeader({ showTagline = false }: TopHeaderProps) {
   const { data: me } = useMyProfile();
 
   return (
-    <header className="px-4 pt-5 pb-2 sticky top-0 bg-canvas z-30 flex items-center justify-between">
+    <header className="px-4 pt-5 pb-2 sticky top-0 bg-surface z-30 flex items-center justify-between shadow-[0_4px_12px_-6px_rgba(31,29,26,0.12)]">
       <Link to={me ? `/profile/${me.username}` : "/me"} aria-label="Your profile">
         <Avatar src={me?.avatar_url} name={me?.display_name ?? "You"} size="sm" />
       </Link>
@@ -35,4 +35,4 @@ export function TopHeader({ showTagline = false }: TopHeaderProps) {
       </Link>
     </header>
   );
-}  
+}
