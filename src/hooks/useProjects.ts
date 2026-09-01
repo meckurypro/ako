@@ -1,3 +1,4 @@
+// src/hooks/useProjects.ts
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "../lib/supabase";
 import { useAuth } from "./useAuth";
@@ -236,6 +237,30 @@ export function useSetProjectStatus() {
   });
 }
 
+
+/**
+ * Hard-deletes a project via the delete-project edge function.
+ * Goes through an edge function rather than direct RLS because it
+ * needs to distinguish "no purchases, delete succeeded" from "this
+ * project has purchase history and can't be removed" and return a
+ * clear message for the latter rather than a raw FK error.
+ */
+export function useDeleteProject() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (projectId: string) => {
+      const { data, error } = await supabase.functions.invoke("delete-project", {
+        body: { project_id: projectId },
+      });
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["user-projects"] });
+    },
+  });
+}
 
 export function useHasPurchased(projectId: string) {
   const { user } = useAuth();
