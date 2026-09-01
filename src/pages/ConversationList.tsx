@@ -131,16 +131,18 @@ export function ConversationList() {
                       {timeAgo(c.last_message_at)}
                     </span>
                   </div>
-                  <p className={`text-sm truncate flex items-center gap-1 ${c.unread ? "text-ink" : "text-ink-muted"}`}>
+                  <p className={`text-sm flex items-center gap-1 min-w-0 ${c.unread ? "text-ink" : "text-ink-muted"}`}>
                     {showTicksInPreview && c.last_message && (
-                      <MessageStatusTicks
-                        deliveredAt={c.last_message.delivered_at}
-                        readAt={c.last_message.read_at}
-                        variant="list"
-                        size={13}
-                      />
+                      <span className="flex-shrink-0 inline-flex">
+                        <MessageStatusTicks
+                          deliveredAt={c.last_message.delivered_at}
+                          readAt={c.last_message.read_at}
+                          variant="list"
+                          size={13}
+                        />
+                      </span>
                     )}
-                    <span className="truncate">{c.last_message?.content ?? "Say hello"}</span>
+                    <span className="truncate min-w-0 flex-1">{c.last_message?.content ?? "Say hello"}</span>
                   </p>
                 </div>
                 {c.unread && <div className="w-2 h-2 rounded-full bg-accent flex-shrink-0" />}
