@@ -1,11 +1,10 @@
 // src/pages/PostDetail.tsx
-import { useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { ArrowLeft } from "lucide-react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { supabase } from "../lib/supabase";
-import { useAuth } from "../hooks/useAuth";
 import { useComments } from "../hooks/useComments";
+import { useMarkPostSeen } from "../hooks/useMarkPostSeen";
 import { PostCard } from "../components/PostCard";
 import { CommentThread } from "../components/CommentThread";
 import { PROFILE_ROLES_SELECT, toProfileRoles } from "../lib/profileRoles";
@@ -34,33 +33,6 @@ function usePost(postId: string) {
     },
     enabled: !!postId,
   });
-}
-
-/**
- * Records that the current user has seen this post — powers the
- * unseen-post "ring" on chat avatars (see useUnseenPosts.ts). Fires
- * once per postId/user, silently no-ops on conflict (already seen)
- * or if the viewer is the post's own author.
- */
-function useMarkPostSeen(postId: string, authorId: string | undefined) {
-  const { user } = useAuth();
-  const queryClient = useQueryClient();
-
-  useEffect(() => {
-    if (!postId || !user || !authorId) return;
-    if (user.id === authorId) return; // don't track authors viewing their own post
-
-    supabase
-      .from("post_views")
-      .upsert({ user_id: user.id, post_id: postId }, { onConflict: "user_id,post_id", ignoreDuplicates: true })
-      .then(({ error }) => {
-        if (error) {
-          console.error("Failed to mark post as seen:", error);
-          return;
-        }
-        queryClient.invalidateQueries({ queryKey: ["unseen-posts"] });
-      });
-  }, [postId, user, authorId, queryClient]);
 }
 
 export function PostDetail() {
