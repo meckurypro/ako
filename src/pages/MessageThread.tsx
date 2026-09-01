@@ -220,7 +220,9 @@ export function MessageThread() {
             return (
               <div key={m.id} className={`flex mb-2 ${isMine ? "justify-end" : "justify-start"}`}>
                 <div
-                  ref={(el) => (messageRefs.current[m.id] = el)}
+                  ref={(el) => {
+                    messageRefs.current[m.id] = el;
+                  }}
                   className={`max-w-[75%] rounded-2xl px-4 py-2.5 text-sm whitespace-pre-wrap break-words transition-shadow duration-300 ${
                     isMine ? "bg-accent text-canvas" : "bg-surface text-ink"
                   } ${isCurrentMatch ? "ring-2 ring-accent ring-offset-2 ring-offset-canvas" : ""}`}
