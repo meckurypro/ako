@@ -153,7 +153,7 @@ export function PostCard({ post }: { post: PostWithAuthor }) {
   ];
 
   return (
-<article className="bg-surface rounded-2xl p-4 mb-4 relative shadow-[0_1px_3px_rgba(31,29,26,0.05),0_6px_16px_-6px_rgba(31,29,26,0.10)]">
+    <article className="bg-surface rounded-2xl p-4 mb-4 relative shadow-[0_1px_2px_rgba(31,29,26,0.04),0_10px_28px_-4px_rgba(31,29,26,0.14)]">
       <div className="flex items-start gap-3">
         <Link to={`/profile/${post.author.username}`}>
           <Avatar src={post.author.avatar_url} name={post.author.display_name} />
@@ -203,13 +203,13 @@ export function PostCard({ post }: { post: PostWithAuthor }) {
                 onClick={() => setMenuOpen(false)}
                 aria-hidden="true"
               />
-              <div className="absolute top-full right-0 mt-1 bg-canvas border border-border rounded-xl shadow-lg py-1 w-48 z-20">
+              <div className="absolute top-full right-0 mt-1 bg-surface border border-border rounded-xl shadow-lg py-1 w-48 z-20">
                 <button
                   onClick={() => {
                     toggleLike.mutate(isLiked);
                     setMenuOpen(false);
                   }}
-                  className="w-full flex items-center justify-between px-4 py-2.5 text-sm text-ink hover:bg-surface"
+                  className="w-full flex items-center justify-between px-4 py-2.5 text-sm text-ink hover:bg-canvas"
                 >
                   <span className="flex items-center gap-2">
                     <Heart size={14} fill={isLiked ? "currentColor" : "none"} className={isLiked ? "text-accent" : ""} />
@@ -223,7 +223,7 @@ export function PostCard({ post }: { post: PostWithAuthor }) {
                     toggleDislike.mutate(isDisliked);
                     setMenuOpen(false);
                   }}
-                  className="w-full flex items-center justify-between px-4 py-2.5 text-sm text-ink hover:bg-surface"
+                  className="w-full flex items-center justify-between px-4 py-2.5 text-sm text-ink hover:bg-canvas"
                 >
                   <span className="flex items-center gap-2">
                     <ThumbsDown size={14} fill={isDisliked ? "currentColor" : "none"} className={isDisliked ? "text-danger" : ""} />
@@ -234,7 +234,7 @@ export function PostCard({ post }: { post: PostWithAuthor }) {
 
                 <button
                   onClick={handleShare}
-                  className="w-full flex items-center justify-between px-4 py-2.5 text-sm text-ink hover:bg-surface"
+                  className="w-full flex items-center justify-between px-4 py-2.5 text-sm text-ink hover:bg-canvas"
                 >
                   <span className="flex items-center gap-2">
                     <Share2 size={14} />
@@ -248,7 +248,7 @@ export function PostCard({ post }: { post: PostWithAuthor }) {
                     toggleBookmark.mutate(isBookmarked);
                     setMenuOpen(false);
                   }}
-                  className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-ink hover:bg-surface"
+                  className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-ink hover:bg-canvas"
                 >
                   <Bookmark size={14} fill={isBookmarked ? "currentColor" : "none"} className={isBookmarked ? "text-accent" : ""} />
                   {isBookmarked ? "Remove from Saved" : "Save"}
@@ -263,7 +263,7 @@ export function PostCard({ post }: { post: PostWithAuthor }) {
                           setMenuOpen(false);
                           navigate(`/post/${post.id}/edit`);
                         }}
-                        className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-ink hover:bg-surface"
+                        className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-ink hover:bg-canvas"
                       >
                         <Pencil size={14} />
                         Edit
@@ -274,14 +274,14 @@ export function PostCard({ post }: { post: PostWithAuthor }) {
                         setArchived.mutate({ postId: post.id, archived: !post.is_archived });
                         setMenuOpen(false);
                       }}
-                      className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-ink hover:bg-surface"
+                      className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-ink hover:bg-canvas"
                     >
                       {post.is_archived ? <RotateCcw size={14} /> : <Archive size={14} />}
                       {post.is_archived ? "Restore" : "Archive"}
                     </button>
                     <button
                       onClick={handleDelete}
-                      className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-danger hover:bg-surface"
+                      className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-danger hover:bg-canvas"
                     >
                       <Trash2 size={14} />
                       Delete
@@ -311,4 +311,4 @@ export function PostCard({ post }: { post: PostWithAuthor }) {
       </Link>
     </article>
   );
-                      }
+                          }
