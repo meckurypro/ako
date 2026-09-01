@@ -153,7 +153,7 @@ export function PostCard({ post }: { post: PostWithAuthor }) {
   ];
 
   return (
-    <article className="bg-surface rounded-2xl p-4 mb-3 relative">
+<article className="bg-surface rounded-2xl p-4 mb-4 relative shadow-[0_1px_3px_rgba(31,29,26,0.05),0_6px_16px_-6px_rgba(31,29,26,0.10)]">
       <div className="flex items-start gap-3">
         <Link to={`/profile/${post.author.username}`}>
           <Avatar src={post.author.avatar_url} name={post.author.display_name} />
