@@ -41,6 +41,4 @@ export function Avatar({ src, name, size = "md" }: AvatarProps) {
       {initials}
     </div>
   );
-}    </div>
-  );
-}
+}   
