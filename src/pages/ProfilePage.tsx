@@ -1,7 +1,7 @@
 // src/pages/ProfilePage.tsx
 import { useState } from "react";
 import { useParams, Link, useNavigate } from "react-router-dom";
-import { Globe, Settings, Bookmark, MessageCircle, MoreVertical, Plus, Eye, X, Archive } from "lucide-react";
+import { Globe, Settings, Wallet, MessageCircle, MoreHorizontal, Plus, Eye, X, Archive } from "lucide-react";
 import { useAuth } from "../hooks/useAuth";
 import { useProfileByUsername, useIsFollowing, useToggleFollow } from "../hooks/useProfile";
 import { useUserPostsWithArchived } from "../hooks/usePosts";
@@ -106,11 +106,11 @@ export function ProfilePage() {
                 Visitor View
               </button>
               <Link
-                to="/bookmarks"
+                to="/wallet"
                 className="flex items-center gap-1.5 text-sm text-ink-muted border border-border rounded-full px-4 py-2"
               >
-                <Bookmark size={16} />
-                Saved
+                <Wallet size={16} />
+                Wallet
               </Link>
               <Link
                 to="/settings/profile"
@@ -151,7 +151,7 @@ export function ProfilePage() {
                 className="text-ink-muted p-2"
                 aria-label="More options"
               >
-                <MoreVertical size={18} />
+                <MoreHorizontal size={18} />
               </button>
 
               {menuOpen && (
@@ -192,7 +192,7 @@ export function ProfilePage() {
         {profile.bio && <p className="text-ink mt-3">{profile.bio}</p>}
 
         {profile.website_url && (
-          <a
+          
             href={profile.website_url}
             target="_blank"
             rel="noopener noreferrer"
