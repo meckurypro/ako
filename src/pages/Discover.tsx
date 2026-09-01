@@ -9,9 +9,9 @@ import { RoleTags } from "../components/RoleTags";
 import { PostCard } from "../components/PostCard";
 import { BottomNav } from "../components/BottomNav";
 import { TopHeader } from "../components/TopHeader";
-import type { Profile } from "../types/database";
+import type { ProfileWithRoles } from "../types/database";
 
-function PersonRow({ profile }: { profile: Profile & { follower_count: number; roles?: any[] } }) {
+function PersonRow({ profile }: { profile: ProfileWithRoles }) {
   return (
     <Link
       to={`/profile/${profile.username}`}
@@ -112,7 +112,7 @@ export function Discover() {
               ) : peopleResults && peopleResults.length > 0 ? (
                 <div className="divide-y divide-border">
                   {peopleResults.map((p) => (
-                    <PersonRow key={p.id} profile={p as any} />
+                    <PersonRow key={p.id} profile={p} />
                   ))}
                 </div>
               ) : (
@@ -138,7 +138,7 @@ export function Discover() {
               ) : suggestedPeople && suggestedPeople.length > 0 ? (
                 <div className="divide-y divide-border">
                   {suggestedPeople.map((p) => (
-                    <PersonRow key={p.id} profile={p as any} />
+                    <PersonRow key={p.id} profile={p} />
                   ))}
                 </div>
               ) : (
@@ -208,4 +208,4 @@ export function Discover() {
       <BottomNav />
     </div>
   );
-}
+                  }
