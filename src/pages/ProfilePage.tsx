@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useParams, Link, useNavigate } from "react-router-dom";
-import { Settings, Wallet, MessageCircle, MoreHorizontal, Plus, Eye, X, Archive } from "lucide-react";
+import { Settings, Wallet, MessageCircle, MoreHorizontal, Plus, Eye, X, Archive, Globe } from "lucide-react";
 import { useAuth } from "../hooks/useAuth";
 import { useProfileByUsername, useIsFollowing, useToggleFollow } from "../hooks/useProfile";
 import { useUserPostsWithArchived } from "../hooks/usePosts";
@@ -180,13 +180,14 @@ export function ProfilePage() {
                 <>
                   {" / "}
                   <a
-                    href={profile.website_url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-accent hover:underline"
-                  >
-                    {profile.website_url.replace(/^https?:\/\//, "")}
-                  </a>
+  href={profile.website_url}
+  target="_blank"
+  rel="noopener noreferrer"
+  className="inline-flex items-center gap-1 text-accent hover:underline"
+>
+  <Globe size={12} />
+  {profile.website_url.replace(/^https?:\/\//, "")}
+</a>
                 </>
               )}
             </p>
