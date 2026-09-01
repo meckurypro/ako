@@ -153,7 +153,11 @@ export function PostCard({ post }: { post: PostWithAuthor }) {
   ];
 
   return (
-    <article className="bg-surface rounded-2xl p-4 mb-4 relative shadow-[0_1px_2px_rgba(31,29,26,0.04),0_10px_28px_-4px_rgba(31,29,26,0.14)]">
+    // Two-layer shadow: a tight, slightly more visible "contact" shadow
+    // hugging the top edge, plus a soft, low-opacity ambient shadow with
+    // a small negative spread underneath — gives a subtle 3D lift without
+    // the halo/glow look.
+    <article className="bg-surface rounded-2xl p-4 mb-4 relative shadow-[0_1px_2px_rgba(31,29,26,0.08),0_6px_16px_-6px_rgba(31,29,26,0.13)]">
       <div className="flex items-start gap-3">
         <Link to={`/profile/${post.author.username}`}>
           <Avatar src={post.author.avatar_url} name={post.author.display_name} />
@@ -311,4 +315,4 @@ export function PostCard({ post }: { post: PostWithAuthor }) {
       </Link>
     </article>
   );
-                          }
+          }
