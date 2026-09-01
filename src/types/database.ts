@@ -1,3 +1,4 @@
+// src/types/database.ts
 // Hand-maintained types matching the SQL schema (00_foundation.sql
 // through 12_payout_accounts_and_withdrawals.sql). Once the schema
 // stabilizes, consider generating these automatically via:
@@ -56,6 +57,7 @@ export interface Post {
   gift_count: number;
   comment_count: number;
   is_deleted: boolean;
+  is_archived: boolean;
   edited_at: string | null;
   created_at: string;
 }
