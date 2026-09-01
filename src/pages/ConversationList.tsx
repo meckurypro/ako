@@ -1,3 +1,4 @@
+// src/pages/ConversationList.tsx
 import { Link, useNavigate } from "react-router-dom";
 import { ArrowLeft } from "lucide-react";
 import { useConversations } from "../hooks/useMessaging";
@@ -56,7 +57,11 @@ export function ConversationList() {
                       e.stopPropagation();
                       navigate(`/post/${unseenPostId}`);
                     }}
-                    className="flex-shrink-0 rounded-full p-[2px] bg-gradient-to-tr from-accent to-accent/50"
+                    className="flex-shrink-0 rounded-full p-[2.5px]"
+                    style={{
+                      background: "linear-gradient(45deg, #ff00e5, #00f0ff, #39ff14)",
+                      boxShadow: "0 0 6px rgba(0, 240, 255, 0.6)",
+                    }}
                   >
                     <span className="block rounded-full bg-canvas p-[2px]">
                       <Avatar
