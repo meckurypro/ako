@@ -20,6 +20,29 @@ export function useProfileByUsername(username: string) {
   });
 }
 
+/**
+ * The signed-in user's own id/username/avatar — just enough for the
+ * TopHeader avatar link. Keyed by user id so it shares cache with
+ * anything else that happens to fetch the same slice later.
+ */
+export function useMyProfile() {
+  const { user } = useAuth();
+
+  return useQuery({
+    queryKey: ["my-profile", user?.id],
+    queryFn: async (): Promise<Pick<Profile, "id" | "username" | "display_name" | "avatar_url">> => {
+      const { data, error } = await supabase
+        .from("profiles")
+        .select("id, username, display_name, avatar_url")
+        .eq("id", user!.id)
+        .single();
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!user,
+  });
+}
+
 export function useUserPosts(userId: string) {
   return useQuery({
     queryKey: ["user-posts", userId],
