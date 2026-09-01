@@ -1,9 +1,11 @@
+// src/pages/Compose.tsx
 import { useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { X, Image as ImageIcon } from "lucide-react";
+import { X, Image as ImageIcon, ChevronDown, ChevronRight } from "lucide-react";
 import { useCreatePost } from "../hooks/usePosts";
 import { useCategories } from "../hooks/useCategories";
 import { useUploadPostMedia, isVideoUrl } from "../hooks/useUploadPostMedia";
+import { MentionTextarea } from "../components/MentionTextarea";
 
 const CONTENT_LIMIT = 1000;
 const MAX_MEDIA_FILES = 4;
@@ -12,6 +14,7 @@ export function Compose() {
   const navigate = useNavigate();
   const [content, setContent] = useState("");
   const [categoryId, setCategoryId] = useState<string | null>(null);
+  const [categoriesOpen, setCategoriesOpen] = useState(false);
   const [mediaUrls, setMediaUrls] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [uploadError, setUploadError] = useState<string | null>(null);
@@ -19,6 +22,8 @@ export function Compose() {
   const uploadMedia = useUploadPostMedia();
   const { data: categories } = useCategories();
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const selectedCategory = categories?.find((c) => c.id === categoryId);
 
   async function handleFileSelect(e: React.ChangeEvent<HTMLInputElement>) {
     const files = Array.from(e.target.files ?? []);
@@ -80,13 +85,13 @@ export function Compose() {
           </button>
         </div>
 
-        <textarea
+        <MentionTextarea
           value={content}
-          onChange={(e) => setContent(e.target.value)}
+          onChange={setContent}
           maxLength={CONTENT_LIMIT}
           rows={8}
           autoFocus
-          placeholder="What's on your mind?"
+          placeholder="What's on your mind? Use @ to mention someone."
           className="w-full text-lg text-ink bg-transparent resize-none focus:outline-none placeholder:text-ink-muted/60"
         />
 
@@ -140,24 +145,38 @@ export function Compose() {
 
         {categories && categories.length > 0 && (
           <div className="mt-6">
-            <p className="text-sm font-medium text-ink-muted mb-2">Category (optional)</p>
-            <div className="flex flex-wrap gap-2">
-              {categories.map((category) => (
-                <button
-                  key={category.id}
-                  onClick={() =>
-                    setCategoryId(categoryId === category.id ? null : category.id)
-                  }
-                  className={`px-3 py-1.5 rounded-full text-sm border transition-colors ${
-                    categoryId === category.id
-                      ? "bg-accent text-canvas border-accent"
-                      : "bg-surface text-ink border-border"
-                  }`}
-                >
-                  {category.name}
-                </button>
-              ))}
-            </div>
+            <button
+              onClick={() => setCategoriesOpen((o) => !o)}
+              className="w-full flex items-center justify-between text-sm font-medium text-ink-muted mb-2"
+            >
+              <span>
+                Category (optional)
+                {selectedCategory && !categoriesOpen && (
+                  <span className="text-ink"> · {selectedCategory.name}</span>
+                )}
+              </span>
+              {categoriesOpen ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
+            </button>
+
+            {categoriesOpen && (
+              <div className="flex flex-wrap gap-2">
+                {categories.map((category) => (
+                  <button
+                    key={category.id}
+                    onClick={() =>
+                      setCategoryId(categoryId === category.id ? null : category.id)
+                    }
+                    className={`px-3 py-1.5 rounded-full text-sm border transition-colors ${
+                      categoryId === category.id
+                        ? "bg-accent text-canvas border-accent"
+                        : "bg-surface text-ink border-border"
+                    }`}
+                  >
+                    {category.name}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
         )}
 
