@@ -1,20 +1,21 @@
-// src/hooks/useProfile.ts
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "../lib/supabase";
 import { useAuth } from "./useAuth";
-import type { Profile, ProfileWithRole } from "../types/database";
+import { PROFILE_ROLES_SELECT, toProfileRoles } from "../lib/profileRoles";
+import type { Profile, ProfileWithRoles } from "../types/database";
 
 export function useProfileByUsername(username: string) {
   return useQuery({
     queryKey: ["profile", username],
-    queryFn: async (): Promise<ProfileWithRole> => {
+    queryFn: async (): Promise<ProfileWithRoles> => {
       const { data, error } = await supabase
         .from("profiles")
-        .select("*, role:roles(id, label, sort_order)")
+        .select(`*, ${PROFILE_ROLES_SELECT}`)
         .eq("username", username)
         .single();
       if (error) throw error;
-      return data as unknown as ProfileWithRole;
+      const { profile_roles, ...profile } = data as any;
+      return { ...profile, roles: toProfileRoles(profile_roles) };
     },
     enabled: !!username,
   });
@@ -49,13 +50,18 @@ export function useUserPosts(userId: string) {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("posts")
-        .select(`*, author:profiles!posts_author_id_fkey(id, username, display_name, avatar_url, tier)`)
+        .select(
+          `*, author:profiles!posts_author_id_fkey(id, username, display_name, avatar_url, tier, ${PROFILE_ROLES_SELECT})`
+        )
         .eq("author_id", userId)
         .eq("is_deleted", false)
         .eq("is_archived", false)
         .order("created_at", { ascending: false });
       if (error) throw error;
-      return data;
+      return data.map((post: any) => {
+        const { profile_roles, ...author } = post.author;
+        return { ...post, author: { ...author, roles: toProfileRoles(profile_roles) } };
+      });
     },
     enabled: !!userId,
   });
@@ -146,7 +152,6 @@ interface UpdateProfileInput {
   bio?: string;
   avatar_url?: string;
   website_url?: string;
-  role_id?: string | null;
 }
 
 export function useUpdateProfile() {
@@ -161,6 +166,29 @@ export function useUpdateProfile() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["profile"] });
+    },
+  });
+}
+
+/**
+ * Replaces the signed-in user's job/hobby tags in one atomic call
+ * (delete + reinsert with position, via the set_profile_roles RPC).
+ * roleIds is treated as ordered — index 0 becomes position 1, etc.
+ */
+export function useUpdateProfileRoles() {
+  const { user } = useAuth();
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (roleIds: string[]) => {
+      if (!user) throw new Error("Not signed in");
+      if (roleIds.length > 3) throw new Error("You can select up to 3 job/hobby tags.");
+      const { error } = await supabase.rpc("set_profile_roles", { p_role_ids: roleIds });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["profile"] });
+      queryClient.invalidateQueries({ queryKey: ["own-profile"] });
     },
   });
 }
