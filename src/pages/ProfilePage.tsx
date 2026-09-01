@@ -192,7 +192,7 @@ export function ProfilePage() {
         {profile.bio && <p className="text-ink mt-3">{profile.bio}</p>}
 
         {profile.website_url && (
-          
+          <a
             href={profile.website_url}
             target="_blank"
             rel="noopener noreferrer"
