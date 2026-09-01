@@ -1,6 +1,7 @@
 // src/pages/ConversationList.tsx
+import { useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, Search, X } from "lucide-react";
 import { useConversations } from "../hooks/useMessaging";
 import { useUnseenPosts } from "../hooks/useUnseenPosts";
 import { Avatar } from "../components/Avatar";
@@ -22,6 +23,24 @@ export function ConversationList() {
   const authorIds = conversations?.map((c) => c.other_participant.id) ?? [];
   const { data: unseenPosts } = useUnseenPosts(authorIds);
 
+  const [searchQuery, setSearchQuery] = useState("");
+
+  // Client-side filter over the already-fetched list — matches by
+  // contact name/username or last-message content. Cheap enough at
+  // conversation-list scale; no need for a server round trip.
+  const filteredConversations = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    if (!q || !conversations) return conversations;
+    return conversations.filter((c) => {
+      const { display_name, username } = c.other_participant;
+      return (
+        display_name.toLowerCase().includes(q) ||
+        username.toLowerCase().includes(q) ||
+        (c.last_message?.content ?? "").toLowerCase().includes(q)
+      );
+    });
+  }, [conversations, searchQuery]);
+
   return (
     <div className="min-h-screen bg-canvas pb-24">
       <header className="px-4 pt-6 pb-3 sticky top-0 bg-canvas z-30 border-b border-border flex items-center gap-3">
@@ -31,6 +50,30 @@ export function ConversationList() {
         <h2 className="font-display text-2xl text-ink">Messages</h2>
       </header>
 
+      {conversations && conversations.length > 0 && (
+        <div className="max-w-xl mx-auto px-4 pt-3">
+          <div className="relative">
+            <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-ink-muted" />
+            <input
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search messages…"
+              className="w-full pl-10 pr-9 py-2.5 rounded-full border border-border bg-surface text-ink text-sm
+                focus:outline-none focus:ring-2 focus:ring-accent/40 focus:border-accent"
+            />
+            {searchQuery && (
+              <button
+                onClick={() => setSearchQuery("")}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-ink-muted"
+                aria-label="Clear search"
+              >
+                <X size={16} />
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+
       <div className="max-w-xl mx-auto px-4 pt-2">
         {isLoading ? (
           <p className="text-ink-muted text-center py-10">Loading…</p>
@@ -38,8 +81,10 @@ export function ConversationList() {
           <p className="text-ink-muted text-center py-10 text-sm">
             No conversations yet. Message someone from their profile.
           </p>
+        ) : filteredConversations && filteredConversations.length === 0 ? (
+          <p className="text-ink-muted text-center py-10 text-sm">No conversations match your search.</p>
         ) : (
-          conversations.map((c) => {
+          filteredConversations?.map((c) => {
             const unseenPostId = unseenPosts?.[c.other_participant.id];
 
             return (
@@ -57,11 +102,7 @@ export function ConversationList() {
                       e.stopPropagation();
                       navigate(`/post/${unseenPostId}`);
                     }}
-                    className="flex-shrink-0 rounded-full p-[2.5px]"
-                    style={{
-                      background: "linear-gradient(45deg, #ff00e5, #00f0ff, #39ff14)",
-                      boxShadow: "0 0 6px rgba(0, 240, 255, 0.6)",
-                    }}
+                    className="flex-shrink-0 rounded-full p-[2.5px] bg-accent shadow-[0_0_6px_rgba(61,90,69,0.45)]"
                   >
                     <span className="block rounded-full bg-canvas p-[2px]">
                       <Avatar
