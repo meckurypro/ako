@@ -1,4 +1,3 @@
-// src/components/PostCard.tsx
 import { useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import {
@@ -12,9 +11,11 @@ import {
   Trash2,
   Archive,
   RotateCcw,
+  Globe,
 } from "lucide-react";
 import { Avatar } from "./Avatar";
 import { TierBadge } from "./TierBadge";
+import { RoleTags } from "./RoleTags";
 import { ReactionTray, type EngagementAction } from "./ReactionTray";
 import { PostMedia } from "./PostMedia";
 import { PostContent } from "./PostContent";
@@ -22,6 +23,7 @@ import { useAuth } from "../hooks/useAuth";
 import { useIsBookmarked, useToggleBookmark } from "../hooks/useBookmarks";
 import { useMyReaction, useToggleReaction } from "../hooks/useReactions";
 import { canEditPost, useDeletePost, useSetPostArchived } from "../hooks/usePosts";
+import { shortDisplayName } from "../lib/displayName";
 import type { PostWithAuthor } from "../types/database";
 
 function timeAgo(dateString: string): string {
@@ -163,13 +165,21 @@ export function PostCard({ post }: { post: PostWithAuthor }) {
               to={`/profile/${post.author.username}`}
               className="font-medium text-ink hover:underline"
             >
-              {post.author.display_name}
+              {shortDisplayName(post.author.display_name)}
             </Link>
             <TierBadge tier={post.author.tier} />
           </div>
-          <p className="text-xs text-ink-muted">
-            {timeAgo(post.created_at)}
-            {post.edited_at && " · edited"}
+
+          {post.author.roles.length > 0 && (
+            <RoleTags roles={post.author.roles} className="text-xs text-ink-muted block" />
+          )}
+
+          <p className="text-xs text-ink-muted flex items-center gap-1">
+            <span>
+              {timeAgo(post.created_at)}
+              {post.edited_at && " · edited"}
+            </span>
+            {post.visibility === "public" && <Globe size={12} />}
           </p>
         </div>
 
@@ -301,4 +311,4 @@ export function PostCard({ post }: { post: PostWithAuthor }) {
       </Link>
     </article>
   );
-}
+                      }
