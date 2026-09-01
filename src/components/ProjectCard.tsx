@@ -1,3 +1,4 @@
+// src/components/ProjectCard.tsx
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
@@ -11,6 +12,7 @@ import {
   RotateCcw,
   Send,
   EyeOff,
+  Trash2,
 } from "lucide-react";
 import { useAuth } from "../hooks/useAuth";
 import {
@@ -18,6 +20,7 @@ import {
   usePurchaseProject,
   useGetProjectFile,
   useSetProjectStatus,
+  useDeleteProject,
   getEffectivePrice,
   isProjectFree,
   hasActivePromo,
@@ -27,14 +30,12 @@ import {
 
 // --------------------------------------------------------
 // Owner-only status actions, shown from the kebab menu depending on
-// the project's current status. There's no hard-delete for projects
-// in the schema (same soft-delete pattern as posts/comments
-// elsewhere in the app, partly because purchases reference
-// project_id) — so "delete" here means archive: it fully hides the
-// project the same way a delete would from a visitor's perspective,
-// while preserving purchase history integrity for anyone who already
-// bought it. Labeled "Archive" rather than "Delete" so that's honest
-// about what actually happens.
+// the project's current status, plus a real hard-delete via the
+// delete-project edge function. Delete only succeeds when nobody has
+// purchased the project (purchases.project_id references it, so a
+// purchased project can't be removed without breaking purchase
+// history) — the edge function catches that FK violation and
+// returns a friendly message pointing the owner at Archive instead.
 // --------------------------------------------------------
 
 export function ProjectCard({ project }: { project: Project }) {
@@ -49,6 +50,7 @@ export function ProjectCard({ project }: { project: Project }) {
   const purchaseProject = usePurchaseProject();
   const getFile = useGetProjectFile();
   const setStatus = useSetProjectStatus();
+  const deleteProject = useDeleteProject();
 
   const [error, setError] = useState<string | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
@@ -77,6 +79,18 @@ export function ProjectCard({ project }: { project: Project }) {
   function handleStatusChange(status: "active" | "draft" | "archived") {
     setStatus.mutate({ id: project.id, status });
     setMenuOpen(false);
+  }
+
+  async function handleDelete() {
+    setMenuOpen(false);
+    if (!window.confirm("Delete this project? This can't be undone.")) return;
+    try {
+      await deleteProject.mutateAsync(project.id);
+    } catch (err) {
+      // Most likely reason: purchases exist and the delete was
+      // refused server-side — surface that instead of failing silently.
+      setError(err instanceof Error ? err.message : "Couldn't delete this project.");
+    }
   }
 
   const aspectRatio =
@@ -167,6 +181,17 @@ export function ProjectCard({ project }: { project: Project }) {
                   Restore
                 </button>
               )}
+
+              <div className="h-px bg-border my-1" />
+
+              <button
+                onClick={handleDelete}
+                disabled={deleteProject.isPending}
+                className="w-full flex items-center gap-2 text-left px-4 py-2.5 text-sm text-danger hover:bg-surface disabled:opacity-50"
+              >
+                <Trash2 size={14} />
+                {deleteProject.isPending ? "Deleting…" : "Delete"}
+              </button>
             </div>
           )}
         </div>
