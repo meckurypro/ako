@@ -19,7 +19,8 @@ export function useConversations() {
   const { user } = useAuth();
 
   return useQuery({
-    queryKey: ["conversations", user?.id],    queryFn: async (): Promise<ConversationSummary[]> => {
+    queryKey: ["conversations", user?.id],
+    queryFn: async (): Promise<ConversationSummary[]> => {
       const { data: myParticipation, error } = await supabase
         .from("conversation_participants")
         .select("conversation_id, last_read_at")
@@ -61,7 +62,13 @@ export function useConversations() {
         if (!otherParticipant?.profile) continue;
 
         const lastReadAt = readMap.get(conv.id);
-        const unread = !!lastMessage && (!lastReadAt || new Date(lastMessage.created_at) > new Date(lastReadAt));
+        // A conversation is only "unread" if the newest message came from
+        // the OTHER participant and arrived after we last read the thread.
+        // Our own sent messages must never flip this back to unread.
+        const unread =
+          !!lastMessage &&
+          lastMessage.sender_id !== user!.id &&
+          (!lastReadAt || new Date(lastMessage.created_at) > new Date(lastReadAt));
 
         results.push({
           id: conv.id,
