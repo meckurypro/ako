@@ -1,3 +1,4 @@
+// src/hooks/useMessaging.ts
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useEffect } from "react";
 import { supabase } from "../lib/supabase";
@@ -92,6 +93,8 @@ export interface MessageWithSender {
   sender_id: string;
   content: string;
   created_at: string;
+  delivered_at: string | null;
+  read_at: string | null;
 }
 
 /**
@@ -108,7 +111,7 @@ export function useMessages(conversationId: string) {
     queryFn: async (): Promise<MessageWithSender[]> => {
       const { data, error } = await supabase
         .from("messages")
-        .select("id, conversation_id, sender_id, content, created_at")
+        .select("id, conversation_id, sender_id, content, created_at, delivered_at, read_at")
         .eq("conversation_id", conversationId)
         .eq("is_deleted", false)
         .order("created_at", { ascending: true });
@@ -129,6 +132,17 @@ export function useMessages(conversationId: string) {
         () => {
           queryClient.invalidateQueries({ queryKey: ["messages", conversationId] });
           queryClient.invalidateQueries({ queryKey: ["conversations"] });
+        }
+      )
+      .on(
+        // Ticks update live for the SENDER when the recipient's client
+        // stamps delivered_at/read_at (see useGlobalMessageDelivery and
+        // useMarkMessagesRead below) — without this, the sender would
+        // only see their own tick state change on next poll/refetch.
+        "postgres_changes",
+        { event: "UPDATE", schema: "public", table: "messages", filter: `conversation_id=eq.${conversationId}` },
+        () => {
+          queryClient.invalidateQueries({ queryKey: ["messages", conversationId] });
         }
       )
       .subscribe();
@@ -158,6 +172,107 @@ export function useSendMessage(conversationId: string) {
       queryClient.invalidateQueries({ queryKey: ["conversations"] });
     },
   });
+}
+
+/**
+ * Marks all not-yet-read messages from the OTHER participant as read.
+ * Call this from the thread page whenever it's mounted/visible and
+ * `messages` has loaded — safe to call on every render of that effect,
+ * since it only ever touches rows that still have `read_at IS NULL`.
+ *
+ * Reading implies delivered, so this intentionally doesn't separately
+ * backfill delivered_at — MessageStatusTicks treats a present read_at
+ * as sufficient on its own (see components/MessageStatusTicks.tsx).
+ */
+export function useMarkMessagesRead(conversationId: string, messages: MessageWithSender[] | undefined) {
+  const { user } = useAuth();
+  const queryClient = useQueryClient();
+
+  useEffect(() => {
+    if (!conversationId || !user || !messages?.length) return;
+
+    const unreadIds = messages.filter((m) => m.sender_id !== user.id && !m.read_at).map((m) => m.id);
+    if (!unreadIds.length) return;
+
+    supabase
+      .from("messages")
+      .update({ read_at: new Date().toISOString() })
+      .in("id", unreadIds)
+      .is("read_at", null)
+      .then(({ error }) => {
+        if (error) {
+          console.error("Failed to mark messages as read:", error);
+          return;
+        }
+        queryClient.invalidateQueries({ queryKey: ["messages", conversationId] });
+      });
+  }, [conversationId, user, messages, queryClient]);
+}
+
+/**
+ * App-wide delivery tracker. As soon as a message lands via Realtime
+ * for ANY conversation this user is part of, stamps delivered_at
+ * immediately — this is what makes the grey double-tick appear even
+ * before the recipient has opened that specific thread, the same way
+ * WhatsApp's single-tick-to-double-tick transition doesn't require you
+ * to open the chat.
+ *
+ * Mount this once near the app root (see components/MessagingPresence.tsx)
+ * — do not call it per-conversation, or you'll get duplicate subscriptions.
+ */
+export function useGlobalMessageDelivery() {
+  const { user } = useAuth();
+
+  const { data: conversationIds } = useQuery({
+    queryKey: ["my-conversation-ids", user?.id],
+    queryFn: async (): Promise<string[]> => {
+      const { data, error } = await supabase
+        .from("conversation_participants")
+        .select("conversation_id")
+        .eq("user_id", user!.id);
+      if (error) throw error;
+      return (data ?? []).map((r) => r.conversation_id);
+    },
+    enabled: !!user,
+    staleTime: 60_000,
+  });
+
+  useEffect(() => {
+    if (!user || !conversationIds?.length) return;
+
+    const channel = supabase
+      .channel(`message-delivery:${user.id}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "INSERT",
+          schema: "public",
+          table: "messages",
+          filter: `conversation_id=in.(${conversationIds.join(",")})`,
+        },
+        (payload) => {
+          const message = payload.new as { id: string; sender_id: string };
+          if (message.sender_id === user.id) return; // never mark our own messages "delivered"
+
+          supabase
+            .from("messages")
+            .update({ delivered_at: new Date().toISOString() })
+            .eq("id", message.id)
+            .is("delivered_at", null)
+            .then(({ error }) => {
+              if (error) console.error("Failed to mark message delivered:", error);
+            });
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+    // Re-subscribes when the user's conversation list changes (e.g. a
+    // new DM thread is started) so new conversations get delivery
+    // tracking too, without needing a page reload.
+  }, [user, conversationIds]);
 }
 
 export function useMarkConversationRead(conversationId: string) {
