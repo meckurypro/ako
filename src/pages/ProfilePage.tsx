@@ -184,7 +184,10 @@ export function ProfilePage() {
           <h1 className="font-display text-2xl text-ink">{profile.display_name}</h1>
           <TierBadge tier={profile.tier} />
         </div>
-        <p className="text-ink-muted text-sm">@{profile.username}</p>
+        <p className="text-ink-muted text-sm">
+          @{profile.username}
+          {profile.role && <span> · {profile.role.label}</span>}
+        </p>
 
         {profile.bio && <p className="text-ink mt-3">{profile.bio}</p>}
 
