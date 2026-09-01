@@ -9,7 +9,7 @@
 */
 @theme {
   --color-canvas: #F7F4EF;        /* warm off-white background (was topnav color) */
-  --color-surface: #FBF8F2;       /* bright surface — cards, topnav, bottomnav */
+  --color-surface: #FDFBF6;       /* bright surface — cards, topnav, bottomnav */
   --color-ink: #1F1D1A;           /* near-black text, not pure black */
   --color-ink-muted: #6B675F;     /* secondary text, muted warm grey */
   --color-accent: #3D5A45;        /* deep sage green — primary accent */
