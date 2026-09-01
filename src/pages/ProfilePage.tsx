@@ -1,8 +1,10 @@
+// src/pages/ProfilePage.tsx
 import { useState } from "react";
 import { useParams, Link, useNavigate } from "react-router-dom";
-import { Globe, Settings, Bookmark, MessageCircle, MoreVertical, Plus, Eye, X } from "lucide-react";
+import { Globe, Settings, Bookmark, MessageCircle, MoreVertical, Plus, Eye, X, Archive } from "lucide-react";
 import { useAuth } from "../hooks/useAuth";
-import { useProfileByUsername, useUserPosts, useIsFollowing, useToggleFollow } from "../hooks/useProfile";
+import { useProfileByUsername, useIsFollowing, useToggleFollow } from "../hooks/useProfile";
+import { useUserPostsWithArchived } from "../hooks/usePosts";
 import { useStartConversation } from "../hooks/useMessaging";
 import { useIsBlocked, useToggleBlock, useIsMuted, useToggleMute } from "../hooks/usePrivacy";
 import { useUserProjects } from "../hooks/useProjects";
@@ -24,9 +26,9 @@ export function ProfilePage() {
   // projects shown. Meaningless for non-owners, so it's gated behind
   // isOwnProfile everywhere it's used below.
   const [previewingAsVisitor, setPreviewingAsVisitor] = useState(false);
+  const [showArchived, setShowArchived] = useState(false);
 
   const { data: profile, isLoading } = useProfileByUsername(username!);
-  const { data: posts } = useUserPosts(profile?.id ?? "");
   const [activeTab, setActiveTab] = useState<"posts" | "projects">("posts");
   const isFollowingQuery = useIsFollowing(profile?.id ?? "");
   const toggleFollow = useToggleFollow(profile?.id ?? "");
@@ -44,6 +46,13 @@ export function ProfilePage() {
   // else — including the owner while previewing — only sees
   // published (active) projects, same as any other visitor would.
   const { data: projects } = useUserProjects(profile?.id ?? "", showOwnerView);
+
+  // Same idea for posts: only the owner (not previewing) can flip
+  // showArchived on to review/restore their own archived posts.
+  const { data: posts } = useUserPostsWithArchived(
+    profile?.id ?? "",
+    showOwnerView && showArchived
+  );
 
   const isFollowing = !!isFollowingQuery.data;
   const isBlocked = !!isBlockedQuery.data;
@@ -94,7 +103,7 @@ export function ProfilePage() {
                 className="flex items-center gap-1.5 text-sm text-ink-muted border border-border rounded-full px-4 py-2"
               >
                 <Eye size={16} />
-                View as visitor
+                Visitor View
               </button>
               <Link
                 to="/bookmarks"
@@ -105,10 +114,10 @@ export function ProfilePage() {
               </Link>
               <Link
                 to="/settings/profile"
-                className="flex items-center gap-1.5 text-sm text-ink-muted border border-border rounded-full px-4 py-2"
+                aria-label="Edit profile"
+                className="flex items-center justify-center text-ink-muted border border-border rounded-full p-2"
               >
                 <Settings size={16} />
-                Edit
               </Link>
             </div>
           ) : isOwnProfile ? (
@@ -219,6 +228,17 @@ export function ProfilePage() {
           >
             Projects
           </button>
+          {showOwnerView && activeTab === "posts" && (
+            <button
+              onClick={() => setShowArchived((v) => !v)}
+              className={`ml-auto flex items-center gap-1 text-sm font-medium pb-3 ${
+                showArchived ? "text-accent" : "text-ink-muted"
+              }`}
+            >
+              <Archive size={16} />
+              Archived
+            </button>
+          )}
           {showOwnerView && activeTab === "projects" && (
             <Link
               to="/projects/new"
