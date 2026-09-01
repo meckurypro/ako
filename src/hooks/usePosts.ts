@@ -11,6 +11,7 @@ export function canEditPost(post: Pick<PostWithAuthor, "created_at">): boolean {
 }
 
 interface CreatePostInput {
+  heading?: string;
   content: string;
   category_id?: string;
   interest_ids?: string[];
@@ -82,6 +83,7 @@ export function useCreatePost() {
 
 interface UpdatePostInput {
   post_id: string;
+  heading?: string;
   content: string;
   category_id?: string | null;
   media_urls?: string[];
