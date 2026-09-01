@@ -3,11 +3,6 @@ import { Home, Search, Plus, MessageCircle, User } from "lucide-react";
 import { useAuth } from "../hooks/useAuth";
 import { useUnreadConversationCount } from "../hooks/useMessaging";
 
-// Feed and Discover sit either side of the center Post button;
-// Messages and Profile sit on the far side of it. Notifications live
-// only in TopHeader's bell — keeping them out of BottomNav too would
-// mean losing quick access to messages, which the product decision
-// was to keep.
 const sideItems = [
   { to: "/feed", icon: Home, label: "Feed" },
   { to: "/topics", icon: Search, label: "Discover" },
@@ -23,10 +18,10 @@ export function BottomNav() {
     }`;
 
   return (
-    // Floating sheet: rounded top corners + a soft upward shadow instead
-    // of a hard border, so the bar reads as a raised card rather than a
-    // strip with a line under it.
-    <nav className="fixed bottom-0 left-0 right-0 z-40 bg-surface rounded-t-[28px] shadow-[0_-10px_28px_-4px_rgba(31,29,26,0.16)] px-2 pt-3 pb-[calc(env(safe-area-inset-bottom)+0.75rem)]">
+    // A hairline top border does the "outline" work; the shadow itself
+    // is now just a faint, tight, near-zero-spread lift — not a cast
+    // shadow that reaches up into the post content above.
+    <nav className="fixed bottom-0 left-0 right-0 z-40 bg-surface rounded-t-[28px] border-t border-border shadow-[0_-1px_3px_rgba(31,29,26,0.06)] px-2 pt-3 pb-[calc(env(safe-area-inset-bottom)+0.75rem)]">
       <div className="flex items-end justify-around">
         {sideItems.map(({ to, icon: Icon, label }) => (
           <NavLink key={to} to={to} className={linkClass}>
@@ -35,18 +30,11 @@ export function BottomNav() {
           </NavLink>
         ))}
 
-        {/* The single "new post" entry point. The halo behind the button
-            is the bar's own bg-surface colour, larger than the button
-            itself, so it reads as the bar's material rising up and
-            wrapping around the button — a notch, not a separate floating
-            circle — with a thin surface-coloured ring visible around the
-            green fill. Button is now mostly buried in the bar (only a
-            sliver pokes above), smaller than before. */}
         <div className="flex flex-col items-center gap-1 w-14">
           <div className="relative -mt-4 mb-1">
             <span
               aria-hidden
-              className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-16 h-16 rounded-full bg-surface shadow-[0_-6px_18px_-6px_rgba(31,29,26,0.14)]"
+              className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-16 h-16 rounded-full bg-surface shadow-[0_-1px_3px_rgba(31,29,26,0.06)]"
             />
             <NavLink
               to="/compose"
