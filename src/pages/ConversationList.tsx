@@ -4,8 +4,10 @@ import { Link, useNavigate } from "react-router-dom";
 import { ArrowLeft, Search, X } from "lucide-react";
 import { useConversations } from "../hooks/useMessaging";
 import { useUnseenPosts } from "../hooks/useUnseenPosts";
+import { useAuth } from "../hooks/useAuth";
 import { Avatar } from "../components/Avatar";
 import { BottomNav } from "../components/BottomNav";
+import { MessageStatusTicks } from "../components/MessageStatusTicks";
 
 function timeAgo(dateString: string): string {
   const seconds = Math.floor((Date.now() - new Date(dateString).getTime()) / 1000);
@@ -19,6 +21,7 @@ function timeAgo(dateString: string): string {
 
 export function ConversationList() {
   const navigate = useNavigate();
+  const { user } = useAuth();
   const { data: conversations, isLoading } = useConversations();
   const authorIds = conversations?.map((c) => c.other_participant.id) ?? [];
   const { data: unseenPosts } = useUnseenPosts(authorIds);
@@ -86,6 +89,10 @@ export function ConversationList() {
         ) : (
           filteredConversations?.map((c) => {
             const unseenPostId = unseenPosts?.[c.other_participant.id];
+            // Only show ticks when the last message is one WE sent —
+            // seeing your own message's delivery/read state in the list
+            // preview, same as the double-tick-in-list pattern in WhatsApp.
+            const showTicksInPreview = c.last_message?.sender_id === user?.id;
 
             return (
               <Link
@@ -124,8 +131,16 @@ export function ConversationList() {
                       {timeAgo(c.last_message_at)}
                     </span>
                   </div>
-                  <p className={`text-sm truncate ${c.unread ? "text-ink" : "text-ink-muted"}`}>
-                    {c.last_message?.content ?? "Say hello"}
+                  <p className={`text-sm truncate flex items-center gap-1 ${c.unread ? "text-ink" : "text-ink-muted"}`}>
+                    {showTicksInPreview && c.last_message && (
+                      <MessageStatusTicks
+                        deliveredAt={c.last_message.delivered_at}
+                        readAt={c.last_message.read_at}
+                        variant="list"
+                        size={13}
+                      />
+                    )}
+                    <span className="truncate">{c.last_message?.content ?? "Say hello"}</span>
                   </p>
                 </div>
                 {c.unread && <div className="w-2 h-2 rounded-full bg-accent flex-shrink-0" />}
