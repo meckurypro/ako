@@ -11,7 +11,7 @@ import { BottomNav } from "../components/BottomNav";
 import { TopHeader } from "../components/TopHeader";
 import type { Profile } from "../types/database";
 
-function PersonRow({ profile }: { profile: Profile & { follower_count: number } }) {
+function PersonRow({ profile }: { profile: Profile & { follower_count: number; roles?: any[] } }) {
   return (
     <Link
       to={`/profile/${profile.username}`}
