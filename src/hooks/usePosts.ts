@@ -1,10 +1,18 @@
 // src/hooks/usePosts.ts
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "../lib/supabase";
+import { useAuth } from "./useAuth";
 import type { PostWithAuthor } from "../types/database";
 
 const PAGE_SIZE = 15;
 export const POST_EDIT_WINDOW_MS = 15 * 60 * 1000;
+
+// Posts from the last 7 days, ranked by comment_count, count as
+// "Top Discussions". Simple and cheap for V1 — revisit if we want
+// to fold likes/shares into the ranking too.
+const TOP_DISCUSSIONS_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
+
+const FEED_SELECT = `*, author:profiles!posts_author_id_fkey(id, username, display_name, avatar_url, tier)`;
 
 export function canEditPost(post: Pick<PostWithAuthor, "created_at">): boolean {
   return Date.now() - new Date(post.created_at).getTime() <= POST_EDIT_WINDOW_MS;
@@ -29,9 +37,7 @@ export function useFeedPosts(interestId?: string, page = 0) {
     queryFn: async (): Promise<PostWithAuthor[]> => {
       let query = supabase
         .from("posts")
-        .select(
-          `*, author:profiles!posts_author_id_fkey(id, username, display_name, avatar_url, tier)`
-        )
+        .select(FEED_SELECT)
         .eq("is_deleted", false)
         .eq("is_archived", false)
         .order("created_at", { ascending: false })
@@ -50,6 +56,70 @@ export function useFeedPosts(interestId?: string, page = 0) {
       }
 
       const { data, error } = await query;
+      if (error) throw error;
+      return data as unknown as PostWithAuthor[];
+    },
+  });
+}
+
+/**
+ * "Following" tab: posts authored by people the current user follows,
+ * newest first. The follows table is keyed (follower_id, following_id),
+ * so "who do I follow" is following_id for rows where follower_id = me.
+ * Returns an empty page when signed out or following nobody, rather
+ * than erroring, so the tab can render its own empty state.
+ */
+export function useFollowingFeed(page = 0) {
+  const { user } = useAuth();
+
+  return useQuery({
+    queryKey: ["feed-posts", "following", user?.id, page],
+    queryFn: async (): Promise<PostWithAuthor[]> => {
+      if (!user) return [];
+
+      const { data: follows, error: followsError } = await supabase
+        .from("follows")
+        .select("following_id")
+        .eq("follower_id", user.id);
+      if (followsError) throw followsError;
+
+      const followingIds = (follows ?? []).map((f) => f.following_id);
+      if (followingIds.length === 0) return [];
+
+      const { data, error } = await supabase
+        .from("posts")
+        .select(FEED_SELECT)
+        .in("author_id", followingIds)
+        .eq("is_deleted", false)
+        .eq("is_archived", false)
+        .order("created_at", { ascending: false })
+        .range(page * PAGE_SIZE, page * PAGE_SIZE + PAGE_SIZE - 1);
+      if (error) throw error;
+      return data as unknown as PostWithAuthor[];
+    },
+    enabled: !!user,
+  });
+}
+
+/**
+ * "Top Discussions" tab: posts from the last 7 days ranked by
+ * comment_count. No auth required — same visibility rules as the
+ * main feed (not deleted, not archived).
+ */
+export function useTopDiscussionsFeed(page = 0) {
+  return useQuery({
+    queryKey: ["feed-posts", "top", page],
+    queryFn: async (): Promise<PostWithAuthor[]> => {
+      const since = new Date(Date.now() - TOP_DISCUSSIONS_WINDOW_MS).toISOString();
+
+      const { data, error } = await supabase
+        .from("posts")
+        .select(FEED_SELECT)
+        .eq("is_deleted", false)
+        .eq("is_archived", false)
+        .gte("created_at", since)
+        .order("comment_count", { ascending: false })
+        .range(page * PAGE_SIZE, page * PAGE_SIZE + PAGE_SIZE - 1);
       if (error) throw error;
       return data as unknown as PostWithAuthor[];
     },
