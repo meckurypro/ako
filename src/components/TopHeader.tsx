@@ -35,5 +35,4 @@ export function TopHeader({ showTagline = false }: TopHeaderProps) {
       </Link>
     </header>
   );
-}  );
-}
+}  
