@@ -8,6 +8,12 @@
 
 export type Tier = "newcomer" | "contributor" | "publisher" | "host" | "creator_business";
 
+export interface Role {
+  id: string;
+  label: string;
+  sort_order: number;
+}
+
 export interface Profile {
   id: string;
   username: string;
@@ -16,11 +22,16 @@ export interface Profile {
   avatar_url: string | null;
   website_url: string | null;
   tier: Tier;
+  role_id: string | null;
   follower_count: number;
   following_count: number;
   is_deleted: boolean;
   created_at: string;
   updated_at: string;
+}
+
+export interface ProfileWithRole extends Profile {
+  role: Role | null;
 }
 
 export interface Category {
@@ -44,6 +55,7 @@ export type Stance = "support" | "disagree" | "pushback";
 export interface Post {
   id: string;
   author_id: string;
+  heading: string | null;
   content: string;
   media_urls: string[];
   category_id: string | null;
