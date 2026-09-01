@@ -1,4 +1,5 @@
 // src/pages/Compose.tsx
+
 import { useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { X, Image as ImageIcon, ChevronDown, ChevronRight } from "lucide-react";
@@ -7,11 +8,13 @@ import { useCategories } from "../hooks/useCategories";
 import { useUploadPostMedia, isVideoUrl } from "../hooks/useUploadPostMedia";
 import { MentionTextarea } from "../components/MentionTextarea";
 
+const HEADING_LIMIT = 50;
 const CONTENT_LIMIT = 1000;
 const MAX_MEDIA_FILES = 4;
 
 export function Compose() {
   const navigate = useNavigate();
+  const [heading, setHeading] = useState("");
   const [content, setContent] = useState("");
   const [categoryId, setCategoryId] = useState<string | null>(null);
   const [categoriesOpen, setCategoriesOpen] = useState(false);
@@ -24,6 +27,8 @@ export function Compose() {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const selectedCategory = categories?.find((c) => c.id === categoryId);
+  // A post can be heading-only or details-only — either is enough to post.
+  const canPost = heading.trim().length > 0 || content.trim().length > 0;
 
   async function handleFileSelect(e: React.ChangeEvent<HTMLInputElement>) {
     const files = Array.from(e.target.files ?? []);
@@ -52,11 +57,12 @@ export function Compose() {
   }
 
   async function handleSubmit() {
-    if (!content.trim()) return;
+    if (!canPost) return;
     setError(null);
 
     try {
       await createPost.mutateAsync({
+        heading: heading.trim() || undefined,
         content,
         category_id: categoryId ?? undefined,
         media_urls: mediaUrls,
@@ -70,29 +76,25 @@ export function Compose() {
   }
 
   return (
-    <div className="min-h-screen bg-canvas px-4 pt-4 pb-24">
-      <div className="max-w-xl mx-auto">
-        <div className="flex items-center justify-between mb-4">
-          <button onClick={() => navigate(-1)} className="text-ink-muted">
-            <X size={22} />
-          </button>
-          <button
-            onClick={handleSubmit}
-            disabled={!content.trim() || createPost.isPending}
-            className="bg-accent text-canvas px-5 py-2 rounded-full text-sm font-medium disabled:opacity-50"
-          >
-            {createPost.isPending ? "Posting…" : "Post"}
-          </button>
-        </div>
+    <div className="min-h-screen bg-canvas">
+      {/* Bottom padding clears the fixed action bar so nothing sits behind it. */}
+      <div className="max-w-xl mx-auto px-4 pt-4 pb-28">
+        <input
+          value={heading}
+          onChange={(e) => setHeading(e.target.value.slice(0, HEADING_LIMIT))}
+          maxLength={HEADING_LIMIT}
+          placeholder="Heading (optional)"
+          className="w-full font-display text-2xl leading-tight text-ink bg-transparent focus:outline-none placeholder:text-ink-muted/60 mb-1"
+        />
+        <p className="text-xs text-ink-muted mb-3">{heading.length}/{HEADING_LIMIT}</p>
 
         <MentionTextarea
           value={content}
           onChange={setContent}
           maxLength={CONTENT_LIMIT}
           rows={8}
-          autoFocus
-          placeholder="What's on your mind? Use @ to mention someone."
-          className="w-full text-lg text-ink bg-transparent resize-none focus:outline-none placeholder:text-ink-muted/60"
+          placeholder="Add details… use @ to mention someone."
+          className="w-full text-base text-ink bg-transparent resize-none focus:outline-none placeholder:text-ink-muted/60"
         />
 
         {mediaUrls.length > 0 && (
@@ -185,6 +187,21 @@ export function Compose() {
             {error}
           </p>
         )}
+      </div>
+
+      {/* Sticky action bar — stays put at the bottom regardless of scroll
+          position or whether categories are expanded above it. */}
+      <div className="fixed bottom-0 left-0 right-0 bg-canvas border-t border-border px-4 py-3 flex items-center justify-between z-40">
+        <button onClick={() => navigate(-1)} className="text-ink-muted p-1" aria-label="Close">
+          <X size={22} />
+        </button>
+        <button
+          onClick={handleSubmit}
+          disabled={!canPost || createPost.isPending}
+          className="bg-accent text-canvas px-5 py-2 rounded-full text-sm font-medium disabled:opacity-50"
+        >
+          {createPost.isPending ? "Posting…" : "Post"}
+        </button>
       </div>
     </div>
   );
