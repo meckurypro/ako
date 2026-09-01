@@ -2,11 +2,11 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "../lib/supabase";
 import { useAuth } from "./useAuth";
 import { PROFILE_ROLES_SELECT, toProfileRoles } from "../lib/profileRoles";
-import type { PostWithAuthor, Profile } from "../types/database";
+import type { PostWithAuthor, ProfileWithRoles } from "../types/database";
 
 const PEOPLE_SELECT = `id, username, display_name, avatar_url, tier, follower_count, ${PROFILE_ROLES_SELECT}`;
 
-function normalizeProfile(raw: any): Profile {
+function normalizeProfile(raw: any): ProfileWithRoles {
   return { ...raw, roles: toProfileRoles(raw.profile_roles) };
 }
 
@@ -33,8 +33,7 @@ function useSocialGraph() {
 }
 
 // Cached engagement graph — who has reacted to my posts, and whose posts I've
-// reacted to. Runs 4 queries in 2 serial rounds, so it's cached separately
-// from the social graph and only blocks search scoring, not the profile fetch.
+// reacted to. Only blocks search scoring, not the profile fetch itself.
 function useEngagementGraph() {
   const { user } = useAuth();
   return useQuery({
@@ -53,10 +52,18 @@ function useEngagementGraph() {
 
       const [reactorsRes, authorRes] = await Promise.all([
         myPostIds.length > 0
-          ? supabase.from("reactions").select("user_id").in("post_id", myPostIds).neq("user_id", user.id)
+          ? supabase
+              .from("reactions")
+              .select("user_id")
+              .in("post_id", myPostIds)
+              .neq("user_id", user.id)
           : { data: [] },
         reactedPostIds.length > 0
-          ? supabase.from("posts").select("author_id").in("id", reactedPostIds).neq("author_id", user.id)
+          ? supabase
+              .from("posts")
+              .select("author_id")
+              .in("id", reactedPostIds)
+              .neq("author_id", user.id)
           : { data: [] },
       ]);
 
@@ -75,9 +82,9 @@ function scoreProfile(
   followerIds: Set<string>,
   engagedIds: Set<string>
 ): number {
-  if (followingIds.has(id)) return 4;   // I follow them
-  if (followerIds.has(id)) return 3;    // They follow me
-  if (engagedIds.has(id)) return 2;     // Engagement overlap
+  if (followingIds.has(id)) return 4; // I follow them
+  if (followerIds.has(id)) return 3;  // They follow me
+  if (engagedIds.has(id)) return 2;   // Engagement overlap
   return 0;
 }
 
@@ -92,7 +99,7 @@ export function useSuggestedPeople() {
 
   return useQuery({
     queryKey: ["suggested-people", user?.id, !!graph],
-    queryFn: async (): Promise<Profile[]> => {
+    queryFn: async (): Promise<ProfileWithRoles[]> => {
       if (!user) return [];
 
       const { data, error } = await supabase
@@ -110,7 +117,7 @@ export function useSuggestedPeople() {
 
       return (data ?? [])
         .map(normalizeProfile)
-        .filter((p) => !followingIds.has(p.id)) // hide already-followed
+        .filter((p) => !followingIds.has(p.id))
         .map((p) => ({ p, score: followerIds.has(p.id) ? 2 : 0 }))
         .sort((a, b) => b.score - a.score || b.p.follower_count - a.p.follower_count)
         .slice(0, 12)
@@ -133,7 +140,7 @@ export function useSearchPeople(query: string) {
 
   return useQuery({
     queryKey: ["search-people", query, user?.id],
-    queryFn: async (): Promise<Profile[]> => {
+    queryFn: async (): Promise<ProfileWithRoles[]> => {
       if (!query.trim()) return [];
 
       const { data, error } = await supabase
@@ -190,4 +197,4 @@ export function useSearchPosts(query: string) {
     },
     enabled: query.trim().length > 1,
   });
-        }
+}
