@@ -48,6 +48,24 @@ interface PostContentProps {
   content: string;
 }
 
+// Content is split into paragraphs on blank lines so paragraph
+// spacing is a real margin we control, rather than relying on the
+// literal blank line inside a single whitespace-pre-wrap block.
+// Single line breaks within a paragraph are still preserved as-is.
+function renderParagraphs(content: string) {
+  const paragraphs = content.split(/\n{2,}/);
+  return paragraphs.map((para, i) => (
+    <p
+      key={i}
+      className={`text-ink whitespace-pre-wrap break-words ${
+        i < paragraphs.length - 1 ? "mb-1" : ""
+      }`}
+    >
+      {withLinks(para)}
+    </p>
+  ));
+}
+
 // Heading (capped at 50 chars server-side, so this naturally stays
 // to ~2 lines at this size) renders in the display/heading font,
 // bold and a step larger than the body; content renders at normal
@@ -57,13 +75,11 @@ export function PostContent({ heading, content }: PostContentProps) {
   return (
     <div>
       {heading && (
-        <h3 className="font-display text-lg font-semibold leading-snug text-ink mb-1">
+        <h3 className="font-display text-lg font-semibold leading-snug text-ink mb-4">
           {withLinks(heading)}
         </h3>
       )}
-      {content && (
-        <p className="text-ink whitespace-pre-wrap break-words">{withLinks(content)}</p>
-      )}
+      {content && renderParagraphs(content)}
     </div>
   );
 }
