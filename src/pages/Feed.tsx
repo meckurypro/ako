@@ -19,8 +19,6 @@ type TabKey = (typeof TABS)[number]["key"];
 
 const SWIPE_THRESHOLD_PX = 50;
 
-// Accumulates "Load more" pages into one running list, and resets
-// back to empty whenever resetKey changes (tab switch, filter change).
 function useAccumulatedPages<T>(pageData: T[] | undefined, page: number, resetKey: unknown) {
   const [all, setAll] = useState<T[]>([]);
 
@@ -143,8 +141,6 @@ export function Feed() {
   const [searchParams, setSearchParams] = useSearchParams();
   const interestId = searchParams.get("interest") ?? undefined;
 
-  // Topic filtering only applies to "For You" — jumping here from the
-  // Discover/Topics page should land on that tab so the filter is visible.
   const [activeTab, setActiveTab] = useState<TabKey>("for-you");
   const [touchStartX, setTouchStartX] = useState<number | null>(null);
   const [touchStartY, setTouchStartY] = useState<number | null>(null);
@@ -172,35 +168,30 @@ export function Feed() {
     setTouchStartX(null);
     setTouchStartY(null);
 
-    // Only treat it as a tab swipe when the gesture is clearly more
-    // horizontal than vertical — otherwise a normal vertical scroll
-    // through the post list would get hijacked into a tab change.
     if (Math.abs(deltaX) < SWIPE_THRESHOLD_PX || Math.abs(deltaX) <= Math.abs(deltaY)) return;
 
     if (deltaX < 0) {
-      goToIndex(activeIndex + 1); // swipe left -> next tab
+      goToIndex(activeIndex + 1);
     } else {
-      goToIndex(activeIndex - 1); // swipe right -> previous tab
+      goToIndex(activeIndex - 1);
     }
   }
 
   return (
     <div className="min-h-screen bg-canvas pb-24">
-      {/* Header + tabs form one continuous bright bg-surface unit, like
-          BottomNav does at the bottom. A single subtle shadow sits on
-          the bottom edge of this whole block, casting onto the canvas
-          content below — there's no shadow/seam between the header and
-          the tabs row, since they're the same surface. */}
       <div className="sticky top-0 z-20 bg-surface shadow-[0_2px_8px_-4px_rgba(31,29,26,0.10)]">
         <TopHeader showTagline />
 
         <div className="px-4 overflow-x-auto scrollbar-none">
           <div className="max-w-xl mx-auto flex items-center gap-6">
+            {/* Bolder tab labels, and a heavier active underline
+                (4px instead of 3px) so the selected tab reads with
+                more visual weight, matching the reference. */}
             {TABS.map((tab) => (
               <button
                 key={tab.key}
                 onClick={() => setActiveTab(tab.key)}
-                className={`whitespace-nowrap text-sm font-medium pb-2 pt-1 border-b-[3px] -mb-px ${
+                className={`whitespace-nowrap text-sm font-semibold pb-2 pt-1 border-b-[4px] -mb-px ${
                   activeTab === tab.key ? "text-accent border-accent" : "text-ink-muted border-transparent"
                 }`}
               >
@@ -211,9 +202,6 @@ export function Feed() {
         </div>
       </div>
 
-      {/* min-h ensures there's always enough touch surface to swipe on,
-          even when the active tab's content (e.g. Saved with few/no
-          items) doesn't fill the screen. */}
       <div
         className="max-w-xl mx-auto px-5 pt-5 min-h-[70vh]"
         onTouchStart={handleTouchStart}
