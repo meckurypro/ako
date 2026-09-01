@@ -15,7 +15,7 @@ import {
 } from "lucide-react";
 import { Avatar } from "./Avatar";
 import { TierBadge } from "./TierBadge";
-import { ReactionTray } from "./ReactionTray";
+import { ReactionTray, type EngagementAction } from "./ReactionTray";
 import { PostMedia } from "./PostMedia";
 import { PostContent } from "./PostContent";
 import { useAuth } from "../hooks/useAuth";
@@ -41,7 +41,6 @@ export function PostCard({ post }: { post: PostWithAuthor }) {
   const { user } = useAuth();
   const navigate = useNavigate();
   const isOwner = user?.id === post.author_id;
-
   const [menuOpen, setMenuOpen] = useState(false);
   const lastTapRef = useRef(0);
 
@@ -75,7 +74,6 @@ export function PostCard({ post }: { post: PostWithAuthor }) {
   async function handleShare() {
     setMenuOpen(false);
     const url = `${window.location.origin}/post/${post.id}`;
-
     if (navigator.share) {
       try {
         await navigator.share({ url });
@@ -97,12 +95,68 @@ export function PostCard({ post }: { post: PostWithAuthor }) {
     }
   }
 
+  // Built once per render from current reaction state, then handed to
+  // ReactionTray as the row of quick-action buttons under the post.
+  // ReactionTray itself is purely presentational — it just renders
+  // whatever actions it's given (see ReactionTray.tsx).
+  const reactionActions: EngagementAction[] = [
+    {
+      key: "like",
+      label: isLiked ? "Liked" : "Like",
+      icon: (
+        <Heart
+          size={20}
+          fill={isLiked ? "currentColor" : "none"}
+          className={isLiked ? "text-accent" : ""}
+        />
+      ),
+      count: post.like_count > 0 ? post.like_count : null,
+      onClick: () => toggleLike.mutate(isLiked),
+    },
+    {
+      key: "dislike",
+      label: isDisliked ? "Disliked" : "Dislike",
+      icon: (
+        <ThumbsDown
+          size={20}
+          fill={isDisliked ? "currentColor" : "none"}
+          className={isDisliked ? "text-danger" : ""}
+        />
+      ),
+      count: post.dislike_count > 0 ? post.dislike_count : null,
+      onClick: () => toggleDislike.mutate(isDisliked),
+    },
+    {
+      key: "share",
+      label: "Share",
+      icon: <Share2 size={20} />,
+      count: post.share_count > 0 ? post.share_count : null,
+      onClick: () => {
+        void handleShare();
+      },
+    },
+    {
+      key: "bookmark",
+      label: isBookmarked ? "Saved" : "Save",
+      icon: (
+        <Bookmark
+          size={20}
+          fill={isBookmarked ? "currentColor" : "none"}
+          className={isBookmarked ? "text-accent" : ""}
+        />
+      ),
+      count: null,
+      onClick: () => toggleBookmark.mutate(isBookmarked),
+    },
+  ];
+
   return (
     <article className="bg-surface rounded-2xl p-4 mb-3 relative">
       <div className="flex items-start gap-3">
         <Link to={`/profile/${post.author.username}`}>
           <Avatar src={post.author.avatar_url} name={post.author.display_name} />
         </Link>
+
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
             <Link
@@ -140,93 +194,90 @@ export function PostCard({ post }: { post: PostWithAuthor }) {
                 aria-hidden="true"
               />
               <div className="absolute top-full right-0 mt-1 bg-canvas border border-border rounded-xl shadow-lg py-1 w-48 z-20">
-              <button
-                onClick={() => {
-                  toggleLike.mutate(isLiked);
-                  setMenuOpen(false);
-                }}
-                className="w-full flex items-center justify-between px-4 py-2.5 text-sm text-ink hover:bg-surface"
-              >
-                <span className="flex items-center gap-2">
-                  <Heart size={14} fill={isLiked ? "currentColor" : "none"} className={isLiked ? "text-accent" : ""} />
-                  {isLiked ? "Unlike" : "Like"}
-                </span>
-                {post.like_count > 0 && <span className="text-ink-muted">{post.like_count}</span>}
-              </button>
+                <button
+                  onClick={() => {
+                    toggleLike.mutate(isLiked);
+                    setMenuOpen(false);
+                  }}
+                  className="w-full flex items-center justify-between px-4 py-2.5 text-sm text-ink hover:bg-surface"
+                >
+                  <span className="flex items-center gap-2">
+                    <Heart size={14} fill={isLiked ? "currentColor" : "none"} className={isLiked ? "text-accent" : ""} />
+                    {isLiked ? "Unlike" : "Like"}
+                  </span>
+                  {post.like_count > 0 && <span className="text-ink-muted">{post.like_count}</span>}
+                </button>
 
-              <button
-                onClick={() => {
-                  toggleDislike.mutate(isDisliked);
-                  setMenuOpen(false);
-                }}
-                className="w-full flex items-center justify-between px-4 py-2.5 text-sm text-ink hover:bg-surface"
-              >
-                <span className="flex items-center gap-2">
-                  <ThumbsDown size={14} fill={isDisliked ? "currentColor" : "none"} className={isDisliked ? "text-danger" : ""} />
-                  {isDisliked ? "Remove dislike" : "Dislike"}
-                </span>
-                {post.dislike_count > 0 && <span className="text-ink-muted">{post.dislike_count}</span>}
-              </button>
+                <button
+                  onClick={() => {
+                    toggleDislike.mutate(isDisliked);
+                    setMenuOpen(false);
+                  }}
+                  className="w-full flex items-center justify-between px-4 py-2.5 text-sm text-ink hover:bg-surface"
+                >
+                  <span className="flex items-center gap-2">
+                    <ThumbsDown size={14} fill={isDisliked ? "currentColor" : "none"} className={isDisliked ? "text-danger" : ""} />
+                    {isDisliked ? "Remove dislike" : "Dislike"}
+                  </span>
+                  {post.dislike_count > 0 && <span className="text-ink-muted">{post.dislike_count}</span>}
+                </button>
 
-              <button
-                onClick={handleShare}
-                className="w-full flex items-center justify-between px-4 py-2.5 text-sm text-ink hover:bg-surface"
-              >
-                <span className="flex items-center gap-2">
-                  <Share2 size={14} />
-                  Share
-                </span>
-                {post.share_count > 0 && <span className="text-ink-muted">{post.share_count}</span>}
-              </button>
+                <button
+                  onClick={handleShare}
+                  className="w-full flex items-center justify-between px-4 py-2.5 text-sm text-ink hover:bg-surface"
+                >
+                  <span className="flex items-center gap-2">
+                    <Share2 size={14} />
+                    Share
+                  </span>
+                  {post.share_count > 0 && <span className="text-ink-muted">{post.share_count}</span>}
+                </button>
 
-              <button
-                onClick={() => {
-                  toggleBookmark.mutate(isBookmarked);
-                  setMenuOpen(false);
-                }}
-                className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-ink hover:bg-surface"
-              >
-                <Bookmark size={14} fill={isBookmarked ? "currentColor" : "none"} className={isBookmarked ? "text-accent" : ""} />
-                {isBookmarked ? "Remove from Saved" : "Save"}
-              </button>
+                <button
+                  onClick={() => {
+                    toggleBookmark.mutate(isBookmarked);
+                    setMenuOpen(false);
+                  }}
+                  className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-ink hover:bg-surface"
+                >
+                  <Bookmark size={14} fill={isBookmarked ? "currentColor" : "none"} className={isBookmarked ? "text-accent" : ""} />
+                  {isBookmarked ? "Remove from Saved" : "Save"}
+                </button>
 
-              {isOwner && (
-                <>
-                  <div className="h-px bg-border my-1" />
-
-                  {editable && (
+                {isOwner && (
+                  <>
+                    <div className="h-px bg-border my-1" />
+                    {editable && (
+                      <button
+                        onClick={() => {
+                          setMenuOpen(false);
+                          navigate(`/post/${post.id}/edit`);
+                        }}
+                        className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-ink hover:bg-surface"
+                      >
+                        <Pencil size={14} />
+                        Edit
+                      </button>
+                    )}
                     <button
                       onClick={() => {
+                        setArchived.mutate({ postId: post.id, archived: !post.is_archived });
                         setMenuOpen(false);
-                        navigate(`/post/${post.id}/edit`);
                       }}
                       className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-ink hover:bg-surface"
                     >
-                      <Pencil size={14} />
-                      Edit
+                      {post.is_archived ? <RotateCcw size={14} /> : <Archive size={14} />}
+                      {post.is_archived ? "Restore" : "Archive"}
                     </button>
-                  )}
-
-                  <button
-                    onClick={() => {
-                      setArchived.mutate({ postId: post.id, archived: !post.is_archived });
-                      setMenuOpen(false);
-                    }}
-                    className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-ink hover:bg-surface"
-                  >
-                    {post.is_archived ? <RotateCcw size={14} /> : <Archive size={14} />}
-                    {post.is_archived ? "Restore" : "Archive"}
-                  </button>
-
-                  <button
-                    onClick={handleDelete}
-                    className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-danger hover:bg-surface"
-                  >
-                    <Trash2 size={14} />
-                    Delete
-                  </button>
-                </>
-              )}
+                    <button
+                      onClick={handleDelete}
+                      className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-danger hover:bg-surface"
+                    >
+                      <Trash2 size={14} />
+                      Delete
+                    </button>
+                  </>
+                )}
               </div>
             </>
           )}
@@ -239,7 +290,7 @@ export function PostCard({ post }: { post: PostWithAuthor }) {
 
       <PostMedia mediaUrls={post.media_urls} />
 
-      <ReactionTray post={post} />
+      <ReactionTray actions={reactionActions} />
 
       <Link
         to={`/post/${post.id}`}
