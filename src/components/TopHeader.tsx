@@ -13,12 +13,16 @@ interface TopHeaderProps {
 // old search icon), the wordmark centered, and only the notification
 // bell on the right — no wallet icon here anymore. Wallet access
 // moved to the profile page's owner action row instead.
+//
+// No shadow here — this sits inside Feed's sticky bg-surface wrapper
+// together with the tabs row below it, and the shadow for that whole
+// combined block lives on the wrapper, not here.
 export function TopHeader({ showTagline = false }: TopHeaderProps) {
   const unreadCount = useUnreadCount();
   const { data: me } = useMyProfile();
 
   return (
-    <header className="px-4 pt-5 pb-2 sticky top-0 bg-surface z-30 flex items-center justify-between shadow-[0_4px_12px_-6px_rgba(31,29,26,0.12)]">
+    <header className="px-4 pt-5 pb-2 bg-surface flex items-center justify-between">
       <Link to={me ? `/profile/${me.username}` : "/me"} aria-label="Your profile">
         <Avatar src={me?.avatar_url} name={me?.display_name ?? "You"} size="sm" />
       </Link>
