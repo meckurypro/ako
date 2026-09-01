@@ -1,6 +1,6 @@
+// src/components/ReactionTray.tsx
 import { useState } from "react";
-import { Heart, ThumbsDown, Share2, Handshake, XCircle, Gift as GiftIcon } from "lucide-react";
-import { useMyReaction, useToggleReaction } from "../hooks/useReactions";
+import { Handshake, XCircle, Gift as GiftIcon } from "lucide-react";
 import { StanceComposer } from "./StanceComposer";
 import { GiftPicker } from "./GiftPicker";
 import type { PostWithAuthor, Stance } from "../types/database";
@@ -19,57 +19,25 @@ interface ReactionTrayProps {
   post: PostWithAuthor;
 }
 
+// Support/Disagree/Pushback are all just comments with a stance
+// attached (see StanceComposer/useCreateComment) — there's no
+// separate "plain comment" button anymore since these three already
+// cover commenting, and a fourth generic option alongside them was
+// redundant. Like, Dislike, Share, and Save moved into PostCard's
+// kebab menu to cut down how many actions compete for attention in
+// the always-visible row.
 export function ReactionTray({ post }: ReactionTrayProps) {
   const [openStance, setOpenStance] = useState<Stance | null>(null);
   const [giftPickerOpen, setGiftPickerOpen] = useState(false);
 
-  const likeQuery = useMyReaction(post.id, "post", "like");
-  const dislikeQuery = useMyReaction(post.id, "post", "dislike");
-  const toggleLike = useToggleReaction(post.id, "post", "like");
-  const toggleDislike = useToggleReaction(post.id, "post", "dislike");
-  const toggleShare = useToggleReaction(post.id, "post", "share");
-
-  const isLiked = !!likeQuery.data;
-  const isDisliked = !!dislikeQuery.data;
-
   return (
     <div>
-      {/* Fixed row — Like, Dislike, Share. Always visible, no scrolling
-          required, since these are the low-friction universal reactions. */}
-      <div className="flex items-center gap-5 pt-3">
+      <div className="flex items-center gap-4 pt-3 overflow-x-auto scrollbar-none pb-1">
         <button
-          onClick={() => toggleLike.mutate(isLiked)}
-          className={`flex items-center gap-1.5 text-sm ${isLiked ? "text-accent" : "text-ink-muted"}`}
-        >
-          <Heart size={18} fill={isLiked ? "currentColor" : "none"} />
-          {post.like_count}
-        </button>
-
-        <button
-          onClick={() => toggleDislike.mutate(isDisliked)}
-          className={`flex items-center gap-1.5 text-sm ${isDisliked ? "text-danger" : "text-ink-muted"}`}
-        >
-          <ThumbsDown size={18} fill={isDisliked ? "currentColor" : "none"} />
-          {post.dislike_count}
-        </button>
-
-        <button
-          onClick={() => toggleShare.mutate(false)}
-          className="flex items-center gap-1.5 text-sm text-ink-muted"
-        >
-          <Share2 size={18} />
-          {post.share_count}
-        </button>
-      </div>
-
-      {/* Scrollable row — Support, Disagree, Pushback, Gift. The
-          "swipe to find more" tray from the product spec — on touch
-          devices this scrolls naturally; most-used items simply sit
-          first in DOM order for now (true per-user reordering is a
-          later personalization feature, not V1). */}
-      <div className="flex items-center gap-4 mt-2 overflow-x-auto scrollbar-none pb-1">
-        <button
-          onClick={() => setOpenStance("support")}
+          onClick={(e) => {
+            e.stopPropagation();
+            setOpenStance("support");
+          }}
           className="flex items-center gap-1.5 text-sm text-ink-muted flex-shrink-0"
         >
           <Handshake size={18} />
@@ -77,7 +45,10 @@ export function ReactionTray({ post }: ReactionTrayProps) {
         </button>
 
         <button
-          onClick={() => setOpenStance("disagree")}
+          onClick={(e) => {
+            e.stopPropagation();
+            setOpenStance("disagree");
+          }}
           className="flex items-center gap-1.5 text-sm text-ink-muted flex-shrink-0"
         >
           <XCircle size={18} />
@@ -85,7 +56,10 @@ export function ReactionTray({ post }: ReactionTrayProps) {
         </button>
 
         <button
-          onClick={() => setOpenStance("pushback")}
+          onClick={(e) => {
+            e.stopPropagation();
+            setOpenStance("pushback");
+          }}
           className="flex items-center gap-1.5 text-sm text-ink-muted flex-shrink-0"
         >
           <RaisedHandIcon />
@@ -93,7 +67,10 @@ export function ReactionTray({ post }: ReactionTrayProps) {
         </button>
 
         <button
-          onClick={() => setGiftPickerOpen(true)}
+          onClick={(e) => {
+            e.stopPropagation();
+            setGiftPickerOpen(true);
+          }}
           className="flex items-center gap-1.5 text-sm text-ink-muted flex-shrink-0"
         >
           <GiftIcon size={18} />
