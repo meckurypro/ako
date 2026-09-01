@@ -8,7 +8,7 @@ export interface ConversationSummary {
   id: string;
   last_message_at: string;
   other_participant: { id: string; username: string; display_name: string; avatar_url: string | null };
-  last_message: { content: string; sender_id: string } | null;
+  last_message: { content: string; sender_id: string; delivered_at: string | null; read_at: string | null } | null;
   unread: boolean;
 }
 
@@ -53,7 +53,7 @@ export function useConversations() {
 
         const { data: lastMessage } = await supabase
           .from("messages")
-          .select("content, sender_id, created_at")
+          .select("content, sender_id, created_at, delivered_at, read_at")
           .eq("conversation_id", conv.id)
           .eq("is_deleted", false)
           .order("created_at", { ascending: false })
@@ -75,7 +75,14 @@ export function useConversations() {
           id: conv.id,
           last_message_at: conv.last_message_at,
           other_participant: otherParticipant.profile as any,
-          last_message: lastMessage ? { content: lastMessage.content, sender_id: lastMessage.sender_id } : null,
+          last_message: lastMessage
+            ? {
+                content: lastMessage.content,
+                sender_id: lastMessage.sender_id,
+                delivered_at: lastMessage.delivered_at,
+                read_at: lastMessage.read_at,
+              }
+            : null,
           unread,
         });
       }
