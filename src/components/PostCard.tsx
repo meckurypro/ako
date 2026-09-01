@@ -3,7 +3,7 @@ import { useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import {
   MessageCircle,
-  MoreVertical,
+  MoreHorizontal,
   Heart,
   ThumbsDown,
   Share2,
@@ -179,7 +179,7 @@ export function PostCard({ post }: { post: PostWithAuthor }) {
             className="text-ink-muted p-1"
             aria-label="Post options"
           >
-            <MoreVertical size={18} />
+            <MoreHorizontal size={18} />
           </button>
 
           {menuOpen && (
