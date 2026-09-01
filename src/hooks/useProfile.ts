@@ -2,19 +2,19 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "../lib/supabase";
 import { useAuth } from "./useAuth";
-import type { Profile } from "../types/database";
+import type { Profile, ProfileWithRole } from "../types/database";
 
 export function useProfileByUsername(username: string) {
   return useQuery({
     queryKey: ["profile", username],
-    queryFn: async (): Promise<Profile> => {
+    queryFn: async (): Promise<ProfileWithRole> => {
       const { data, error } = await supabase
         .from("profiles")
-        .select("*")
+        .select("*, role:roles(id, label, sort_order)")
         .eq("username", username)
         .single();
       if (error) throw error;
-      return data;
+      return data as unknown as ProfileWithRole;
     },
     enabled: !!username,
   });
@@ -123,6 +123,7 @@ interface UpdateProfileInput {
   bio?: string;
   avatar_url?: string;
   website_url?: string;
+  role_id?: string | null;
 }
 
 export function useUpdateProfile() {
