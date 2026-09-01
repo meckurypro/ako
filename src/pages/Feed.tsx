@@ -12,7 +12,7 @@ const TABS = [
   { key: "for-you", label: "For You" },
   { key: "following", label: "Following" },
   { key: "top", label: "Top Discussions" },
-  { key: "bookmarked", label: "Bookmarked" },
+  { key: "saved", label: "Saved" },
 ] as const;
 
 type TabKey = (typeof TABS)[number]["key"];
@@ -121,13 +121,13 @@ function TopDiscussionsTab() {
   );
 }
 
-function BookmarkedTab() {
+function SavedTab() {
   const { data: posts, isLoading, error } = useBookmarkedPosts();
 
   if (isLoading) return <p className="text-ink-muted text-center py-10">Loading…</p>;
-  if (error) return <p className="text-danger text-center py-10">Couldn't load your bookmarks. Try again.</p>;
+  if (error) return <p className="text-danger text-center py-10">Couldn't load your saved posts. Try again.</p>;
   if (!posts || posts.length === 0) {
-    return <EmptyState message="Nothing bookmarked yet. Tap the bookmark icon on a post to keep it here." />;
+    return <EmptyState message="Nothing saved yet. Tap the bookmark icon on a post to keep it here." />;
   }
 
   return (
@@ -186,26 +186,32 @@ export function Feed() {
 
   return (
     <div className="min-h-screen bg-canvas pb-24">
-      <TopHeader showTagline />
+      {/* Header + tabs now stick together as one unit, like BottomNav does at the bottom */}
+      <div className="sticky top-0 z-20 bg-canvas">
+        <TopHeader showTagline />
 
-      <div className="sticky top-[73px] bg-canvas z-20 border-b border-border px-4 overflow-x-auto scrollbar-none">
-        <div className="max-w-xl mx-auto flex items-center gap-6">
-          {TABS.map((tab) => (
-            <button
-              key={tab.key}
-              onClick={() => setActiveTab(tab.key)}
-              className={`whitespace-nowrap text-sm font-medium pb-3 pt-3 border-b-2 -mb-px ${
-                activeTab === tab.key ? "text-accent border-accent" : "text-ink-muted border-transparent"
-              }`}
-            >
-              {tab.label}
-            </button>
-          ))}
+        <div className="border-b border-border px-4 overflow-x-auto scrollbar-none">
+          <div className="max-w-xl mx-auto flex items-center gap-6">
+            {TABS.map((tab) => (
+              <button
+                key={tab.key}
+                onClick={() => setActiveTab(tab.key)}
+                className={`whitespace-nowrap text-sm font-medium pb-3 pt-3 border-b-2 -mb-px ${
+                  activeTab === tab.key ? "text-accent border-accent" : "text-ink-muted border-transparent"
+                }`}
+              >
+                {tab.label}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
 
+      {/* min-h ensures there's always enough touch surface to swipe on,
+          even when the active tab's content (e.g. Saved with few/no
+          items) doesn't fill the screen. */}
       <div
-        className="max-w-xl mx-auto px-4 pt-4"
+        className="max-w-xl mx-auto px-4 pt-4 min-h-[70vh]"
         onTouchStart={handleTouchStart}
         onTouchEnd={handleTouchEnd}
       >
@@ -222,7 +228,7 @@ export function Feed() {
         {activeTab === "for-you" && <ForYouTab interestId={interestId} />}
         {activeTab === "following" && <FollowingTab />}
         {activeTab === "top" && <TopDiscussionsTab />}
-        {activeTab === "bookmarked" && <BookmarkedTab />}
+        {activeTab === "saved" && <SavedTab />}
       </div>
 
       <BottomNav />
