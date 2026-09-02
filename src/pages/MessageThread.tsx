@@ -539,8 +539,17 @@ export function MessageThread() {
           <button
             type="button"
             onClick={() => {
-              inputRef.current?.blur(); // stop the OS keyboard from lingering under our sheet
-              setEmojiPickerTarget((current) => (current?.mode === "input" ? null : { mode: "input" }));
+              const switchingToKeyboard = emojiPickerTarget?.mode === "input";
+              setEmojiPickerTarget(switchingToKeyboard ? null : { mode: "input" });
+              if (switchingToKeyboard) {
+                // Bring the real software keyboard straight back up —
+                // matches the feel of a native app's emoji/keyboard
+                // toggle instead of dropping the user with no keyboard
+                // and no focus.
+                requestAnimationFrame(() => inputRef.current?.focus());
+              } else {
+                inputRef.current?.blur(); // stop the OS keyboard from fighting our panel for space
+              }
             }}
             className="text-ink-muted flex-shrink-0"
             aria-label={emojiPickerTarget?.mode === "input" ? "Switch to keyboard" : "Add emoji"}
@@ -564,6 +573,18 @@ export function MessageThread() {
             <Send size={18} />
           </button>
         </form>
+
+        {emojiPickerTarget?.mode === "input" && (
+          <EmojiPickerSheet
+            mode="input"
+            content={content}
+            onBackspace={() => setContent((c) => removeLastGrapheme(c))}
+            onSelect={(emoji) => {
+              setContent((c) => c + emoji);
+              trackEmojiUsage.mutate(emoji);
+            }}
+          />
+        )}
       </div>
 
       {activeMessage && (
@@ -602,20 +623,13 @@ export function MessageThread() {
         />
       )}
 
-      {emojiPickerTarget && (
+      {emojiPickerTarget?.mode === "reaction" && (
         <EmojiPickerSheet
-          mode={emojiPickerTarget.mode}
-          content={emojiPickerTarget.mode === "input" ? content : undefined}
-          onBackspace={() => setContent((c) => removeLastGrapheme(c))}
+          mode="reaction"
           onClose={() => setEmojiPickerTarget(null)}
           onSelect={(emoji) => {
-            if (emojiPickerTarget.mode === "input") {
-              setContent((c) => c + emoji);
-              trackEmojiUsage.mutate(emoji);
-            } else {
-              setReaction.mutate({ messageId: emojiPickerTarget.messageId, emoji });
-              setEmojiPickerTarget(null);
-            }
+            setReaction.mutate({ messageId: emojiPickerTarget.messageId, emoji });
+            setEmojiPickerTarget(null);
           }}
         />
       )}
