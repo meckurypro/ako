@@ -1,7 +1,8 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { X } from "lucide-react";
 import { useCreateComment } from "../hooks/useComments";
 import type { Stance } from "../types/database";
+import { FormatToolbar } from "./FormatToolbar";
 
 const STANCE_CONFIG: Record<Stance, { label: string; prompt: string }> = {
   support: { label: "Support", prompt: "Add your reasoning or build on the argument." },
@@ -18,6 +19,7 @@ interface StanceComposerProps {
 
 export function StanceComposer({ postId, stance, onClose, parentCommentId }: StanceComposerProps) {
   const [content, setContent] = useState("");
+  const contentRef = useRef<HTMLTextAreaElement>(null);
   const [error, setError] = useState<string | null>(null);
   const createComment = useCreateComment(postId);
   const config = STANCE_CONFIG[stance];
@@ -52,7 +54,10 @@ export function StanceComposer({ postId, stance, onClose, parentCommentId }: Sta
 
         <p className="text-sm text-ink-muted mb-3">{config.prompt}</p>
 
+        <FormatToolbar textareaRef={contentRef} value={content} onChange={setContent} className="mb-1.5" />
+
         <textarea
+          ref={contentRef}
           value={content}
           onChange={(e) => setContent(e.target.value)}
           maxLength={2000}
