@@ -20,6 +20,7 @@ import {
   useUserTopEmojis,
   useMessageUserStates,
   useToggleMessageState,
+  useTrackEmojiUsage,
   type MessageReaction,
 } from "../hooks/useMessageReactions";
 import { Avatar } from "../components/Avatar";
@@ -156,6 +157,8 @@ export function MessageThread() {
   const toggleStar = useToggleMessageState(conversationId!, "starred_at");
   const togglePin = useToggleMessageState(conversationId!, "pinned_at");
   const topEmojis = useUserTopEmojis();
+  const trackEmojiUsage = useTrackEmojiUsage();
+  const inputRef = useRef<HTMLInputElement>(null);
 
   // Per-message read_at stamping (drives ticks) — separate mechanism
   // from markConversationRead above, which drives the conversation-list
@@ -172,6 +175,28 @@ export function MessageThread() {
 
   const [activeMessage, setActiveMessage] = useState<ActiveMessage | null>(null);
   const [emojiPickerTarget, setEmojiPickerTarget] = useState<EmojiPickerTarget>(null);
+
+  // The emoji sheet is an in-page overlay, not a route — without this,
+  // the hardware/browser back button falls through to React Router's
+  // history and leaves the thread entirely instead of just closing the
+  // sheet. Pushing a dummy entry while it's open means "back" consumes
+  // that entry first.
+  useEffect(() => {
+    if (!emojiPickerTarget) return;
+    window.history.pushState({ modal: "emoji" }, "");
+    const handlePopState = () => setEmojiPickerTarget(null);
+    window.addEventListener("popstate", handlePopState);
+    return () => {
+      window.removeEventListener("popstate", handlePopState);
+      // Only pop our own dummy entry if it's still there — if the user
+      // closed this via the back button, popstate already consumed it,
+      // and calling history.back() again here would eat a real entry.
+      if (window.history.state?.modal === "emoji") {
+        window.history.back();
+      }
+    };
+  }, [emojiPickerTarget]);
+
   const longPressTimers = useRef<Record<string, ReturnType<typeof setTimeout> | null>>({});
   const longPressStart = useRef<Record<string, { x: number; y: number }>>({});
 
@@ -513,15 +538,17 @@ export function MessageThread() {
         <form onSubmit={handleSubmit} className="px-4 py-3 flex items-center gap-2">
           <button
             type="button"
-            onClick={() =>
-              setEmojiPickerTarget((current) => (current?.mode === "input" ? null : { mode: "input" }))
-            }
+            onClick={() => {
+              inputRef.current?.blur(); // stop the OS keyboard from lingering under our sheet
+              setEmojiPickerTarget((current) => (current?.mode === "input" ? null : { mode: "input" }));
+            }}
             className="text-ink-muted flex-shrink-0"
             aria-label={emojiPickerTarget?.mode === "input" ? "Switch to keyboard" : "Add emoji"}
           >
             {emojiPickerTarget?.mode === "input" ? <Keyboard size={22} /> : <Smile size={22} />}
           </button>
           <input
+            ref={inputRef}
             value={content}
             onChange={(e) => setContent(e.target.value)}
             maxLength={2000}
@@ -584,6 +611,7 @@ export function MessageThread() {
           onSelect={(emoji) => {
             if (emojiPickerTarget.mode === "input") {
               setContent((c) => c + emoji);
+              trackEmojiUsage.mutate(emoji);
             } else {
               setReaction.mutate({ messageId: emojiPickerTarget.messageId, emoji });
               setEmojiPickerTarget(null);
