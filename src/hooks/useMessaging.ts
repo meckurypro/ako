@@ -190,6 +190,27 @@ export function useSendMessage(conversationId: string) {
 }
 
 /**
+ * Soft-deletes a message the current user sent (flips is_deleted —
+ * mirrors posts/comments' soft-delete pattern). RLS should restrict
+ * this to sender_id = auth.uid() at the database level; not re-checked
+ * client-side here.
+ */
+export function useDeleteMessage(conversationId: string) {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (messageId: string) => {
+      const { error } = await supabase.from("messages").update({ is_deleted: true }).eq("id", messageId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["messages", conversationId] });
+      queryClient.invalidateQueries({ queryKey: ["conversations"] });
+    },
+  });
+}
+
+/**
  * Marks all not-yet-read messages from the OTHER participant as read.
  * Call this from the thread page whenever it's mounted/visible and
  * `messages` has loaded — safe to call on every render of that effect,
@@ -336,4 +357,4 @@ export function useStartConversation() {
 export function useUnreadConversationCount(): number {
   const { data: conversations } = useConversations();
   return conversations?.filter((c) => c.unread).length ?? 0;
-        }
+                                                   }
