@@ -473,7 +473,7 @@ export function MessageThread() {
         )}
       </header>
 
-      <div className="flex-1 overflow-y-auto px-4 py-4 max-w-xl mx-auto w-full" style={chatBackgroundStyle}>
+      <div className="flex-1 min-h-0 overflow-y-auto px-4 py-4 max-w-xl mx-auto w-full" style={chatBackgroundStyle}>
         {isLoading ? (
           <p className="text-ink-muted text-center py-10">Loading…</p>
         ) : !messages || messages.length === 0 ? (
