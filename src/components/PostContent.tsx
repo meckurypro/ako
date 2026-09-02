@@ -1,41 +1,4 @@
-import { Link } from "react-router-dom";
-import { Fragment } from "react";
-
-const TOKEN_PATTERN = /(#[a-zA-Z0-9_]+|@[a-zA-Z0-9_]+)/g;
-
-function withLinks(text: string) {
-  const parts = text.split(TOKEN_PATTERN);
-
-  return parts.map((part, i) => {
-    if (part.startsWith("#") && part.length > 1) {
-      const tag = part.slice(1).toLowerCase();
-      return (
-        <Link
-          key={i}
-          to={`/hashtag/${tag}`}
-          onClick={(e) => e.stopPropagation()}
-          className="text-accent hover:underline"
-        >
-          {part}
-        </Link>
-      );
-    }
-    if (part.startsWith("@") && part.length > 1) {
-      const username = part.slice(1);
-      return (
-        <Link
-          key={i}
-          to={`/profile/${username}`}
-          onClick={(e) => e.stopPropagation()}
-          className="text-accent hover:underline"
-        >
-          {part}
-        </Link>
-      );
-    }
-    return <Fragment key={i}>{part}</Fragment>;
-  });
-}
+import { renderFormattedText } from "../lib/formatText";
 
 interface PostContentProps {
   heading?: string | null;
@@ -51,7 +14,7 @@ function renderParagraphs(content: string) {
         i < paragraphs.length - 1 ? "mb-2" : ""
       }`}
     >
-      {withLinks(para)}
+      {renderFormattedText(para, `p${i}`)}
     </p>
   ));
 }
@@ -64,7 +27,7 @@ export function PostContent({ heading, content }: PostContentProps) {
     <div>
       {heading && (
         <h3 className="font-display text-2xl font-bold leading-snug text-ink mb-4">
-          {withLinks(heading)}
+          {renderFormattedText(heading, "h")}
         </h3>
       )}
       {content && renderParagraphs(content)}
