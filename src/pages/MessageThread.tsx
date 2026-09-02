@@ -1,7 +1,7 @@
 // src/pages/MessageThread.tsx
 import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { ArrowLeft, Send, Search, ChevronUp, ChevronDown, Smile, Keyboard, Reply, X } from "lucide-react";
+import { ArrowLeft, Send, Search, ChevronUp, ChevronDown, Smile, Keyboard, Reply, X, MoreHorizontal } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "../lib/supabase";
 import { useAuth } from "../hooks/useAuth";
@@ -171,6 +171,7 @@ export function MessageThread() {
 
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  const [headerMenuOpen, setHeaderMenuOpen] = useState(false);
   const [matchIndex, setMatchIndex] = useState(0);
 
   const [activeMessage, setActiveMessage] = useState<ActiveMessage | null>(null);
@@ -403,13 +404,32 @@ export function MessageThread() {
                 </div>
               </>
             )}
-            <button
-              onClick={() => setSearchOpen(true)}
-              className="text-ink-muted flex-shrink-0"
-              aria-label="Search in conversation"
-            >
-              <Search size={20} />
-            </button>
+            <div className="relative flex-shrink-0">
+              <button
+                onClick={() => setHeaderMenuOpen((open) => !open)}
+                className="text-ink-muted"
+                aria-label="More options"
+              >
+                <MoreHorizontal size={20} />
+              </button>
+              {headerMenuOpen && (
+                <>
+                  <div className="fixed inset-0 z-30" onClick={() => setHeaderMenuOpen(false)} />
+                  <div className="absolute right-0 top-full mt-2 z-40 bg-surface border border-border rounded-xl shadow-lg py-1 min-w-[160px]">
+                    <button
+                      onClick={() => {
+                        setHeaderMenuOpen(false);
+                        setSearchOpen(true);
+                      }}
+                      className="w-full flex items-center gap-2.5 px-3.5 py-2.5 text-sm text-ink text-left"
+                    >
+                      <Search size={16} />
+                      Search
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
           </>
         )}
       </header>
