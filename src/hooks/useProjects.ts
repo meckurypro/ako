@@ -2,6 +2,8 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "../lib/supabase";
 import { useAuth } from "./useAuth";
+import { PROFILE_ROLES_SELECT, toProfileRoles } from "../lib/profileRoles";
+import type { AuthorSummary } from "../types/database";
 
 // ------------------------------------------------------------
 // Types — mirror the projects table after 19_projects_enhancements.sql
@@ -160,6 +162,7 @@ interface CreateProjectInput {
   price_usd: number;
   promo_price_usd?: number | null;
   status?: ProjectStatus;   // defaults to 'active' (publish immediately) if omitted
+  topic_ids?: string[];
 }
 
 export function useCreateProject() {
@@ -167,7 +170,7 @@ export function useCreateProject() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async (input: CreateProjectInput) => {
+    mutationFn: async ({ topic_ids, ...input }: CreateProjectInput) => {
       if (!user) throw new Error("Not signed in");
       const { data, error } = await supabase
         .from("projects")
@@ -175,6 +178,16 @@ export function useCreateProject() {
         .select()
         .single();
       if (error) throw error;
+
+      if (topic_ids && topic_ids.length > 0) {
+        const rows = topic_ids.map((interest_id) => ({ project_id: data.id, interest_id }));
+        const { error: topicsError } = await supabase.from("project_topics").insert(rows);
+        // The project itself is already created at this point — a
+        // topic-write failure shouldn't silently produce an
+        // untagged project the owner thinks is tagged, so surface it.
+        if (topicsError) throw topicsError;
+      }
+
       return data;
     },
     onSuccess: () => {
@@ -197,6 +210,9 @@ interface UpdateProjectInput {
   price_usd?: number;
   promo_price_usd?: number | null;
   status?: ProjectStatus;
+  // undefined = leave topics untouched (e.g. a status-only change).
+  // An array — including [] — replaces the full topic set.
+  topic_ids?: string[];
 }
 
 // Full edit — content fields, price, and optionally status all in
@@ -205,7 +221,7 @@ export function useUpdateProject() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async ({ id, ...patch }: UpdateProjectInput) => {
+    mutationFn: async ({ id, topic_ids, ...patch }: UpdateProjectInput) => {
       const { data, error } = await supabase
         .from("projects")
         .update(patch)
@@ -213,11 +229,29 @@ export function useUpdateProject() {
         .select()
         .single();
       if (error) throw error;
+
+      if (topic_ids !== undefined) {
+        const { error: deleteError } = await supabase
+          .from("project_topics")
+          .delete()
+          .eq("project_id", id);
+        if (deleteError) throw deleteError;
+
+        if (topic_ids.length > 0) {
+          const rows = topic_ids.map((interest_id) => ({ project_id: id, interest_id }));
+          const { error: insertError } = await supabase.from("project_topics").insert(rows);
+          if (insertError) throw insertError;
+        }
+      }
+
       return data as Project;
     },
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["user-projects"] });
       queryClient.invalidateQueries({ queryKey: ["project", data.id] });
+      queryClient.invalidateQueries({ queryKey: ["project-topics", data.id] });
+      queryClient.invalidateQueries({ queryKey: ["project-detail", data.id] });
+      queryClient.invalidateQueries({ queryKey: ["similar-projects"] });
     },
   });
 }
@@ -321,5 +355,137 @@ export function useGetProjectFile() {
       if (data?.error) throw new Error(data.error);
       return data.url;
     },
+  });
+}
+
+// --------------------------------------------------------
+// Topic tags (project_topics) — mirrors post_topics. Fetched
+// separately from the project row itself so the Edit form can
+// prefill its topic picker independently of the rest of hydration.
+// --------------------------------------------------------
+export function useProjectTopics(projectId: string | undefined) {
+  return useQuery({
+    queryKey: ["project-topics", projectId],
+    queryFn: async (): Promise<string[]> => {
+      const { data, error } = await supabase
+        .from("project_topics")
+        .select("interest_id")
+        .eq("project_id", projectId);
+      if (error) throw error;
+      return data.map((row) => row.interest_id);
+    },
+    enabled: !!projectId,
+  });
+}
+
+// --------------------------------------------------------
+// Project detail page — the project itself plus its creator's byline
+// (avatar, name, tier, job/hobby tags) and its topic tags, so a
+// visitor landing on a shared project link can tap through to the
+// creator's profile and see what it's tagged under.
+// --------------------------------------------------------
+export type ProjectWithOwner = Project & {
+  owner: AuthorSummary;
+  topics: { id: string; name: string }[];
+};
+
+const PROJECT_WITH_OWNER_SELECT = `*, owner:profiles!projects_owner_id_fkey(id, username, display_name, avatar_url, tier, ${PROFILE_ROLES_SELECT}), topics:project_topics(interest:interests(id, name))`;
+
+export function useProjectDetail(projectId: string | undefined) {
+  return useQuery({
+    queryKey: ["project-detail", projectId],
+    queryFn: async (): Promise<ProjectWithOwner> => {
+      const { data, error } = await supabase
+        .from("projects")
+        .select(PROJECT_WITH_OWNER_SELECT)
+        .eq("id", projectId)
+        .single();
+      if (error) throw error;
+
+      const raw = data as any;
+      const { profile_roles, ...owner } = raw.owner;
+      return {
+        ...raw,
+        owner: { ...owner, roles: toProfileRoles(profile_roles) },
+        topics: (raw.topics ?? []).map((t: any) => t.interest),
+      };
+    },
+    enabled: !!projectId,
+  });
+}
+
+/**
+ * "Similar projects" for the detail page, ranked by three signals:
+ * same creator, same project_type, and shared topics (project_topics).
+ * Returned as three separate rails rather than one merged/scored
+ * list — a real relevance score across signals needs an RPC to be
+ * meaningful; naively interleaving three client-side arrays would
+ * just be theater. Some overlap between rails is expected and fine
+ * (a project can legitimately be both "from this creator" and "on
+ * this topic") — same tradeoff most feeds make.
+ */
+export function useSimilarProjects(
+  project:
+    | (Pick<Project, "id" | "owner_id" | "project_type"> & { topics?: { id: string }[] })
+    | undefined
+) {
+  return useQuery({
+    queryKey: ["similar-projects", project?.id],
+    queryFn: async (): Promise<{
+      moreFromCreator: Project[];
+      moreOfType: Project[];
+      moreOnTopic: Project[];
+    }> => {
+      const topicIds = (project!.topics ?? []).map((t) => t.id);
+
+      const [creatorRes, typeRes, topicLinkRes] = await Promise.all([
+        supabase
+          .from("projects")
+          .select("*")
+          .eq("owner_id", project!.owner_id)
+          .eq("status", "active")
+          .neq("id", project!.id)
+          .order("created_at", { ascending: false })
+          .limit(6),
+        supabase
+          .from("projects")
+          .select("*")
+          .eq("project_type", project!.project_type)
+          .eq("status", "active")
+          .neq("id", project!.id)
+          .neq("owner_id", project!.owner_id) // avoid duplicating the "more from creator" list
+          .order("created_at", { ascending: false })
+          .limit(6),
+        topicIds.length > 0
+          ? supabase
+              .from("project_topics")
+              .select("project_id")
+              .in("interest_id", topicIds)
+              .neq("project_id", project!.id)
+          : Promise.resolve({ data: [] as { project_id: string }[], error: null }),
+      ]);
+      if (creatorRes.error) throw creatorRes.error;
+      if (typeRes.error) throw typeRes.error;
+      if (topicLinkRes.error) throw topicLinkRes.error;
+
+      let moreOnTopic: Project[] = [];
+      const topicProjectIds = Array.from(
+        new Set((topicLinkRes.data ?? []).map((row) => row.project_id))
+      );
+      if (topicProjectIds.length > 0) {
+        const { data, error } = await supabase
+          .from("projects")
+          .select("*")
+          .in("id", topicProjectIds)
+          .eq("status", "active")
+          .order("created_at", { ascending: false })
+          .limit(6);
+        if (error) throw error;
+        moreOnTopic = data;
+      }
+
+      return { moreFromCreator: creatorRes.data, moreOfType: typeRes.data, moreOnTopic };
+    },
+    enabled: !!project,
   });
 }
