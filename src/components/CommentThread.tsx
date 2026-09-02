@@ -6,6 +6,7 @@ import { StanceComposer } from "./StanceComposer";
 import { useMyReaction, useToggleReaction } from "../hooks/useReactions";
 import type { CommentNode } from "../hooks/useComments";
 import type { Stance } from "../types/database";
+import { renderFormattedText } from "../lib/formatText";
 
 const STANCE_STYLES: Record<Stance, { label: string; className: string }> = {
   support: { label: "Support", className: "text-accent bg-accent-soft" },
@@ -61,7 +62,9 @@ function CommentItem({ comment, postId, depth = 0 }: CommentItemProps) {
             )}
             <span className="text-xs text-ink-muted">{timeAgo(comment.created_at)}</span>
           </div>
-          <p className="text-sm text-ink mt-1 whitespace-pre-wrap break-words">{comment.content}</p>
+          <p className="text-sm text-ink mt-1 whitespace-pre-wrap break-words">
+            {renderFormattedText(comment.content, "c")}
+          </p>
 
           <div className="flex items-center gap-3 mt-1.5">
             <button
