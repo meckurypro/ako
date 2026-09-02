@@ -1,6 +1,6 @@
 import { useState, type FormEvent } from "react";
 import { useNavigate } from "react-router-dom";
-import { ArrowLeft, Lock, Users, UserCircle2, UserX, VolumeX, AlertTriangle, LogOut, KeyRound } from "lucide-react";
+import { ArrowLeft, Lock, Users, UserCircle2, UserX, VolumeX, KeyRound } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "../lib/supabase";
 import { useAuth } from "../hooks/useAuth";
@@ -13,7 +13,6 @@ import {
   useToggleBlock,
   useToggleMute,
   useChangePassword,
-  useDeactivateAccount,
 } from "../hooks/usePrivacy";
 import { PasswordField } from "../components/PasswordField";
 import { Avatar } from "../components/Avatar";
@@ -71,6 +70,19 @@ interface ToggleRowProps {
   error?: string | null;
 }
 
+// Pixel-exact positions rather than a translate-x transform: 44px pill
+// (w-11), 20px knob (w-5) needs 2px of breathing room on every side.
+// Off sits the knob's left edge at 2px; on sits it at 44 - 20 - 2 = 22px.
+// An earlier version used translate-x-0.5 / translate-x-5 with no
+// explicit `left`, relying on the knob's "as if static" position to
+// default to the pill's left edge — Tailwind v4 renders translate via
+// the CSS `translate` property rather than `transform`, and that
+// default didn't hold, so the knob rendered pinned to the right in
+// both states and only the pill color changed. Explicit `left` values
+// sidestep that entirely. `overflow-hidden` on the pill is a second
+// safety net so the knob can never visually spill past the capsule
+// the way it did before (it was getting clipped by the card's rounded
+// corner instead of sitting inside the pill).
 function ToggleRow({ icon, title, description, checked, onToggle, pending, error }: ToggleRowProps) {
   return (
     <div className="bg-surface rounded-xl p-4 mb-3">
@@ -86,13 +98,13 @@ function ToggleRow({ icon, title, description, checked, onToggle, pending, error
           onClick={onToggle}
           disabled={pending}
           aria-pressed={checked}
-          className={`w-11 h-6 rounded-full transition-colors relative flex-shrink-0 disabled:opacity-60 ${
+          className={`w-11 h-6 rounded-full transition-colors relative flex-shrink-0 overflow-hidden disabled:opacity-60 ${
             checked ? "bg-accent" : "bg-border"
           }`}
         >
           <span
-            className={`absolute top-0.5 w-5 h-5 rounded-full bg-canvas transition-transform ${
-              checked ? "translate-x-5" : "translate-x-0.5"
+            className={`absolute top-0.5 w-5 h-5 rounded-full bg-canvas transition-[left] ${
+              checked ? "left-[22px]" : "left-0.5"
             }`}
           />
         </button>
@@ -110,38 +122,12 @@ export function Settings() {
   const toggleHideFollowing = useToggleHideFollowingList();
   const { data: blocked } = useBlockedList();
   const { data: muted } = useMutedList();
-  const deactivate = useDeactivateAccount();
   const changePassword = useChangePassword();
-
-  const [showDeactivateConfirm, setShowDeactivateConfirm] = useState(false);
-  const [deactivating, setDeactivating] = useState(false);
-  const [deactivateError, setDeactivateError] = useState<string | null>(null);
 
   const [showPasswordForm, setShowPasswordForm] = useState(false);
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [passwordSuccess, setPasswordSuccess] = useState(false);
-
-  const [loggingOut, setLoggingOut] = useState(false);
-
-  async function handleDeactivate() {
-    setDeactivating(true);
-    setDeactivateError(null);
-    try {
-      await deactivate.mutateAsync();
-      await supabase.auth.signOut();
-      navigate("/login");
-    } catch (err) {
-      setDeactivateError(err instanceof Error ? err.message : "Couldn't deactivate account.");
-      setDeactivating(false);
-    }
-  }
-
-  async function handleLogout() {
-    setLoggingOut(true);
-    await supabase.auth.signOut();
-    navigate("/login");
-  }
 
   async function handleChangePassword(e: FormEvent) {
     e.preventDefault();
@@ -244,7 +230,7 @@ export function Settings() {
           )}
         </div>
 
-        <div className="border-t border-border pt-6 mb-6">
+        <div className="border-t border-border pt-6">
           <button
             onClick={() => {
               setShowPasswordForm((v) => !v);
@@ -294,55 +280,6 @@ export function Settings() {
                 {changePassword.isPending ? "Updating…" : "Update password"}
               </button>
             </form>
-          )}
-        </div>
-
-        <div className="border-t border-border pt-6 mb-6">
-          <button
-            onClick={handleLogout}
-            disabled={loggingOut}
-            className="flex items-center gap-2 text-sm font-medium text-ink disabled:opacity-50"
-          >
-            <LogOut size={16} className="text-ink-muted" />
-            {loggingOut ? "Logging out…" : "Log out"}
-          </button>
-        </div>
-
-        <div className="border-t border-border pt-6">
-          {!showDeactivateConfirm ? (
-            <button
-              onClick={() => setShowDeactivateConfirm(true)}
-              className="text-sm text-danger font-medium"
-            >
-              Deactivate account
-            </button>
-          ) : (
-            <div className="bg-danger/10 rounded-xl p-4">
-              <div className="flex gap-2 mb-2">
-                <AlertTriangle size={18} className="text-danger flex-shrink-0 mt-0.5" />
-                <p className="text-sm text-ink">
-                  This signs you out everywhere and hides your profile and posts. Your wallet
-                  and transaction history are kept for financial record-keeping — this can't be
-                  undone from the app.
-                </p>
-              </div>
-              {deactivateError && <p className="text-danger text-sm mb-2">{deactivateError}</p>}
-              <div className="flex gap-2 mt-3">
-                <button
-                  onClick={handleDeactivate}
-                  disabled={deactivating}
-                  className="flex-1 bg-danger text-canvas py-2.5 rounded-lg text-sm font-medium disabled:opacity-50"
-                >
-                  {deactivating ? "Deactivating…" : "Confirm deactivation"}
-                </button>
-                <button
-                  onClick={() => setShowDeactivateConfirm(false)}
-                  className="flex-1 bg-canvas border border-border text-ink-muted py-2.5 rounded-lg text-sm"
-                >
-                  Cancel
-                </button>
-              </div>
-            </div>
           )}
         </div>
       </div>
