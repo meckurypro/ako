@@ -7,6 +7,8 @@ import { useAuth } from "./useAuth";
 export interface ConversationSummary {
   id: string;
   last_message_at: string;
+  pinned_at: string | null;
+  archived_at: string | null;
   other_participant: {
     id: string;
     username: string;
@@ -30,14 +32,22 @@ export function useConversations() {
     queryFn: async (): Promise<ConversationSummary[]> => {
       const { data: myParticipation, error } = await supabase
         .from("conversation_participants")
-        .select("conversation_id, last_read_at")
+        .select("conversation_id, last_read_at, archived_at, pinned_at, hidden_at")
         .eq("user_id", user!.id);
 
       if (error) throw error;
       if (!myParticipation?.length) return [];
 
-      const conversationIds = myParticipation.map((p) => p.conversation_id);
-      const readMap = new Map(myParticipation.map((p) => [p.conversation_id, p.last_read_at]));
+      // "Deleted" chats are hidden for this user only. Archived chats
+      // are also kept out of the main list for now (there's no
+      // Archived view yet to surface them in — worth adding if you
+      // want a way back to them later).
+      const visible = myParticipation.filter((p) => !p.hidden_at && !p.archived_at);
+      if (!visible.length) return [];
+
+      const conversationIds = visible.map((p) => p.conversation_id);
+      const readMap = new Map(visible.map((p) => [p.conversation_id, p.last_read_at]));
+      const pinMap = new Map(visible.map((p) => [p.conversation_id, p.pinned_at]));
 
       const { data: conversations, error: convError } = await supabase
         .from("conversations")
@@ -82,6 +92,8 @@ export function useConversations() {
         results.push({
           id: conv.id,
           last_message_at: conv.last_message_at,
+          pinned_at: pinMap.get(conv.id) ?? null,
+          archived_at: null, // archived ones are already filtered out above
           other_participant: otherParticipant.profile as any,
           last_message: lastMessage
             ? {
@@ -94,6 +106,11 @@ export function useConversations() {
           unread,
         });
       }
+
+      // Pinned conversations float to the top; recency order (already
+      // applied by the query above) is preserved within each group
+      // since Array.sort is stable.
+      results.sort((a, b) => (b.pinned_at ? 1 : 0) - (a.pinned_at ? 1 : 0));
 
       return results;
     },
@@ -336,6 +353,38 @@ export function useMarkConversationRead(conversationId: string) {
       const { error } = await supabase
         .from("conversation_participants")
         .update({ last_read_at: new Date().toISOString() })
+        .eq("conversation_id", conversationId)
+        .eq("user_id", user.id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["conversations"] });
+    },
+  });
+}
+
+export interface ConversationStateUpdate {
+  conversationId: string;
+  pinned_at?: string | null;
+  archived_at?: string | null;
+  hidden_at?: string | null;
+}
+
+/**
+ * Pin, archive, or hide ("delete") a conversation — all per-user:
+ * this only touches the current user's own conversation_participants
+ * row, so it never affects what the other side of the chat sees.
+ */
+export function useUpdateConversationState() {
+  const { user } = useAuth();
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ conversationId, ...updates }: ConversationStateUpdate) => {
+      if (!user) return;
+      const { error } = await supabase
+        .from("conversation_participants")
+        .update(updates)
         .eq("conversation_id", conversationId)
         .eq("user_id", user.id);
       if (error) throw error;
