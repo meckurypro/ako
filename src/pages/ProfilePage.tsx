@@ -8,6 +8,7 @@ import { useStartConversation } from "../hooks/useMessaging";
 import { useIsBlocked, useToggleBlock, useIsMuted, useToggleMute } from "../hooks/usePrivacy";
 import { useUserProjects } from "../hooks/useProjects";
 import { Avatar } from "../components/Avatar";
+import { ImageLightbox } from "../components/ImageLightbox";
 import { TierBadge } from "../components/TierBadge";
 import { RoleTags } from "../components/RoleTags";
 import { PostCard } from "../components/PostCard";
@@ -41,6 +42,7 @@ export function ProfilePage() {
   const [previewingAsVisitor, setPreviewingAsVisitor] = useState(false);
   const [showArchived, setShowArchived] = useState(false);
   const [showArchivedProjects, setShowArchivedProjects] = useState(false);
+  const [avatarOpen, setAvatarOpen] = useState(false);
 
   const { data: profile, isLoading } = useProfileByUsername(username!);
   const [searchParams] = useSearchParams();
@@ -196,7 +198,18 @@ export function ProfilePage() {
 
         {/* Header: avatar beside name / roles / handle + website */}
         <div className="flex items-start gap-4 mt-4">
-          <Avatar src={profile.avatar_url} name={profile.display_name} size="lg" />
+          {profile.avatar_url ? (
+            <button
+              type="button"
+              onClick={() => setAvatarOpen(true)}
+              className="flex-shrink-0"
+              aria-label="View profile photo"
+            >
+              <Avatar src={profile.avatar_url} name={profile.display_name} size="lg" />
+            </button>
+          ) : (
+            <Avatar src={profile.avatar_url} name={profile.display_name} size="lg" />
+          )}
           <div className="flex-1 min-w-0 pt-1">
             <div className="flex items-center gap-2 flex-wrap">
               <h1 className="font-medium text-lg text-ink">{profile.display_name}</h1>
@@ -339,6 +352,14 @@ export function ProfilePage() {
       </div>
 
       <BottomNav />
+
+      {avatarOpen && profile.avatar_url && (
+        <ImageLightbox
+          src={profile.avatar_url}
+          alt={profile.display_name}
+          onClose={() => setAvatarOpen(false)}
+        />
+      )}
     </div>
   );
         }
