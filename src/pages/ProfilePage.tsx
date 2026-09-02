@@ -259,21 +259,22 @@ export function ProfilePage() {
                 showArchived ? "text-accent" : "text-ink-muted"
               }`}
             >
-              <Archive size={16} />
-              Archived
-            </button>
-          )}
-          {showOwnerView && activeTab === "projects" && (
-            <div className="ml-auto flex items-center gap-4">
-              <button
-                onClick={() => setShowArchivedProjects((v) => !v)}
-                className={`flex items-center gap-1 text-sm font-medium pb-3 ${
-                  showArchivedProjects ? "text-accent" : "text-ink-muted"
+              <span
+                className={`flex items-center gap-1 px-2.5 py-1 rounded-full ${
+                  showArchived ? "bg-accent-soft" : ""
                 }`}
               >
                 <Archive size={16} />
                 Archived
-              </button>
+              </span>
+            </button>
+          )}
+          {showOwnerView && activeTab === "projects" && (
+            // Archived stays in the same trailing slot it occupies on the
+            // Posts tab (ml-auto, rightmost) — New moves before it instead
+            // of after, so the position of "Archived" never shifts between
+            // tabs; only what it renders (posts vs. projects) changes.
+            <div className="ml-auto flex items-center gap-4">
               <Link
                 to="/projects/new"
                 className="flex items-center gap-1 text-sm text-accent font-medium pb-3"
@@ -281,6 +282,21 @@ export function ProfilePage() {
                 <Plus size={16} />
                 New
               </Link>
+              <button
+                onClick={() => setShowArchivedProjects((v) => !v)}
+                className={`flex items-center gap-1 text-sm font-medium pb-3 ${
+                  showArchivedProjects ? "text-accent" : "text-ink-muted"
+                }`}
+              >
+                <span
+                  className={`flex items-center gap-1 px-2.5 py-1 rounded-full ${
+                    showArchivedProjects ? "bg-accent-soft" : ""
+                  }`}
+                >
+                  <Archive size={16} />
+                  Archived
+                </span>
+              </button>
             </div>
           )}
         </div>
@@ -293,12 +309,16 @@ export function ProfilePage() {
             </p>
           ) : activeTab === "posts" ? (
             posts && posts.length > 0 ? (
-              posts.map((post: any) => <PostCard key={post.id} post={post} />)
+              posts.map((post: any) => (
+                <PostCard key={post.id} post={post} isOwnerView={showOwnerView} />
+              ))
             ) : (
               <p className="text-ink-muted text-center py-10 text-sm">No posts yet.</p>
             )
           ) : visibleProjects && visibleProjects.length > 0 ? (
-            visibleProjects.map((project) => <ProjectCard key={project.id} project={project} />)
+            visibleProjects.map((project) => (
+              <ProjectCard key={project.id} project={project} isOwnerView={showOwnerView} />
+            ))
           ) : (
             <p className="text-ink-muted text-center py-10 text-sm">
               {showArchivedProjects
