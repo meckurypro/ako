@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, type FormEvent } from "react";
 import { useNavigate, Link } from "react-router-dom";
-import { ArrowLeft, Camera, Shield } from "lucide-react";
+import { ArrowLeft, Camera, Shield, SlidersHorizontal, LogOut } from "lucide-react";
 import { useAuth } from "../hooks/useAuth";
 import { useUpdateProfile, useUpdateProfileRoles } from "../hooks/useProfile";
 import { useUploadAvatar } from "../hooks/useUploadAvatar";
@@ -46,6 +46,7 @@ export function EditProfile() {
   const [roleIds, setRoleIds] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [uploadError, setUploadError] = useState<string | null>(null);
+  const [loggingOut, setLoggingOut] = useState(false);
 
   useEffect(() => {
     if (profile) {
@@ -102,6 +103,12 @@ export function EditProfile() {
     } catch (err) {
       setError(err instanceof Error ? err.message : "Couldn't save changes.");
     }
+  }
+
+  async function handleLogout() {
+    setLoggingOut(true);
+    await supabase.auth.signOut();
+    navigate("/login");
   }
 
   if (isLoading) {
@@ -233,6 +240,23 @@ export function EditProfile() {
           <Shield size={16} />
           Privacy Settings
         </Link>
+
+        <Link
+          to="/settings/advanced"
+          className="flex items-center gap-2 justify-center text-sm text-ink-muted mt-4"
+        >
+          <SlidersHorizontal size={16} />
+          Advanced Settings
+        </Link>
+
+        <button
+          onClick={handleLogout}
+          disabled={loggingOut}
+          className="flex items-center gap-2 justify-center text-sm text-ink-muted mt-4 mx-auto disabled:opacity-50"
+        >
+          <LogOut size={16} />
+          {loggingOut ? "Logging out…" : "Log out"}
+        </button>
       </div>
     </div>
   );
