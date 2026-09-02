@@ -1,16 +1,22 @@
 // src/components/EmojiPickerSheet.tsx
-import { X, Delete, Keyboard } from "lucide-react";
+import { X, Delete } from "lucide-react";
 import { EMOJI_CATEGORIES } from "../lib/emojiData";
 import { useRecentEmojis } from "../hooks/useMessageReactions";
 
 interface EmojiPickerSheetProps {
   onSelect: (emoji: string) => void;
-  onClose: () => void;
-  /** "input" shows the live message preview + backspace at the top
-   *  (opened from the compose bar); "reaction" shows a plain header
-   *  (opened from a message's reaction picker — there's no draft to
-   *  preview, and picking an emoji closes the sheet immediately). */
-  mode?: "input" | "reaction";
+  /** Only used by "reaction" mode, which is a real modal with its own
+   *  close button. "input" mode closes via the compose bar's own
+   *  keyboard-toggle button, not from inside this component. */
+  onClose?: () => void;
+  /** "input": renders inline, directly below the compose bar — like a
+   *  keyboard replacing the space a software keyboard would occupy,
+   *  with the compose bar (and its toggle button) staying visible and
+   *  in the same place the whole time.
+   *  "reaction": a standalone full-screen picker opened from a
+   *  message's long-press menu — no compose bar involved, so it gets
+   *  its own header and close button. */
+  mode: "input" | "reaction";
   content?: string;
   onBackspace?: () => void;
 }
@@ -33,86 +39,72 @@ export function removeLastGrapheme(text: string): string {
 /**
  * Full emoji picker — a single continuously-scrollable list (Recents,
  * then each category), with plain text section labels instead of
- * tabs. No search. When opened from the compose bar, the message
- * draft stays visible at the top so taps are visible as you go.
+ * tabs. No search.
  */
-export function EmojiPickerSheet({
-  onSelect,
-  onClose,
-  mode = "reaction",
-  content = "",
-  onBackspace,
-}: EmojiPickerSheetProps) {
+export function EmojiPickerSheet({ onSelect, onClose, mode, content = "", onBackspace }: EmojiPickerSheetProps) {
   const recents = useRecentEmojis(36);
-
   const sections = [
-    ...(recents.length ? [{ key: "recents", label: "Recently used", emojis: recents.map((char) => ({ char, name: char })) }] : []),
+    ...(recents.length
+      ? [{ key: "recents", label: "Recently used", emojis: recents.map((char) => ({ char, name: char })) }]
+      : []),
     ...EMOJI_CATEGORIES,
   ];
+
+  const grid = (
+    <div className="flex-1 overflow-y-auto px-3 pb-4">
+      {sections.map((section) => (
+        <div key={section.key} className="mb-3">
+          <p className="text-xs text-ink-muted px-1 pt-2 pb-1">{section.label}</p>
+          <div className="grid grid-cols-8 gap-1">
+            {section.emojis.map((entry, i) => (
+              <button
+                key={`${section.key}-${entry.char}-${i}`}
+                type="button"
+                onClick={() => onSelect(entry.char)}
+                className="text-2xl leading-none aspect-square flex items-center justify-center rounded-lg hover:bg-accent-soft active:scale-90 transition-transform"
+                aria-label={entry.name}
+              >
+                {entry.char}
+              </button>
+            ))}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+
+  if (mode === "input") {
+    // Inline, sits directly under the compose bar — no backdrop, no
+    // full-screen takeover, nothing covering the toggle button above.
+    return (
+      <div className="bg-surface border-t border-border max-h-[45vh] min-h-[45vh] flex flex-col">
+        <div className="flex items-center justify-end px-3 pt-2 pb-1">
+          <button
+            type="button"
+            onClick={() => onBackspace?.()}
+            disabled={!content}
+            className="text-ink-muted p-2 disabled:opacity-30"
+            aria-label="Backspace"
+          >
+            <Delete size={20} />
+          </button>
+        </div>
+        {grid}
+      </div>
+    );
+  }
 
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center">
       <div className="absolute inset-0 bg-ink/40" onClick={onClose} />
       <div className="relative w-full max-w-xl bg-surface rounded-t-2xl border-t border-border max-h-[70vh] flex flex-col">
-        {mode === "input" ? (
-          <div className="flex items-center gap-2 px-4 pt-4 pb-2">
-            {/* Plain display of the draft, not a real input — keeps the
-                native keyboard from popping up and fighting the panel
-                for screen space. Typing resumes via the keyboard-mode
-                toggle button in the compose bar. */}
-            <div className="flex-1 min-w-0 px-4 py-2.5 rounded-full border border-border bg-canvas text-sm min-h-[42px] flex items-center">
-              {content ? (
-                <span className="text-ink whitespace-pre-wrap break-words truncate">{content}</span>
-              ) : (
-                <span className="text-ink-muted">Message…</span>
-              )}
-            </div>
-            <button
-              type="button"
-              onClick={() => onBackspace?.()}
-              disabled={!content}
-              className="text-ink-muted flex-shrink-0 p-2 disabled:opacity-30"
-              aria-label="Backspace"
-            >
-              <Delete size={20} />
-            </button>
-            <button
-              type="button"
-              onClick={onClose}
-              className="text-ink-muted flex-shrink-0 p-2"
-              aria-label="Switch to keyboard"
-            >
-              <Keyboard size={20} />
-            </button>
-          </div>
-        ) : (
-          <div className="flex items-center justify-between px-4 pt-4 pb-2">
-            <h3 className="font-medium text-ink text-sm">React</h3>
-            <button onClick={onClose} className="text-ink-muted" aria-label="Close">
-              <X size={20} />
-            </button>
-          </div>
-        )}
-
-        <div className="flex-1 overflow-y-auto px-3 pb-4">
-          {sections.map((section) => (
-            <div key={section.key} className="mb-3">
-              <p className="text-xs text-ink-muted px-1 pt-2 pb-1">{section.label}</p>
-              <div className="grid grid-cols-8 gap-1">
-                {section.emojis.map((entry, i) => (
-                  <button
-                    key={`${section.key}-${entry.char}-${i}`}
-                    onClick={() => onSelect(entry.char)}
-                    className="text-2xl leading-none aspect-square flex items-center justify-center rounded-lg hover:bg-accent-soft active:scale-90 transition-transform"
-                    aria-label={entry.name}
-                  >
-                    {entry.char}
-                  </button>
-                ))}
-              </div>
-            </div>
-          ))}
+        <div className="flex items-center justify-between px-4 pt-4 pb-2">
+          <h3 className="font-medium text-ink text-sm">React</h3>
+          <button onClick={onClose} className="text-ink-muted" aria-label="Close">
+            <X size={20} />
+          </button>
         </div>
+        {grid}
       </div>
     </div>
   );
