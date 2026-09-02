@@ -2,6 +2,7 @@
 import { useRef, useState } from "react";
 import { Avatar } from "./Avatar";
 import { useMentionSuggestions } from "../hooks/useMentions";
+import { FormatToolbar } from "./FormatToolbar";
 
 interface MentionTextareaProps {
   value: string;
@@ -11,6 +12,9 @@ interface MentionTextareaProps {
   maxLength?: number;
   className?: string;
   autoFocus?: boolean;
+  // Opt-in since not every MentionTextarea usage wants the bold/italic/
+  // strikethrough/underline toolbar rendered above it.
+  showFormatToolbar?: boolean;
 }
 
 // Matches an "@" that starts a mention right up to the cursor —
@@ -27,6 +31,7 @@ export function MentionTextarea({
   maxLength,
   className,
   autoFocus,
+  showFormatToolbar,
 }: MentionTextareaProps) {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const [mentionQuery, setMentionQuery] = useState<string | null>(null);
@@ -66,6 +71,9 @@ export function MentionTextarea({
 
   return (
     <div className="relative">
+      {showFormatToolbar && (
+        <FormatToolbar textareaRef={textareaRef} value={value} onChange={onChange} className="mb-1.5" />
+      )}
       <textarea
         ref={textareaRef}
         value={value}
