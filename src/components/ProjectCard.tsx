@@ -6,7 +6,7 @@ import {
   Lock,
   Download,
   ImageIcon,
-  MoreVertical,
+  MoreHorizontal,
   Pencil,
   Archive,
   RotateCcw,
@@ -126,7 +126,7 @@ export function ProjectCard({ project }: { project: Project }) {
             className="p-1.5 rounded-full bg-canvas/90 text-ink-muted"
             aria-label="Project options"
           >
-            <MoreVertical size={16} />
+            <MoreHorizontal size={16} />
           </button>
 
           {menuOpen && (
