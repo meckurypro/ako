@@ -26,7 +26,7 @@ export function PostContent({ heading, content }: PostContentProps) {
   return (
     <div>
       {heading && (
-        <h3 className="font-display text-3xl font-bold leading-tight text-ink mb-3">
+        <h3 className="font-display text-2xl font-bold leading-tight text-ink mb-3">
           {renderFormattedText(heading, "h")}
         </h3>
       )}
