@@ -1,14 +1,39 @@
+import type { ComponentType } from "react";
 import { NavLink, useMatch } from "react-router-dom";
-import { Home, Search, Plus, MessageCircle, User } from "lucide-react";
+import { Search, Plus, MessageCircle, User } from "lucide-react";
 import { useAuth } from "../hooks/useAuth";
 import { useUnreadConversationCount } from "../hooks/useMessaging";
 
+// Lucide's Home icon always draws a door line as part of the glyph —
+// looks odd here at both weights, and doesn't read as a clean solid
+// shape when filled. This is a plain roof-and-frame silhouette
+// instead: no door, so the active/filled state is a clean shape.
+type IconProps = { size?: number; strokeWidth?: number; fill?: string };
+
+function FeedIcon({ size = 24, strokeWidth = 1.75, fill = "none" }: IconProps) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill={fill}
+      stroke="currentColor"
+      strokeWidth={strokeWidth}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d="M3 11.5 12 4l9 7.5" />
+      <path d="M5.5 10v9a1 1 0 0 0 1 1h11a1 1 0 0 0 1-1v-9" />
+    </svg>
+  );
+}
+
 const sideItems = [
-  { to: "/feed", icon: Home, label: "Feed" },
+  { to: "/feed", icon: FeedIcon, label: "Feed" },
   { to: "/topics", icon: Search, label: "Discover" },
 ] as const;
 
-function NavIcon({ Icon, isActive }: { Icon: typeof Home; isActive: boolean }) {
+function NavIcon({ Icon, isActive }: { Icon: ComponentType<IconProps>; isActive: boolean }) {
   return (
     <Icon
       size={24}
