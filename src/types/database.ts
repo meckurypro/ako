@@ -33,6 +33,10 @@ export interface Profile {
   is_deleted: boolean;
   created_at: string;
   updated_at: string;
+  is_private: boolean;
+  last_seen_at: string | null;
+  hide_followers_list: boolean;
+  hide_following_list: boolean;
 }
 
 export interface ProfileWithRoles extends Profile {
