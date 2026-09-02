@@ -1,6 +1,6 @@
 // src/components/MessageActionMenu.tsx
 import { useEffect, useState } from "react";
-import { Copy, Trash2, Share2, MoreHorizontal, Star, Pin, Plus, X } from "lucide-react";
+import { Copy, Trash2, Share2, MoreHorizontal, Star, Pin, Plus, X, Reply } from "lucide-react";
 
 interface MessageActionMenuProps {
   content: string;
@@ -16,6 +16,7 @@ interface MessageActionMenuProps {
   onCopy: () => void;
   onDelete?: () => void;
   onShare: () => void;
+  onReply: () => void;
   onToggleStar: () => void;
   onTogglePin: () => void;
   onClose: () => void;
@@ -42,6 +43,7 @@ export function MessageActionMenu({
   onCopy,
   onDelete,
   onShare,
+  onReply,
   onToggleStar,
   onTogglePin,
   onClose,
@@ -81,6 +83,16 @@ export function MessageActionMenu({
           <X size={20} />
         </button>
         <div className="flex-1" />
+        <button
+          onClick={() => {
+            onReply();
+            onClose();
+          }}
+          className="p-2 text-ink"
+          aria-label="Reply"
+        >
+          <Reply size={19} />
+        </button>
         <button
           onClick={() => {
             onCopy();
