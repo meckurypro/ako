@@ -1,3 +1,4 @@
+/* src/index.css */
 @import "tailwindcss";
 
 /*
@@ -17,7 +18,8 @@
   --color-accent-soft: #E3E9E1;   /* pale sage tint for subtle backgrounds/badges */
   --color-border: #E9E4D8;        /* hairline borders, nudged for brighter surface */
   --color-danger: #A64B3F;        /* warm brick-red for destructive/dislike states, not pure red */
-  --color-tick-read: #FF6A00;     /* neon orange — read-receipt double-ticks ONLY, deliberately loud so it snaps against both the accent bubble and the plain canvas list background */
+  --color-tick-read: #FF6A00;     /* neon orange — read-receipt double-ticks ONLY, deliberately loud so it snaps against both the accent bubble and the plain canvas list background. Reused for the "recently online" presence dot. */
+  --color-presence-online: #39FF6A; /* neon green — online-now presence dot */
 
   --font-display: "Playfair Display", Georgia, serif;
   --font-body: "Inter", -apple-system, BlinkMacSystemFont, sans-serif;
