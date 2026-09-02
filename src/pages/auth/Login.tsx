@@ -1,6 +1,6 @@
 // src/pages/auth/Login.tsx
 import { useState, type FormEvent } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { supabase } from "../../lib/supabase";
 import { Wordmark } from "../../components/Wordmark";
 import { FormField } from "../../components/FormField";
@@ -9,6 +9,12 @@ import { Button } from "../../components/Button";
 
 export function Login() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const redirectParam = searchParams.get("redirect");
+  const redirectTo =
+    redirectParam && redirectParam.startsWith("/") && !redirectParam.startsWith("//")
+      ? redirectParam
+      : "/feed";
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -47,7 +53,7 @@ export function Login() {
       return;
     }
 
-    navigate("/feed");
+    navigate(redirectTo);
   }
 
   async function handleResend() {
