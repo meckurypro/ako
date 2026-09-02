@@ -257,14 +257,14 @@ export function PostCard({
     <article className="bg-surface rounded-2xl p-4 mb-4 relative shadow-[0_0_0_1px_rgba(31,29,26,0.07),0_10px_24px_-6px_rgba(31,29,26,0.16)]">
       <div className="flex items-start gap-3">
         <Link to={`/profile/${post.author.username}`}>
-          <Avatar src={post.author.avatar_url} name={post.author.display_name} size="xl" />
+          <Avatar src={post.author.avatar_url} name={post.author.display_name} size="lg" />
         </Link>
 
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
             <Link
               to={`/profile/${post.author.username}`}
-              className="font-display font-semibold text-lg leading-6 text-ink hover:underline"
+              className="font-display font-bold text-xl leading-6 text-ink hover:underline"
             >
               {shortDisplayName(post.author.display_name)}
             </Link>
@@ -272,10 +272,10 @@ export function PostCard({
           </div>
 
           {post.author.roles.length > 0 && (
-            <RoleTags roles={post.author.roles} className="text-sm font-medium leading-5 text-ink-muted block" />
+            <RoleTags roles={post.author.roles} className="text-[15px] font-normal leading-5 text-ink-muted block" />
           )}
 
-          <p className="text-xs leading-4 text-ink-muted flex items-center gap-1">
+          <p className="text-sm leading-5 text-ink-muted flex items-center gap-1">
             <span>
               {timeAgo(post.created_at)}
               {post.edited_at && " · edited"}
