@@ -16,6 +16,8 @@ export type ProjectType =
   | "audio"
   | "video"
   | "course"
+  | "cohort"
+  | "class"
   | "template"
   | "other";
 
@@ -26,6 +28,8 @@ export const PROJECT_TYPE_LABELS: Record<ProjectType, string> = {
   audio: "Audio",
   video: "Video",
   course: "Course",
+  cohort: "Cohort",
+  class: "Class",
   template: "Template",
   other: "Other",
 };
@@ -39,6 +43,8 @@ export const PROJECT_TYPE_OPTIONS: ProjectType[] = [
   "audio",
   "video",
   "course",
+  "cohort",
+  "class",
   "template",
   "other",
 ];
