@@ -124,3 +124,22 @@ export interface Wallet {
   pending_balance: number;
   currency: "USD";
 }
+
+export interface MessageReaction {
+  message_id: string;
+  user_id: string;
+  emoji: string;
+}
+
+export interface MessageUserState {
+  message_id: string;
+  starred_at: string | null;
+  pinned_at: string | null;
+}
+
+export interface UserEmojiUsage {
+  user_id: string;
+  emoji: string;
+  use_count: number;
+  last_used_at: string;
+}
