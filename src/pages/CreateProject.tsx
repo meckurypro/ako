@@ -12,6 +12,7 @@ import { useUploadProjectFile } from "../hooks/useUploadProjectFile";
 import { FormField } from "../components/FormField";
 import { Button } from "../components/Button";
 import { TopicPicker } from "../components/TopicPicker";
+import { FormatToolbar } from "../components/FormatToolbar";
 
 export function CreateProject() {
   const navigate = useNavigate();
@@ -21,6 +22,7 @@ export function CreateProject() {
 
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
+  const descriptionRef = useRef<HTMLTextAreaElement>(null);
   const [projectType, setProjectType] = useState<ProjectType>("other");
   const [topicIds, setTopicIds] = useState<Set<string>>(new Set());
   const [externalUrl, setExternalUrl] = useState("");
@@ -199,7 +201,14 @@ export function CreateProject() {
 
           <div className="mb-4">
             <label className="block text-sm font-medium text-ink-muted mb-1.5">Description</label>
+            <FormatToolbar
+              textareaRef={descriptionRef}
+              value={description}
+              onChange={setDescription}
+              className="mb-1.5"
+            />
             <textarea
+              ref={descriptionRef}
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               maxLength={1000}
