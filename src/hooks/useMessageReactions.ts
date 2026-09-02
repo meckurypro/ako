@@ -112,6 +112,34 @@ export function useUserTopEmojis(): string[] {
   return padded.slice(0, 12);
 }
 
+/**
+ * Up to `limit` emoji the user has actually used, most-recent-first —
+ * for the full emoji picker's "Recents" section. Unlike
+ * useUserTopEmojis, this is NOT padded with defaults: an empty result
+ * means the section should be hidden entirely.
+ */
+export function useRecentEmojis(limit = 36): string[] {
+  const { user } = useAuth();
+
+  const { data } = useQuery({
+    queryKey: ["recent-emojis", user?.id, limit],
+    queryFn: async (): Promise<string[]> => {
+      const { data, error } = await supabase
+        .from("user_emoji_usage")
+        .select("emoji")
+        .eq("user_id", user!.id)
+        .order("last_used_at", { ascending: false })
+        .order("use_count", { ascending: false })
+        .limit(limit);
+      if (error) throw error;
+      return (data ?? []).map((r) => r.emoji);
+    },
+    enabled: !!user,
+  });
+
+  return data ?? [];
+}
+
 export interface MessageUserState {
   message_id: string;
   starred_at: string | null;
