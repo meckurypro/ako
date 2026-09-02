@@ -1,3 +1,4 @@
+// src/hooks/useAuth.tsx
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
 import type { Session, User } from "@supabase/supabase-js";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -22,11 +23,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const queryClient = useQueryClient();
 
   useEffect(() => {
+    // Get the current session on load
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
       setLoading(false);
     });
 
+    // Subscribe to auth changes (sign in, sign out, token refresh)
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((_event, session) => {
@@ -36,8 +39,82 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => subscription.unsubscribe();
   }, []);
 
-  // ...keep your existing realtime-notifications effect unchanged...
-  // ...keep your existing presence-heartbeat effect unchanged...
+  // Session-wide realtime sync. As long as the user is signed in, listen
+  // for new notification rows addressed to THEM — the DB triggers
+  // (notify_on_message, notify_on_follow) already scope these correctly
+  // to the recipient — and push cache updates immediately. This is what
+  // makes the bell and the message icon update live anywhere in the app,
+  // instead of waiting on the bell's 30s poll or the conversation list's
+  // 15s poll, or requiring a specific thread to be open.
+  useEffect(() => {
+    const userId = session?.user?.id;
+    if (!userId) return;
+
+    const channel = supabase
+      .channel(`notifications:${userId}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "INSERT",
+          schema: "public",
+          table: "notifications",
+          filter: `user_id=eq.${userId}`,
+        },
+        (payload) => {
+          // Bell badge + list
+          queryClient.invalidateQueries({ queryKey: ["notifications", userId] });
+
+          // Message-type notifications also drive the message icon badge
+          // and the conversation list/preview.
+          if (payload.new.type === "message") {
+            queryClient.invalidateQueries({ queryKey: ["conversations", userId] });
+
+            const conversationId = payload.new.target_id as string | undefined;
+            if (conversationId) {
+              queryClient.invalidateQueries({ queryKey: ["messages", conversationId] });
+            }
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [session?.user?.id, queryClient]);
+
+  // Presence heartbeat — touches profiles.last_seen_at every 45s while
+  // signed in, plus immediately on sign-in and whenever the tab regains
+  // focus. This is the sole source of truth for the online/recent/
+  // offline status dots (see lib/presence.ts) — purely timestamp-based,
+  // no separate realtime presence channel.
+  useEffect(() => {
+    const userId = session?.user?.id;
+    if (!userId) return;
+
+    const touch = () => {
+      supabase
+        .from("profiles")
+        .update({ last_seen_at: new Date().toISOString() })
+        .eq("id", userId)
+        .then(({ error }) => {
+          if (error) console.error("Failed to update last_seen_at:", error);
+        });
+    };
+
+    touch();
+    const interval = setInterval(touch, 45_000);
+
+    const onVisible = () => {
+      if (document.visibilityState === "visible") touch();
+    };
+    document.addEventListener("visibilitychange", onVisible);
+
+    return () => {
+      clearInterval(interval);
+      document.removeEventListener("visibilitychange", onVisible);
+    };
+  }, [session?.user?.id]);
 
   const userId = session?.user?.id;
 
