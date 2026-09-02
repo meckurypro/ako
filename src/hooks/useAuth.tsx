@@ -1,3 +1,4 @@
+// src/hooks/useAuth.tsx
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
 import type { Session, User } from "@supabase/supabase-js";
 import { useQueryClient } from "@tanstack/react-query";
@@ -76,6 +77,39 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       supabase.removeChannel(channel);
     };
   }, [session?.user?.id, queryClient]);
+
+  // Presence heartbeat — touches profiles.last_seen_at every 45s while
+  // signed in, plus immediately on sign-in and whenever the tab regains
+  // focus. This is the sole source of truth for the online/recent/
+  // offline status dots (see lib/presence.ts) — purely timestamp-based,
+  // no separate realtime presence channel.
+  useEffect(() => {
+    const userId = session?.user?.id;
+    if (!userId) return;
+
+    const touch = () => {
+      supabase
+        .from("profiles")
+        .update({ last_seen_at: new Date().toISOString() })
+        .eq("id", userId)
+        .then(({ error }) => {
+          if (error) console.error("Failed to update last_seen_at:", error);
+        });
+    };
+
+    touch();
+    const interval = setInterval(touch, 45_000);
+
+    const onVisible = () => {
+      if (document.visibilityState === "visible") touch();
+    };
+    document.addEventListener("visibilitychange", onVisible);
+
+    return () => {
+      clearInterval(interval);
+      document.removeEventListener("visibilitychange", onVisible);
+    };
+  }, [session?.user?.id]);
 
   return (
     <AuthContext.Provider value={{ session, user: session?.user ?? null, loading }}>
