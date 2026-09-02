@@ -24,6 +24,7 @@ import {
   type MessageReaction,
 } from "../hooks/useMessageReactions";
 import { Avatar } from "../components/Avatar";
+import { useUnseenPosts } from "../hooks/useUnseenPosts";
 import { MessageStatusTicks } from "../components/MessageStatusTicks";
 import { PresenceDot } from "../components/PresenceDot";
 import { MessageActionMenu } from "../components/MessageActionMenu";
@@ -42,14 +43,14 @@ function useOtherParticipant(conversationId: string) {
       const { data, error } = await supabase
         .from("conversation_participants")
         .select(
-          "profile:profiles!conversation_participants_user_id_fkey(username, display_name, avatar_url, last_seen_at)"
+          "profile:profiles!conversation_participants_user_id_fkey(id, username, display_name, avatar_url, last_seen_at)"
         )
         .eq("conversation_id", conversationId)
         .neq("user_id", user!.id)
         .maybeSingle();
       if (error) throw error;
       return data?.profile as
-        | { username: string; display_name: string; avatar_url: string | null; last_seen_at: string | null }
+        | { id: string; username: string; display_name: string; avatar_url: string | null; last_seen_at: string | null }
         | undefined;
     },
     enabled: !!conversationId && !!user,
@@ -145,6 +146,11 @@ export function MessageThread() {
   const { user } = useAuth();
   const { data: messages, isLoading } = useMessages(conversationId!);
   const { data: otherParticipant } = useOtherParticipant(conversationId!);
+
+  // Same ring-on-avatar treatment as ConversationList — checks just
+  // this one participant for an unseen post from the last 24h.
+  const { data: unseenPosts } = useUnseenPosts(otherParticipant ? [otherParticipant.id] : []);
+  const unseenPostId = otherParticipant ? unseenPosts?.[otherParticipant.id] : undefined;
   const sendMessage = useSendMessage(conversationId!);
   const deleteMessage = useDeleteMessage(conversationId!);
   const markConversationRead = useMarkConversationRead(conversationId!);
@@ -394,7 +400,27 @@ export function MessageThread() {
             </button>
             {otherParticipant && (
               <>
-                <Avatar src={otherParticipant.avatar_url} name={otherParticipant.display_name} size="sm" />
+                {unseenPostId ? (
+                  <button
+                    type="button"
+                    onClick={() => navigate(`/post/${unseenPostId}`)}
+                    aria-label={`View ${otherParticipant.display_name}'s new post`}
+                    className="flex-shrink-0 rounded-full p-[2.5px] bg-accent shadow-[0_0_6px_rgba(61,90,69,0.45)]"
+                  >
+                    <span className="block rounded-full bg-canvas p-[2px]">
+                      <Avatar src={otherParticipant.avatar_url} name={otherParticipant.display_name} size="sm" />
+                    </span>
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => navigate(`/profile/${otherParticipant.username}`)}
+                    aria-label={`View ${otherParticipant.display_name}'s profile`}
+                    className="flex-shrink-0"
+                  >
+                    <Avatar src={otherParticipant.avatar_url} name={otherParticipant.display_name} size="sm" />
+                  </button>
+                )}
                 <div className="flex-1 min-w-0">
                   <p className="font-medium text-ink truncate">{otherParticipant.display_name}</p>
                   <p className="flex items-center gap-1.5 text-xs text-ink-muted">
@@ -655,4 +681,4 @@ export function MessageThread() {
       )}
     </div>
   );
-      }
+}
