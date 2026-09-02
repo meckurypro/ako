@@ -95,6 +95,7 @@ export function Compose() {
           rows={8}
           placeholder="Add details… use @ to mention someone."
           className="w-full text-base text-ink bg-transparent resize-none focus:outline-none placeholder:text-ink-muted/60"
+          showFormatToolbar
         />
 
         {mediaUrls.length > 0 && (
