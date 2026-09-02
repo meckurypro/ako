@@ -14,6 +14,23 @@ import { PostCard } from "../components/PostCard";
 import { ProjectCard } from "../components/ProjectCard";
 import { BottomNav } from "../components/BottomNav";
 
+// Website links are saved in full (whatever the user pastes, including
+// long query strings), but only the bare domain is ever shown — the
+// full URL still opens on click via getWebsiteHref. Handles input with
+// or without a protocol ("meckury.ai/..." or "https://meckury.ai/...").
+function getWebsiteHref(url: string): string {
+  return /^https?:\/\//i.test(url) ? url : `https://${url}`;
+}
+
+function getWebsiteDomain(url: string): string {
+  try {
+    return new URL(getWebsiteHref(url)).hostname.replace(/^www\./, "");
+  } catch {
+    // Malformed input (shouldn't normally happen) — best-effort fallback
+    return url.replace(/^https?:\/\//i, "").split("/")[0];
+  }
+}
+
 export function ProfilePage() {
   const { username } = useParams<{ username: string }>();
   const { user } = useAuth();
@@ -180,14 +197,15 @@ export function ProfilePage() {
                 <>
                   {" / "}
                   <a
-  href={profile.website_url}
-  target="_blank"
-  rel="noopener noreferrer"
-  className="inline-flex items-center gap-1 text-accent hover:underline"
->
-  <Globe size={12} />
-  {profile.website_url.replace(/^https?:\/\//, "")}
-</a>
+                    href={getWebsiteHref(profile.website_url)}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    title={profile.website_url}
+                    className="inline-flex items-center gap-1 text-accent hover:underline align-bottom max-w-[160px]"
+                  >
+                    <Globe size={12} className="flex-shrink-0" />
+                    <span className="truncate">{getWebsiteDomain(profile.website_url)}</span>
+                  </a>
                 </>
               )}
             </p>
@@ -272,4 +290,4 @@ export function ProfilePage() {
       <BottomNav />
     </div>
   );
-        }
+}
