@@ -136,22 +136,95 @@ export function useMutedList() {
   });
 }
 
-export function useTogglePrivateAccount() {
+/**
+ * Shared implementation for the three own-profile boolean privacy
+ * toggles (is_private, hide_followers_list, hide_following_list).
+ *
+ * Previously these fired a bare `.update()` with no optimistic write:
+ * the switch didn't move until the round trip finished, and if the
+ * update failed (RLS, network, etc.) the query would just refetch the
+ * old value with no explanation — the toggle appeared to silently
+ * "not work." This now flips the cache immediately and rolls back to
+ * the exact previous value on error, surfacing the failure via the
+ * mutation's own `error` field instead of hiding it.
+ */
+function useTogglePrivacyField(field: "is_private" | "hide_followers_list" | "hide_following_list") {
   const { user } = useAuth();
   const queryClient = useQueryClient();
+  const queryKey = ["own-profile", user?.id];
 
   return useMutation({
-    mutationFn: async (isPrivate: boolean) => {
+    mutationFn: async (value: boolean) => {
       if (!user) throw new Error("Not signed in");
       const { error } = await supabase
         .from("profiles")
-        .update({ is_private: isPrivate })
+        .update({ [field]: value })
         .eq("id", user.id);
       if (error) throw error;
+      return value;
     },
-    onSuccess: () => {
+    onMutate: async (value: boolean) => {
+      await queryClient.cancelQueries({ queryKey });
+      const previous = queryClient.getQueryData(queryKey);
+      queryClient.setQueryData(queryKey, (old: any) =>
+        old ? { ...old, [field]: value } : old
+      );
+      return { previous };
+    },
+    onError: (_err, _value, context) => {
+      if (context?.previous !== undefined) {
+        queryClient.setQueryData(queryKey, context.previous);
+      }
+    },
+    onSettled: () => {
       queryClient.invalidateQueries({ queryKey: ["own-profile"] });
       queryClient.invalidateQueries({ queryKey: ["profile"] });
+    },
+  });
+}
+
+export function useTogglePrivateAccount() {
+  return useTogglePrivacyField("is_private");
+}
+
+export function useToggleHideFollowersList() {
+  return useTogglePrivacyField("hide_followers_list");
+}
+
+export function useToggleHideFollowingList() {
+  return useTogglePrivacyField("hide_following_list");
+}
+
+/**
+ * Changes the signed-in user's password. Re-verifies the current
+ * password via signInWithPassword first — Supabase's updateUser()
+ * will happily change the password on any active session without
+ * this, but skipping it would let anyone at an already-unlocked
+ * device change the password with no proof of the old one.
+ */
+export function useChangePassword() {
+  const { user } = useAuth();
+
+  return useMutation({
+    mutationFn: async ({
+      currentPassword,
+      newPassword,
+    }: {
+      currentPassword: string;
+      newPassword: string;
+    }) => {
+      if (!user?.email) throw new Error("Not signed in");
+
+      const { error: reauthError } = await supabase.auth.signInWithPassword({
+        email: user.email,
+        password: currentPassword,
+      });
+      if (reauthError) throw new Error("Current password is incorrect.");
+
+      const { error: updateError } = await supabase.auth.updateUser({
+        password: newPassword,
+      });
+      if (updateError) throw updateError;
     },
   });
 }
