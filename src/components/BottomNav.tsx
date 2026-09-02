@@ -1,4 +1,4 @@
-import { NavLink } from "react-router-dom";
+import { NavLink, useMatch } from "react-router-dom";
 import { Home, Search, Plus, MessageCircle, User } from "lucide-react";
 import { useAuth } from "../hooks/useAuth";
 import { useUnreadConversationCount } from "../hooks/useMessaging";
@@ -8,9 +8,26 @@ const sideItems = [
   { to: "/topics", icon: Search, label: "Discover" },
 ] as const;
 
+function NavIcon({ Icon, isActive }: { Icon: typeof Home; isActive: boolean }) {
+  return (
+    <Icon
+      size={24}
+      strokeWidth={isActive ? 2 : 1.75}
+      fill={isActive ? "currentColor" : "none"}
+    />
+  );
+}
+
 export function BottomNav() {
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
   const unreadCount = useUnreadConversationCount();
+
+  // Compare the :username in the URL to OUR OWN username — not a path
+  // prefix match — so this is only active on our own profile, never
+  // on someone else's, and works regardless of /me's redirect.
+  const profileMatch = useMatch("/profile/:username/*");
+  const isOwnProfileActive =
+    !!profile?.username && profileMatch?.params.username === profile.username;
 
   const linkClass = ({ isActive }: { isActive: boolean }) =>
     `flex flex-col items-center gap-1 w-14 text-[11px] font-medium transition-colors ${
@@ -18,15 +35,16 @@ export function BottomNav() {
     }`;
 
   return (
-    // A hairline top border does the "outline" work; the shadow itself
-    // is now just a faint, tight, near-zero-spread lift — not a cast
-    // shadow that reaches up into the post content above.
     <nav className="fixed bottom-0 left-0 right-0 z-40 bg-surface rounded-t-[28px] border-t border-border shadow-[0_-1px_3px_rgba(31,29,26,0.06)] px-2 pt-3 pb-[calc(env(safe-area-inset-bottom)+0.75rem)]">
       <div className="flex items-end justify-around">
         {sideItems.map(({ to, icon: Icon, label }) => (
           <NavLink key={to} to={to} className={linkClass}>
-            <Icon size={24} strokeWidth={1.75} />
-            {label}
+            {({ isActive }) => (
+              <>
+                <NavIcon Icon={Icon} isActive={isActive} />
+                {label}
+              </>
+            )}
           </NavLink>
         ))}
 
@@ -48,19 +66,28 @@ export function BottomNav() {
         </div>
 
         <NavLink to="/messages" className={linkClass}>
-          <div className="relative">
-            <MessageCircle size={24} strokeWidth={1.75} />
-            {unreadCount > 0 && (
-              <span className="absolute -top-1 -right-1 bg-danger text-canvas text-[10px] font-medium rounded-full w-4 h-4 flex items-center justify-center">
-                {unreadCount > 9 ? "9+" : unreadCount}
-              </span>
-            )}
-          </div>
-          Messages
+          {({ isActive }) => (
+            <>
+              <div className="relative">
+                <NavIcon Icon={MessageCircle} isActive={isActive} />
+                {unreadCount > 0 && (
+                  <span className="absolute -top-1 -right-1 bg-danger text-canvas text-[10px] font-medium rounded-full w-4 h-4 flex items-center justify-center">
+                    {unreadCount > 9 ? "9+" : unreadCount}
+                  </span>
+                )}
+              </div>
+              Messages
+            </>
+          )}
         </NavLink>
 
-        <NavLink to={user ? `/me` : "/login"} className={linkClass}>
-          <User size={24} strokeWidth={1.75} />
+        <NavLink
+          to={user ? "/me" : "/login"}
+          className={`flex flex-col items-center gap-1 w-14 text-[11px] font-medium transition-colors ${
+            isOwnProfileActive ? "text-accent" : "text-ink-muted"
+          }`}
+        >
+          <NavIcon Icon={User} isActive={isOwnProfileActive} />
           Profile
         </NavLink>
       </div>
