@@ -1,7 +1,7 @@
 // src/pages/MessageThread.tsx
 import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { ArrowLeft, Send, Search, ChevronUp, ChevronDown } from "lucide-react";
+import { ArrowLeft, Send, Search, ChevronUp, ChevronDown, Smile } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "../lib/supabase";
 import { useAuth } from "../hooks/useAuth";
@@ -10,11 +10,23 @@ import {
   useSendMessage,
   useMarkConversationRead,
   useMarkMessagesRead,
+  useDeleteMessage,
   type MessageWithSender,
 } from "../hooks/useMessaging";
+import {
+  useConversationReactions,
+  useSetReaction,
+  useRemoveReaction,
+  useUserTopEmojis,
+  useMessageUserStates,
+  useToggleMessageState,
+  type MessageReaction,
+} from "../hooks/useMessageReactions";
 import { Avatar } from "../components/Avatar";
 import { MessageStatusTicks } from "../components/MessageStatusTicks";
 import { PresenceDot } from "../components/PresenceDot";
+import { MessageActionMenu } from "../components/MessageActionMenu";
+import { EmojiPickerSheet } from "../components/EmojiPickerSheet";
 import { formatLastSeen } from "../lib/presence";
 
 // Fetches the other participant's profile for the header — a small
@@ -65,6 +77,40 @@ function highlightMatches(text: string, query: string, isMine: boolean) {
   );
 }
 
+/** Grouped reaction badges under a bubble — tap toggles the current user's own reaction. */
+function ReactionsBar({
+  reactions,
+  myReaction,
+  isMine,
+  onToggle,
+}: {
+  reactions: MessageReaction[];
+  myReaction: string | null;
+  isMine: boolean;
+  onToggle: (emoji: string) => void;
+}) {
+  if (!reactions.length) return null;
+  const counts = new Map<string, number>();
+  for (const r of reactions) counts.set(r.emoji, (counts.get(r.emoji) ?? 0) + 1);
+
+  return (
+    <div className={`flex flex-wrap gap-1 mt-1 ${isMine ? "justify-end" : "justify-start"}`}>
+      {[...counts.entries()].map(([emoji, count]) => (
+        <button
+          key={emoji}
+          onClick={() => onToggle(emoji)}
+          className={`text-xs px-1.5 py-0.5 rounded-full border flex items-center gap-1 ${
+            myReaction === emoji ? "bg-accent-soft border-accent" : "bg-surface border-border"
+          }`}
+        >
+          <span>{emoji}</span>
+          {count > 1 && <span className="text-ink-muted">{count}</span>}
+        </button>
+      ))}
+    </div>
+  );
+}
+
 // Subtle diamond-lattice texture in the brand accent, ~5% opacity —
 // sits behind the message list only (header/input stay solid `canvas`
 // for legibility). Deliberately abstract/geometric rather than a
@@ -77,6 +123,13 @@ const chatBackgroundStyle = {
   backgroundSize: "40px 40px",
 };
 
+interface ActiveMessage {
+  message: MessageWithSender;
+  anchorRect: DOMRect;
+}
+
+type EmojiPickerTarget = { mode: "input" } | { mode: "reaction"; messageId: string } | null;
+
 export function MessageThread() {
   const { conversationId } = useParams<{ conversationId: string }>();
   const navigate = useNavigate();
@@ -84,7 +137,17 @@ export function MessageThread() {
   const { data: messages, isLoading } = useMessages(conversationId!);
   const { data: otherParticipant } = useOtherParticipant(conversationId!);
   const sendMessage = useSendMessage(conversationId!);
+  const deleteMessage = useDeleteMessage(conversationId!);
   const markConversationRead = useMarkConversationRead(conversationId!);
+
+  const messageIds = useMemo(() => messages?.map((m) => m.id) ?? [], [messages]);
+  const { data: reactionsByMessage } = useConversationReactions(conversationId!, messageIds);
+  const { data: userStates } = useMessageUserStates(conversationId!, messageIds);
+  const setReaction = useSetReaction(conversationId!);
+  const removeReaction = useRemoveReaction(conversationId!);
+  const toggleStar = useToggleMessageState(conversationId!, "starred_at");
+  const togglePin = useToggleMessageState(conversationId!, "pinned_at");
+  const topEmojis = useUserTopEmojis();
 
   // Per-message read_at stamping (drives ticks) — separate mechanism
   // from markConversationRead above, which drives the conversation-list
@@ -98,6 +161,11 @@ export function MessageThread() {
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [matchIndex, setMatchIndex] = useState(0);
+
+  const [activeMessage, setActiveMessage] = useState<ActiveMessage | null>(null);
+  const [emojiPickerTarget, setEmojiPickerTarget] = useState<EmojiPickerTarget>(null);
+  const longPressTimers = useRef<Record<string, ReturnType<typeof setTimeout> | null>>({});
+  const longPressStart = useRef<Record<string, { x: number; y: number }>>({});
 
   useEffect(() => {
     markConversationRead.mutate();
@@ -152,7 +220,37 @@ export function MessageThread() {
     }
   }
 
+  // --- Long press handling (no gesture library — hand-rolled pointer timers) ---
+  function handlePointerDown(m: MessageWithSender, e: React.PointerEvent) {
+    longPressStart.current[m.id] = { x: e.clientX, y: e.clientY };
+    longPressTimers.current[m.id] = setTimeout(() => {
+      const el = messageRefs.current[m.id];
+      if (!el) return;
+      if (navigator.vibrate) navigator.vibrate(15);
+      setActiveMessage({ message: m, anchorRect: el.getBoundingClientRect() });
+    }, 450);
+  }
+  function handlePointerMove(m: MessageWithSender, e: React.PointerEvent) {
+    const start = longPressStart.current[m.id];
+    if (!start) return;
+    const dx = Math.abs(e.clientX - start.x);
+    const dy = Math.abs(e.clientY - start.y);
+    if (dx > 10 || dy > 10) clearLongPress(m.id);
+  }
+  function clearLongPress(id: string) {
+    const timer = longPressTimers.current[id];
+    if (timer) clearTimeout(timer);
+    longPressTimers.current[id] = null;
+    delete longPressStart.current[id];
+  }
+
   const currentMatchId = matches[matchIndex]?.id;
+
+  const activeReactions = activeMessage ? reactionsByMessage?.[activeMessage.message.id] ?? [] : [];
+  const activeMyReaction = activeMessage
+    ? activeReactions.find((r) => r.user_id === user?.id)?.emoji ?? null
+    : null;
+  const activeState = activeMessage ? userStates?.[activeMessage.message.id] : undefined;
 
   return (
     <div className="min-h-screen bg-canvas flex flex-col">
@@ -230,15 +328,25 @@ export function MessageThread() {
           messages.map((m) => {
             const isMine = m.sender_id === user?.id;
             const isCurrentMatch = m.id === currentMatchId;
+            const reactions = reactionsByMessage?.[m.id] ?? [];
+            const myReaction = reactions.find((r) => r.user_id === user?.id)?.emoji ?? null;
+
             return (
-              <div key={m.id} className={`flex mb-2 ${isMine ? "justify-end" : "justify-start"}`}>
+              <div key={m.id} className={`flex flex-col mb-2 ${isMine ? "items-end" : "items-start"}`}>
                 <div
                   ref={(el) => {
                     messageRefs.current[m.id] = el;
                   }}
-                  className={`max-w-[75%] rounded-2xl px-4 py-2.5 text-sm whitespace-pre-wrap break-words transition-shadow duration-300 ${
+                  onPointerDown={(e) => handlePointerDown(m, e)}
+                  onPointerMove={(e) => handlePointerMove(m, e)}
+                  onPointerUp={() => clearLongPress(m.id)}
+                  onPointerLeave={() => clearLongPress(m.id)}
+                  onPointerCancel={() => clearLongPress(m.id)}
+                  onContextMenu={(e) => e.preventDefault()}
+                  className={`max-w-[75%] rounded-2xl px-4 py-2.5 text-sm whitespace-pre-wrap break-words select-none transition-shadow duration-300 ${
                     isMine ? "bg-accent text-canvas" : "bg-surface text-ink"
                   } ${isCurrentMatch ? "ring-2 ring-accent ring-offset-2 ring-offset-canvas" : ""}`}
+                  style={{ WebkitTouchCallout: "none" }}
                 >
                   <span>{searchQuery ? highlightMatches(m.content, searchQuery, isMine) : m.content}</span>
                   {isMine && (
@@ -247,6 +355,18 @@ export function MessageThread() {
                     </span>
                   )}
                 </div>
+                <ReactionsBar
+                  reactions={reactions}
+                  myReaction={myReaction}
+                  isMine={isMine}
+                  onToggle={(emoji) => {
+                    if (myReaction === emoji) {
+                      removeReaction.mutate(m.id);
+                    } else {
+                      setReaction.mutate({ messageId: m.id, emoji });
+                    }
+                  }}
+                />
               </div>
             );
           })
@@ -258,6 +378,14 @@ export function MessageThread() {
         onSubmit={handleSubmit}
         className="sticky bottom-0 bg-canvas border-t border-border px-4 py-3 flex items-center gap-2 max-w-xl mx-auto w-full"
       >
+        <button
+          type="button"
+          onClick={() => setEmojiPickerTarget({ mode: "input" })}
+          className="text-ink-muted flex-shrink-0"
+          aria-label="Add emoji"
+        >
+          <Smile size={22} />
+        </button>
         <input
           value={content}
           onChange={(e) => setContent(e.target.value)}
@@ -274,6 +402,55 @@ export function MessageThread() {
           <Send size={18} />
         </button>
       </form>
+
+      {activeMessage && (
+        <MessageActionMenu
+          content={activeMessage.message.content}
+          isMine={activeMessage.message.sender_id === user?.id}
+          anchorRect={activeMessage.anchorRect}
+          isStarred={!!activeState?.starred_at}
+          isPinned={!!activeState?.pinned_at}
+          emojis={topEmojis}
+          myReaction={activeMyReaction}
+          onReact={(emoji) => setReaction.mutate({ messageId: activeMessage.message.id, emoji })}
+          onRemoveReaction={() => removeReaction.mutate(activeMessage.message.id)}
+          onOpenFullPicker={() => setEmojiPickerTarget({ mode: "reaction", messageId: activeMessage.message.id })}
+          onCopy={() => navigator.clipboard.writeText(activeMessage.message.content)}
+          onDelete={
+            activeMessage.message.sender_id === user?.id
+              ? () => deleteMessage.mutate(activeMessage.message.id)
+              : undefined
+          }
+          onShare={() => {
+            if (navigator.share) {
+              navigator.share({ text: activeMessage.message.content }).catch(() => {});
+            } else {
+              navigator.clipboard.writeText(activeMessage.message.content);
+            }
+          }}
+          onToggleStar={() =>
+            toggleStar.mutate({ messageId: activeMessage.message.id, active: !activeState?.starred_at })
+          }
+          onTogglePin={() =>
+            togglePin.mutate({ messageId: activeMessage.message.id, active: !activeState?.pinned_at })
+          }
+          onClose={() => setActiveMessage(null)}
+        />
+      )}
+
+      {emojiPickerTarget && (
+        <EmojiPickerSheet
+          onClose={() => setEmojiPickerTarget(null)}
+          onSelect={(emoji) => {
+            if (emojiPickerTarget.mode === "input") {
+              setContent((c) => c + emoji);
+            } else {
+              setReaction.mutate({ messageId: emojiPickerTarget.messageId, emoji });
+              setEmojiPickerTarget(null);
+            }
+          }}
+        />
+      )}
     </div>
   );
-}
+      }
