@@ -3,6 +3,7 @@ import { useNavigate, useParams } from "react-router-dom";
 import { ArrowLeft, ImageIcon, FileUp } from "lucide-react";
 import {
   useProject,
+  useProjectTopics,
   useUpdateProject,
   PROJECT_TYPE_OPTIONS,
   PROJECT_TYPE_LABELS,
@@ -13,6 +14,7 @@ import { useUploadProjectThumbnail } from "../hooks/useUploadProjectThumbnail";
 import { useUploadProjectFile } from "../hooks/useUploadProjectFile";
 import { FormField } from "../components/FormField";
 import { Button } from "../components/Button";
+import { TopicPicker } from "../components/TopicPicker";
 
 const STATUS_OPTIONS: { value: ProjectStatus; label: string; hint: string }[] = [
   { value: "active", label: "Published", hint: "Visible to everyone" },
@@ -25,6 +27,7 @@ export function EditProject() {
   const navigate = useNavigate();
 
   const { data: project, isLoading } = useProject(projectId);
+  const { data: existingTopicIds } = useProjectTopics(projectId);
   const updateProject = useUpdateProject();
   const uploadThumbnail = useUploadProjectThumbnail();
   const uploadFile = useUploadProjectFile();
@@ -32,6 +35,7 @@ export function EditProject() {
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [projectType, setProjectType] = useState<ProjectType>("other");
+  const [topicIds, setTopicIds] = useState<Set<string>>(new Set());
   const [externalUrl, setExternalUrl] = useState("");
   const [priceUsd, setPriceUsd] = useState("0");
   const [showPromo, setShowPromo] = useState(false);
@@ -43,9 +47,33 @@ export function EditProject() {
   const [fileName, setFileName] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [hydrated, setHydrated] = useState(false);
+  const [topicsHydrated, setTopicsHydrated] = useState(false);
 
   const thumbnailInputRef = useRef<HTMLInputElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  function toggleTopic(interestId: string) {
+    setTopicIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(interestId)) {
+        next.delete(interestId);
+      } else {
+        next.add(interestId);
+      }
+      return next;
+    });
+  }
+
+  // Topics load via a separate query from the project itself, so
+  // they get their own hydration guard rather than piggybacking on
+  // `hydrated` — otherwise whichever query resolves first would
+  // block the other's prefill.
+  useEffect(() => {
+    if (existingTopicIds && !topicsHydrated) {
+      setTopicIds(new Set(existingTopicIds));
+      setTopicsHydrated(true);
+    }
+  }, [existingTopicIds, topicsHydrated]);
 
   // Prefill the form once the project loads — guarded by `hydrated`
   // so a background refetch (e.g. after saving) doesn't stomp on
@@ -145,6 +173,7 @@ export function EditProject() {
         price_usd: price,
         promo_price_usd: promoPrice,
         status,
+        topic_ids: Array.from(topicIds),
       });
       navigate(-1);
     } catch (err) {
@@ -267,6 +296,16 @@ export function EditProject() {
               className="w-full px-4 py-3 rounded-xl border border-border bg-canvas text-ink resize-none
                 focus:outline-none focus:ring-2 focus:ring-accent/40 focus:border-accent"
             />
+          </div>
+
+          <div className="mb-4">
+            <label className="block text-sm font-medium text-ink-muted mb-1.5">
+              Topics <span className="font-normal text-ink-muted">(optional)</span>
+            </label>
+            <TopicPicker selected={topicIds} onToggle={toggleTopic} />
+            <p className="text-xs text-ink-muted mt-1.5">
+              Helps people browsing find this project, and powers "similar projects" for it.
+            </p>
           </div>
 
           <FormField
