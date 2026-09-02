@@ -1,8 +1,10 @@
+// src/pages/auth/Login.tsx
 import { useState, type FormEvent } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { supabase } from "../../lib/supabase";
 import { Wordmark } from "../../components/Wordmark";
 import { FormField } from "../../components/FormField";
+import { PasswordField } from "../../components/PasswordField";
 import { Button } from "../../components/Button";
 
 export function Login() {
@@ -10,11 +12,15 @@ export function Login() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [unconfirmed, setUnconfirmed] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [resending, setResending] = useState(false);
+  const [resent, setResent] = useState(false);
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
     setError(null);
+    setUnconfirmed(false);
     setLoading(true);
 
     const { error: signInError } = await supabase.auth.signInWithPassword({
@@ -25,14 +31,34 @@ export function Login() {
     setLoading(false);
 
     if (signInError) {
-      // Generic message deliberately — don't reveal whether the email
-      // exists or the password was wrong, standard practice against
-      // account enumeration.
-      setError("Incorrect email or password.");
+      // "Email not confirmed" is a distinct failure from a bad
+      // password/email — surface it separately instead of collapsing
+      // every error into the generic message below, which was masking
+      // this case entirely.
+      if (signInError.message.toLowerCase().includes("email not confirmed")) {
+        setUnconfirmed(true);
+        setError("Confirm your email first. Check your inbox for the link we sent you.");
+      } else {
+        // Generic message deliberately — don't reveal whether the email
+        // exists or the password was wrong, standard practice against
+        // account enumeration.
+        setError("Incorrect email or password.");
+      }
       return;
     }
 
     navigate("/feed");
+  }
+
+  async function handleResend() {
+    setResending(true);
+    const { error: resendError } = await supabase.auth.resend({ type: "signup", email });
+    setResending(false);
+
+    if (!resendError) {
+      setResent(true);
+      setTimeout(() => setResent(false), 4000);
+    }
   }
 
   return (
@@ -52,10 +78,9 @@ export function Login() {
             required
             autoFocus
           />
-          <FormField
+          <PasswordField
             id="password"
             label="Password"
-            type="password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             required
@@ -65,6 +90,17 @@ export function Login() {
             <p className="text-danger text-sm mb-4" role="alert">
               {error}
             </p>
+          )}
+
+          {unconfirmed && (
+            <button
+              type="button"
+              onClick={handleResend}
+              disabled={resending}
+              className="block text-sm text-accent font-medium mb-4 hover:underline disabled:opacity-50"
+            >
+              {resending ? "Sending…" : resent ? "Link sent" : "Resend confirmation link"}
+            </button>
           )}
 
           <Button type="submit" loading={loading}>
