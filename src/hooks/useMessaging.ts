@@ -110,6 +110,11 @@ export interface MessageWithSender {
   created_at: string;
   delivered_at: string | null;
   read_at: string | null;
+  reply_to_message_id: string | null;
+  // Embedded snippet of the message being replied to, if any —
+  // Supabase returns the self-join as an array even for a single FK,
+  // so callers should read reply_to?.[0].
+  reply_to: { id: string; content: string; sender_id: string; is_deleted: boolean }[] | null;
 }
 
 /**
@@ -126,12 +131,15 @@ export function useMessages(conversationId: string) {
     queryFn: async (): Promise<MessageWithSender[]> => {
       const { data, error } = await supabase
         .from("messages")
-        .select("id, conversation_id, sender_id, content, created_at, delivered_at, read_at")
+        .select(
+          `id, conversation_id, sender_id, content, created_at, delivered_at, read_at, reply_to_message_id,
+           reply_to:messages!messages_reply_to_message_id_fkey(id, content, sender_id, is_deleted)`
+        )
         .eq("conversation_id", conversationId)
         .eq("is_deleted", false)
         .order("created_at", { ascending: true });
       if (error) throw error;
-      return data;
+      return data as unknown as MessageWithSender[];
     },
     enabled: !!conversationId,
   });
@@ -175,11 +183,18 @@ export function useSendMessage(conversationId: string) {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async (content: string) => {
+    mutationFn: async (input: string | { content: string; replyToMessageId?: string | null }) => {
       if (!user) throw new Error("Not signed in");
+      const content = typeof input === "string" ? input : input.content;
+      const replyToMessageId = typeof input === "string" ? null : input.replyToMessageId ?? null;
       const { error } = await supabase
         .from("messages")
-        .insert({ conversation_id: conversationId, sender_id: user.id, content });
+        .insert({
+          conversation_id: conversationId,
+          sender_id: user.id,
+          content,
+          reply_to_message_id: replyToMessageId,
+        });
       if (error) throw error;
     },
     onSuccess: () => {
