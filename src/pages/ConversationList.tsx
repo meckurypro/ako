@@ -8,6 +8,7 @@ import { useAuth } from "../hooks/useAuth";
 import { Avatar } from "../components/Avatar";
 import { BottomNav } from "../components/BottomNav";
 import { MessageStatusTicks } from "../components/MessageStatusTicks";
+import { PresenceDot } from "../components/PresenceDot";
 
 function timeAgo(dateString: string): string {
   const seconds = Math.floor((Date.now() - new Date(dateString).getTime()) / 1000);
@@ -127,8 +128,9 @@ export function ConversationList() {
                     <p className={`text-sm truncate ${c.unread ? "font-semibold text-ink" : "font-medium text-ink"}`}>
                       {c.other_participant.display_name}
                     </p>
-                    <span className="text-xs text-ink-muted flex-shrink-0 ml-2">
-                      {timeAgo(c.last_message_at)}
+                    <span className="flex flex-col items-end gap-1 flex-shrink-0 ml-2">
+                      <span className="text-xs text-ink-muted">{timeAgo(c.last_message_at)}</span>
+                      <PresenceDot lastSeenAt={c.other_participant.last_seen_at} />
                     </span>
                   </div>
                   <p className={`text-sm flex items-center gap-1 min-w-0 ${c.unread ? "text-ink" : "text-ink-muted"}`}>
@@ -155,4 +157,4 @@ export function ConversationList() {
       <BottomNav />
     </div>
   );
-}
+                        }
