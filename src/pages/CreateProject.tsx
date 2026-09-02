@@ -11,6 +11,7 @@ import { useUploadProjectThumbnail } from "../hooks/useUploadProjectThumbnail";
 import { useUploadProjectFile } from "../hooks/useUploadProjectFile";
 import { FormField } from "../components/FormField";
 import { Button } from "../components/Button";
+import { TopicPicker } from "../components/TopicPicker";
 
 export function CreateProject() {
   const navigate = useNavigate();
@@ -21,6 +22,7 @@ export function CreateProject() {
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [projectType, setProjectType] = useState<ProjectType>("other");
+  const [topicIds, setTopicIds] = useState<Set<string>>(new Set());
   const [externalUrl, setExternalUrl] = useState("");
   const [priceUsd, setPriceUsd] = useState("0");
   const [showPromo, setShowPromo] = useState(false);
@@ -33,6 +35,18 @@ export function CreateProject() {
 
   const thumbnailInputRef = useRef<HTMLInputElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  function toggleTopic(interestId: string) {
+    setTopicIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(interestId)) {
+        next.delete(interestId);
+      } else {
+        next.add(interestId);
+      }
+      return next;
+    });
+  }
 
   async function handleThumbnailSelect(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -104,6 +118,7 @@ export function CreateProject() {
         thumbnail_height: thumbnailRatio?.height,
         price_usd: price,
         promo_price_usd: promoPrice,
+        topic_ids: Array.from(topicIds),
       });
       navigate(-1);
     } catch (err) {
@@ -192,6 +207,16 @@ export function CreateProject() {
               className="w-full px-4 py-3 rounded-xl border border-border bg-canvas text-ink resize-none
                 focus:outline-none focus:ring-2 focus:ring-accent/40 focus:border-accent"
             />
+          </div>
+
+          <div className="mb-4">
+            <label className="block text-sm font-medium text-ink-muted mb-1.5">
+              Topics <span className="font-normal text-ink-muted">(optional)</span>
+            </label>
+            <TopicPicker selected={topicIds} onToggle={toggleTopic} />
+            <p className="text-xs text-ink-muted mt-1.5">
+              Helps people browsing find this project, and powers "similar projects" for it.
+            </p>
           </div>
 
           <FormField
