@@ -16,6 +16,7 @@ import {
   Trash2,
 } from "lucide-react";
 import { useAuth } from "../hooks/useAuth";
+import { renderFormattedText } from "../lib/formatText";
 import {
   useHasPurchased,
   usePurchaseProject,
@@ -283,7 +284,9 @@ export function ProjectCard({
         </div>
 
         {project.description && (
-          <p className="text-sm text-ink-muted mt-1">{project.description}</p>
+          <p className="text-sm text-ink-muted mt-1 whitespace-pre-wrap break-words">
+            {renderFormattedText(project.description, "d")}
+          </p>
         )}
 
         {error && <p className="text-danger text-sm mt-2">{error}</p>}
