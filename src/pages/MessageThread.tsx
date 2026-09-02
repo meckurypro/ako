@@ -14,6 +14,8 @@ import {
 } from "../hooks/useMessaging";
 import { Avatar } from "../components/Avatar";
 import { MessageStatusTicks } from "../components/MessageStatusTicks";
+import { PresenceDot } from "../components/PresenceDot";
+import { formatLastSeen } from "../lib/presence";
 
 // Fetches the other participant's profile for the header — a small
 // dedicated query since useConversations' list-summary shape isn't
@@ -26,14 +28,19 @@ function useOtherParticipant(conversationId: string) {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("conversation_participants")
-        .select("profile:profiles!conversation_participants_user_id_fkey(username, display_name, avatar_url)")
+        .select(
+          "profile:profiles!conversation_participants_user_id_fkey(username, display_name, avatar_url, last_seen_at)"
+        )
         .eq("conversation_id", conversationId)
         .neq("user_id", user!.id)
         .maybeSingle();
       if (error) throw error;
-      return data?.profile as { username: string; display_name: string; avatar_url: string | null } | undefined;
+      return data?.profile as
+        | { username: string; display_name: string; avatar_url: string | null; last_seen_at: string | null }
+        | undefined;
     },
     enabled: !!conversationId && !!user,
+    refetchInterval: 30_000, // keeps the header status dot from going stale on a long-open thread
   });
 }
 
@@ -194,7 +201,13 @@ export function MessageThread() {
             {otherParticipant && (
               <>
                 <Avatar src={otherParticipant.avatar_url} name={otherParticipant.display_name} size="sm" />
-                <p className="font-medium text-ink flex-1 truncate">{otherParticipant.display_name}</p>
+                <div className="flex-1 min-w-0">
+                  <p className="font-medium text-ink truncate">{otherParticipant.display_name}</p>
+                  <p className="flex items-center gap-1.5 text-xs text-ink-muted">
+                    <PresenceDot lastSeenAt={otherParticipant.last_seen_at} />
+                    {formatLastSeen(otherParticipant.last_seen_at)}
+                  </p>
+                </div>
               </>
             )}
             <button
