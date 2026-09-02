@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useParams, Link, useNavigate } from "react-router-dom";
+import { useParams, Link, useNavigate, useSearchParams } from "react-router-dom";
 import { Settings, Wallet, MessageCircle, MoreHorizontal, Plus, Eye, X, Archive, Globe } from "lucide-react";
 import { useAuth } from "../hooks/useAuth";
 import { useProfileByUsername, useIsFollowing, useToggleFollow } from "../hooks/useProfile";
@@ -43,7 +43,14 @@ export function ProfilePage() {
   const [showArchivedProjects, setShowArchivedProjects] = useState(false);
 
   const { data: profile, isLoading } = useProfileByUsername(username!);
-  const [activeTab, setActiveTab] = useState<"posts" | "projects">("posts");
+  const [searchParams] = useSearchParams();
+  // Lets a shared project link (?tab=projects) land directly on the
+  // Projects tab instead of Posts. Read once on mount — the tabs are
+  // still plain buttons after that, so clicking Posts/Projects
+  // doesn't fight the URL.
+  const [activeTab, setActiveTab] = useState<"posts" | "projects">(
+    searchParams.get("tab") === "projects" ? "projects" : "posts"
+  );
   const isFollowingQuery = useIsFollowing(profile?.id ?? "");
   const toggleFollow = useToggleFollow(profile?.id ?? "");
   const isBlockedQuery = useIsBlocked(profile?.id ?? "");
