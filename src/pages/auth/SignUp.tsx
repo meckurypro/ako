@@ -1,8 +1,10 @@
+// src/pages/auth/SignUp.tsx
 import { useState, type FormEvent } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { supabase } from "../../lib/supabase";
 import { Wordmark } from "../../components/Wordmark";
 import { FormField } from "../../components/FormField";
+import { PasswordField } from "../../components/PasswordField";
 import { Button } from "../../components/Button";
 
 export function SignUp() {
@@ -28,6 +30,10 @@ export function SignUp() {
     // The handle_new_user() trigger (see 00_foundation.sql) automatically
     // creates the profile + wallet rows once this succeeds — we just
     // pass along username/display_name as user metadata for it to use.
+    //
+    // emailRedirectTo points the confirmation link at /auth/callback,
+    // which waits for the SIGNED_IN event and routes onward — see that
+    // file for why we don't link straight to a protected page.
     const { error: signUpError } = await supabase.auth.signUp({
       email,
       password,
@@ -36,6 +42,7 @@ export function SignUp() {
           username,
           display_name: displayName,
         },
+        emailRedirectTo: `${window.location.origin}/auth/callback`,
       },
     });
 
@@ -47,7 +54,7 @@ export function SignUp() {
     }
 
     // signUp() does not establish a session until the email is
-    // confirmed — send the user to enter the OTP we just triggered.
+    // confirmed — send the user to check their inbox for the link.
     navigate("/verify-email", { state: { email } });
   }
 
@@ -87,10 +94,9 @@ export function SignUp() {
             onChange={(e) => setEmail(e.target.value)}
             required
           />
-          <FormField
+          <PasswordField
             id="password"
             label="Password"
-            type="password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             required
