@@ -1,7 +1,7 @@
 // src/pages/MessageThread.tsx
 import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { ArrowLeft, Send, Search, ChevronUp, ChevronDown, Smile, Reply, X } from "lucide-react";
+import { ArrowLeft, Send, Search, ChevronUp, ChevronDown, Smile, Keyboard, Reply, X } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "../lib/supabase";
 import { useAuth } from "../hooks/useAuth";
@@ -26,7 +26,7 @@ import { Avatar } from "../components/Avatar";
 import { MessageStatusTicks } from "../components/MessageStatusTicks";
 import { PresenceDot } from "../components/PresenceDot";
 import { MessageActionMenu } from "../components/MessageActionMenu";
-import { EmojiPickerSheet } from "../components/EmojiPickerSheet";
+import { EmojiPickerSheet, removeLastGrapheme } from "../components/EmojiPickerSheet";
 import { formatLastSeen } from "../lib/presence";
 
 // Fetches the other participant's profile for the header — a small
@@ -513,11 +513,13 @@ export function MessageThread() {
         <form onSubmit={handleSubmit} className="px-4 py-3 flex items-center gap-2">
           <button
             type="button"
-            onClick={() => setEmojiPickerTarget({ mode: "input" })}
+            onClick={() =>
+              setEmojiPickerTarget((current) => (current?.mode === "input" ? null : { mode: "input" }))
+            }
             className="text-ink-muted flex-shrink-0"
-            aria-label="Add emoji"
+            aria-label={emojiPickerTarget?.mode === "input" ? "Switch to keyboard" : "Add emoji"}
           >
-            <Smile size={22} />
+            {emojiPickerTarget?.mode === "input" ? <Keyboard size={22} /> : <Smile size={22} />}
           </button>
           <input
             value={content}
@@ -575,6 +577,9 @@ export function MessageThread() {
 
       {emojiPickerTarget && (
         <EmojiPickerSheet
+          mode={emojiPickerTarget.mode}
+          content={emojiPickerTarget.mode === "input" ? content : undefined}
+          onBackspace={() => setContent((c) => removeLastGrapheme(c))}
           onClose={() => setEmojiPickerTarget(null)}
           onSelect={(emoji) => {
             if (emojiPickerTarget.mode === "input") {
