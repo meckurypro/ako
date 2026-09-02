@@ -34,6 +34,7 @@ import { ConversationList } from "./pages/ConversationList";
 import { MessageThread } from "./pages/MessageThread";
 import { Search } from "./pages/Search";
 import { Settings } from "./pages/Settings";
+import { AdvancedSettings } from "./pages/AdvancedSettings";
 
 import { RequireAdmin } from "./components/RequireAdmin";
 import { AdminHome } from "./pages/admin/AdminHome";
@@ -245,6 +246,14 @@ export default function App() {
               element={
                 <RequireAuth>
                   <Settings />
+                </RequireAuth>
+              }
+            />
+            <Route
+              path="/settings/advanced"
+              element={
+                <RequireAuth>
+                  <AdvancedSettings />
                 </RequireAuth>
               }
             />
