@@ -67,7 +67,7 @@ export function EditProject() {
   // Topics load via a separate query from the project itself, so
   // they get their own hydration guard rather than piggybacking on
   // `hydrated` — otherwise whichever query resolves first would
-  // block the other's prefill.
+  // block the other's prefil.
   useEffect(() => {
     if (existingTopicIds && !topicsHydrated) {
       setTopicIds(new Set(existingTopicIds));
