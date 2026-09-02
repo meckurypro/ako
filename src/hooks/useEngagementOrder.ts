@@ -3,86 +3,116 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "../lib/supabase";
 import { useAuth } from "./useAuth";
 
-export type EngagementActionKey =
-  | "like"
-  | "dislike"
+export type SecondaryActionKey =
   | "support"
   | "disagree"
   | "pushback"
   | "share"
-  | "bookmark"
-  | "gift";
+  | "gift"
+  | "save";
 
-// Matches the product mockup exactly: Like, Dislike, Support,
-// Disagree, Pushback in the always-visible row; Share, Bookmark,
-// Gift tucked into the kebab menu. This doubles as the fallback
-// order for a user with no usage history yet, and for the moment
-// before get_my_engagement_counts() is deployed/reachable.
-const DEFAULT_ORDER: EngagementActionKey[] = [
-  "like",
-  "dislike",
+const ALL_SECONDARY: SecondaryActionKey[] = [
   "support",
   "disagree",
   "pushback",
   "share",
-  "bookmark",
   "gift",
+  "save",
 ];
 
-const VISIBLE_COUNT = 5;
+// Tiebreaker order for brand-new users (all counts = 0) so the tray
+// has a stable, sensible default layout instead of arbitrary iteration order.
+const DEFAULT_ORDER: SecondaryActionKey[] = [
+  "support",
+  "gift",
+  "save",
+  "disagree",
+  "pushback",
+  "share",
+];
+
+type UsageCounts = Record<SecondaryActionKey, number>;
 
 /**
- * Orders the 8 engagement actions by how often THIS user actually
- * uses each one — most-used first — so the always-visible row on a
- * post shows a given user's 5 most-used actions, left-to-right from
- * most- to least-used of that top 5. The rest live in the kebab menu.
+ * Ranks the 6 non-Like/Dislike post actions by how often the current
+ * user has used each one, most-used first.
  *
- * Backed by the get_my_engagement_counts() SQL function, which counts:
- *   - like/dislike/share  -> reactions.type, reactions.user_id
- *   - bookmark             -> bookmarks.user_id
- *   - support/disagree/pushback -> comments.stance, comments.author_id
- *   - gift                 -> gifts.sender_id
+ * Usage sources:
+ *   support / disagree / pushback  →  comments.stance authored by this user
+ *   share                          →  reactions of type "share"
+ *   gift                           →  gifts.sender_id
+ *   save                           →  bookmarks.user_id
  *
- * If the RPC call fails for any reason (not deployed yet, offline,
- * etc.) this quietly falls back to DEFAULT_ORDER so the row still
- * renders something sensible instead of breaking.
+ * PostCard takes the top 3 for the visible tray (positions 3-5, after
+ * the fixed Like and Dislike) and puts the remaining 3 in the ⋯ menu.
+ *
+ * Cached for 5 minutes — usage patterns shift slowly and this runs on
+ * every PostCard mount, so we don't want a round-trip per card.
  */
 export function useEngagementOrder() {
   const { user } = useAuth();
 
-  const { data: counts } = useQuery({
+  return useQuery({
     queryKey: ["engagement-order", user?.id],
-    queryFn: async (): Promise<Record<EngagementActionKey, number>> => {
-      const { data, error } = await supabase.rpc("get_my_engagement_counts");
-      if (error) throw error;
+    queryFn: async (): Promise<SecondaryActionKey[]> => {
+      const counts: UsageCounts = {
+        support: 0,
+        disagree: 0,
+        pushback: 0,
+        share: 0,
+        gift: 0,
+        save: 0,
+      };
 
-      const result = Object.fromEntries(DEFAULT_ORDER.map((k) => [k, 0])) as Record<
-        EngagementActionKey,
-        number
-      >;
-      for (const row of (data ?? []) as { action: string; usage_count: number }[]) {
-        if ((DEFAULT_ORDER as string[]).includes(row.action)) {
-          result[row.action as EngagementActionKey] = Number(row.usage_count);
-        }
+      const [stanceRes, shareRes, giftRes, saveRes] = await Promise.all([
+        // Support/Disagree/Pushback live as stance-tagged comments —
+        // count each stance this user has authored, across all posts.
+        supabase
+          .from("comments")
+          .select("stance")
+          .eq("author_id", user!.id)
+          .eq("is_deleted", false)
+          .not("stance", "is", null),
+
+        supabase
+          .from("reactions")
+          .select("id", { count: "exact", head: true })
+          .eq("user_id", user!.id)
+          .eq("type", "share"),
+
+        supabase
+          .from("gifts")
+          .select("id", { count: "exact", head: true })
+          .eq("sender_id", user!.id),
+
+        supabase
+          .from("bookmarks")
+          .select("id", { count: "exact", head: true })
+          .eq("user_id", user!.id),
+      ]);
+
+      if (stanceRes.error) throw stanceRes.error;
+      if (shareRes.error) throw shareRes.error;
+      if (giftRes.error) throw giftRes.error;
+      if (saveRes.error) throw saveRes.error;
+
+      for (const row of stanceRes.data ?? []) {
+        if (row.stance === "support") counts.support++;
+        else if (row.stance === "disagree") counts.disagree++;
+        else if (row.stance === "pushback") counts.pushback++;
       }
-      return result;
-    },
-    enabled: !!user,
-    staleTime: 5 * 60 * 1000,
-    retry: false,
-  });
+      counts.share = shareRes.count ?? 0;
+      counts.gift = giftRes.count ?? 0;
+      counts.save = saveRes.count ?? 0;
 
-  const ordered = counts
-    ? [...DEFAULT_ORDER].sort((a, b) => {
+      return [...ALL_SECONDARY].sort((a, b) => {
         const diff = counts[b] - counts[a];
-        // Stable tiebreak on equal counts (everyone starts at zero) —
-        // fall back to the mockup's default relative order.
+        // Break ties with the stable default order so the tray
+        // doesn't jitter when two actions have the same count.
         return diff !== 0 ? diff : DEFAULT_ORDER.indexOf(a) - DEFAULT_ORDER.indexOf(b);
-      })
-    : DEFAULT_ORDER;
-
-  return {
-    visible: ordered.slice(0, VISIBLE_COUNT),
-    overflow: ordered.slice(VISIBLE_COUNT),
-  };
+      });
+    },
+    enabled: !!user?.id,
+    staleTime: 5 * 60 * 1000,
+  });
 }
