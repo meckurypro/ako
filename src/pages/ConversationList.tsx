@@ -1,14 +1,15 @@
 // src/pages/ConversationList.tsx
-import { useMemo, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
-import { ArrowLeft, Search, X } from "lucide-react";
-import { useConversations } from "../hooks/useMessaging";
+import { useMemo, useRef, useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { ArrowLeft, Search, X, Pin } from "lucide-react";
+import { useConversations, useUpdateConversationState, type ConversationSummary } from "../hooks/useMessaging";
 import { useUnseenPosts } from "../hooks/useUnseenPosts";
 import { useAuth } from "../hooks/useAuth";
 import { Avatar } from "../components/Avatar";
 import { BottomNav } from "../components/BottomNav";
 import { MessageStatusTicks } from "../components/MessageStatusTicks";
 import { PresenceDot } from "../components/PresenceDot";
+import { ConversationActionSheet } from "../components/ConversationActionSheet";
 
 function timeAgo(dateString: string): string {
   const seconds = Math.floor((Date.now() - new Date(dateString).getTime()) / 1000);
@@ -28,6 +29,48 @@ export function ConversationList() {
   const { data: unseenPosts } = useUnseenPosts(authorIds);
 
   const [searchQuery, setSearchQuery] = useState("");
+
+  // --- Long press to open pin/archive/delete actions (same hand-rolled
+  // pointer-timer approach used for messages — no gesture library). ---
+  const updateConversationState = useUpdateConversationState();
+  const [actionTarget, setActionTarget] = useState<ConversationSummary | null>(null);
+  const longPressTimers = useRef<Record<string, ReturnType<typeof setTimeout> | null>>({});
+  const longPressStart = useRef<Record<string, { x: number; y: number }>>({});
+  const longPressFired = useRef<Record<string, boolean>>({});
+
+  function handlePointerDown(c: ConversationSummary, e: React.PointerEvent) {
+    longPressStart.current[c.id] = { x: e.clientX, y: e.clientY };
+    longPressFired.current[c.id] = false;
+    longPressTimers.current[c.id] = setTimeout(() => {
+      longPressFired.current[c.id] = true;
+      if (navigator.vibrate) navigator.vibrate(15);
+      setActionTarget(c);
+    }, 450);
+  }
+  function cancelLongPressTimer(id: string) {
+    const timer = longPressTimers.current[id];
+    if (timer) clearTimeout(timer);
+    longPressTimers.current[id] = null;
+  }
+  function handlePointerMove(c: ConversationSummary, e: React.PointerEvent) {
+    const start = longPressStart.current[c.id];
+    if (!start) return;
+    if (Math.abs(e.clientX - start.x) > 10 || Math.abs(e.clientY - start.y) > 10) {
+      cancelLongPressTimer(c.id);
+    }
+  }
+  function endGesture(id: string) {
+    cancelLongPressTimer(id);
+    delete longPressStart.current[id];
+  }
+  function handleRowClick(c: ConversationSummary, e: React.MouseEvent) {
+    if (longPressFired.current[c.id]) {
+      e.preventDefault();
+      longPressFired.current[c.id] = false;
+      return;
+    }
+    navigate(`/messages/${c.id}`);
+  }
 
   // Client-side filter over the already-fetched list — matches by
   // contact name/username or last-message content. Cheap enough at
@@ -96,10 +139,18 @@ export function ConversationList() {
             const showTicksInPreview = c.last_message?.sender_id === user?.id;
 
             return (
-              <Link
+              <div
                 key={c.id}
-                to={`/messages/${c.id}`}
-                className="flex items-center gap-3 py-3.5 border-b border-border"
+                onPointerDown={(e) => handlePointerDown(c, e)}
+                onPointerMove={(e) => handlePointerMove(c, e)}
+                onPointerUp={() => endGesture(c.id)}
+                onPointerLeave={() => endGesture(c.id)}
+                onPointerCancel={() => endGesture(c.id)}
+                onContextMenu={(e) => e.preventDefault()}
+                onClick={(e) => handleRowClick(c, e)}
+                role="link"
+                className="flex items-center gap-3 py-3.5 border-b border-border select-none cursor-pointer"
+                style={{ WebkitTouchCallout: "none" }}
               >
                 {unseenPostId ? (
                   <span
@@ -125,8 +176,9 @@ export function ConversationList() {
 
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center justify-between">
-                    <p className={`text-sm truncate ${c.unread ? "font-semibold text-ink" : "font-medium text-ink"}`}>
-                      {c.other_participant.display_name}
+                    <p className={`text-sm truncate flex items-center gap-1 ${c.unread ? "font-semibold text-ink" : "font-medium text-ink"}`}>
+                      {c.pinned_at && <Pin size={12} className="text-ink-muted flex-shrink-0" />}
+                      <span className="truncate">{c.other_participant.display_name}</span>
                     </p>
                     <span className="flex flex-col items-end gap-1 flex-shrink-0 ml-2">
                       <span className="text-xs text-ink-muted">{timeAgo(c.last_message_at)}</span>
@@ -148,13 +200,39 @@ export function ConversationList() {
                   </p>
                 </div>
                 {c.unread && <div className="w-2 h-2 rounded-full bg-accent flex-shrink-0" />}
-              </Link>
+              </div>
             );
           })
         )}
       </div>
 
       <BottomNav />
+
+      {actionTarget && (
+        <ConversationActionSheet
+          displayName={actionTarget.other_participant.display_name}
+          isPinned={!!actionTarget.pinned_at}
+          onTogglePin={() =>
+            updateConversationState.mutate({
+              conversationId: actionTarget.id,
+              pinned_at: actionTarget.pinned_at ? null : new Date().toISOString(),
+            })
+          }
+          onArchive={() =>
+            updateConversationState.mutate({
+              conversationId: actionTarget.id,
+              archived_at: new Date().toISOString(),
+            })
+          }
+          onDelete={() =>
+            updateConversationState.mutate({
+              conversationId: actionTarget.id,
+              hidden_at: new Date().toISOString(),
+            })
+          }
+          onClose={() => setActionTarget(null)}
+        />
+      )}
     </div>
   );
-                        }
+}
