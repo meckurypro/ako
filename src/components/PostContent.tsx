@@ -10,8 +10,8 @@ function renderParagraphs(content: string) {
   return paragraphs.map((para, i) => (
     <p
       key={i}
-      className={`text-ink leading-snug whitespace-pre-wrap break-words ${
-        i < paragraphs.length - 1 ? "mb-2" : ""
+      className={`text-base text-ink leading-relaxed whitespace-pre-wrap break-words ${
+        i < paragraphs.length - 1 ? "mb-3" : ""
       }`}
     >
       {renderFormattedText(para, `p${i}`)}
@@ -19,14 +19,14 @@ function renderParagraphs(content: string) {
   ));
 }
 
-// Heading now matches the author name in weight/family (both
-// font-display) so the two read as one consistent "stylised" voice,
-// per the Uche reference — bigger and bolder than before.
+// Heading matches the author name in family (both font-display) so the
+// two read as one consistent "stylised" voice, per the Uche reference —
+// large serif headline, roomy sans body underneath.
 export function PostContent({ heading, content }: PostContentProps) {
   return (
     <div>
       {heading && (
-        <h3 className="font-display text-2xl font-bold leading-snug text-ink mb-4">
+        <h3 className="font-display text-3xl font-bold leading-tight text-ink mb-3">
           {renderFormattedText(heading, "h")}
         </h3>
       )}
