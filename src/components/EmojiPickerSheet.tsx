@@ -1,5 +1,5 @@
 // src/components/EmojiPickerSheet.tsx
-import { X, Delete } from "lucide-react";
+import { X, Delete, Keyboard } from "lucide-react";
 import { EMOJI_CATEGORIES } from "../lib/emojiData";
 import { useRecentEmojis } from "../hooks/useMessageReactions";
 
@@ -75,6 +75,14 @@ export function EmojiPickerSheet({
               aria-label="Backspace"
             >
               <Delete size={20} />
+            </button>
+            <button
+              type="button"
+              onClick={onClose}
+              className="text-ink-muted flex-shrink-0 p-2"
+              aria-label="Switch to keyboard"
+            >
+              <Keyboard size={20} />
             </button>
           </div>
         ) : (
