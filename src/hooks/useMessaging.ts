@@ -7,7 +7,13 @@ import { useAuth } from "./useAuth";
 export interface ConversationSummary {
   id: string;
   last_message_at: string;
-  other_participant: { id: string; username: string; display_name: string; avatar_url: string | null };
+  other_participant: {
+    id: string;
+    username: string;
+    display_name: string;
+    avatar_url: string | null;
+    last_seen_at: string | null;
+  };
   last_message: { content: string; sender_id: string; delivered_at: string | null; read_at: string | null } | null;
   unread: boolean;
 }
@@ -46,7 +52,9 @@ export function useConversations() {
       for (const conv of conversations ?? []) {
         const { data: otherParticipant } = await supabase
           .from("conversation_participants")
-          .select("profile:profiles!conversation_participants_user_id_fkey(id, username, display_name, avatar_url)")
+          .select(
+            "profile:profiles!conversation_participants_user_id_fkey(id, username, display_name, avatar_url, last_seen_at)"
+          )
           .eq("conversation_id", conv.id)
           .neq("user_id", user!.id)
           .maybeSingle();
@@ -328,4 +336,4 @@ export function useStartConversation() {
 export function useUnreadConversationCount(): number {
   const { data: conversations } = useConversations();
   return conversations?.filter((c) => c.unread).length ?? 0;
-}
+        }
