@@ -140,6 +140,29 @@ export function useRecentEmojis(limit = 36): string[] {
   return data ?? [];
 }
 
+/**
+ * Records a use of `emoji` picked from the compose-bar picker, so it
+ * surfaces in the picker's own "Recently used" section next time.
+ * Reactions already track usage via set_message_reaction — this
+ * covers the other path (typing an emoji into a message).
+ */
+export function useTrackEmojiUsage() {
+  const { user } = useAuth();
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (emoji: string) => {
+      if (!user) return;
+      const { error } = await supabase.rpc("track_emoji_usage", { p_emoji: emoji });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["recent-emojis"] });
+      queryClient.invalidateQueries({ queryKey: ["user-top-emojis"] });
+    },
+  });
+}
+
 export interface MessageUserState {
   message_id: string;
   starred_at: string | null;
