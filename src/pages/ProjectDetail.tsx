@@ -10,7 +10,7 @@ import { ProjectCard } from "../components/ProjectCard";
 // Compact, non-interactive project tile for the "similar projects"
 // rails — just enough to identify it and tap through. The full
 // ProjectCard (buy/download/menu) is reserved for the one project
-// this page is actually about.
+// this page is actually about
 function ProjectMiniCard({ project }: { project: Project }) {
   return (
     <Link
