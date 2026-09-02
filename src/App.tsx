@@ -308,14 +308,11 @@ export default function App() {
                 </RequireAuth>
               }
             />
-            <Route
-              path="/projects/:projectId"
-              element={
-                <RequireAuth>
-                  <ProjectDetail />
-                </RequireAuth>
-              }
-            />
+            {/* Public — a shared project link should work for a
+                logged-out visitor. Buy/Download inside ProjectCard
+                gate themselves and send an unauthenticated visitor to
+                /login?redirect=... instead of failing silently. */}
+            <Route path="/projects/:projectId" element={<ProjectDetail />} />
             <Route
               path="/projects/:projectId/edit"
               element={
