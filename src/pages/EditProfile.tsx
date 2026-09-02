@@ -231,7 +231,7 @@ export function EditProfile() {
           className="flex items-center gap-2 justify-center text-sm text-ink-muted mt-6"
         >
           <Shield size={16} />
-          Settings & Privacy
+          Privacy Settings
         </Link>
       </div>
     </div>
