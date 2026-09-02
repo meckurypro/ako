@@ -1,18 +1,28 @@
 import { useParams, Link, useNavigate } from "react-router-dom";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, Lock } from "lucide-react";
+import { useAuth } from "../hooks/useAuth";
 import { useProfileByUsername, useFollowers, useFollowing } from "../hooks/useProfile";
 import { Avatar } from "../components/Avatar";
 
 export function FollowListPage({ type }: { type: "followers" | "following" }) {
   const { username } = useParams<{ username: string }>();
   const navigate = useNavigate();
-  const { data: profile } = useProfileByUsername(username!);
+  const { user } = useAuth();
+  const { data: profile, isLoading: profileLoading } = useProfileByUsername(username!);
 
-  const followersQuery = useFollowers(profile?.id ?? "");
-  const followingQuery = useFollowing(profile?.id ?? "");
+  const isOwnList = !!user && !!profile && user.id === profile.id;
+  const hiddenByOwner =
+    type === "followers" ? profile?.hide_followers_list : profile?.hide_following_list;
+  // Owners can always see their own list — the setting only hides it
+  // from other people.
+  const isHidden = !!profile && !isOwnList && hiddenByOwner;
+
+  const followersQuery = useFollowers(!isHidden ? profile?.id ?? "" : "");
+  const followingQuery = useFollowing(!isHidden ? profile?.id ?? "" : "");
 
   const list = type === "followers" ? followersQuery.data : followingQuery.data;
-  const isLoading = type === "followers" ? followersQuery.isLoading : followingQuery.isLoading;
+  const isLoading =
+    profileLoading || (!isHidden && (type === "followers" ? followersQuery.isLoading : followingQuery.isLoading));
 
   return (
     <div className="min-h-screen bg-canvas px-4 pt-4 pb-10">
@@ -26,6 +36,13 @@ export function FollowListPage({ type }: { type: "followers" | "following" }) {
 
         {isLoading ? (
           <p className="text-ink-muted text-center py-10">Loading…</p>
+        ) : isHidden ? (
+          <div className="flex flex-col items-center text-center py-14">
+            <Lock size={22} className="text-ink-muted mb-3" />
+            <p className="text-ink-muted text-sm max-w-[240px]">
+              @{profile!.username} has chosen to hide their {type} list.
+            </p>
+          </div>
         ) : !list || list.length === 0 ? (
           <p className="text-ink-muted text-center py-10 text-sm">
             {type === "followers" ? "No followers yet." : "Not following anyone yet."}
