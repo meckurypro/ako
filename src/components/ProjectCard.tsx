@@ -1,5 +1,5 @@
 // src/components/ProjectCard.tsx
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   ExternalLink,
@@ -12,6 +12,7 @@ import {
   RotateCcw,
   Send,
   EyeOff,
+  Share2,
   Trash2,
 } from "lucide-react";
 import { useAuth } from "../hooks/useAuth";
@@ -38,10 +39,20 @@ import {
 // returns a friendly message pointing the owner at Archive instead.
 // --------------------------------------------------------
 
-export function ProjectCard({ project }: { project: Project }) {
+export function ProjectCard({
+  project,
+  isOwnerView,
+}: {
+  project: Project;
+  // Explicit owner-view flag from the caller (e.g. ProfilePage's
+  // "viewing as visitor" toggle). Falls back to the plain owner check
+  // for every other call site that doesn't pass it, so this stays a
+  // no-op everywhere except the profile page's visitor-preview mode.
+  isOwnerView?: boolean;
+}) {
   const { user } = useAuth();
   const navigate = useNavigate();
-  const isOwner = user?.id === project.owner_id;
+  const isOwner = isOwnerView ?? user?.id === project.owner_id;
   const isFree = isProjectFree(project);
   const showPromo = hasActivePromo(project);
   const effectivePrice = getEffectivePrice(project);
@@ -54,8 +65,21 @@ export function ProjectCard({ project }: { project: Project }) {
 
   const [error, setError] = useState<string | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
   const hasPurchased = !!hasPurchasedQuery.data;
   const hasAccess = isOwner || isFree || hasPurchased;
+
+  // Close the kebab menu on any click/tap outside it.
+  useEffect(() => {
+    if (!menuOpen) return;
+    function handleClickOutside(e: MouseEvent) {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        setMenuOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [menuOpen]);
 
   async function handleBuy() {
     setError(null);
@@ -63,6 +87,20 @@ export function ProjectCard({ project }: { project: Project }) {
       await purchaseProject.mutateAsync(project.id);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Purchase failed.");
+    }
+  }
+
+  async function handleShare() {
+    setMenuOpen(false);
+    const url = project.external_url || `${window.location.origin}${window.location.pathname}`;
+    if (navigator.share) {
+      try {
+        await navigator.share({ title: project.title, url });
+      } catch {
+        // User cancelled the native share sheet — nothing to do.
+      }
+    } else {
+      await navigator.clipboard.writeText(url);
     }
   }
 
@@ -120,7 +158,7 @@ export function ProjectCard({ project }: { project: Project }) {
       )}
 
       {isOwner && (
-        <div className="absolute top-3 right-3">
+        <div className="absolute top-3 right-3" ref={menuRef}>
           <button
             onClick={() => setMenuOpen((o) => !o)}
             className="p-1.5 rounded-full bg-canvas/90 text-ink-muted"
@@ -140,6 +178,14 @@ export function ProjectCard({ project }: { project: Project }) {
               >
                 <Pencil size={14} />
                 Edit
+              </button>
+
+              <button
+                onClick={handleShare}
+                className="w-full flex items-center gap-2 text-left px-4 py-2.5 text-sm text-ink hover:bg-surface"
+              >
+                <Share2 size={14} />
+                Share
               </button>
 
               {project.status !== "active" && (
@@ -270,6 +316,16 @@ export function ProjectCard({ project }: { project: Project }) {
               {purchaseProject.isPending ? "Purchasing…" : `Buy for $${effectivePrice.toFixed(2)}`}
             </button>
           )}
+
+          <button
+            onClick={handleShare}
+            aria-label="Share project"
+            className={`flex items-center gap-1.5 text-sm text-ink-muted ${
+              hasAccess || isFree ? "" : "ml-auto"
+            }`}
+          >
+            <Share2 size={15} />
+          </button>
         </div>
       </div>
     </div>
