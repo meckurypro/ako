@@ -13,5 +13,4 @@ export function MyProfileRedirect() {
   }
 
   return <Navigate to={`/profile/${profile.username}`} replace />;
-}  return <Navigate to={`/profile/${profile.username}`} replace />;
-}
+} 
