@@ -174,6 +174,10 @@ export function MessageThread() {
   const [content, setContent] = useState("");
   const bottomRef = useRef<HTMLDivElement>(null);
   const messageRefs = useRef<Record<string, HTMLDivElement | null>>({});
+  // First render of a conversation should land on the last message
+  // instantly — no visible scroll animation from the top. Only messages
+  // that arrive afterward (a reply coming in, etc.) get a smooth scroll.
+  const hasScrolledToBottomOnce = useRef(false);
 
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
@@ -237,8 +241,17 @@ export function MessageThread() {
   }, [conversationId]);
 
   useEffect(() => {
+    // Switching to a different conversation should also land on its
+    // bottom instantly, not carry over the "already scrolled once"
+    // state from the previous thread.
+    hasScrolledToBottomOnce.current = false;
+  }, [conversationId]);
+
+  useEffect(() => {
     if (searchOpen) return; // don't fight the search-match scroll below
-    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+    if (!messages) return;
+    bottomRef.current?.scrollIntoView({ behavior: hasScrolledToBottomOnce.current ? "smooth" : "auto" });
+    hasScrolledToBottomOnce.current = true;
   }, [messages, searchOpen]);
 
   const matches = useMemo((): MessageWithSender[] => {
@@ -355,7 +368,7 @@ export function MessageThread() {
   const activeState = activeMessage ? userStates?.[activeMessage.message.id] : undefined;
 
   return (
-    <div className="min-h-screen bg-canvas flex flex-col">
+    <div className="h-screen bg-canvas flex flex-col overflow-hidden">
       <header className="px-4 pt-6 pb-3 sticky top-0 bg-canvas z-30 border-b border-border flex items-center gap-3">
         {searchOpen ? (
           <>
