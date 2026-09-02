@@ -39,10 +39,19 @@ function timeAgo(dateString: string): string {
 
 const DOUBLE_TAP_WINDOW_MS = 300;
 
-export function PostCard({ post }: { post: PostWithAuthor }) {
+export function PostCard({
+  post,
+  isOwnerView,
+}: {
+  post: PostWithAuthor;
+  // Explicit owner-view flag from the caller (e.g. ProfilePage's
+  // "viewing as visitor" toggle). Falls back to the plain owner check
+  // for every other call site that doesn't pass it.
+  isOwnerView?: boolean;
+}) {
   const { user } = useAuth();
   const navigate = useNavigate();
-  const isOwner = user?.id === post.author_id;
+  const isOwner = isOwnerView ?? user?.id === post.author_id;
   const [menuOpen, setMenuOpen] = useState(false);
   const lastTapRef = useRef(0);
 
