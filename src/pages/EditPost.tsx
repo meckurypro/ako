@@ -148,6 +148,7 @@ export function EditPost() {
           maxLength={CONTENT_LIMIT}
           rows={8}
           className="w-full text-base text-ink bg-transparent resize-none focus:outline-none placeholder:text-ink-muted/60"
+          showFormatToolbar
         />
 
         {mediaUrls.length > 0 && (
