@@ -7,6 +7,7 @@ import { SignUp } from "./pages/auth/SignUp";
 import { Login } from "./pages/auth/Login";
 import { VerifyEmail } from "./pages/auth/VerifyEmail";
 import { ResetPassword } from "./pages/auth/ResetPassword";
+import { AuthCallback } from "./pages/auth/AuthCallback";
 
 import { InterestPicker } from "./pages/onboarding/InterestPicker";
 
@@ -65,6 +66,7 @@ export default function App() {
             <Route path="/login" element={<Login />} />
             <Route path="/verify-email" element={<VerifyEmail />} />
             <Route path="/reset-password" element={<ResetPassword />} />
+            <Route path="/auth/callback" element={<AuthCallback />} />
 
             {/* Onboarding */}
             <Route
