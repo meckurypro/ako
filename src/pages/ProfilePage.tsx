@@ -40,6 +40,7 @@ export function ProfilePage() {
 
   const [previewingAsVisitor, setPreviewingAsVisitor] = useState(false);
   const [showArchived, setShowArchived] = useState(false);
+  const [showArchivedProjects, setShowArchivedProjects] = useState(false);
 
   const { data: profile, isLoading } = useProfileByUsername(username!);
   const [activeTab, setActiveTab] = useState<"posts" | "projects">("posts");
@@ -54,6 +55,14 @@ export function ProfilePage() {
   const showOwnerView = isOwnProfile && !previewingAsVisitor;
 
   const { data: projects } = useUserProjects(profile?.id ?? "", showOwnerView);
+
+  // Archived projects only ever come back at all when showOwnerView is
+  // true (see useUserProjects) — split them out here so the main
+  // Projects tab never mixes them in with active/draft ones; the
+  // "Archived" toggle swaps to the archived-only view instead.
+  const visibleProjects = showArchivedProjects
+    ? projects?.filter((p) => p.status === "archived")
+    : projects?.filter((p) => p.status !== "archived");
   const { data: posts } = useUserPostsWithArchived(
     profile?.id ?? "",
     showOwnerView && showArchived
@@ -255,13 +264,24 @@ export function ProfilePage() {
             </button>
           )}
           {showOwnerView && activeTab === "projects" && (
-            <Link
-              to="/projects/new"
-              className="ml-auto flex items-center gap-1 text-sm text-accent font-medium pb-3"
-            >
-              <Plus size={16} />
-              New
-            </Link>
+            <div className="ml-auto flex items-center gap-4">
+              <button
+                onClick={() => setShowArchivedProjects((v) => !v)}
+                className={`flex items-center gap-1 text-sm font-medium pb-3 ${
+                  showArchivedProjects ? "text-accent" : "text-ink-muted"
+                }`}
+              >
+                <Archive size={16} />
+                Archived
+              </button>
+              <Link
+                to="/projects/new"
+                className="flex items-center gap-1 text-sm text-accent font-medium pb-3"
+              >
+                <Plus size={16} />
+                New
+              </Link>
+            </div>
           )}
         </div>
 
@@ -277,11 +297,15 @@ export function ProfilePage() {
             ) : (
               <p className="text-ink-muted text-center py-10 text-sm">No posts yet.</p>
             )
-          ) : projects && projects.length > 0 ? (
-            projects.map((project) => <ProjectCard key={project.id} project={project} />)
+          ) : visibleProjects && visibleProjects.length > 0 ? (
+            visibleProjects.map((project) => <ProjectCard key={project.id} project={project} />)
           ) : (
             <p className="text-ink-muted text-center py-10 text-sm">
-              {showOwnerView ? "No projects yet — publish your first one." : "No projects yet."}
+              {showArchivedProjects
+                ? "No archived projects."
+                : showOwnerView
+                ? "No projects yet — publish your first one."
+                : "No projects yet."}
             </p>
           )}
         </div>
@@ -290,4 +314,4 @@ export function ProfilePage() {
       <BottomNav />
     </div>
   );
-}
+        }
