@@ -82,6 +82,10 @@ export function ProjectCard({
   }, [menuOpen]);
 
   async function handleBuy() {
+    if (!user) {
+      navigate(`/login?redirect=${encodeURIComponent(`/projects/${project.id}`)}`);
+      return;
+    }
     setError(null);
     try {
       await purchaseProject.mutateAsync(project.id);
@@ -109,6 +113,10 @@ export function ProjectCard({
   }
 
   async function handleOpenFile() {
+    if (!user) {
+      navigate(`/login?redirect=${encodeURIComponent(`/projects/${project.id}`)}`);
+      return;
+    }
     setError(null);
     try {
       const url = await getFile.mutateAsync(project.id);
