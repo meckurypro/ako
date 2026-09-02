@@ -92,12 +92,11 @@ export function ProjectCard({
 
   async function handleShare() {
     setMenuOpen(false);
-    // Always share a link BACK TO the project on Ako (this profile,
-    // Projects tab) — never project.external_url, which points AWAY
-    // from Ako to wherever the project itself links out to. Those are
-    // two different things and only one of them is "sharing the
-    // project."
-    const url = `${window.location.origin}${window.location.pathname}?tab=projects`;
+    // Always share a link BACK TO the project's own dedicated page on
+    // Ako — never project.external_url, which points AWAY from Ako to
+    // wherever the project itself links out to. Those are two
+    // different things and only one of them is "sharing the project."
+    const url = `${window.location.origin}/projects/${project.id}`;
     if (navigator.share) {
       try {
         await navigator.share({ title: project.title, url });
