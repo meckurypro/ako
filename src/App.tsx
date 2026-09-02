@@ -43,6 +43,7 @@ import { AdminReports } from "./pages/admin/AdminReports";
 
 import { CreateProject } from "./pages/CreateProject";
 import { EditProject } from "./pages/EditProject";
+import { ProjectDetail } from "./pages/ProjectDetail";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -304,6 +305,14 @@ export default function App() {
               element={
                 <RequireAuth>
                   <CreateProject />
+                </RequireAuth>
+              }
+            />
+            <Route
+              path="/projects/:projectId"
+              element={
+                <RequireAuth>
+                  <ProjectDetail />
                 </RequireAuth>
               }
             />
