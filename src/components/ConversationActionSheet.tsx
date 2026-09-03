@@ -1,5 +1,5 @@
 // src/components/ConversationActionSheet.tsx
-import { Pin, PinOff, Archive, Trash2 } from "lucide-react";
+import { Pin, PinOff, Archive, Trash2, CheckSquare } from "lucide-react";
 
 interface ConversationActionSheetProps {
   displayName: string;
@@ -7,13 +7,18 @@ interface ConversationActionSheetProps {
   onTogglePin: () => void;
   onArchive: () => void;
   onDelete: () => void;
+  onSelect: () => void;
   onClose: () => void;
 }
 
 /**
  * Long-press action sheet for a conversation row — pin/unpin to top,
- * archive, or delete (hides the chat for this user only; the other
- * participant's copy is untouched).
+ * archive, delete (hides the chat for this user only; the other
+ * participant's copy is untouched), or enter multi-select mode to act
+ * on several chats at once. onDelete here just opens the confirmation
+ * step in the caller (ConversationList/ArchivedConversations) — this
+ * sheet never deletes directly, since deleting a whole chat is
+ * significant enough to warrant a second "are you sure?" beat.
  */
 export function ConversationActionSheet({
   displayName,
@@ -21,6 +26,7 @@ export function ConversationActionSheet({
   onTogglePin,
   onArchive,
   onDelete,
+  onSelect,
   onClose,
 }: ConversationActionSheetProps) {
   return (
@@ -53,10 +59,21 @@ export function ConversationActionSheet({
 
         <button
           onClick={() => {
+            onSelect();
+            onClose();
+          }}
+          className="w-full flex items-center gap-3 px-4 py-3.5 text-sm text-ink"
+        >
+          <CheckSquare size={18} />
+          Select chats
+        </button>
+
+        <button
+          onClick={() => {
             onDelete();
             onClose();
           }}
-          className="w-full flex items-center gap-3 px-4 py-3.5 text-sm text-red-600"
+          className="w-full flex items-center gap-3 px-4 py-3.5 text-sm text-danger"
         >
           <Trash2 size={18} />
           Delete chat
