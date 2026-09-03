@@ -29,6 +29,7 @@ import { FundWallet } from "./pages/FundWallet";
 import { Withdraw } from "./pages/Withdraw";
 
 import { Notifications } from "./pages/Notifications";
+import { FollowRequests } from "./pages/FollowRequests";
 import { Bookmarks } from "./pages/Bookmarks";
 import { ConversationList } from "./pages/ConversationList";
 import { MessageThread } from "./pages/MessageThread";
@@ -206,6 +207,14 @@ export default function App() {
               element={
                 <RequireAuth>
                   <Notifications />
+                </RequireAuth>
+              }
+            />
+            <Route
+              path="/requests"
+              element={
+                <RequireAuth>
+                  <FollowRequests />
                 </RequireAuth>
               }
             />
