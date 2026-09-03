@@ -56,7 +56,14 @@ export function PostDetail() {
           <>
             <PostCard post={post} />
 
-            <h3 className="font-display text-lg text-ink mt-6 mb-2">Discussion</h3>
+            {/* id="discussion" + scroll-mt-4 lets PostCard's comment tray
+                button scroll here smoothly when already on the detail page. */}
+            <h3
+              id="discussion"
+              className="font-display text-lg text-ink mt-6 mb-2 scroll-mt-4"
+            >
+              Discussion
+            </h3>
 
             {commentsLoading ? (
               <p className="text-ink-muted text-sm">Loading responses…</p>
