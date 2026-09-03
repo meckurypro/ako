@@ -1,5 +1,5 @@
 import { Link } from "react-router-dom";
-import { Heart, ThumbsDown, Handshake, XCircle, UserPlus, Gift, MessageCircle, Bell } from "lucide-react";
+import { Heart, ThumbsDown, Handshake, XCircle, UserPlus, Gift, MessageCircle, Bell, UserCheck } from "lucide-react";
 import { useNotifications, useMarkNotificationRead, useMarkAllRead } from "../hooks/useNotifications";
 import { Avatar } from "../components/Avatar";
 import { BottomNav } from "../components/BottomNav";
@@ -16,6 +16,8 @@ const TYPE_CONFIG: Record<string, { icon: typeof Heart; verb: string }> = {
   gift_received: { icon: Gift, verb: "sent you a gift" },
   message: { icon: MessageCircle, verb: "sent you a message" },
   system: { icon: Bell, verb: "" },
+  follow_request: { icon: UserPlus, verb: "requested to follow you" },
+  follow_request_accepted: { icon: UserCheck, verb: "accepted your follow request" },
 };
 
 function timeAgo(dateString: string): string {
@@ -29,6 +31,7 @@ function timeAgo(dateString: string): string {
 }
 
 function notificationLink(n: NotificationWithActor): string {
+  if (n.type === "follow_request") return "/requests";
   if (n.target_type === "post" && n.target_id) return `/post/${n.target_id}`;
   if (n.target_type === "comment" && n.target_id) return `/post/${n.target_id}`; // comments link back through post context
   if (n.target_type === "conversation" && n.target_id) return `/messages/${n.target_id}`;
