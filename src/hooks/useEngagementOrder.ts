@@ -3,11 +3,13 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "../lib/supabase";
 import { useAuth } from "./useAuth";
 
+// 'share' removed — share now lives as a dedicated header button on PostCard.
+// 'dislike' added — it's now part of the scrollable tray, ranked by usage.
 export type SecondaryActionKey =
   | "support"
   | "disagree"
   | "pushback"
-  | "share"
+  | "dislike"
   | "gift"
   | "save";
 
@@ -15,39 +17,36 @@ const ALL_SECONDARY: SecondaryActionKey[] = [
   "support",
   "disagree",
   "pushback",
-  "share",
+  "dislike",
   "gift",
   "save",
 ];
 
-// Tiebreaker order for brand-new users (all counts = 0) so the tray
-// has a stable, sensible default layout instead of arbitrary iteration order.
+// Tiebreaker for brand-new users (all counts = 0).
 const DEFAULT_ORDER: SecondaryActionKey[] = [
   "support",
   "gift",
   "save",
   "disagree",
   "pushback",
-  "share",
+  "dislike",
 ];
 
 type UsageCounts = Record<SecondaryActionKey, number>;
 
 /**
- * Ranks the 6 non-Like/Dislike post actions by how often the current
- * user has used each one, most-used first.
+ * Ranks the 6 secondary post actions by how often the current user
+ * has used each one, most-used first.
  *
  * Usage sources:
  *   support / disagree / pushback  →  comments.stance authored by this user
- *   share                          →  reactions of type "share"
+ *   dislike                        →  reactions of type "dislike"
  *   gift                           →  gifts.sender_id
  *   save                           →  bookmarks.user_id
  *
- * PostCard takes the top 3 for the visible tray (positions 3-5, after
- * the fixed Like and Dislike) and puts the remaining 3 in the ⋯ menu.
- *
- * Cached for 5 minutes — usage patterns shift slowly and this runs on
- * every PostCard mount, so we don't want a round-trip per card.
+ * PostCard places Like first (fixed), then streams all 6 in this ranked
+ * order into the horizontally-scrollable tray. The first 4-5 are visible;
+ * the rest reveal on swipe. Cached 5 min — usage shifts slowly.
  */
 export function useEngagementOrder() {
   const { user } = useAuth();
@@ -59,14 +58,13 @@ export function useEngagementOrder() {
         support: 0,
         disagree: 0,
         pushback: 0,
-        share: 0,
+        dislike: 0,
         gift: 0,
         save: 0,
       };
 
-      const [stanceRes, shareRes, giftRes, saveRes] = await Promise.all([
-        // Support/Disagree/Pushback live as stance-tagged comments —
-        // count each stance this user has authored, across all posts.
+      const [stanceRes, dislikeRes, giftRes, saveRes] = await Promise.all([
+        // Support/Disagree/Pushback are stance-tagged comments.
         supabase
           .from("comments")
           .select("stance")
@@ -78,7 +76,7 @@ export function useEngagementOrder() {
           .from("reactions")
           .select("id", { count: "exact", head: true })
           .eq("user_id", user!.id)
-          .eq("type", "share"),
+          .eq("type", "dislike"),
 
         supabase
           .from("gifts")
@@ -92,7 +90,7 @@ export function useEngagementOrder() {
       ]);
 
       if (stanceRes.error) throw stanceRes.error;
-      if (shareRes.error) throw shareRes.error;
+      if (dislikeRes.error) throw dislikeRes.error;
       if (giftRes.error) throw giftRes.error;
       if (saveRes.error) throw saveRes.error;
 
@@ -101,14 +99,12 @@ export function useEngagementOrder() {
         else if (row.stance === "disagree") counts.disagree++;
         else if (row.stance === "pushback") counts.pushback++;
       }
-      counts.share = shareRes.count ?? 0;
+      counts.dislike = dislikeRes.count ?? 0;
       counts.gift = giftRes.count ?? 0;
       counts.save = saveRes.count ?? 0;
 
       return [...ALL_SECONDARY].sort((a, b) => {
         const diff = counts[b] - counts[a];
-        // Break ties with the stable default order so the tray
-        // doesn't jitter when two actions have the same count.
         return diff !== 0 ? diff : DEFAULT_ORDER.indexOf(a) - DEFAULT_ORDER.indexOf(b);
       });
     },
