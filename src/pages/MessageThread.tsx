@@ -1,7 +1,23 @@
 // src/pages/MessageThread.tsx
 import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { ArrowLeft, Send, Search, ChevronUp, ChevronDown, Smile, Keyboard, Reply, X, MoreHorizontal, Inbox } from "lucide-react";
+import {
+  ArrowLeft,
+  Send,
+  Search,
+  ChevronUp,
+  ChevronDown,
+  Smile,
+  Keyboard,
+  Reply,
+  X,
+  MoreHorizontal,
+  Inbox,
+  Trash2,
+  Forward,
+  EyeOff,
+  Star,
+} from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "../lib/supabase";
 import { useAuth } from "../hooks/useAuth";
@@ -11,8 +27,10 @@ import {
   useMarkConversationRead,
   useMarkMessagesRead,
   useDeleteMessage,
+  useBulkDeleteMessages,
   useMyParticipantState,
   type MessageWithSender,
+  type DeleteScope,
 } from "../hooks/useMessaging";
 import {
   useConversationReactions,
@@ -21,6 +39,7 @@ import {
   useUserTopEmojis,
   useMessageUserStates,
   useToggleMessageState,
+  useBulkSetMessagesHidden,
   useTrackEmojiUsage,
   type MessageReaction,
 } from "../hooks/useMessageReactions";
@@ -29,6 +48,8 @@ import { useUnseenPosts } from "../hooks/useUnseenPosts";
 import { MessageStatusTicks } from "../components/MessageStatusTicks";
 import { PresenceDot } from "../components/PresenceDot";
 import { MessageActionMenu } from "../components/MessageActionMenu";
+import { DeleteMessageSheet } from "../components/DeleteMessageSheet";
+import { ForwardMessageSheet } from "../components/ForwardMessageSheet";
 import { EmojiPickerSheet, removeLastGrapheme } from "../components/EmojiPickerSheet";
 import { formatLastSeen } from "../lib/presence";
 
@@ -139,6 +160,12 @@ interface ActiveMessage {
   anchorRect: DOMRect;
 }
 
+/** What DeleteMessageSheet is currently open for — one message or a bulk selection. */
+interface DeleteTarget {
+  messageIds: string[];
+  allowEveryone: boolean;
+}
+
 type EmojiPickerTarget = { mode: "input" } | { mode: "reaction"; messageId: string } | null;
 
 export function MessageThread() {
@@ -155,6 +182,8 @@ export function MessageThread() {
   const unseenPostId = otherParticipant ? unseenPosts?.[otherParticipant.id] : undefined;
   const sendMessage = useSendMessage(conversationId!);
   const deleteMessage = useDeleteMessage(conversationId!);
+  const bulkDeleteMessages = useBulkDeleteMessages(conversationId!);
+  const bulkSetHidden = useBulkSetMessagesHidden(conversationId!);
   const markConversationRead = useMarkConversationRead(conversationId!);
 
   const messageIds = useMemo(() => messages?.map((m) => m.id) ?? [], [messages]);
@@ -164,6 +193,7 @@ export function MessageThread() {
   const removeReaction = useRemoveReaction(conversationId!);
   const toggleStar = useToggleMessageState(conversationId!, "starred_at");
   const togglePin = useToggleMessageState(conversationId!, "pinned_at");
+  const toggleHidden = useToggleMessageState(conversationId!, "hidden_at");
   const topEmojis = useUserTopEmojis();
   const trackEmojiUsage = useTrackEmojiUsage();
   const inputRef = useRef<HTMLInputElement>(null);
@@ -172,6 +202,20 @@ export function MessageThread() {
   // from markConversationRead above, which drives the conversation-list
   // unread dot via conversation_participants.last_read_at.
   useMarkMessagesRead(conversationId!, messages);
+
+  // Messages actually visible to THIS user — excludes anything they've
+  // hidden or deleted-for-me (message_user_state), but keeps tombstones
+  // (is_deleted, "deleted for everyone") since those still occupy a
+  // slot in the thread for both participants. `messages` itself stays
+  // unfiltered so reactionsByMessage/userStates can be keyed against
+  // every fetched id, including the ones we're about to hide here.
+  const visibleMessages = useMemo(() => {
+    if (!messages) return messages;
+    return messages.filter((m) => {
+      const state = userStates?.[m.id];
+      return !state?.hidden_at && !state?.deleted_for_me_at;
+    });
+  }, [messages, userStates]);
 
   const [content, setContent] = useState("");
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -188,6 +232,74 @@ export function MessageThread() {
 
   const [activeMessage, setActiveMessage] = useState<ActiveMessage | null>(null);
   const [emojiPickerTarget, setEmojiPickerTarget] = useState<EmojiPickerTarget>(null);
+
+  // --- Multi-select mode: reached via MessageActionMenu's "Select", or
+  // by long-pressing straight past it in a future iteration. While
+  // active, tapping a bubble toggles its checkbox instead of opening
+  // the long-press menu or triggering swipe-to-reply. ---
+  const [selectMode, setSelectMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [deleteTarget, setDeleteTarget] = useState<DeleteTarget | null>(null);
+  const [forwardMessages, setForwardMessages] = useState<{ content: string }[] | null>(null);
+
+  function enterSelectMode(id: string) {
+    setSelectMode(true);
+    setSelectedIds(new Set([id]));
+  }
+  function toggleSelected(id: string) {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+  function exitSelectMode() {
+    setSelectMode(false);
+    setSelectedIds(new Set());
+  }
+
+  const selectedMessages = useMemo(
+    () => visibleMessages?.filter((m) => selectedIds.has(m.id)) ?? [],
+    [visibleMessages, selectedIds]
+  );
+  // "Delete for everyone" only makes sense when every selected message
+  // is both the current user's own AND not already a tombstone.
+  const selectionAllowsDeleteEveryone =
+    selectedMessages.length > 0 && selectedMessages.every((m) => m.sender_id === user?.id && !m.is_deleted);
+  const selectionHasForwardableContent = selectedMessages.some((m) => !m.is_deleted);
+
+  function handleBulkDeletePress() {
+    setDeleteTarget({ messageIds: [...selectedIds], allowEveryone: selectionAllowsDeleteEveryone });
+  }
+  function handleBulkHide() {
+    bulkSetHidden.mutate([...selectedIds], { onSuccess: exitSelectMode });
+  }
+  function handleBulkStar() {
+    // Bulk star always turns ON (mixed starred/unstarred selections
+    // would make a single bulk "toggle" ambiguous) — unstarring stays a
+    // per-message action from the long-press menu.
+    for (const id of selectedIds) {
+      toggleStar.mutate({ messageId: id, active: true });
+    }
+    exitSelectMode();
+  }
+  function handleBulkForward() {
+    const content = selectedMessages.filter((m) => !m.is_deleted).map((m) => ({ content: m.content }));
+    if (!content.length) return;
+    setForwardMessages(content);
+  }
+
+  function handleDeleteConfirm(scope: DeleteScope) {
+    if (!deleteTarget) return;
+    if (deleteTarget.messageIds.length === 1) {
+      deleteMessage.mutate({ messageId: deleteTarget.messageIds[0], scope });
+    } else {
+      bulkDeleteMessages.mutate({ messageIds: deleteTarget.messageIds, scope });
+    }
+    setDeleteTarget(null);
+    exitSelectMode();
+  }
 
   // The emoji sheet is an in-page overlay, not a route — without this,
   // the hardware/browser back button falls through to React Router's
@@ -251,16 +363,19 @@ export function MessageThread() {
 
   useEffect(() => {
     if (searchOpen) return; // don't fight the search-match scroll below
-    if (!messages) return;
+    if (!visibleMessages) return;
     bottomRef.current?.scrollIntoView({ behavior: hasScrolledToBottomOnce.current ? "smooth" : "auto" });
     hasScrolledToBottomOnce.current = true;
-  }, [messages, searchOpen]);
+  }, [visibleMessages, searchOpen]);
 
   const matches = useMemo((): MessageWithSender[] => {
     const q = searchQuery.trim().toLowerCase();
-    if (!q || !messages) return [];
-    return messages.filter((m) => m.content.toLowerCase().includes(q));
-  }, [messages, searchQuery]);
+    if (!q || !visibleMessages) return [];
+    // Tombstones render as "This message was deleted" — searching their
+    // original content would surface matches the user can no longer
+    // actually see, so they're excluded here.
+    return visibleMessages.filter((m) => !m.is_deleted && m.content.toLowerCase().includes(q));
+  }, [visibleMessages, searchQuery]);
 
   useEffect(() => {
     setMatchIndex(0);
@@ -304,6 +419,7 @@ export function MessageThread() {
 
   // --- Long press + swipe-to-reply (no gesture library — hand-rolled pointer timers) ---
   function handlePointerDown(m: MessageWithSender, e: React.PointerEvent) {
+    if (selectMode) return; // tap-to-toggle takes over entirely in select mode
     longPressStart.current[m.id] = { x: e.clientX, y: e.clientY };
     swipeTriggered.current[m.id] = false;
     longPressTimers.current[m.id] = setTimeout(() => {
@@ -321,6 +437,7 @@ export function MessageThread() {
   }
 
   function handlePointerMove(m: MessageWithSender, e: React.PointerEvent) {
+    if (selectMode) return;
     const start = longPressStart.current[m.id];
     if (!start) return;
     const dx = e.clientX - start.x;
@@ -333,7 +450,8 @@ export function MessageThread() {
     if (adx > 10 || ady > 10) cancelLongPressTimer(m.id);
 
     // Rightward, predominantly-horizontal drag = swipe-to-reply.
-    if (dx > 8 && adx > ady) {
+    // Doesn't apply to a tombstone — there's no content left to reply to.
+    if (dx > 8 && adx > ady && !m.is_deleted) {
       const display = dx <= SWIPE_MAX ? dx : SWIPE_MAX + (dx - SWIPE_MAX) * SWIPE_RESISTANCE;
       setActiveDragId(m.id);
       setDragOffsets((prev) => ({ ...prev, [m.id]: display }));
@@ -372,7 +490,46 @@ export function MessageThread() {
   return (
     <div className="h-screen bg-canvas flex flex-col overflow-hidden">
       <header className="px-4 pt-6 pb-3 sticky top-0 bg-canvas z-30 border-b border-border flex items-center gap-3">
-        {searchOpen ? (
+        {selectMode ? (
+          <>
+            <button onClick={exitSelectMode} className="text-ink-muted flex-shrink-0" aria-label="Cancel selection">
+              <X size={22} />
+            </button>
+            <span className="flex-1 text-sm font-medium text-ink">{selectedIds.size} selected</span>
+            <button
+              onClick={handleBulkStar}
+              disabled={!selectedIds.size}
+              className="text-ink-muted disabled:opacity-30 flex-shrink-0"
+              aria-label="Star"
+            >
+              <Star size={19} />
+            </button>
+            <button
+              onClick={handleBulkHide}
+              disabled={!selectedIds.size}
+              className="text-ink-muted disabled:opacity-30 flex-shrink-0"
+              aria-label="Hide for me"
+            >
+              <EyeOff size={19} />
+            </button>
+            <button
+              onClick={handleBulkForward}
+              disabled={!selectionHasForwardableContent}
+              className="text-ink-muted disabled:opacity-30 flex-shrink-0"
+              aria-label="Forward"
+            >
+              <Forward size={19} />
+            </button>
+            <button
+              onClick={handleBulkDeletePress}
+              disabled={!selectedIds.size}
+              className="text-danger disabled:opacity-30 flex-shrink-0"
+              aria-label="Delete"
+            >
+              <Trash2 size={19} />
+            </button>
+          </>
+        ) : searchOpen ? (
           <>
             <button onClick={closeSearch} className="text-ink-muted flex-shrink-0" aria-label="Close search">
               <ArrowLeft size={22} />
@@ -456,7 +613,7 @@ export function MessageThread() {
               {headerMenuOpen && (
                 <>
                   <div className="fixed inset-0 z-30" onClick={() => setHeaderMenuOpen(false)} />
-                  <div className="absolute right-0 top-full mt-2 z-40 bg-surface border border-border rounded-xl shadow-lg py-1 min-w-[160px]">
+                  <div className="absolute right-0 top-full mt-2 z-40 bg-surface border border-border rounded-xl shadow-lg py-1 min-w-[170px]">
                     <button
                       onClick={() => {
                         setHeaderMenuOpen(false);
@@ -466,6 +623,16 @@ export function MessageThread() {
                     >
                       <Search size={16} />
                       Search
+                    </button>
+                    <button
+                      onClick={() => {
+                        setHeaderMenuOpen(false);
+                        navigate(`/messages/${conversationId}/hidden`);
+                      }}
+                      className="w-full flex items-center gap-2.5 px-3.5 py-2.5 text-sm text-ink text-left"
+                    >
+                      <EyeOff size={16} />
+                      Hidden messages
                     </button>
                   </div>
                 </>
@@ -485,98 +652,125 @@ export function MessageThread() {
       <div className="flex-1 min-h-0 overflow-y-auto px-4 py-4 max-w-xl mx-auto w-full" style={chatBackgroundStyle}>
         {isLoading ? (
           <p className="text-ink-muted text-center py-10">Loading…</p>
-        ) : !messages || messages.length === 0 ? (
+        ) : !visibleMessages || visibleMessages.length === 0 ? (
           <p className="text-ink-muted text-center py-10 text-sm">Say hello.</p>
         ) : (
-          messages.map((m) => {
+          visibleMessages.map((m) => {
             const isMine = m.sender_id === user?.id;
             const isCurrentMatch = m.id === currentMatchId;
-            const reactions = reactionsByMessage?.[m.id] ?? [];
+            const reactions = m.is_deleted ? [] : reactionsByMessage?.[m.id] ?? [];
             const myReaction = reactions.find((r) => r.user_id === user?.id)?.emoji ?? null;
 
             const offset = dragOffsets[m.id] ?? 0;
             const isDraggingThis = activeDragId === m.id;
             const isFlashed = flashMessageId === m.id;
             const repliedTo = m.reply_to?.[0];
+            const isSelected = selectedIds.has(m.id);
 
             return (
-              <div key={m.id} className={`relative flex flex-col mb-2 ${isMine ? "items-end" : "items-start"}`}>
-                {/* Reply icon revealed in the gap uncovered by the swipe —
-                    fades/scales in with drag progress, "locks" past threshold. */}
-                <div
-                  className="absolute left-0 top-1/2 -translate-y-1/2 flex items-center justify-center w-8 h-8 rounded-full bg-accent-soft text-accent pointer-events-none"
-                  style={{
-                    opacity: Math.min(offset / SWIPE_THRESHOLD, 1),
-                    transform: `translateY(-50%) scale(${offset >= SWIPE_THRESHOLD ? 1 : 0.7})`,
-                    transition: isDraggingThis ? "none" : "opacity 150ms, transform 150ms",
-                  }}
-                >
-                  <Reply size={16} />
-                </div>
+              <div
+                key={m.id}
+                className={`flex items-center gap-2 mb-2 ${isMine ? "flex-row-reverse" : "flex-row"}`}
+                onClick={() => {
+                  if (selectMode) toggleSelected(m.id);
+                }}
+              >
+                {selectMode && (
+                  <span
+                    className={`w-5 h-5 rounded-full border flex-shrink-0 flex items-center justify-center ${
+                      isSelected ? "bg-accent border-accent" : "border-border"
+                    }`}
+                  >
+                    {isSelected && <span className="w-2 h-2 rounded-full bg-canvas" />}
+                  </span>
+                )}
 
-                <div
-                  ref={(el) => {
-                    messageRefs.current[m.id] = el;
-                  }}
-                  onPointerDown={(e) => handlePointerDown(m, e)}
-                  onPointerMove={(e) => handlePointerMove(m, e)}
-                  onPointerUp={() => endGesture(m.id)}
-                  onPointerLeave={() => endGesture(m.id)}
-                  onPointerCancel={() => endGesture(m.id)}
-                  onContextMenu={(e) => e.preventDefault()}
-                  className={`max-w-[75%] rounded-2xl px-4 py-2.5 text-sm whitespace-pre-wrap break-words select-none ${
-                    isMine ? "bg-accent text-canvas" : "bg-surface text-ink"
-                  } ${
-                    isCurrentMatch || isFlashed ? "ring-2 ring-accent ring-offset-2 ring-offset-canvas" : ""
-                  }`}
-                  style={{
-                    WebkitTouchCallout: "none",
-                    transform: `translateX(${offset}px)`,
-                    transition: isDraggingThis
-                      ? "none"
-                      : "transform 200ms ease-out, box-shadow 300ms, background-color 300ms",
-                  }}
-                >
-                  {repliedTo && (
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        scrollToMessage(repliedTo.id);
-                      }}
-                      className={`block w-full text-left mb-1.5 pl-2 border-l-2 rounded-sm text-xs ${
-                        isMine
-                          ? "border-canvas/50 text-canvas/80"
-                          : "border-accent/50 text-ink-muted"
-                      }`}
-                    >
-                      <span className="block font-medium">
-                        {repliedTo.sender_id === user?.id ? "You" : otherParticipant?.display_name ?? "Them"}
-                      </span>
-                      <span className="block truncate">
-                        {repliedTo.is_deleted ? "Original message deleted" : repliedTo.content}
-                      </span>
-                    </button>
-                  )}
-                  <span>{searchQuery ? highlightMatches(m.content, searchQuery, isMine) : m.content}</span>
-                  {isMine && (
-                    <span className="flex justify-end mt-1">
-                      <MessageStatusTicks deliveredAt={m.delivered_at} readAt={m.read_at} />
+                <div className={`relative flex flex-col min-w-0 ${isMine ? "items-end" : "items-start"}`}>
+                  {/* Reply icon revealed in the gap uncovered by the swipe —
+                      fades/scales in with drag progress, "locks" past threshold. */}
+                  <div
+                    className="absolute left-0 top-1/2 -translate-y-1/2 flex items-center justify-center w-8 h-8 rounded-full bg-accent-soft text-accent pointer-events-none"
+                    style={{
+                      opacity: Math.min(offset / SWIPE_THRESHOLD, 1),
+                      transform: `translateY(-50%) scale(${offset >= SWIPE_THRESHOLD ? 1 : 0.7})`,
+                      transition: isDraggingThis ? "none" : "opacity 150ms, transform 150ms",
+                    }}
+                  >
+                    <Reply size={16} />
+                  </div>
+
+                  <div
+                    ref={(el) => {
+                      messageRefs.current[m.id] = el;
+                    }}
+                    onPointerDown={(e) => handlePointerDown(m, e)}
+                    onPointerMove={(e) => handlePointerMove(m, e)}
+                    onPointerUp={() => endGesture(m.id)}
+                    onPointerLeave={() => endGesture(m.id)}
+                    onPointerCancel={() => endGesture(m.id)}
+                    onContextMenu={(e) => e.preventDefault()}
+                    className={`max-w-[75%] rounded-2xl px-4 py-2.5 text-sm whitespace-pre-wrap break-words select-none ${
+                      isMine ? "bg-accent text-canvas" : "bg-surface text-ink"
+                    } ${m.is_deleted ? "italic opacity-70" : ""} ${
+                      isCurrentMatch || isFlashed ? "ring-2 ring-accent ring-offset-2 ring-offset-canvas" : ""
+                    }`}
+                    style={{
+                      WebkitTouchCallout: "none",
+                      transform: `translateX(${offset}px)`,
+                      transition: isDraggingThis
+                        ? "none"
+                        : "transform 200ms ease-out, box-shadow 300ms, background-color 300ms",
+                    }}
+                  >
+                    {repliedTo && !m.is_deleted && (
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          scrollToMessage(repliedTo.id);
+                        }}
+                        className={`block w-full text-left mb-1.5 pl-2 border-l-2 rounded-sm text-xs ${
+                          isMine
+                            ? "border-canvas/50 text-canvas/80"
+                            : "border-accent/50 text-ink-muted"
+                        }`}
+                      >
+                        <span className="block font-medium">
+                          {repliedTo.sender_id === user?.id ? "You" : otherParticipant?.display_name ?? "Them"}
+                        </span>
+                        <span className="block truncate">
+                          {repliedTo.is_deleted ? "Original message deleted" : repliedTo.content}
+                        </span>
+                      </button>
+                    )}
+                    <span>
+                      {m.is_deleted
+                        ? "This message was deleted"
+                        : searchQuery
+                          ? highlightMatches(m.content, searchQuery, isMine)
+                          : m.content}
                     </span>
+                    {isMine && (
+                      <span className="flex justify-end mt-1">
+                        <MessageStatusTicks deliveredAt={m.delivered_at} readAt={m.read_at} />
+                      </span>
+                    )}
+                  </div>
+                  {!m.is_deleted && (
+                    <ReactionsBar
+                      reactions={reactions}
+                      myReaction={myReaction}
+                      isMine={isMine}
+                      onToggle={(emoji) => {
+                        if (myReaction === emoji) {
+                          removeReaction.mutate(m.id);
+                        } else {
+                          setReaction.mutate({ messageId: m.id, emoji });
+                        }
+                      }}
+                    />
                   )}
                 </div>
-                <ReactionsBar
-                  reactions={reactions}
-                  myReaction={myReaction}
-                  isMine={isMine}
-                  onToggle={(emoji) => {
-                    if (myReaction === emoji) {
-                      removeReaction.mutate(m.id);
-                    } else {
-                      setReaction.mutate({ messageId: m.id, emoji });
-                    }
-                  }}
-                />
               </div>
             );
           })
@@ -659,6 +853,7 @@ export function MessageThread() {
         <MessageActionMenu
           content={activeMessage.message.content}
           isMine={activeMessage.message.sender_id === user?.id}
+          isDeleted={activeMessage.message.is_deleted}
           anchorRect={activeMessage.anchorRect}
           isStarred={!!activeState?.starred_at}
           isPinned={!!activeState?.pinned_at}
@@ -668,10 +863,11 @@ export function MessageThread() {
           onRemoveReaction={() => removeReaction.mutate(activeMessage.message.id)}
           onOpenFullPicker={() => setEmojiPickerTarget({ mode: "reaction", messageId: activeMessage.message.id })}
           onCopy={() => navigator.clipboard.writeText(activeMessage.message.content)}
-          onDelete={
-            activeMessage.message.sender_id === user?.id
-              ? () => deleteMessage.mutate(activeMessage.message.id)
-              : undefined
+          onDeletePress={() =>
+            setDeleteTarget({
+              messageIds: [activeMessage.message.id],
+              allowEveryone: activeMessage.message.sender_id === user?.id && !activeMessage.message.is_deleted,
+            })
           }
           onShare={() => {
             if (navigator.share) {
@@ -680,6 +876,7 @@ export function MessageThread() {
               navigator.clipboard.writeText(activeMessage.message.content);
             }
           }}
+          onForward={() => setForwardMessages([{ content: activeMessage.message.content }])}
           onReply={() => startReply(activeMessage.message)}
           onToggleStar={() =>
             toggleStar.mutate({ messageId: activeMessage.message.id, active: !activeState?.starred_at })
@@ -687,6 +884,8 @@ export function MessageThread() {
           onTogglePin={() =>
             togglePin.mutate({ messageId: activeMessage.message.id, active: !activeState?.pinned_at })
           }
+          onHide={() => toggleHidden.mutate({ messageId: activeMessage.message.id, active: true })}
+          onSelect={() => enterSelectMode(activeMessage.message.id)}
           onClose={() => setActiveMessage(null)}
         />
       )}
@@ -698,6 +897,26 @@ export function MessageThread() {
           onSelect={(emoji) => {
             setReaction.mutate({ messageId: emojiPickerTarget.messageId, emoji });
             setEmojiPickerTarget(null);
+          }}
+        />
+      )}
+
+      {deleteTarget && (
+        <DeleteMessageSheet
+          count={deleteTarget.messageIds.length}
+          allowEveryone={deleteTarget.allowEveryone}
+          onDelete={handleDeleteConfirm}
+          onClose={() => setDeleteTarget(null)}
+        />
+      )}
+
+      {forwardMessages && (
+        <ForwardMessageSheet
+          messages={forwardMessages}
+          onClose={() => setForwardMessages(null)}
+          onSent={() => {
+            setForwardMessages(null);
+            exitSelectMode();
           }}
         />
       )}
