@@ -9,47 +9,52 @@ import type { AuthorSummary } from "../types/database";
 // Types — mirror the projects table after 19_projects_enhancements.sql
 // ------------------------------------------------------------
 
-export type ProjectStatus = "active" | "draft" | "archived";
+// 'cancelled' only applies to event/meeting — set when a host cancels
+// an upcoming one that already has paid attendees (see cancelled_at
+// below). Other types go active <-> draft/archived only.
+export type ProjectStatus = "active" | "draft" | "archived" | "cancelled";
 
 export type ProjectType =
-  | "book"
-  | "article"
   | "event"
   | "audio"
   | "video"
+  | "file"
   | "course"
-  | "cohort"
-  | "class"
-  | "template"
-  | "other";
+  | "room"
+  | "meeting";
 
 export const PROJECT_TYPE_LABELS: Record<ProjectType, string> = {
-  book: "Book",
-  article: "Article",
   event: "Event",
   audio: "Audio",
   video: "Video",
+  file: "File",
   course: "Course",
-  cohort: "Cohort",
-  class: "Class",
-  template: "Template",
-  other: "Other",
+  room: "Room",
+  meeting: "Meeting",
 };
 
-// Order to show in dropdowns/radios — named types first (per the
-// original ask), "Other" always last as the catch-all.
+// Order to show in the type picker.
 export const PROJECT_TYPE_OPTIONS: ProjectType[] = [
-  "book",
-  "article",
   "event",
+  "meeting",
+  "room",
+  "course",
   "audio",
   "video",
-  "course",
-  "cohort",
-  "class",
-  "template",
-  "other",
+  "file",
 ];
+
+// Short helper text shown under the type picker once a type is chosen —
+// keeps the picker itself uncluttered while still orienting the host.
+export const PROJECT_TYPE_HINTS: Record<ProjectType, string> = {
+  event: "Sell tickets to something happening in person or online.",
+  meeting: "A single scheduled live session people buy access to join.",
+  room: "An ongoing paid group — announcements, live meetings, assignments.",
+  course: "Structured modules and lessons. Build it, then publish when ready.",
+  audio: "A single audio piece — upload or link, gated by price.",
+  video: "A single video piece — upload or link, gated by price.",
+  file: "A downloadable file, or a link you're marketing access to.",
+};
 
 export interface Project {
   id: string;
@@ -66,6 +71,12 @@ export interface Project {
   promo_price_usd: number | null;
   status: ProjectStatus;
   is_active: boolean;
+  // null while draft. A 'course' project can't be purchased until
+  // this is set — enforced in the purchase edge function, not just
+  // here — this field is what CreateProject/CourseBuilder show as
+  // "Published" vs "Draft — not visible to buyers yet".
+  published_at: string | null;
+  cancelled_at: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -150,6 +161,23 @@ export function useUserProjects(userId: string, includeAllStatuses: boolean) {
 }
 
 
+// Per-type detail payloads — only the block matching project_type
+// should be passed; the others stay undefined. Room and Course don't
+// take detail input at creation time: a Room has nothing to configure
+// beyond the base project fields, and a Course's modules/lessons are
+// built afterward in the Course builder (see published_at note above —
+// it can't be purchased until the host explicitly publishes it there).
+interface EventDetailsInput {
+  event_date?: string; // ISO — omit for "date TBA"
+  location_type: "physical" | "online";
+  location_value: string;
+  ticket_template_url?: string;
+}
+
+interface MeetingDetailsInput {
+  scheduled_at: string; // ISO
+}
+
 interface CreateProjectInput {
   title: string;
   description?: string;
@@ -163,6 +191,8 @@ interface CreateProjectInput {
   promo_price_usd?: number | null;
   status?: ProjectStatus;   // defaults to 'active' (publish immediately) if omitted
   topic_ids?: string[];
+  event_details?: EventDetailsInput;
+  meeting_details?: MeetingDetailsInput;
 }
 
 export function useCreateProject() {
@@ -170,7 +200,12 @@ export function useCreateProject() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async ({ topic_ids, ...input }: CreateProjectInput) => {
+    mutationFn: async ({
+      topic_ids,
+      event_details,
+      meeting_details,
+      ...input
+    }: CreateProjectInput) => {
       if (!user) throw new Error("Not signed in");
       const { data, error } = await supabase
         .from("projects")
@@ -186,6 +221,22 @@ export function useCreateProject() {
         // topic-write failure shouldn't silently produce an
         // untagged project the owner thinks is tagged, so surface it.
         if (topicsError) throw topicsError;
+      }
+
+      // Type-specific detail row. Same reasoning as topics above: the
+      // project row already exists, so a failure here needs to surface
+      // rather than leave a silently incomplete Event/Meeting.
+      if (input.project_type === "event" && event_details) {
+        const { error: detailsError } = await supabase
+          .from("project_event_details")
+          .insert({ project_id: data.id, ...event_details });
+        if (detailsError) throw detailsError;
+      }
+      if (input.project_type === "meeting" && meeting_details) {
+        const { error: detailsError } = await supabase
+          .from("project_meeting_details")
+          .insert({ project_id: data.id, ...meeting_details });
+        if (detailsError) throw detailsError;
       }
 
       return data;
