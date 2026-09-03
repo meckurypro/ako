@@ -167,6 +167,12 @@ export interface MessageUserState {
   message_id: string;
   starred_at: string | null;
   pinned_at: string | null;
+  // Per-user, restorable — see useHiddenMessages/useSetMessagesHidden below.
+  hidden_at: string | null;
+  // Per-user, permanent — see useDeleteMessages in useMessaging.ts. Kept
+  // here too so MessageThread can filter these out of the live thread
+  // alongside hidden_at in one pass over the same userStates map.
+  deleted_for_me_at: string | null;
 }
 
 export function useMessageUserStates(conversationId: string, messageIds: string[]) {
@@ -178,7 +184,7 @@ export function useMessageUserStates(conversationId: string, messageIds: string[
       if (!messageIds.length || !user) return {};
       const { data, error } = await supabase
         .from("message_user_state")
-        .select("message_id, starred_at, pinned_at")
+        .select("message_id, starred_at, pinned_at, hidden_at, deleted_for_me_at")
         .in("message_id", messageIds)
         .eq("user_id", user.id);
       if (error) throw error;
@@ -190,7 +196,7 @@ export function useMessageUserStates(conversationId: string, messageIds: string[
   });
 }
 
-export function useToggleMessageState(conversationId: string, field: "starred_at" | "pinned_at") {
+export function useToggleMessageState(conversationId: string, field: "starred_at" | "pinned_at" | "hidden_at") {
   const { user } = useAuth();
   const queryClient = useQueryClient();
 
@@ -209,4 +215,101 @@ export function useToggleMessageState(conversationId: string, field: "starred_at
       queryClient.invalidateQueries({ queryKey: ["message-user-state", conversationId] });
     },
   });
-    }
+}
+
+/**
+ * Same as useToggleMessageState but for N messages in one round trip —
+ * backs the "Hide" bulk action in MessageSelectionBar. Always sets
+ * (never bulk-clears) since bulk-hide is the only bulk entry point;
+ * restoring happens one at a time from the Hidden screen.
+ */
+export function useBulkSetMessagesHidden(conversationId: string) {
+  const { user } = useAuth();
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (messageIds: string[]) => {
+      if (!user) throw new Error("Not signed in");
+      const now = new Date().toISOString();
+      const { error } = await supabase
+        .from("message_user_state")
+        .upsert(
+          messageIds.map((message_id) => ({ message_id, user_id: user.id, hidden_at: now })),
+          { onConflict: "message_id,user_id" }
+        );
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["message-user-state", conversationId] });
+      queryClient.invalidateQueries({ queryKey: ["hidden-messages", conversationId] });
+    },
+  });
+}
+
+/**
+ * Every message in this conversation the current user has hidden from
+ * their own view — powers the per-conversation Hidden screen. Hiding
+ * never touches the other participant's copy or the global row, so this
+ * is purely a message_user_state read joined against messages client-side.
+ */
+export function useHiddenMessages(conversationId: string) {
+  const { user } = useAuth();
+
+  return useQuery({
+    queryKey: ["hidden-messages", conversationId, user?.id],
+    queryFn: async (): Promise<MessageWithSenderLite[]> => {
+      if (!user) return [];
+      const { data: states, error: stateError } = await supabase
+        .from("message_user_state")
+        .select("message_id, hidden_at")
+        .eq("user_id", user.id)
+        .not("hidden_at", "is", null);
+      if (stateError) throw stateError;
+      if (!states?.length) return [];
+
+      const { data: messages, error } = await supabase
+        .from("messages")
+        .select("id, conversation_id, sender_id, content, created_at, is_deleted")
+        .eq("conversation_id", conversationId)
+        .in(
+          "id",
+          states.map((s) => s.message_id)
+        )
+        .order("created_at", { ascending: false });
+      if (error) throw error;
+      return messages ?? [];
+    },
+    enabled: !!conversationId && !!user,
+  });
+}
+
+/** Restores a single message hidden via useBulkSetMessagesHidden/useToggleMessageState. */
+export function useUnhideMessage(conversationId: string) {
+  const { user } = useAuth();
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (messageId: string) => {
+      if (!user) throw new Error("Not signed in");
+      const { error } = await supabase
+        .from("message_user_state")
+        .update({ hidden_at: null })
+        .eq("message_id", messageId)
+        .eq("user_id", user.id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["hidden-messages", conversationId] });
+      queryClient.invalidateQueries({ queryKey: ["message-user-state", conversationId] });
+    },
+  });
+}
+
+export interface MessageWithSenderLite {
+  id: string;
+  conversation_id: string;
+  sender_id: string;
+  content: string;
+  created_at: string;
+  is_deleted: boolean;
+}
