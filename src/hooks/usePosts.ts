@@ -3,26 +3,38 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "../lib/supabase";
 import { useAuth } from "./useAuth";
 import { PROFILE_ROLES_SELECT, toProfileRoles } from "../lib/profileRoles";
-import type { PostWithAuthor } from "../types/database";
+import type { PostWithAuthor, RepostSource } from "../types/database";
 
 const PAGE_SIZE = 15;
 export const POST_EDIT_WINDOW_MS = 15 * 60 * 1000;
 
 const TOP_DISCUSSIONS_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
 
-const FEED_SELECT = `*, author:profiles!posts_author_id_fkey(id, username, display_name, avatar_url, tier, ${PROFILE_ROLES_SELECT})`;
+const AUTHOR_SELECT = `id, username, display_name, avatar_url, tier, ${PROFILE_ROLES_SELECT}`;
+
+// One level deep: the embedded reshared_post carries its own author but
+// not a further-nested reshared_post, so repost-of-a-repost links to the
+// immediate parent rather than recursing indefinitely.
+const FEED_SELECT = `*, author:profiles!posts_author_id_fkey(${AUTHOR_SELECT}), reshared_post:posts!posts_reshared_post_id_fkey(*, author:profiles!posts_author_id_fkey(${AUTHOR_SELECT}))`;
 
 export function canEditPost(post: Pick<PostWithAuthor, "created_at">): boolean {
   return Date.now() - new Date(post.created_at).getTime() <= POST_EDIT_WINDOW_MS;
 }
 
+function normalizeAuthor(raw: any) {
+  return raw ? { ...raw, roles: toProfileRoles(raw.profile_roles) } : raw;
+}
+
 /** Normalises the raw Supabase shape → PostWithAuthor (flattens profile_roles → roles). */
 function normalizePost(raw: any): PostWithAuthor {
+  const reshared_post: RepostSource | null | undefined = raw.reshared_post
+    ? { ...raw.reshared_post, author: normalizeAuthor(raw.reshared_post.author) }
+    : raw.reshared_post;
+
   return {
     ...raw,
-    author: raw.author
-      ? { ...raw.author, roles: toProfileRoles(raw.author.profile_roles) }
-      : raw.author,
+    author: normalizeAuthor(raw.author),
+    reshared_post,
   };
 }
 
@@ -130,6 +142,49 @@ export function useCreatePost() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["feed-posts"] });
+    },
+  });
+}
+
+interface ReshareInput {
+  originalPostId: string;
+  /** Empty/omitted → plain reshare. Non-empty → quote. */
+  caption?: string;
+}
+
+/**
+ * Creates a reshare or quote (same row shape, distinguished by whether
+ * `caption` is empty — see isPlainReshare/isQuote in types/database.ts).
+ *
+ * TODO(moderation): quote captions are new user-authored text and should
+ * ideally pass through the same Claude-moderation edge function that
+ * create-post uses, the way create-post itself does. That function's
+ * source isn't in this repo, so this goes straight to the table for now —
+ * same as useDeletePost/useSetPostArchived below. Route this through an
+ * edge function instead once that source is available to extend.
+ */
+export function useCreateReshare() {
+  const { user } = useAuth();
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ originalPostId, caption }: ReshareInput) => {
+      if (!user) throw new Error("Not signed in");
+      const { data, error } = await supabase
+        .from("posts")
+        .insert({
+          author_id: user.id,
+          content: caption?.trim() ?? "",
+          reshared_post_id: originalPostId,
+        })
+        .select(FEED_SELECT)
+        .single();
+      if (error) throw error;
+      return normalizePost(data);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["feed-posts"] });
+      queryClient.invalidateQueries({ queryKey: ["user-posts"] });
     },
   });
 }
