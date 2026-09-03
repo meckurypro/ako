@@ -1,8 +1,14 @@
 // src/pages/ConversationList.tsx
 import { useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { ArrowLeft, Search, X, Pin } from "lucide-react";
-import { useConversations, useUpdateConversationState, type ConversationSummary } from "../hooks/useMessaging";
+import { ArrowLeft, Search, X, Pin, Archive, ChevronRight } from "lucide-react";
+import {
+  useConversations,
+  useUpdateConversationState,
+  useTogglePin,
+  useArchiveBadgeCount,
+  type ConversationSummary,
+} from "../hooks/useMessaging";
 import { useUnseenPosts } from "../hooks/useUnseenPosts";
 import { useAuth } from "../hooks/useAuth";
 import { Avatar } from "../components/Avatar";
@@ -10,6 +16,8 @@ import { BottomNav } from "../components/BottomNav";
 import { MessageStatusTicks } from "../components/MessageStatusTicks";
 import { PresenceDot } from "../components/PresenceDot";
 import { ConversationActionSheet } from "../components/ConversationActionSheet";
+
+const MAX_PINNED = 3;
 
 function timeAgo(dateString: string): string {
   const seconds = Math.floor((Date.now() - new Date(dateString).getTime()) / 1000);
@@ -27,13 +35,17 @@ export function ConversationList() {
   const { data: conversations, isLoading } = useConversations();
   const authorIds = conversations?.map((c) => c.other_participant.id) ?? [];
   const { data: unseenPosts } = useUnseenPosts(authorIds);
+  const archiveBadgeCount = useArchiveBadgeCount();
 
   const [searchQuery, setSearchQuery] = useState("");
 
   // --- Long press to open pin/archive/delete actions (same hand-rolled
   // pointer-timer approach used for messages — no gesture library). ---
   const updateConversationState = useUpdateConversationState();
+  const togglePin = useTogglePin();
   const [actionTarget, setActionTarget] = useState<ConversationSummary | null>(null);
+  const [pinLimitNotice, setPinLimitNotice] = useState(false);
+  const pinNoticeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const longPressTimers = useRef<Record<string, ReturnType<typeof setTimeout> | null>>({});
   const longPressStart = useRef<Record<string, { x: number; y: number }>>({});
   const longPressFired = useRef<Record<string, boolean>>({});
@@ -72,6 +84,22 @@ export function ConversationList() {
     navigate(`/messages/${c.id}`);
   }
 
+  function handleTogglePin(c: ConversationSummary) {
+    const pin = !c.pinned_at;
+    togglePin.mutate(
+      { conversationId: c.id, pin },
+      {
+        onError: (err) => {
+          if (err instanceof Error && err.message === "PIN_LIMIT_REACHED") {
+            setPinLimitNotice(true);
+            if (pinNoticeTimer.current) clearTimeout(pinNoticeTimer.current);
+            pinNoticeTimer.current = setTimeout(() => setPinLimitNotice(false), 3000);
+          }
+        },
+      }
+    );
+  }
+
   // Client-side filter over the already-fetched list — matches by
   // contact name/username or last-message content. Cheap enough at
   // conversation-list scale; no need for a server round trip.
@@ -88,13 +116,116 @@ export function ConversationList() {
     });
   }, [conversations, searchQuery]);
 
+  // Pinned chats (max MAX_PINNED, enforced on the write side by
+  // useTogglePin) float into their own section above the rest.
+  const pinnedConversations = useMemo(
+    () => filteredConversations?.filter((c) => !!c.pinned_at) ?? [],
+    [filteredConversations]
+  );
+  const normalConversations = useMemo(
+    () => filteredConversations?.filter((c) => !c.pinned_at) ?? [],
+    [filteredConversations]
+  );
+
+  function renderRow(c: ConversationSummary) {
+    const unseenPostId = unseenPosts?.[c.other_participant.id];
+    // Only show ticks when the last message is one WE sent — seeing
+    // your own message's delivery/read state in the list preview, same
+    // as the double-tick-in-list pattern in WhatsApp.
+    const showTicksInPreview = c.last_message?.sender_id === user?.id;
+
+    return (
+      <div
+        key={c.id}
+        onPointerDown={(e) => handlePointerDown(c, e)}
+        onPointerMove={(e) => handlePointerMove(c, e)}
+        onPointerUp={() => endGesture(c.id)}
+        onPointerLeave={() => endGesture(c.id)}
+        onPointerCancel={() => endGesture(c.id)}
+        onContextMenu={(e) => e.preventDefault()}
+        onClick={(e) => handleRowClick(c, e)}
+        role="link"
+        className="flex items-center gap-3 py-3.5 border-b border-border select-none cursor-pointer"
+        style={{ WebkitTouchCallout: "none" }}
+      >
+        {unseenPostId ? (
+          <span
+            role="link"
+            aria-label={`View ${c.other_participant.display_name}'s new post`}
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              navigate(`/post/${unseenPostId}`);
+            }}
+            className="flex-shrink-0 rounded-full p-[2.5px] bg-accent shadow-[0_0_6px_rgba(61,90,69,0.45)]"
+          >
+            <span className="block rounded-full bg-canvas p-[2px]">
+              <Avatar src={c.other_participant.avatar_url} name={c.other_participant.display_name} />
+            </span>
+          </span>
+        ) : (
+          <Avatar src={c.other_participant.avatar_url} name={c.other_participant.display_name} />
+        )}
+
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center justify-between">
+            <p className={`text-sm truncate flex items-center gap-1 ${c.unread ? "font-semibold text-ink" : "font-medium text-ink"}`}>
+              {c.pinned_at && <Pin size={12} className="text-ink-muted flex-shrink-0" />}
+              <span className="truncate">{c.other_participant.display_name}</span>
+            </p>
+            <span className="flex flex-col items-end gap-1 flex-shrink-0 ml-2">
+              <span className="text-xs text-ink-muted">{timeAgo(c.last_message_at)}</span>
+              <PresenceDot lastSeenAt={c.other_participant.last_seen_at} />
+            </span>
+          </div>
+          <p className={`text-sm flex items-center gap-1 min-w-0 ${c.unread ? "text-ink" : "text-ink-muted"}`}>
+            {showTicksInPreview && c.last_message && (
+              <span className="flex-shrink-0 inline-flex">
+                <MessageStatusTicks
+                  deliveredAt={c.last_message.delivered_at}
+                  readAt={c.last_message.read_at}
+                  variant="list"
+                  size={13}
+                />
+              </span>
+            )}
+            <span className="truncate min-w-0 flex-1">{c.last_message?.content ?? "Say hello"}</span>
+          </p>
+        </div>
+        {c.unread && <div className="w-2 h-2 rounded-full bg-accent flex-shrink-0" />}
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-canvas pb-24">
-      <header className="px-4 pt-6 pb-3 sticky top-0 bg-canvas z-30 border-b border-border flex items-center gap-3">
-        <button onClick={() => navigate(-1)} className="text-ink-muted">
-          <ArrowLeft size={22} />
+      <header className="sticky top-0 bg-canvas z-30 border-b border-border">
+        <div className="px-4 pt-6 pb-3 flex items-center gap-3">
+          <button onClick={() => navigate(-1)} className="text-ink-muted">
+            <ArrowLeft size={22} />
+          </button>
+          <h2 className="font-display text-2xl text-ink">Messages</h2>
+        </div>
+
+        {/* Archive — sits at the top, sticky with the header, above
+            pinned/normal chats. Requests from people who don't follow
+            you land here (see is_request in useMessaging.ts) alongside
+            anything you've manually archived. */}
+        <button
+          onClick={() => navigate("/messages/archive")}
+          className="w-full flex items-center gap-3 px-4 py-3 max-w-xl mx-auto border-t border-border/60"
+        >
+          <span className="flex-shrink-0 w-11 h-11 rounded-full bg-accent-soft text-accent flex items-center justify-center">
+            <Archive size={18} />
+          </span>
+          <span className="flex-1 text-left text-sm font-medium text-ink">Archive</span>
+          {archiveBadgeCount > 0 && (
+            <span className="bg-accent text-canvas text-[11px] font-semibold rounded-full min-w-[20px] h-5 px-1.5 flex items-center justify-center flex-shrink-0">
+              {archiveBadgeCount > 99 ? "99+" : archiveBadgeCount}
+            </span>
+          )}
+          <ChevronRight size={16} className="text-ink-muted flex-shrink-0" />
         </button>
-        <h2 className="font-display text-2xl text-ink">Messages</h2>
       </header>
 
       {conversations && conversations.length > 0 && (
@@ -131,97 +262,40 @@ export function ConversationList() {
         ) : filteredConversations && filteredConversations.length === 0 ? (
           <p className="text-ink-muted text-center py-10 text-sm">No conversations match your search.</p>
         ) : (
-          filteredConversations?.map((c) => {
-            const unseenPostId = unseenPosts?.[c.other_participant.id];
-            // Only show ticks when the last message is one WE sent —
-            // seeing your own message's delivery/read state in the list
-            // preview, same as the double-tick-in-list pattern in WhatsApp.
-            const showTicksInPreview = c.last_message?.sender_id === user?.id;
-
-            return (
-              <div
-                key={c.id}
-                onPointerDown={(e) => handlePointerDown(c, e)}
-                onPointerMove={(e) => handlePointerMove(c, e)}
-                onPointerUp={() => endGesture(c.id)}
-                onPointerLeave={() => endGesture(c.id)}
-                onPointerCancel={() => endGesture(c.id)}
-                onContextMenu={(e) => e.preventDefault()}
-                onClick={(e) => handleRowClick(c, e)}
-                role="link"
-                className="flex items-center gap-3 py-3.5 border-b border-border select-none cursor-pointer"
-                style={{ WebkitTouchCallout: "none" }}
-              >
-                {unseenPostId ? (
-                  <span
-                    role="link"
-                    aria-label={`View ${c.other_participant.display_name}'s new post`}
-                    onClick={(e) => {
-                      e.preventDefault();
-                      e.stopPropagation();
-                      navigate(`/post/${unseenPostId}`);
-                    }}
-                    className="flex-shrink-0 rounded-full p-[2.5px] bg-accent shadow-[0_0_6px_rgba(61,90,69,0.45)]"
-                  >
-                    <span className="block rounded-full bg-canvas p-[2px]">
-                      <Avatar
-                        src={c.other_participant.avatar_url}
-                        name={c.other_participant.display_name}
-                      />
-                    </span>
-                  </span>
-                ) : (
-                  <Avatar src={c.other_participant.avatar_url} name={c.other_participant.display_name} />
-                )}
-
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center justify-between">
-                    <p className={`text-sm truncate flex items-center gap-1 ${c.unread ? "font-semibold text-ink" : "font-medium text-ink"}`}>
-                      {c.pinned_at && <Pin size={12} className="text-ink-muted flex-shrink-0" />}
-                      <span className="truncate">{c.other_participant.display_name}</span>
-                    </p>
-                    <span className="flex flex-col items-end gap-1 flex-shrink-0 ml-2">
-                      <span className="text-xs text-ink-muted">{timeAgo(c.last_message_at)}</span>
-                      <PresenceDot lastSeenAt={c.other_participant.last_seen_at} />
-                    </span>
-                  </div>
-                  <p className={`text-sm flex items-center gap-1 min-w-0 ${c.unread ? "text-ink" : "text-ink-muted"}`}>
-                    {showTicksInPreview && c.last_message && (
-                      <span className="flex-shrink-0 inline-flex">
-                        <MessageStatusTicks
-                          deliveredAt={c.last_message.delivered_at}
-                          readAt={c.last_message.read_at}
-                          variant="list"
-                          size={13}
-                        />
-                      </span>
-                    )}
-                    <span className="truncate min-w-0 flex-1">{c.last_message?.content ?? "Say hello"}</span>
-                  </p>
-                </div>
-                {c.unread && <div className="w-2 h-2 rounded-full bg-accent flex-shrink-0" />}
+          <>
+            {pinnedConversations.length > 0 && (
+              <div>
+                <p className="text-xs font-semibold text-ink-muted uppercase tracking-wide pt-2 pb-1">
+                  Pinned
+                </p>
+                {pinnedConversations.map(renderRow)}
               </div>
-            );
-          })
+            )}
+            {normalConversations.map(renderRow)}
+          </>
         )}
       </div>
 
       <BottomNav />
 
+      {pinLimitNotice && (
+        <div className="fixed bottom-24 left-1/2 -translate-x-1/2 z-50 bg-ink text-canvas text-sm rounded-full px-4 py-2 shadow-lg whitespace-nowrap">
+          You can only pin up to {MAX_PINNED} chats — unpin one first.
+        </div>
+      )}
+
       {actionTarget && (
         <ConversationActionSheet
           displayName={actionTarget.other_participant.display_name}
           isPinned={!!actionTarget.pinned_at}
-          onTogglePin={() =>
-            updateConversationState.mutate({
-              conversationId: actionTarget.id,
-              pinned_at: actionTarget.pinned_at ? null : new Date().toISOString(),
-            })
-          }
+          onTogglePin={() => handleTogglePin(actionTarget)}
           onArchive={() =>
             updateConversationState.mutate({
               conversationId: actionTarget.id,
               archived_at: new Date().toISOString(),
+              // Pinned + archived at once doesn't make sense — archiving
+              // an important chat should also drop it from "Pinned".
+              pinned_at: null,
             })
           }
           onDelete={() =>
