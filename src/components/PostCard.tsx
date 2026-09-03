@@ -3,7 +3,6 @@ import { useRef, useState } from "react";
 import { Link, useNavigate, useLocation } from "react-router-dom";
 import {
   MessageCircle,
-  MoreHorizontal,
   Heart,
   ThumbsDown,
   Share2,
@@ -12,10 +11,6 @@ import {
   XCircle,
   Hand,
   Gift as GiftIcon,
-  Pencil,
-  Trash2,
-  Archive,
-  RotateCcw,
   Globe,
 } from "lucide-react";
 import { Avatar } from "./Avatar";
@@ -29,7 +24,6 @@ import { useAuth } from "../hooks/useAuth";
 import { useIsBookmarked, useToggleBookmark } from "../hooks/useBookmarks";
 import { useMyReaction, useToggleReaction } from "../hooks/useReactions";
 import { useEngagementOrder, type SecondaryActionKey } from "../hooks/useEngagementOrder";
-import { canEditPost, useDeletePost, useSetPostArchived } from "../hooks/usePosts";
 import { shortDisplayName } from "../lib/displayName";
 import type { PostWithAuthor, Stance } from "../types/database";
 
@@ -46,33 +40,19 @@ function timeAgo(dateString: string): string {
 
 const DOUBLE_TAP_WINDOW_MS = 300;
 
-// Tray layout: Like (1) · Comment (2) · top-3-secondary (3-5).
-// Dislike is never in the tray — it lives permanently in the ⋯ menu.
-const TRAY_SECONDARY_SLOTS = 3;
-
-// Internal action definition — trayIcon (size 20) for the ReactionTray,
-// menuIcon (size 14) for the ⋯ overflow menu, keeping sizes consistent.
+// Internal action definition — one icon size (20) since there's no ⋯ menu.
 type ActionDef = {
   key: SecondaryActionKey;
   label: string;
-  trayIcon: React.ReactNode;
-  menuIcon: React.ReactNode;
+  icon: React.ReactNode;
   count: number | null;
   onAction: () => void;
 };
 
-export function PostCard({
-  post,
-  isOwnerView,
-}: {
-  post: PostWithAuthor;
-  isOwnerView?: boolean;
-}) {
+export function PostCard({ post }: { post: PostWithAuthor }) {
   const { user } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
-  const isOwner = isOwnerView ?? user?.id === post.author_id;
-  const [menuOpen, setMenuOpen] = useState(false);
   const [activeStance, setActiveStance] = useState<Stance | null>(null);
   const lastTapRef = useRef(0);
 
@@ -80,18 +60,15 @@ export function PostCard({
   const toggleBookmark = useToggleBookmark(post.id);
   const isBookmarked = !!isBookmarkedQuery.data;
 
-  const likeQuery = useMyReaction(post.id, "post", "like");
+  const likeQuery   = useMyReaction(post.id, "post", "like");
   const dislikeQuery = useMyReaction(post.id, "post", "dislike");
-  const toggleLike = useToggleReaction(post.id, "post", "like");
+  const toggleLike   = useToggleReaction(post.id, "post", "like");
   const toggleDislike = useToggleReaction(post.id, "post", "dislike");
-  const toggleShare = useToggleReaction(post.id, "post", "share");
-  const isLiked = !!likeQuery.data;
+  const toggleShare  = useToggleReaction(post.id, "post", "share");
+  const isLiked    = !!likeQuery.data;
   const isDisliked = !!dislikeQuery.data;
 
   const { data: engagementOrder } = useEngagementOrder();
-  const deletePost = useDeletePost();
-  const setArchived = useSetPostArchived();
-  const editable = isOwner && canEditPost(post);
 
   function handleContentTap() {
     const now = Date.now();
@@ -101,9 +78,7 @@ export function PostCard({
     lastTapRef.current = now;
   }
 
-  // When already on the post detail page, scroll to the Discussion
-  // section. Otherwise navigate there. Allows the same PostCard to
-  // serve both feed and detail contexts without an extra prop.
+  // Already on the post page → scroll to discussion; otherwise navigate there.
   function handleCommentTap() {
     if (location.pathname === `/post/${post.id}`) {
       document.getElementById("discussion")?.scrollIntoView({ behavior: "smooth" });
@@ -113,96 +88,80 @@ export function PostCard({
   }
 
   async function handleShare() {
-    setMenuOpen(false);
     const url = `${window.location.origin}/post/${post.id}`;
     if (navigator.share) {
       try {
         await navigator.share({ url });
       } catch {
-        return;
+        return; // user cancelled native share sheet
       }
     } else {
       await navigator.clipboard.writeText(url);
     }
-    toggleShare.mutate(false);
-  }
-
-  function handleDelete() {
-    setMenuOpen(false);
-    if (window.confirm("Delete this post? This can't be undone.")) {
-      deletePost.mutate(post.id);
-    }
+    toggleShare.mutate(false); // still record the share
   }
 
   function handleStance(stance: Stance) {
-    setMenuOpen(false);
     setActiveStance(stance);
   }
 
-  // TODO: swap for GiftPicker modal once that component exists.
+  // TODO: replace with GiftPicker modal once that component exists.
   function handleGift() {
-    setMenuOpen(false);
     navigate(`/post/${post.id}?gift=1`);
   }
 
-  // ─── Secondary action definitions ────────────────────────────────────────
-  // Stance icons use STANCE_COLORS.iconClass so their colour matches
-  // StanceComposer tabs and CommentThread pills — one source of truth.
+  // ─── Secondary action definitions (all 6, passed to scrollable tray) ──────
+  // Stance icons carry STANCE_COLORS.iconClass so they stay in sync with
+  // StanceComposer tabs and CommentThread pills.
 
   const secondaryDefs: Record<SecondaryActionKey, ActionDef> = {
     support: {
       key: "support",
       label: "Support",
-      trayIcon: <Handshake size={20} className={STANCE_COLORS.support.iconClass} />,
-      menuIcon: <Handshake size={14} className={STANCE_COLORS.support.iconClass} />,
+      icon: <Handshake size={20} className={STANCE_COLORS.support.iconClass} />,
       count: post.support_count > 0 ? post.support_count : null,
       onAction: () => handleStance("support"),
     },
     disagree: {
       key: "disagree",
       label: "Disagree",
-      trayIcon: <XCircle size={20} className={STANCE_COLORS.disagree.iconClass} />,
-      menuIcon: <XCircle size={14} className={STANCE_COLORS.disagree.iconClass} />,
+      icon: <XCircle size={20} className={STANCE_COLORS.disagree.iconClass} />,
       count: post.disagree_count > 0 ? post.disagree_count : null,
       onAction: () => handleStance("disagree"),
     },
     pushback: {
       key: "pushback",
       label: "Pushback",
-      trayIcon: <Hand size={20} className={STANCE_COLORS.pushback.iconClass} />,
-      menuIcon: <Hand size={14} className={STANCE_COLORS.pushback.iconClass} />,
+      icon: <Hand size={20} className={STANCE_COLORS.pushback.iconClass} />,
       count: post.pushback_count > 0 ? post.pushback_count : null,
       onAction: () => handleStance("pushback"),
     },
-    share: {
-      key: "share",
-      label: "Share",
-      trayIcon: <Share2 size={20} />,
-      menuIcon: <Share2 size={14} />,
-      count: post.share_count > 0 ? post.share_count : null,
-      onAction: () => { void handleShare(); },
+    dislike: {
+      key: "dislike",
+      label: isDisliked ? "Disliked" : "Dislike",
+      icon: (
+        <ThumbsDown
+          size={20}
+          fill={isDisliked ? "currentColor" : "none"}
+          className={isDisliked ? "text-danger" : ""}
+        />
+      ),
+      count: post.dislike_count > 0 ? post.dislike_count : null,
+      onAction: () => toggleDislike.mutate(isDisliked),
     },
     gift: {
       key: "gift",
       label: "Gift",
-      trayIcon: <GiftIcon size={20} />,
-      menuIcon: <GiftIcon size={14} />,
+      icon: <GiftIcon size={20} />,
       count: post.gift_count > 0 ? post.gift_count : null,
       onAction: handleGift,
     },
     save: {
       key: "save",
       label: isBookmarked ? "Saved" : "Save",
-      trayIcon: (
+      icon: (
         <Bookmark
           size={20}
-          fill={isBookmarked ? "currentColor" : "none"}
-          className={isBookmarked ? "text-accent" : ""}
-        />
-      ),
-      menuIcon: (
-        <Bookmark
-          size={14}
           fill={isBookmarked ? "currentColor" : "none"}
           className={isBookmarked ? "text-accent" : ""}
         />
@@ -212,18 +171,19 @@ export function PostCard({
     },
   };
 
+  // Ranked order from the hook, falling back to the default until loaded.
   const order: SecondaryActionKey[] = engagementOrder ?? [
     "support",
     "gift",
     "save",
     "disagree",
     "pushback",
-    "share",
+    "dislike",
   ];
-  const traySecondaryKeys = order.slice(0, TRAY_SECONDARY_SLOTS);
-  const overflowSecondaryKeys = order.slice(TRAY_SECONDARY_SLOTS);
 
-  // ─── Tray: Like · Comment · top-3 secondary ──────────────────────────────
+  // ─── Tray: Like (fixed, slot 1) + all 6 secondary in ranked order ─────────
+  // ReactionTray scrolls horizontally — no slicing needed here. The CSS
+  // item width determines how many are visible vs off-screen.
 
   const trayActions: EngagementAction[] = [
     {
@@ -239,17 +199,10 @@ export function PostCard({
       count: post.like_count > 0 ? post.like_count : null,
       onClick: () => toggleLike.mutate(isLiked),
     },
-    {
-      key: "comment",
-      label: "Comments",
-      icon: <MessageCircle size={20} />,
-      count: post.comment_count > 0 ? post.comment_count : null,
-      onClick: handleCommentTap,
-    },
-    ...traySecondaryKeys.map((k): EngagementAction => ({
+    ...order.map((k): EngagementAction => ({
       key: secondaryDefs[k].key,
       label: secondaryDefs[k].label,
-      icon: secondaryDefs[k].trayIcon,
+      icon: secondaryDefs[k].icon,
       count: secondaryDefs[k].count,
       onClick: () => secondaryDefs[k].onAction(),
     })),
@@ -289,105 +242,30 @@ export function PostCard({
           </p>
         </div>
 
-        {/* ── ⋯ Overflow menu ─────────────────────────────────────────────── */}
-        <div className="relative">
+        {/* ── Comment count + Share — replaces the old ⋯ menu ─────────────── */}
+        {/* Owner actions (Edit/Archive/Delete) are orphaned; they need a new
+            home (e.g. PostDetail page) — to be addressed separately. */}
+        <div className="flex flex-col items-center gap-2.5 self-start pt-0.5">
           <button
-            onClick={() => setMenuOpen((o) => !o)}
-            className="text-ink-muted p-1"
-            aria-label="Post options"
+            onClick={handleCommentTap}
+            aria-label="Comments"
+            className="flex flex-col items-center gap-0.5 text-ink-muted"
           >
-            <MoreHorizontal size={18} />
+            <MessageCircle size={18} />
+            {post.comment_count > 0 && (
+              <span className="text-[11px] font-medium leading-none text-ink">
+                {post.comment_count}
+              </span>
+            )}
           </button>
 
-          {menuOpen && (
-            <>
-              <div
-                className="fixed inset-0 z-10"
-                onClick={() => setMenuOpen(false)}
-                aria-hidden="true"
-              />
-              <div className="absolute top-full right-0 mt-1 bg-surface border border-border rounded-xl shadow-lg py-1 w-52 z-20">
-
-                {/* Dislike — permanently here, never ranked into the tray */}
-                <button
-                  onClick={() => {
-                    toggleDislike.mutate(isDisliked);
-                    setMenuOpen(false);
-                  }}
-                  className="w-full flex items-center justify-between px-4 py-2.5 text-sm text-ink hover:bg-canvas"
-                >
-                  <span className="flex items-center gap-2">
-                    <ThumbsDown
-                      size={14}
-                      fill={isDisliked ? "currentColor" : "none"}
-                      className={isDisliked ? "text-danger" : ""}
-                    />
-                    {isDisliked ? "Remove dislike" : "Dislike"}
-                  </span>
-                  {post.dislike_count > 0 && (
-                    <span className="text-ink-muted">{post.dislike_count}</span>
-                  )}
-                </button>
-
-                {/* Bottom 3 secondary — the ones that didn't make the tray.
-                    As the user's usage shifts these can migrate in/out. */}
-                {overflowSecondaryKeys.map((k) => {
-                  const def = secondaryDefs[k];
-                  return (
-                    <button
-                      key={def.key}
-                      onClick={def.onAction}
-                      className="w-full flex items-center justify-between px-4 py-2.5 text-sm text-ink hover:bg-canvas"
-                    >
-                      <span className="flex items-center gap-2">
-                        {def.menuIcon}
-                        {def.label}
-                      </span>
-                      {def.count !== null && (
-                        <span className="text-ink-muted">{def.count}</span>
-                      )}
-                    </button>
-                  );
-                })}
-
-                {/* Owner-only tools */}
-                {isOwner && (
-                  <>
-                    <div className="h-px bg-border my-1" />
-                    {editable && (
-                      <button
-                        onClick={() => {
-                          setMenuOpen(false);
-                          navigate(`/post/${post.id}/edit`);
-                        }}
-                        className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-ink hover:bg-canvas"
-                      >
-                        <Pencil size={14} />
-                        Edit
-                      </button>
-                    )}
-                    <button
-                      onClick={() => {
-                        setArchived.mutate({ postId: post.id, archived: !post.is_archived });
-                        setMenuOpen(false);
-                      }}
-                      className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-ink hover:bg-canvas"
-                    >
-                      {post.is_archived ? <RotateCcw size={14} /> : <Archive size={14} />}
-                      {post.is_archived ? "Restore" : "Archive"}
-                    </button>
-                    <button
-                      onClick={handleDelete}
-                      className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-danger hover:bg-canvas"
-                    >
-                      <Trash2 size={14} />
-                      Delete
-                    </button>
-                  </>
-                )}
-              </div>
-            </>
-          )}
+          <button
+            onClick={() => void handleShare()}
+            aria-label="Share"
+            className="text-ink-muted"
+          >
+            <Share2 size={18} />
+          </button>
         </div>
       </div>
 
@@ -397,11 +275,9 @@ export function PostCard({
 
       <PostMedia mediaUrls={post.media_urls} />
 
-      {/* 5 slots: Like · Comment · [user's top 3 of 6 secondary] */}
+      {/* 7 actions in a scrollable row: Like · [6 ranked secondary] */}
       <ReactionTray actions={trayActions} />
 
-      {/* StanceComposer is a fixed overlay — safe inside a feed list
-          since only one card can have activeStance set at a time. */}
       {activeStance && (
         <StanceComposer
           postId={post.id}
