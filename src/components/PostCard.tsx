@@ -20,7 +20,6 @@ import { ReactionTray, type EngagementAction } from "./ReactionTray";
 import { PostMedia } from "./PostMedia";
 import { PostContent } from "./PostContent";
 import { StanceComposer, STANCE_COLORS } from "./StanceComposer";
-import { useAuth } from "../hooks/useAuth";
 import { useIsBookmarked, useToggleBookmark } from "../hooks/useBookmarks";
 import { useMyReaction, useToggleReaction } from "../hooks/useReactions";
 import { useEngagementOrder, type SecondaryActionKey } from "../hooks/useEngagementOrder";
@@ -49,8 +48,12 @@ type ActionDef = {
   onAction: () => void;
 };
 
-export function PostCard({ post }: { post: PostWithAuthor }) {
-  const { user } = useAuth();
+type PostCardProps = {
+  post: PostWithAuthor;
+  isOwnerView?: boolean;
+};
+
+export function PostCard({ post, isOwnerView = false }: PostCardProps) {
   const navigate = useNavigate();
   const location = useLocation();
   const [activeStance, setActiveStance] = useState<Stance | null>(null);
