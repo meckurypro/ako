@@ -245,7 +245,7 @@ export function ProfilePage() {
               }`}
             >
               {isFollowing
-                ? "Following"
+                ? "Unfollow"
                 : hasPendingRequest
                 ? "Requested"
                 : isFollowedByUser
