@@ -87,12 +87,38 @@ export interface Post {
   is_archived: boolean;
   edited_at: string | null;
   created_at: string;
+  // Set when this post is a reshare or quote of another post.
+  // reshared_post_id set + content === "" → plain reshare (looks like the
+  // original, badge instead of the usual comment/share corner).
+  // reshared_post_id set + content !== "" → quote (own post, original
+  // embedded as a card underneath the caption).
+  reshared_post_id: string | null;
 }
 
 // Joined shape used when rendering a feed card — the post plus
 // enough author info to render without a separate fetch per post.
 export interface PostWithAuthor extends Post {
   author: AuthorSummary;
+  // Embedded original when this post is a reshare/quote. Absent (undefined)
+  // when not fetched; null when reshared_post_id points at nothing fetchable
+  // (shouldn't happen); RepostSource itself carries is_deleted/is_archived
+  // so the UI can render the "no longer available" state.
+  reshared_post?: RepostSource | null;
+}
+
+// One level deep only — the embedded original never carries its own
+// reshared_post, so a repost-of-a-repost just links to the immediate
+// parent rather than recursing. Carries every Post field (not just
+// display ones) so a plain reshare can engage against the original's
+// own id/counts, matching standard retweet behavior.
+export type RepostSource = Omit<Post, "reshared_post_id"> & { author: AuthorSummary };
+
+export function isPlainReshare(post: Pick<Post, "reshared_post_id" | "content">): boolean {
+  return !!post.reshared_post_id && post.content.trim() === "";
+}
+
+export function isQuote(post: Pick<Post, "reshared_post_id" | "content">): boolean {
+  return !!post.reshared_post_id && post.content.trim() !== "";
 }
 
 export interface Comment {
