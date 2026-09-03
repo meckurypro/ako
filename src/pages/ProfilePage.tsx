@@ -1,3 +1,4 @@
+// src/pages/ProfilePage.tsx
 import { useState, useEffect, useRef } from "react";
 import { useParams, Link, useNavigate, useSearchParams } from "react-router-dom";
 import { Settings, Wallet, MessageCircle, MoreHorizontal, Plus, Eye, X, Archive, Globe, UserCheck } from "lucide-react";
@@ -13,6 +14,7 @@ import { useUserPostsWithArchived } from "../hooks/usePosts";
 import { useStartConversation } from "../hooks/useMessaging";
 import { useIsBlocked, useToggleBlock, useIsMuted, useToggleMute } from "../hooks/usePrivacy";
 import { useUserProjects } from "../hooks/useProjects";
+import { useActivity, type ActivityItem } from "../hooks/useActivity";
 import { Avatar } from "../components/Avatar";
 import { ImageLightbox } from "../components/ImageLightbox";
 import { TierBadge } from "../components/TierBadge";
@@ -58,7 +60,7 @@ export function ProfilePage() {
   // Projects tab instead of Posts. Read once on mount — the tabs are
   // still plain buttons after that, so clicking Posts/Projects
   // doesn't fight the URL.
-  const [activeTab, setActiveTab] = useState<"posts" | "projects">(
+  const [activeTab, setActiveTab] = useState<"posts" | "projects" | "activity">(
     searchParams.get("tab") === "projects" ? "projects" : "posts"
   );
   const isFollowingQuery = useIsFollowing(profile?.id ?? "");
@@ -85,6 +87,10 @@ export function ProfilePage() {
   const visibleProjects = showArchivedProjects
     ? projects?.filter((p) => p.status === "archived")
     : projects?.filter((p) => p.status !== "archived");
+  // useActivity() always reflects the signed-in user, not whichever
+  // profile is being viewed — there's no "someone else's activity" to
+  // fetch, which is exactly why this tab only renders for showOwnerView.
+  const { data: activityItems } = useActivity();
   const { data: posts } = useUserPostsWithArchived(
     profile?.id ?? "",
     showOwnerView && showArchived
@@ -364,6 +370,19 @@ export function ProfilePage() {
           >
             Projects
           </button>
+          {/* Owner-only — this is the signed-in user's own tickets/
+              meetings/room activity, never something a visitor should
+              see on someone else's profile. */}
+          {showOwnerView && (
+            <button
+              onClick={() => setActiveTab("activity")}
+              className={`text-sm font-medium pb-3 border-b-2 -mb-px ${
+                activeTab === "activity" ? "text-accent border-accent" : "text-ink-muted border-transparent"
+              }`}
+            >
+              Activity
+            </button>
+          )}
           {showOwnerView && activeTab === "posts" && (
             <button
               onClick={() => setShowArchived((v) => !v)}
@@ -426,6 +445,33 @@ export function ProfilePage() {
               ))
             ) : (
               <p className="text-ink-muted text-center py-10 text-sm">No posts yet.</p>
+            )
+          ) : activeTab === "activity" ? (
+            activityItems && activityItems.length > 0 ? (
+              activityItems.map((item: ActivityItem, i: number) => (
+                <Link
+                  key={`${item.kind}-${item.projectId}-${i}`}
+                  to={
+                    item.kind === "event"
+                      ? `/projects/${item.projectId}/ticket`
+                      : item.kind === "meeting"
+                      ? `/meetings/${item.projectId}`
+                      : `/rooms/${item.projectId}`
+                  }
+                  className="flex items-center gap-3 p-3 rounded-xl border border-border bg-surface mb-2"
+                >
+                  <div className="min-w-0">
+                    <p className="text-sm text-ink truncate">{item.projectTitle}</p>
+                    <p className="text-xs text-ink-muted">
+                      {item.when ? new Date(item.when).toLocaleString() : "Date TBA"}
+                    </p>
+                  </div>
+                </Link>
+              ))
+            ) : (
+              <p className="text-ink-muted text-center py-10 text-sm">
+                Events, meetings, and rooms you've joined will show up here.
+              </p>
             )
           ) : visibleProjects && visibleProjects.length > 0 ? (
             visibleProjects.map((project) => (
