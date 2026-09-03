@@ -1,7 +1,7 @@
 // src/pages/MessageThread.tsx
 import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { ArrowLeft, Send, Search, ChevronUp, ChevronDown, Smile, Keyboard, Reply, X, MoreHorizontal } from "lucide-react";
+import { ArrowLeft, Send, Search, ChevronUp, ChevronDown, Smile, Keyboard, Reply, X, MoreHorizontal, Inbox } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "../lib/supabase";
 import { useAuth } from "../hooks/useAuth";
@@ -11,6 +11,7 @@ import {
   useMarkConversationRead,
   useMarkMessagesRead,
   useDeleteMessage,
+  useMyParticipantState,
   type MessageWithSender,
 } from "../hooks/useMessaging";
 import {
@@ -146,6 +147,7 @@ export function MessageThread() {
   const { user } = useAuth();
   const { data: messages, isLoading } = useMessages(conversationId!);
   const { data: otherParticipant } = useOtherParticipant(conversationId!);
+  const { data: myParticipantState } = useMyParticipantState(conversationId!);
 
   // Same ring-on-avatar treatment as ConversationList — checks just
   // this one participant for an unseen post from the last 24h.
@@ -472,6 +474,13 @@ export function MessageThread() {
           </>
         )}
       </header>
+
+      {myParticipantState?.is_request && (
+        <div className="flex items-center gap-2 px-4 py-2.5 max-w-xl mx-auto w-full text-sm text-ink-muted bg-accent-soft/60 border-b border-border">
+          <Inbox size={15} className="text-accent flex-shrink-0" />
+          <span>Message request — reply to move this to your inbox.</span>
+        </div>
+      )}
 
       <div className="flex-1 min-h-0 overflow-y-auto px-4 py-4 max-w-xl mx-auto w-full" style={chatBackgroundStyle}>
         {isLoading ? (
