@@ -1,10 +1,11 @@
 // src/pages/ConversationList.tsx
 import { useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { ArrowLeft, Search, X, Pin, Archive, ChevronRight } from "lucide-react";
+import { ArrowLeft, Search, X, Pin, Archive, ChevronRight, Trash2, CheckSquare } from "lucide-react";
 import {
   useConversations,
   useUpdateConversationState,
+  useBulkUpdateConversationState,
   useTogglePin,
   useArchiveBadgeCount,
   type ConversationSummary,
@@ -16,6 +17,7 @@ import { BottomNav } from "../components/BottomNav";
 import { MessageStatusTicks } from "../components/MessageStatusTicks";
 import { PresenceDot } from "../components/PresenceDot";
 import { ConversationActionSheet } from "../components/ConversationActionSheet";
+import { ConfirmDialog } from "../components/ConfirmDialog";
 
 const MAX_PINNED = 3;
 
@@ -39,9 +41,11 @@ export function ConversationList() {
 
   const [searchQuery, setSearchQuery] = useState("");
 
-  // --- Long press to open pin/archive/delete actions (same hand-rolled
-  // pointer-timer approach used for messages — no gesture library). ---
+  // --- Long press to open pin/archive/delete/select actions (same
+  // hand-rolled pointer-timer approach used for messages — no gesture
+  // library). ---
   const updateConversationState = useUpdateConversationState();
+  const bulkUpdateConversationState = useBulkUpdateConversationState();
   const togglePin = useTogglePin();
   const [actionTarget, setActionTarget] = useState<ConversationSummary | null>(null);
   const [pinLimitNotice, setPinLimitNotice] = useState(false);
@@ -50,7 +54,57 @@ export function ConversationList() {
   const longPressStart = useRef<Record<string, { x: number; y: number }>>({});
   const longPressFired = useRef<Record<string, boolean>>({});
 
+  // --- Multi-select mode ---
+  const [selectMode, setSelectMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  // Single-chat delete (from the action sheet) and bulk delete both
+  // route through this confirmation — deleting a whole conversation's
+  // history from your view is significant enough to warrant a pause,
+  // unlike archive/pin/select which are all instantly reversible.
+  const [deleteTarget, setDeleteTarget] = useState<{ ids: string[]; label: string } | null>(null);
+
+  function enterSelectMode(id: string) {
+    setSelectMode(true);
+    setSelectedIds(new Set([id]));
+  }
+  function toggleSelected(id: string) {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+  function exitSelectMode() {
+    setSelectMode(false);
+    setSelectedIds(new Set());
+  }
+
+  function handleBulkArchive() {
+    bulkUpdateConversationState.mutate(
+      { conversationIds: [...selectedIds], archived_at: new Date().toISOString(), pinned_at: null },
+      { onSuccess: exitSelectMode }
+    );
+  }
+  function handleBulkDeletePress() {
+    setDeleteTarget({
+      ids: [...selectedIds],
+      label: selectedIds.size > 1 ? `${selectedIds.size} chats` : "this chat",
+    });
+  }
+  function confirmDelete() {
+    if (!deleteTarget) return;
+    if (deleteTarget.ids.length === 1) {
+      updateConversationState.mutate({ conversationId: deleteTarget.ids[0], hidden_at: new Date().toISOString() });
+    } else {
+      bulkUpdateConversationState.mutate({ conversationIds: deleteTarget.ids, hidden_at: new Date().toISOString() });
+    }
+    setDeleteTarget(null);
+    exitSelectMode();
+  }
+
   function handlePointerDown(c: ConversationSummary, e: React.PointerEvent) {
+    if (selectMode) return; // tap-to-toggle takes over in select mode
     longPressStart.current[c.id] = { x: e.clientX, y: e.clientY };
     longPressFired.current[c.id] = false;
     longPressTimers.current[c.id] = setTimeout(() => {
@@ -76,6 +130,10 @@ export function ConversationList() {
     delete longPressStart.current[id];
   }
   function handleRowClick(c: ConversationSummary, e: React.MouseEvent) {
+    if (selectMode) {
+      toggleSelected(c.id);
+      return;
+    }
     if (longPressFired.current[c.id]) {
       e.preventDefault();
       longPressFired.current[c.id] = false;
@@ -133,6 +191,7 @@ export function ConversationList() {
     // your own message's delivery/read state in the list preview, same
     // as the double-tick-in-list pattern in WhatsApp.
     const showTicksInPreview = c.last_message?.sender_id === user?.id;
+    const isSelected = selectedIds.has(c.id);
 
     return (
       <div
@@ -148,12 +207,26 @@ export function ConversationList() {
         className="flex items-center gap-3 py-3.5 border-b border-border select-none cursor-pointer"
         style={{ WebkitTouchCallout: "none" }}
       >
+        {selectMode && (
+          <span
+            className={`w-5 h-5 rounded-full border flex-shrink-0 flex items-center justify-center ${
+              isSelected ? "bg-accent border-accent" : "border-border"
+            }`}
+          >
+            {isSelected && <span className="w-2 h-2 rounded-full bg-canvas" />}
+          </span>
+        )}
+
         {unseenPostId ? (
           <span
             role="link"
             aria-label={`View ${c.other_participant.display_name}'s new post`}
             onClick={(e) => {
               e.preventDefault();
+              if (selectMode) {
+                toggleSelected(c.id); // let it behave like the rest of the row while selecting
+                return;
+              }
               e.stopPropagation();
               navigate(`/post/${unseenPostId}`);
             }}
@@ -179,7 +252,7 @@ export function ConversationList() {
             </span>
           </div>
           <p className={`text-sm flex items-center gap-1 min-w-0 ${c.unread ? "text-ink" : "text-ink-muted"}`}>
-            {showTicksInPreview && c.last_message && (
+            {showTicksInPreview && c.last_message && !c.last_message.is_deleted && (
               <span className="flex-shrink-0 inline-flex">
                 <MessageStatusTicks
                   deliveredAt={c.last_message.delivered_at}
@@ -189,7 +262,9 @@ export function ConversationList() {
                 />
               </span>
             )}
-            <span className="truncate min-w-0 flex-1">{c.last_message?.content ?? "Say hello"}</span>
+            <span className={`truncate min-w-0 flex-1 ${c.last_message?.is_deleted ? "italic opacity-70" : ""}`}>
+              {c.last_message?.is_deleted ? "This message was deleted" : c.last_message?.content ?? "Say hello"}
+            </span>
           </p>
         </div>
         {c.unread && <div className="w-2 h-2 rounded-full bg-accent flex-shrink-0" />}
@@ -200,35 +275,71 @@ export function ConversationList() {
   return (
     <div className="min-h-screen bg-canvas pb-24">
       <header className="sticky top-0 bg-canvas z-30 border-b border-border">
-        <div className="px-4 pt-6 pb-3 flex items-center gap-3">
-          <button onClick={() => navigate(-1)} className="text-ink-muted">
-            <ArrowLeft size={22} />
-          </button>
-          <h2 className="font-display text-2xl text-ink">Messages</h2>
-        </div>
+        {selectMode ? (
+          <div className="px-4 pt-6 pb-3 flex items-center gap-3">
+            <button onClick={exitSelectMode} className="text-ink-muted" aria-label="Cancel selection">
+              <X size={22} />
+            </button>
+            <span className="flex-1 text-sm font-medium text-ink">{selectedIds.size} selected</span>
+            <button
+              onClick={handleBulkArchive}
+              disabled={!selectedIds.size}
+              className="text-ink-muted disabled:opacity-30"
+              aria-label="Archive selected"
+            >
+              <Archive size={19} />
+            </button>
+            <button
+              onClick={handleBulkDeletePress}
+              disabled={!selectedIds.size}
+              className="text-danger disabled:opacity-30"
+              aria-label="Delete selected"
+            >
+              <Trash2 size={19} />
+            </button>
+          </div>
+        ) : (
+          <div className="px-4 pt-6 pb-3 flex items-center gap-3">
+            <button onClick={() => navigate(-1)} className="text-ink-muted">
+              <ArrowLeft size={22} />
+            </button>
+            <h2 className="font-display text-2xl text-ink flex-1">Messages</h2>
+            {conversations && conversations.length > 0 && (
+              <button
+                onClick={() => setSelectMode(true)}
+                className="text-ink-muted"
+                aria-label="Select chats"
+              >
+                <CheckSquare size={20} />
+              </button>
+            )}
+          </div>
+        )}
 
         {/* Archive — sits at the top, sticky with the header, above
             pinned/normal chats. Requests from people who don't follow
             you land here (see is_request in useMessaging.ts) alongside
             anything you've manually archived. */}
-        <button
-          onClick={() => navigate("/messages/archive")}
-          className="w-full flex items-center gap-3 px-4 py-3 max-w-xl mx-auto border-t border-border/60"
-        >
-          <span className="flex-shrink-0 w-11 h-11 rounded-full bg-accent-soft text-accent flex items-center justify-center">
-            <Archive size={18} />
-          </span>
-          <span className="flex-1 text-left text-sm font-medium text-ink">Archive</span>
-          {archiveBadgeCount > 0 && (
-            <span className="bg-accent text-canvas text-[11px] font-semibold rounded-full min-w-[20px] h-5 px-1.5 flex items-center justify-center flex-shrink-0">
-              {archiveBadgeCount > 99 ? "99+" : archiveBadgeCount}
+        {!selectMode && (
+          <button
+            onClick={() => navigate("/messages/archive")}
+            className="w-full flex items-center gap-3 px-4 py-3 max-w-xl mx-auto border-t border-border/60"
+          >
+            <span className="flex-shrink-0 w-11 h-11 rounded-full bg-accent-soft text-accent flex items-center justify-center">
+              <Archive size={18} />
             </span>
-          )}
-          <ChevronRight size={16} className="text-ink-muted flex-shrink-0" />
-        </button>
+            <span className="flex-1 text-left text-sm font-medium text-ink">Archive</span>
+            {archiveBadgeCount > 0 && (
+              <span className="bg-accent text-canvas text-[11px] font-semibold rounded-full min-w-[20px] h-5 px-1.5 flex items-center justify-center flex-shrink-0">
+                {archiveBadgeCount > 99 ? "99+" : archiveBadgeCount}
+              </span>
+            )}
+            <ChevronRight size={16} className="text-ink-muted flex-shrink-0" />
+          </button>
+        )}
       </header>
 
-      {conversations && conversations.length > 0 && (
+      {!selectMode && conversations && conversations.length > 0 && (
         <div className="max-w-xl mx-auto px-4 pt-3">
           <div className="relative">
             <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-ink-muted" />
@@ -299,12 +410,20 @@ export function ConversationList() {
             })
           }
           onDelete={() =>
-            updateConversationState.mutate({
-              conversationId: actionTarget.id,
-              hidden_at: new Date().toISOString(),
-            })
+            setDeleteTarget({ ids: [actionTarget.id], label: "this chat" })
           }
+          onSelect={() => enterSelectMode(actionTarget.id)}
           onClose={() => setActionTarget(null)}
+        />
+      )}
+
+      {deleteTarget && (
+        <ConfirmDialog
+          title={`Delete ${deleteTarget.label}?`}
+          description="This removes it from your inbox. The other participant keeps their copy, and you can't undo this."
+          confirmLabel="Delete"
+          onConfirm={confirmDelete}
+          onCancel={() => setDeleteTarget(null)}
         />
       )}
     </div>
