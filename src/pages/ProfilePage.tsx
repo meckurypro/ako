@@ -1,8 +1,14 @@
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useParams, Link, useNavigate, useSearchParams } from "react-router-dom";
-import { Settings, Wallet, MessageCircle, MoreHorizontal, Plus, Eye, X, Archive, Globe } from "lucide-react";
+import { Settings, Wallet, MessageCircle, MoreHorizontal, Plus, Eye, X, Archive, Globe, UserCheck } from "lucide-react";
 import { useAuth } from "../hooks/useAuth";
-import { useProfileByUsername, useIsFollowing, useToggleFollow } from "../hooks/useProfile";
+import { useProfileByUsername, useIsFollowing, useIsFollowedByUser, useToggleFollow } from "../hooks/useProfile";
+import {
+  useHasPendingFollowRequest,
+  useSendFollowRequest,
+  useCancelFollowRequest,
+  useIncomingFollowRequestCount,
+} from "../hooks/useFollowRequests";
 import { useUserPostsWithArchived } from "../hooks/usePosts";
 import { useStartConversation } from "../hooks/useMessaging";
 import { useIsBlocked, useToggleBlock, useIsMuted, useToggleMute } from "../hooks/usePrivacy";
@@ -38,6 +44,8 @@ export function ProfilePage() {
   const navigate = useNavigate();
   const startConversation = useStartConversation();
   const [menuOpen, setMenuOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
+  const [showUnfollowConfirm, setShowUnfollowConfirm] = useState(false);
 
   const [previewingAsVisitor, setPreviewingAsVisitor] = useState(false);
   const [showArchived, setShowArchived] = useState(false);
@@ -54,7 +62,12 @@ export function ProfilePage() {
     searchParams.get("tab") === "projects" ? "projects" : "posts"
   );
   const isFollowingQuery = useIsFollowing(profile?.id ?? "");
+  const isFollowedByUserQuery = useIsFollowedByUser(profile?.id ?? "");
   const toggleFollow = useToggleFollow(profile?.id ?? "");
+  const hasPendingRequestQuery = useHasPendingFollowRequest(profile?.id ?? "");
+  const sendFollowRequest = useSendFollowRequest(profile?.id ?? "");
+  const cancelFollowRequest = useCancelFollowRequest(profile?.id ?? "");
+  const incomingRequestCount = useIncomingFollowRequestCount();
   const isBlockedQuery = useIsBlocked(profile?.id ?? "");
   const toggleBlock = useToggleBlock(profile?.id ?? "");
   const isMutedQuery = useIsMuted(profile?.id ?? "");
@@ -78,8 +91,62 @@ export function ProfilePage() {
   );
 
   const isFollowing = !!isFollowingQuery.data;
+  const isFollowedByUser = !!isFollowedByUserQuery.data;
+  const hasPendingRequest = !!hasPendingRequestQuery.data;
   const isBlocked = !!isBlockedQuery.data;
   const isMuted = !!isMutedQuery.data;
+  const firstName = profile?.display_name?.trim().split(/\s+/)[0] ?? "";
+
+  // Outside-click / outside-tap closes the "…" menu. It only listened
+  // for clicks on the toggle button itself before, so tapping anywhere
+  // else on the page while it was open did nothing.
+  useEffect(() => {
+    if (!menuOpen) return;
+    function handleOutside(e: MouseEvent | TouchEvent) {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        setMenuOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleOutside);
+    document.addEventListener("touchstart", handleOutside);
+    return () => {
+      document.removeEventListener("mousedown", handleOutside);
+      document.removeEventListener("touchstart", handleOutside);
+    };
+  }, [menuOpen]);
+
+  function handleFollowClick() {
+    if (isFollowing) {
+      // Unfollowing gets a confirm whenever there's something worth
+      // knowing first: a mutual follow (easy to drop by accident) or
+      // a private account (re-following means asking again, not an
+      // instant follow) — either reason is enough to pause, and the
+      // modal below shows whichever applies.
+      if (isFollowedByUser || profile?.is_private) {
+        setShowUnfollowConfirm(true);
+        return;
+      }
+      toggleFollow.mutate(true);
+      return;
+    }
+
+    if (hasPendingRequest) {
+      cancelFollowRequest.mutate();
+      return;
+    }
+
+    if (profile?.is_private) {
+      sendFollowRequest.mutate();
+      return;
+    }
+
+    toggleFollow.mutate(false);
+  }
+
+  function confirmUnfollow() {
+    toggleFollow.mutate(true);
+    setShowUnfollowConfirm(false);
+  }
 
   async function handleMessage() {
     if (!profile) return;
@@ -127,6 +194,18 @@ export function ProfilePage() {
               Visitor
             </button>
             <Link
+              to="/requests"
+              aria-label="Follow requests"
+              className="relative flex items-center justify-center text-ink-muted border border-border rounded-full p-2"
+            >
+              <UserCheck size={16} />
+              {incomingRequestCount > 0 && (
+                <span className="absolute -top-1 -right-1 bg-danger text-canvas text-[10px] font-medium rounded-full w-4 h-4 flex items-center justify-center">
+                  {incomingRequestCount > 9 ? "9+" : incomingRequestCount}
+                </span>
+              )}
+            </Link>
+            <Link
               to="/wallet"
               aria-label="Wallet"
               className="flex items-center justify-center text-ink-muted border border-border rounded-full p-2"
@@ -154,45 +233,58 @@ export function ProfilePage() {
               Message
             </button>
             <button
-              onClick={() => toggleFollow.mutate(isFollowing)}
-              disabled={toggleFollow.isPending || isBlocked}
+              onClick={handleFollowClick}
+              disabled={
+                toggleFollow.isPending ||
+                sendFollowRequest.isPending ||
+                cancelFollowRequest.isPending ||
+                isBlocked
+              }
               className={`px-5 py-2 rounded-full text-sm font-medium disabled:opacity-40 ${
-                isFollowing ? "bg-accent-soft text-accent" : "bg-accent text-canvas"
+                isFollowing || hasPendingRequest ? "bg-accent-soft text-accent" : "bg-accent text-canvas"
               }`}
             >
-              {isFollowing ? "Following" : "Follow"}
+              {isFollowing
+                ? "Following"
+                : hasPendingRequest
+                ? "Requested"
+                : isFollowedByUser
+                ? "Follow back"
+                : "Follow"}
             </button>
 
-            <button
-              onClick={() => setMenuOpen((o) => !o)}
-              className="text-ink-muted p-2"
-              aria-label="More options"
-            >
-              <MoreHorizontal size={18} />
-            </button>
+            <div ref={menuRef} className="relative">
+              <button
+                onClick={() => setMenuOpen((o) => !o)}
+                className="text-ink-muted p-2"
+                aria-label="More options"
+              >
+                <MoreHorizontal size={18} />
+              </button>
 
-            {menuOpen && (
-              <div className="absolute top-full right-0 mt-1 bg-canvas border border-border rounded-xl shadow-lg py-1 w-40 z-10">
-                <button
-                  onClick={() => {
-                    toggleMute.mutate(isMuted);
-                    setMenuOpen(false);
-                  }}
-                  className="w-full text-left px-4 py-2.5 text-sm text-ink hover:bg-surface"
-                >
-                  {isMuted ? "Unmute" : "Mute"}
-                </button>
-                <button
-                  onClick={() => {
-                    toggleBlock.mutate(isBlocked);
-                    setMenuOpen(false);
-                  }}
-                  className="w-full text-left px-4 py-2.5 text-sm text-danger hover:bg-surface"
-                >
-                  {isBlocked ? "Unblock" : "Block"}
-                </button>
-              </div>
-            )}
+              {menuOpen && (
+                <div className="absolute top-full right-0 mt-1 bg-canvas border border-border rounded-xl shadow-lg py-1 w-40 z-10">
+                  <button
+                    onClick={() => {
+                      toggleMute.mutate(isMuted);
+                      setMenuOpen(false);
+                    }}
+                    className="w-full text-left px-4 py-2.5 text-sm text-ink hover:bg-surface"
+                  >
+                    {isMuted ? "Unmute" : "Mute"}
+                  </button>
+                  <button
+                    onClick={() => {
+                      toggleBlock.mutate(isBlocked);
+                      setMenuOpen(false);
+                    }}
+                    className="w-full text-left px-4 py-2.5 text-sm text-danger hover:bg-surface"
+                  >
+                    {isBlocked ? "Unblock" : "Block"}
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
         )}
 
@@ -359,6 +451,47 @@ export function ProfilePage() {
           alt={profile.display_name}
           onClose={() => setAvatarOpen(false)}
         />
+      )}
+
+      {showUnfollowConfirm && (
+        <div
+          className="fixed inset-0 bg-ink/40 flex items-center justify-center z-50 px-6"
+          onClick={() => setShowUnfollowConfirm(false)}
+        >
+          <div
+            className="bg-canvas rounded-2xl p-5 w-full max-w-sm"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="text-ink text-sm mb-4 space-y-2">
+              {isFollowedByUser && (
+                <p>
+                  You and {firstName} are friends. Still want to unfollow?
+                </p>
+              )}
+              {profile.is_private && (
+                <p>
+                  This account is private. If you unfollow, you'll need to send a new follow
+                  request and be approved again to follow {firstName}.
+                </p>
+              )}
+            </div>
+            <div className="flex gap-2">
+              <button
+                onClick={() => setShowUnfollowConfirm(false)}
+                className="flex-1 border border-border text-ink-muted py-2.5 rounded-lg text-sm"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={confirmUnfollow}
+                disabled={toggleFollow.isPending}
+                className="flex-1 bg-accent text-canvas py-2.5 rounded-lg text-sm font-medium disabled:opacity-50"
+              >
+                Unfollow
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
