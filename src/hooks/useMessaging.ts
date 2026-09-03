@@ -39,9 +39,10 @@ export function useConversations() {
       if (!myParticipation?.length) return [];
 
       // "Deleted" chats are hidden for this user only. Archived chats
-      // are also kept out of the main list for now (there's no
-      // Archived view yet to surface them in — worth adding if you
-      // want a way back to them later).
+      // (manual archives, and pending message requests from people who
+      // don't follow the user back — see is_request) are also kept out
+      // of the main list here; see useArchivedConversations for the
+      // Archive screen that surfaces them.
       const visible = myParticipation.filter((p) => !p.hidden_at && !p.archived_at);
       if (!visible.length) return [];
 
@@ -213,10 +214,24 @@ export function useSendMessage(conversationId: string) {
           reply_to_message_id: replyToMessageId,
         });
       if (error) throw error;
+
+      // Replying accepts a pending message request — moves this
+      // conversation out of MY Archive. No-ops for a normal chat, and
+      // for the original request sender's own copy (never flagged
+      // is_request to begin with, since only the recipient's row is).
+      const { error: acceptError } = await supabase
+        .from("conversation_participants")
+        .update({ is_request: false, archived_at: null })
+        .eq("conversation_id", conversationId)
+        .eq("user_id", user.id)
+        .eq("is_request", true);
+      if (acceptError) console.error("Failed to accept message request:", acceptError);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["messages", conversationId] });
       queryClient.invalidateQueries({ queryKey: ["conversations"] });
+      queryClient.invalidateQueries({ queryKey: ["archived-conversations"] });
+      queryClient.invalidateQueries({ queryKey: ["my-participant-state", conversationId] });
     },
   });
 }
@@ -421,4 +436,220 @@ export function useStartConversation() {
 export function useUnreadConversationCount(): number {
   const { data: conversations } = useConversations();
   return conversations?.filter((c) => c.unread).length ?? 0;
-                                                   }
+}
+
+export interface ArchivedConversationSummary extends ConversationSummary {
+  is_request: boolean;
+}
+
+/**
+ * Everything currently archived for the current user — both manually
+ * archived chats and pending message requests (is_request: true, from
+ * people who don't follow them back yet). Powers the Archive screen.
+ */
+export function useArchivedConversations() {
+  const { user } = useAuth();
+
+  return useQuery({
+    queryKey: ["archived-conversations", user?.id],
+    queryFn: async (): Promise<ArchivedConversationSummary[]> => {
+      const { data: myParticipation, error } = await supabase
+        .from("conversation_participants")
+        .select("conversation_id, last_read_at, is_request")
+        .eq("user_id", user!.id)
+        .not("archived_at", "is", null)
+        .is("hidden_at", null);
+
+      if (error) throw error;
+      if (!myParticipation?.length) return [];
+
+      const conversationIds = myParticipation.map((p) => p.conversation_id);
+      const readMap = new Map(myParticipation.map((p) => [p.conversation_id, p.last_read_at]));
+      const requestMap = new Map(myParticipation.map((p) => [p.conversation_id, p.is_request]));
+
+      const { data: conversations, error: convError } = await supabase
+        .from("conversations")
+        .select("id, last_message_at")
+        .in("id", conversationIds)
+        .order("last_message_at", { ascending: false });
+
+      if (convError) throw convError;
+
+      const results: ArchivedConversationSummary[] = [];
+
+      for (const conv of conversations ?? []) {
+        const { data: otherParticipant } = await supabase
+          .from("conversation_participants")
+          .select(
+            "profile:profiles!conversation_participants_user_id_fkey(id, username, display_name, avatar_url, last_seen_at)"
+          )
+          .eq("conversation_id", conv.id)
+          .neq("user_id", user!.id)
+          .maybeSingle();
+
+        const { data: lastMessage } = await supabase
+          .from("messages")
+          .select("content, sender_id, created_at, delivered_at, read_at")
+          .eq("conversation_id", conv.id)
+          .eq("is_deleted", false)
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+
+        if (!otherParticipant?.profile) continue;
+
+        const lastReadAt = readMap.get(conv.id);
+        const unread =
+          !!lastMessage &&
+          lastMessage.sender_id !== user!.id &&
+          (!lastReadAt || new Date(lastMessage.created_at) > new Date(lastReadAt));
+
+        results.push({
+          id: conv.id,
+          last_message_at: conv.last_message_at,
+          pinned_at: null,
+          archived_at: conv.last_message_at, // presence in this list already implies archived; exact value isn't read by the UI
+          is_request: requestMap.get(conv.id) ?? false,
+          other_participant: otherParticipant.profile as any,
+          last_message: lastMessage
+            ? {
+                content: lastMessage.content,
+                sender_id: lastMessage.sender_id,
+                delivered_at: lastMessage.delivered_at,
+                read_at: lastMessage.read_at,
+              }
+            : null,
+          unread,
+        });
+      }
+
+      return results;
+    },
+    enabled: !!user,
+    refetchInterval: 15_000,
+  });
+}
+
+/** When the user last opened the Archive screen — drives the badge count below. */
+export function useArchiveLastSeenAt() {
+  const { user } = useAuth();
+
+  return useQuery({
+    queryKey: ["archive-last-seen", user?.id],
+    queryFn: async (): Promise<string | null> => {
+      const { data, error } = await supabase
+        .from("profiles")
+        .select("archive_last_seen_at")
+        .eq("id", user!.id)
+        .single();
+      if (error) throw error;
+      return data.archive_last_seen_at;
+    },
+    enabled: !!user,
+  });
+}
+
+/**
+ * Call this when the Archive screen mounts. Clears its badge count —
+ * items that haven't been replied to yet still stay in the Archive
+ * list itself, only the "new" badge clears.
+ */
+export function useMarkArchiveSeen() {
+  const { user } = useAuth();
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async () => {
+      if (!user) return;
+      const { error } = await supabase
+        .from("profiles")
+        .update({ archive_last_seen_at: new Date().toISOString() })
+        .eq("id", user.id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["archive-last-seen"] });
+    },
+  });
+}
+
+/**
+ * Count for the badge on the Archive row — NOT the bottom nav message
+ * icon (that's useUnreadConversationCount above, which deliberately
+ * never counts archived/request conversations, since useConversations
+ * excludes anything with archived_at set). "New" here means unread and
+ * arrived since the user last opened the Archive screen.
+ */
+export function useArchiveBadgeCount(): number {
+  const { data: archived } = useArchivedConversations();
+  const { data: lastSeenAt } = useArchiveLastSeenAt();
+
+  if (!archived?.length) return 0;
+  return archived.filter(
+    (c) => c.unread && (!lastSeenAt || new Date(c.last_message_at) > new Date(lastSeenAt))
+  ).length;
+}
+
+/**
+ * Pin/unpin with a client-side 3-pin cap (mirrored at the DB level by
+ * the enforce_pin_limit trigger — see sql/20_message_requests_and_archive.sql
+ * — as a backstop against races or other clients). Throws
+ * Error("PIN_LIMIT_REACHED") when at the cap; callers should catch that
+ * specifically to show a friendly message instead of a raw DB error.
+ */
+export function useTogglePin() {
+  const { user } = useAuth();
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ conversationId, pin }: { conversationId: string; pin: boolean }) => {
+      if (!user) return;
+
+      if (pin) {
+        const { count, error: countError } = await supabase
+          .from("conversation_participants")
+          .select("conversation_id", { count: "exact", head: true })
+          .eq("user_id", user.id)
+          .not("pinned_at", "is", null);
+        if (countError) throw countError;
+        if ((count ?? 0) >= 3) throw new Error("PIN_LIMIT_REACHED");
+      }
+
+      const { error } = await supabase
+        .from("conversation_participants")
+        .update({ pinned_at: pin ? new Date().toISOString() : null })
+        .eq("conversation_id", conversationId)
+        .eq("user_id", user.id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["conversations"] });
+    },
+  });
+}
+
+/**
+ * My own participant state for one conversation — currently just used
+ * to know whether I'm looking at a pending message request (see the
+ * banner in MessageThread.tsx). Separate small query rather than
+ * reusing useConversations' list shape, same reasoning as
+ * useOtherParticipant in MessageThread.tsx.
+ */
+export function useMyParticipantState(conversationId: string) {
+  const { user } = useAuth();
+
+  return useQuery({
+    queryKey: ["my-participant-state", conversationId, user?.id],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("conversation_participants")
+        .select("is_request, pinned_at, archived_at")
+        .eq("conversation_id", conversationId)
+        .eq("user_id", user!.id)
+        .maybeSingle();
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!conversationId && !!user,
+  });
+}
