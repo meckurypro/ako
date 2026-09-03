@@ -3,9 +3,9 @@ import type { ReactNode, MouseEvent } from "react";
 
 export interface EngagementAction {
   key: string;
-  label: string;
+  label: string;       // used as aria-label only — not rendered visually
   icon: ReactNode;
-  /** null hides the number entirely (e.g. Bookmark has no public count) */
+  /** null renders no count (no number shown, space still reserved) */
   count: number | null;
   onClick: (e: MouseEvent) => void;
 }
@@ -14,13 +14,9 @@ interface ReactionTrayProps {
   actions: EngagementAction[];
 }
 
-// Purely presentational — PostCard builds the 8 possible actions,
-// orders them by the user's own usage (useEngagementOrder), and
-// hands this component exactly the top 5 to render. The divider
-// above separates this row from the post content/media, and the
-// icon/count/label stack, evenly spaced, mirrors the product mockup.
-// Icons + counts default to accent green regardless of toggled state
-// (per the Uche reference) — only the label underneath stays muted.
+// Purely presentational. PostCard builds the 5 visible actions and
+// passes them here. Each button shows icon + count only — no label text.
+// The label is kept in the interface for aria-label so screen readers work.
 export function ReactionTray({ actions }: ReactionTrayProps) {
   return (
     <div className="flex items-stretch justify-between border-t border-border mt-3 pt-3">
@@ -28,13 +24,15 @@ export function ReactionTray({ actions }: ReactionTrayProps) {
         <button
           key={action.key}
           onClick={action.onClick}
+          aria-label={action.label}
           className="flex flex-col items-center gap-1 flex-1 min-w-0 text-accent"
         >
           {action.icon}
+          {/* Reserve vertical space so all buttons stay the same height
+              regardless of whether they have a count. */}
           <span className="text-sm font-semibold text-accent leading-none min-h-[1em]">
             {action.count !== null ? action.count : ""}
           </span>
-          <span className="text-[11px] leading-none text-ink-muted">{action.label}</span>
         </button>
       ))}
     </div>
