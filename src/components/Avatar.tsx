@@ -6,11 +6,9 @@ interface AvatarProps {
 
 const sizeClasses = {
   sm: "w-8 h-8 text-xs",
-  md: "w-11 h-11 text-sm",
-  // Sized against PostCard's tightened name/role/timestamp stack
-  // (24px name line + 20px role line + 16px timestamp line = 60px),
-  // so the avatar's top aligns with the name line and its bottom
-  // lands close to the timestamp/globe row.
+  // Matches the Uche reference: avatar reads as a compact identity marker,
+  // not a headline element — roughly in line with the name+role stack.
+  md: "w-10 h-10 text-sm",
   xl: "w-16 h-16 text-xl",
   lg: "w-20 h-20 text-2xl",
 };
