@@ -55,7 +55,12 @@ function ForYouTab({ interestId }: { interestId?: string }) {
   useEffect(() => setPage(0), [interestId]);
 
   if (isLoading && page === 0) return <p className="text-ink-muted text-center py-10">Loading your feed…</p>;
-  if (error) return <p className="text-danger text-center py-10">Couldn't load the feed. Try again.</p>;
+  if (error) return (
+    <p className="text-danger text-center py-10 px-4 text-sm break-words">
+      Couldn't load the feed: {(error as any)?.message ?? String(error)}
+      {(error as any)?.hint && <> — hint: {(error as any).hint}</>}
+    </p>
+  );
   if (posts.length === 0 && page === 0) {
     return (
       <div className="text-center py-16">
