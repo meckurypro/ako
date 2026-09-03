@@ -1,42 +1,58 @@
+// src/pages/CreateProject.tsx
 import { useRef, useState, type FormEvent } from "react";
 import { useNavigate } from "react-router-dom";
-import { ArrowLeft, ImageIcon, FileUp } from "lucide-react";
+import { ArrowLeft, ImageIcon } from "lucide-react";
 import {
   useCreateProject,
   PROJECT_TYPE_OPTIONS,
   PROJECT_TYPE_LABELS,
+  PROJECT_TYPE_HINTS,
   type ProjectType,
 } from "../hooks/useProjects";
 import { useUploadProjectThumbnail } from "../hooks/useUploadProjectThumbnail";
-import { useUploadProjectFile } from "../hooks/useUploadProjectFile";
 import { FormField } from "../components/FormField";
 import { Button } from "../components/Button";
 import { TopicPicker } from "../components/TopicPicker";
 import { FormatToolbar } from "../components/FormatToolbar";
+import { EventFields, EMPTY_EVENT_FIELDS, type EventFieldsValue } from "../components/project-types/EventFields";
+import { MeetingFields, EMPTY_MEETING_FIELDS, type MeetingFieldsValue } from "../components/project-types/MeetingFields";
+import { RoomFields } from "../components/project-types/RoomFields";
+import { CourseFields } from "../components/project-types/CourseFields";
+import {
+  DeliverableFields,
+  EMPTY_DELIVERABLE_FIELDS,
+  type DeliverableFieldsValue,
+} from "../components/project-types/DeliverableFields";
+
+// Types that use the shared link-or-upload block.
+const DELIVERABLE_TYPES: ProjectType[] = ["audio", "video", "file"];
 
 export function CreateProject() {
   const navigate = useNavigate();
   const createProject = useCreateProject();
   const uploadThumbnail = useUploadProjectThumbnail();
-  const uploadFile = useUploadProjectFile();
 
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const descriptionRef = useRef<HTMLTextAreaElement>(null);
-  const [projectType, setProjectType] = useState<ProjectType>("other");
+  const [projectType, setProjectType] = useState<ProjectType>("file");
   const [topicIds, setTopicIds] = useState<Set<string>>(new Set());
-  const [externalUrl, setExternalUrl] = useState("");
   const [priceUsd, setPriceUsd] = useState("0");
   const [showPromo, setShowPromo] = useState(false);
   const [promoPriceUsd, setPromoPriceUsd] = useState("");
   const [thumbnailUrl, setThumbnailUrl] = useState<string | null>(null);
   const [thumbnailRatio, setThumbnailRatio] = useState<{ width: number; height: number } | null>(null);
-  const [filePath, setFilePath] = useState<string | null>(null);
-  const [fileName, setFileName] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
+  // Type-specific state — only the block matching projectType is
+  // read/validated/sent; switching types keeps the others' state
+  // around harmlessly rather than resetting it, in case the host
+  // switches back.
+  const [deliverable, setDeliverable] = useState<DeliverableFieldsValue>(EMPTY_DELIVERABLE_FIELDS);
+  const [eventFields, setEventFields] = useState<EventFieldsValue>(EMPTY_EVENT_FIELDS);
+  const [meetingFields, setMeetingFields] = useState<MeetingFieldsValue>(EMPTY_MEETING_FIELDS);
+
   const thumbnailInputRef = useRef<HTMLInputElement>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
 
   function toggleTopic(interestId: string) {
     setTopicIds((prev) => {
@@ -63,17 +79,26 @@ export function CreateProject() {
     }
   }
 
-  async function handleFileSelect(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    e.target.value = "";
-    if (!file) return;
-    try {
-      const path = await uploadFile.mutateAsync(file);
-      setFilePath(path);
-      setFileName(file.name);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "File upload failed.");
+  function validateTypeSpecific(price: number): string | null {
+    if (DELIVERABLE_TYPES.includes(projectType)) {
+      if (!deliverable.external_url.trim() && !deliverable.file_path) {
+        return "Add a link or upload a file — at least one is required.";
+      }
+      if (price > 0 && !deliverable.file_path && !deliverable.external_url.trim()) {
+        return "Paid projects need something to unlock — a link or a file.";
+      }
     }
+    if (projectType === "event") {
+      if (!eventFields.location_value.trim()) {
+        return eventFields.location_type === "physical" ? "Add the event address." : "Add the join link.";
+      }
+    }
+    if (projectType === "meeting") {
+      if (!meetingFields.scheduled_at) {
+        return "Set when this meeting happens.";
+      }
+    }
+    return null;
   }
 
   async function handleSubmit(e: FormEvent) {
@@ -84,14 +109,12 @@ export function CreateProject() {
       setError("Title is required.");
       return;
     }
-    if (!externalUrl.trim() && !filePath) {
-      setError("Add a link or upload a file — at least one is required.");
-      return;
-    }
 
     const price = parseFloat(priceUsd) || 0;
-    if (price > 0 && !filePath && !externalUrl.trim()) {
-      setError("Paid projects need something to unlock — a link or a file.");
+
+    const typeError = validateTypeSpecific(price);
+    if (typeError) {
+      setError(typeError);
       return;
     }
 
@@ -113,14 +136,31 @@ export function CreateProject() {
         title: title.trim(),
         description: description.trim() || undefined,
         project_type: projectType,
-        external_url: externalUrl.trim() || undefined,
-        file_path: filePath ?? undefined,
+        // Deliverable types only — Event/Meeting/Room/Course don't use these.
+        external_url: DELIVERABLE_TYPES.includes(projectType)
+          ? deliverable.external_url.trim() || undefined
+          : undefined,
+        file_path: DELIVERABLE_TYPES.includes(projectType) ? deliverable.file_path ?? undefined : undefined,
         thumbnail_url: thumbnailUrl ?? undefined,
         thumbnail_width: thumbnailRatio?.width,
         thumbnail_height: thumbnailRatio?.height,
         price_usd: price,
         promo_price_usd: promoPrice,
+        // Course always starts as a draft, no matter what — it can't
+        // be purchased until the host publishes it from the builder.
+        status: projectType === "course" ? "draft" : undefined,
         topic_ids: Array.from(topicIds),
+        event_details:
+          projectType === "event"
+            ? {
+                event_date: eventFields.event_date || undefined,
+                location_type: eventFields.location_type,
+                location_value: eventFields.location_value.trim(),
+                ticket_template_url: eventFields.ticket_template_url || undefined,
+              }
+            : undefined,
+        meeting_details:
+          projectType === "meeting" ? { scheduled_at: meetingFields.scheduled_at } : undefined,
       });
       navigate(-1);
     } catch (err) {
@@ -178,9 +218,9 @@ export function CreateProject() {
             required
           />
 
-          {/* Project type — dropdown on mobile is friendliest for 8
-              options; a radio group of this size gets unwieldy. */}
-          <div className="mb-4">
+          {/* Project type drives everything below it — this is the
+              one field that changes what the rest of the form shows. */}
+          <div className="mb-1.5">
             <label htmlFor="project_type" className="block text-sm font-medium text-ink-muted mb-1.5">
               Project type
             </label>
@@ -198,6 +238,7 @@ export function CreateProject() {
               ))}
             </select>
           </div>
+          <p className="text-xs text-ink-muted mb-4">{PROJECT_TYPE_HINTS[projectType]}</p>
 
           <div className="mb-4">
             <label className="block text-sm font-medium text-ink-muted mb-1.5">Description</label>
@@ -228,34 +269,20 @@ export function CreateProject() {
             </p>
           </div>
 
-          <FormField
-            id="external_url"
-            label="Link (video, book, article, etc.)"
-            type="url"
-            value={externalUrl}
-            onChange={(e) => setExternalUrl(e.target.value)}
-            placeholder="https://"
-          />
-
-          {/* Optional hosted file */}
-          <div className="mb-4">
-            <label className="block text-sm font-medium text-ink-muted mb-1.5">
-              Hosted file (optional — for digital products)
-            </label>
-            <button
-              type="button"
-              onClick={() => fileInputRef.current?.click()}
-              disabled={uploadFile.isPending}
-              className="w-full flex items-center gap-2 px-4 py-3 rounded-xl border border-border bg-surface text-sm text-ink-muted disabled:opacity-50"
-            >
-              <FileUp size={16} />
-              {uploadFile.isPending ? "Uploading…" : fileName ?? "Choose file"}
-            </button>
-            <input ref={fileInputRef} type="file" onChange={handleFileSelect} className="hidden" />
-            <p className="text-xs text-ink-muted mt-1">
-              Stored privately — only unlocked for buyers or if the project is free.
-            </p>
-          </div>
+          {/* ---- Type-specific block ---- */}
+          {DELIVERABLE_TYPES.includes(projectType) && (
+            <DeliverableFields
+              kind={projectType as "audio" | "video" | "file"}
+              value={deliverable}
+              onChange={setDeliverable}
+              onError={setError}
+            />
+          )}
+          {projectType === "event" && <EventFields value={eventFields} onChange={setEventFields} />}
+          {projectType === "meeting" && <MeetingFields value={meetingFields} onChange={setMeetingFields} />}
+          {projectType === "room" && <RoomFields />}
+          {projectType === "course" && <CourseFields />}
+          {/* ---- end type-specific block ---- */}
 
           <div className="mb-4">
             <label className="block text-sm font-medium text-ink-muted mb-1.5">Price (USD)</label>
@@ -313,7 +340,7 @@ export function CreateProject() {
           )}
 
           <Button type="submit" loading={createProject.isPending}>
-            Publish project
+            {projectType === "course" ? "Create draft" : "Publish project"}
           </Button>
         </form>
       </div>
