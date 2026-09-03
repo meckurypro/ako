@@ -86,6 +86,31 @@ export function useIsFollowing(targetUserId: string) {
   });
 }
 
+/**
+ * The reverse of useIsFollowing: does targetUserId follow ME. Powers
+ * "Follow back" (I don't follow them, but they follow me) and the
+ * mutual-follow "you and X are friends" unfollow reminder (I follow
+ * them AND they follow me).
+ */
+export function useIsFollowedByUser(targetUserId: string) {
+  const { user } = useAuth();
+
+  return useQuery({
+    queryKey: ["is-followed-by", targetUserId, user?.id],
+    queryFn: async () => {
+      if (!user) return false;
+      const { data } = await supabase
+        .from("follows")
+        .select("follower_id")
+        .eq("follower_id", targetUserId)
+        .eq("following_id", user.id)
+        .maybeSingle();
+      return !!data;
+    },
+    enabled: !!user && !!targetUserId,
+  });
+}
+
 export function useToggleFollow(targetUserId: string) {
   const { user } = useAuth();
   const queryClient = useQueryClient();
@@ -110,6 +135,7 @@ export function useToggleFollow(targetUserId: string) {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["is-following", targetUserId] });
+      queryClient.invalidateQueries({ queryKey: ["is-followed-by", targetUserId] });
       queryClient.invalidateQueries({ queryKey: ["profile"] });
       queryClient.invalidateQueries({ queryKey: ["followers"] });
       queryClient.invalidateQueries({ queryKey: ["following"] });
