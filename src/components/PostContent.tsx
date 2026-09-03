@@ -10,7 +10,7 @@ function renderParagraphs(content: string) {
   return paragraphs.map((para, i) => (
     <p
       key={i}
-      className={`text-base text-ink leading-relaxed whitespace-pre-wrap break-words ${
+      className={`text-[15px] text-ink leading-[24px] whitespace-pre-wrap break-words ${
         i < paragraphs.length - 1 ? "mb-3" : ""
       }`}
     >
@@ -26,7 +26,7 @@ export function PostContent({ heading, content }: PostContentProps) {
   return (
     <div>
       {heading && (
-        <h3 className="font-display text-2xl font-bold leading-tight text-ink mb-3">
+        <h3 className="font-display text-[26px] font-bold leading-[30px] text-ink mb-3">
           {renderFormattedText(heading, "h")}
         </h3>
       )}
