@@ -5,6 +5,7 @@ import {
   MessageCircle,
   Heart,
   ThumbsDown,
+  Repeat2,
   Share2,
   Bookmark,
   Handshake,
@@ -12,6 +13,7 @@ import {
   Hand,
   Gift as GiftIcon,
   Globe,
+  MoreHorizontal,
 } from "lucide-react";
 import { Avatar } from "./Avatar";
 import { TierBadge } from "./TierBadge";
@@ -20,12 +22,17 @@ import { ReactionTray, type EngagementAction } from "./ReactionTray";
 import { PostMedia } from "./PostMedia";
 import { PostContent } from "./PostContent";
 import { StanceComposer, STANCE_COLORS } from "./StanceComposer";
+import { ReshareSheet } from "./ReshareSheet";
+import { RepostEmbed } from "./RepostEmbed";
+import { RepostBadge } from "./RepostBadge";
+import { PostActionSheet } from "./PostActionSheet";
 import { useAuth } from "../hooks/useAuth";
 import { useIsBookmarked, useToggleBookmark } from "../hooks/useBookmarks";
 import { useMyReaction, useToggleReaction } from "../hooks/useReactions";
 import { useEngagementOrder, type SecondaryActionKey } from "../hooks/useEngagementOrder";
+import { useDeletePost, useSetPostArchived, canEditPost } from "../hooks/usePosts";
 import { shortDisplayName } from "../lib/displayName";
-import type { PostWithAuthor, Stance } from "../types/database";
+import { isPlainReshare, isQuote, type PostWithAuthor, type Stance } from "../types/database";
 
 function timeAgo(dateString: string): string {
   const seconds = Math.floor((Date.now() - new Date(dateString).getTime()) / 1000);
@@ -55,27 +62,45 @@ export function PostCard({
 }: {
   post: PostWithAuthor;
   // Accepted so callers like ProfilePage can flag the viewer as the post's
-  // owner. Not wired to any UI yet — owner actions (Edit/Archive/Delete)
-  // still need a home; see TODO below.
+  // owner (e.g. viewing their own profile while impersonating no one).
   isOwnerView?: boolean;
 }) {
   const { user } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const [activeStance, setActiveStance] = useState<Stance | null>(null);
+  const [showReshareSheet, setShowReshareSheet] = useState(false);
+  const [showActionSheet, setShowActionSheet] = useState(false);
   const lastTapRef = useRef(0);
 
-  const isBookmarkedQuery = useIsBookmarked(post.id);
-  const toggleBookmark = useToggleBookmark(post.id);
+  // Reshare/quote: reshared_post_id set + empty content = plain reshare
+  // (renders/engages as the original, badge in the corner — same as a
+  // retweet: no separate engagement surface for the repost itself).
+  // Non-empty content = quote (own post, original embedded as a card
+  // below the caption, own engagement).
+  const plainReshare = isPlainReshare(post);
+  const quotePost = isQuote(post);
+  const original = post.reshared_post;
+  const originalUnavailable = plainReshare && (!original || original.is_deleted || original.is_archived);
+
+  // What the card actually renders/engages against. `post` itself for
+  // quotes and normal posts; the original for a live plain reshare.
+  const displayPost = plainReshare && original && !originalUnavailable ? original : post;
+
+  const isBookmarkedQuery = useIsBookmarked(displayPost.id);
+  const toggleBookmark = useToggleBookmark(displayPost.id);
   const isBookmarked = !!isBookmarkedQuery.data;
 
-  const likeQuery   = useMyReaction(post.id, "post", "like");
-  const dislikeQuery = useMyReaction(post.id, "post", "dislike");
-  const toggleLike   = useToggleReaction(post.id, "post", "like");
-  const toggleDislike = useToggleReaction(post.id, "post", "dislike");
-  const toggleShare  = useToggleReaction(post.id, "post", "share");
+  const likeQuery   = useMyReaction(displayPost.id, "post", "like");
+  const dislikeQuery = useMyReaction(displayPost.id, "post", "dislike");
+  const toggleLike   = useToggleReaction(displayPost.id, "post", "like");
+  const toggleDislike = useToggleReaction(displayPost.id, "post", "dislike");
+  const toggleShare  = useToggleReaction(displayPost.id, "post", "share");
   const isLiked    = !!likeQuery.data;
   const isDisliked = !!dislikeQuery.data;
+
+  const deletePost = useDeletePost();
+  const setArchived = useSetPostArchived();
 
   const { data: engagementOrder } = useEngagementOrder();
 
@@ -89,15 +114,15 @@ export function PostCard({
 
   // Already on the post page → scroll to discussion; otherwise navigate there.
   function handleCommentTap() {
-    if (location.pathname === `/post/${post.id}`) {
+    if (location.pathname === `/post/${displayPost.id}`) {
       document.getElementById("discussion")?.scrollIntoView({ behavior: "smooth" });
     } else {
-      navigate(`/post/${post.id}`);
+      navigate(`/post/${displayPost.id}`);
     }
   }
 
   async function handleShare() {
-    const url = `${window.location.origin}/post/${post.id}`;
+    const url = `${window.location.origin}/post/${displayPost.id}`;
     if (navigator.share) {
       try {
         await navigator.share({ url });
@@ -116,7 +141,22 @@ export function PostCard({
 
   // TODO: replace with GiftPicker modal once that component exists.
   function handleGift() {
-    navigate(`/post/${post.id}?gift=1`);
+    navigate(`/post/${displayPost.id}?gift=1`);
+  }
+
+  // Owner actions always operate on this row (the reshare/quote/normal
+  // post that belongs to the viewer) — never on a displayed original.
+  function handleEdit() {
+    navigate(`/post/${post.id}/edit`);
+  }
+
+  function handleToggleArchive() {
+    setArchived.mutate({ postId: post.id, archived: !post.is_archived });
+  }
+
+  function handleDelete() {
+    if (!window.confirm("Delete this post? This can't be undone.")) return;
+    deletePost.mutate(post.id);
   }
 
   // ─── Secondary action definitions (all 6, passed to scrollable tray) ──────
@@ -128,21 +168,21 @@ export function PostCard({
       key: "support",
       label: "Support",
       icon: <Handshake size={20} className={STANCE_COLORS.support.iconClass} />,
-      count: post.support_count > 0 ? post.support_count : null,
+      count: displayPost.support_count > 0 ? displayPost.support_count : null,
       onAction: () => handleStance("support"),
     },
     disagree: {
       key: "disagree",
       label: "Disagree",
       icon: <XCircle size={20} className={STANCE_COLORS.disagree.iconClass} />,
-      count: post.disagree_count > 0 ? post.disagree_count : null,
+      count: displayPost.disagree_count > 0 ? displayPost.disagree_count : null,
       onAction: () => handleStance("disagree"),
     },
     pushback: {
       key: "pushback",
       label: "Pushback",
       icon: <Hand size={20} className={STANCE_COLORS.pushback.iconClass} />,
-      count: post.pushback_count > 0 ? post.pushback_count : null,
+      count: displayPost.pushback_count > 0 ? displayPost.pushback_count : null,
       onAction: () => handleStance("pushback"),
     },
     dislike: {
@@ -155,14 +195,14 @@ export function PostCard({
           className={isDisliked ? "text-danger" : ""}
         />
       ),
-      count: post.dislike_count > 0 ? post.dislike_count : null,
+      count: displayPost.dislike_count > 0 ? displayPost.dislike_count : null,
       onAction: () => toggleDislike.mutate(isDisliked),
     },
     gift: {
       key: "gift",
       label: "Gift",
       icon: <GiftIcon size={20} />,
-      count: post.gift_count > 0 ? post.gift_count : null,
+      count: displayPost.gift_count > 0 ? displayPost.gift_count : null,
       onAction: handleGift,
     },
     save: {
@@ -190,7 +230,7 @@ export function PostCard({
     "dislike",
   ];
 
-  // ─── Tray: Like (fixed, slot 1) + all 6 secondary in ranked order ─────────
+  // ─── Tray: Like (fixed) + Reshare (fixed) + all 6 secondary in ranked order ─
   // ReactionTray scrolls horizontally — no slicing needed here. The CSS
   // item width determines how many are visible vs off-screen.
 
@@ -205,8 +245,15 @@ export function PostCard({
           className={isLiked ? "text-accent" : ""}
         />
       ),
-      count: post.like_count > 0 ? post.like_count : null,
+      count: displayPost.like_count > 0 ? displayPost.like_count : null,
       onClick: () => toggleLike.mutate(isLiked),
+    },
+    {
+      key: "reshare",
+      label: "Reshare",
+      icon: <Repeat2 size={20} />,
+      count: displayPost.share_count > 0 ? displayPost.share_count : null,
+      onClick: () => setShowReshareSheet(true),
     },
     ...order.map((k): EngagementAction => ({
       key: secondaryDefs[k].key,
@@ -217,9 +264,12 @@ export function PostCard({
     })),
   ];
 
-  // TODO: wire isOwnerView (and user) into an actual Edit/Archive/Delete
-  // menu once that gets a new home on this card — tracked separately.
+  // Owner-ness and edit eligibility are always about this row (the
+  // reshare/quote/normal post belonging to the viewer), never the
+  // displayed original. A plain reshare has no content of its own, so
+  // there's nothing to edit — only Archive/Delete apply to it.
   const isOwner = isOwnerView || user?.id === post.author.id;
+  const canEdit = !plainReshare && canEditPost(post);
 
   return (
     <article
@@ -227,78 +277,121 @@ export function PostCard({
       className="bg-surface rounded-2xl p-4 mb-4 relative shadow-[0_0_0_1px_rgba(31,29,26,0.07),0_10px_24px_-6px_rgba(31,29,26,0.16)]"
     >
       <div className="flex items-start gap-3">
-        <Link to={`/profile/${post.author.username}`}>
-          <Avatar src={post.author.avatar_url} name={post.author.display_name} size="md" />
+        <Link to={`/profile/${displayPost.author.username}`}>
+          <Avatar src={displayPost.author.avatar_url} name={displayPost.author.display_name} size="md" />
         </Link>
 
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-1.5 flex-wrap">
             <Link
-              to={`/profile/${post.author.username}`}
+              to={`/profile/${displayPost.author.username}`}
               className="font-display font-semibold text-[17px] leading-5 text-ink hover:underline"
             >
-              {shortDisplayName(post.author.display_name)}
+              {shortDisplayName(displayPost.author.display_name)}
             </Link>
-            <TierBadge tier={post.author.tier} />
+            <TierBadge tier={displayPost.author.tier} />
           </div>
 
-          {post.author.roles.length > 0 && (
+          {displayPost.author.roles.length > 0 && (
             <RoleTags
-              roles={post.author.roles}
+              roles={displayPost.author.roles}
               className="text-[13px] font-normal leading-[18px] text-ink-muted block"
             />
           )}
 
           <p className="text-xs leading-[18px] text-ink-muted flex items-center gap-1">
             <span>
-              {timeAgo(post.created_at)}
-              {post.edited_at && " · edited"}
+              {timeAgo(displayPost.created_at)}
+              {displayPost.edited_at && " · edited"}
             </span>
-            {post.visibility === "public" && <Globe size={11} />}
+            {displayPost.visibility === "public" && <Globe size={11} />}
           </p>
         </div>
 
-        {/* ── Comment count + Share — replaces the old ⋯ menu ─────────────── */}
-        {/* Owner actions (Edit/Archive/Delete) are orphaned; they need a new
-            home (e.g. PostDetail page) — to be addressed separately. */}
+        {/* ── Comment count + Share (+ reshare badge / owner menu) ─────────── */}
         <div className="flex flex-col items-center gap-2.5 self-start pt-0.5">
-          <button
-            onClick={handleCommentTap}
-            aria-label="Comments"
-            className="flex flex-col items-center gap-0.5 text-ink-muted"
-          >
-            <MessageCircle size={18} />
-            {post.comment_count > 0 && (
-              <span className="text-[11px] font-medium leading-none text-ink">
-                {post.comment_count}
-              </span>
-            )}
-          </button>
+          {plainReshare && <RepostBadge source={original} />}
 
-          <button
-            onClick={() => void handleShare()}
-            aria-label="Share"
-            className="text-ink-muted"
-          >
-            <Share2 size={18} />
-          </button>
+          {isOwner && (
+            <button
+              onClick={() => setShowActionSheet(true)}
+              aria-label="Post options"
+              className="text-ink-muted"
+            >
+              <MoreHorizontal size={18} />
+            </button>
+          )}
+
+          {!originalUnavailable && (
+            <>
+              <button
+                onClick={handleCommentTap}
+                aria-label="Comments"
+                className="flex flex-col items-center gap-0.5 text-ink-muted"
+              >
+                <MessageCircle size={18} />
+                {displayPost.comment_count > 0 && (
+                  <span className="text-[11px] font-medium leading-none text-ink">
+                    {displayPost.comment_count}
+                  </span>
+                )}
+              </button>
+
+              <button
+                onClick={() => void handleShare()}
+                aria-label="Share"
+                className="text-ink-muted"
+              >
+                <Share2 size={18} />
+              </button>
+            </>
+          )}
         </div>
       </div>
 
-      <Link to={`/post/${post.id}`} onClick={handleContentTap} className="block mt-3">
-        <PostContent heading={post.heading} content={post.content} />
-      </Link>
+      {originalUnavailable ? (
+        <p className="mt-3 text-sm text-ink-muted italic">
+          This post is no longer available.
+        </p>
+      ) : (
+        <>
+          <Link to={`/post/${displayPost.id}`} onClick={handleContentTap} className="block mt-3">
+            <PostContent heading={displayPost.heading} content={displayPost.content} />
+          </Link>
 
-      <PostMedia mediaUrls={post.media_urls} />
+          <PostMedia mediaUrls={displayPost.media_urls} />
 
-      {/* 7 actions in a scrollable row: Like · [6 ranked secondary] */}
-      <ReactionTray actions={trayActions} />
+          {quotePost && <RepostEmbed source={original} />}
+
+          {/* 8 actions in a scrollable row: Like · Reshare · [6 ranked secondary] */}
+          <ReactionTray actions={trayActions} />
+        </>
+      )}
 
       {activeStance && (
         <StanceComposer
-          postId={post.id}
+          postId={displayPost.id}
           stance={activeStance}
           onClose={() => setActiveStance(null)}
+        />
+      )}
+
+      {showReshareSheet && !originalUnavailable && (
+        <ReshareSheet
+          postId={displayPost.id}
+          source={displayPost}
+          onClose={() => setShowReshareSheet(false)}
+        />
+      )}
+
+      {showActionSheet && (
+        <PostActionSheet
+          canEdit={canEdit}
+          isArchived={post.is_archived}
+          onEdit={handleEdit}
+          onToggleArchive={handleToggleArchive}
+          onDelete={handleDelete}
+          onClose={() => setShowActionSheet(false)}
         />
       )}
     </article>
