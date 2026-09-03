@@ -1,22 +1,35 @@
+// src/pages/EditProject.tsx
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { ArrowLeft, ImageIcon, FileUp } from "lucide-react";
+import { ArrowLeft, ImageIcon } from "lucide-react";
 import {
   useProject,
   useProjectTopics,
   useUpdateProject,
-  PROJECT_TYPE_OPTIONS,
   PROJECT_TYPE_LABELS,
-  type ProjectType,
   type ProjectStatus,
 } from "../hooks/useProjects";
+import { useEventDetails, useMeetingDetails } from "../hooks/useProjectTypeDetails";
+import { supabase } from "../lib/supabase";
 import { useUploadProjectThumbnail } from "../hooks/useUploadProjectThumbnail";
-import { useUploadProjectFile } from "../hooks/useUploadProjectFile";
 import { FormField } from "../components/FormField";
 import { Button } from "../components/Button";
 import { TopicPicker } from "../components/TopicPicker";
 import { FormatToolbar } from "../components/FormatToolbar";
+import { EventFields, EMPTY_EVENT_FIELDS, type EventFieldsValue } from "../components/project-types/EventFields";
+import { MeetingFields, EMPTY_MEETING_FIELDS, type MeetingFieldsValue } from "../components/project-types/MeetingFields";
+import {
+  DeliverableFields,
+  EMPTY_DELIVERABLE_FIELDS,
+  type DeliverableFieldsValue,
+} from "../components/project-types/DeliverableFields";
 
+const DELIVERABLE_TYPES = ["audio", "video", "file"] as const;
+
+// 'cancelled' is deliberately not offered here — it only happens
+// through the (not-yet-built) Event/Meeting cancellation flow, which
+// also handles the host's per-cancellation refund choice. Exposing
+// it as a plain status radio here would skip that entirely.
 const STATUS_OPTIONS: { value: ProjectStatus; label: string; hint: string }[] = [
   { value: "active", label: "Published", hint: "Visible to everyone" },
   { value: "draft", label: "Draft", hint: "Only visible to you, not published yet" },
@@ -29,47 +42,43 @@ export function EditProject() {
 
   const { data: project, isLoading } = useProject(projectId);
   const { data: existingTopicIds } = useProjectTopics(projectId);
+  const { data: existingEventDetails } = useEventDetails(project?.project_type === "event" ? projectId : undefined);
+  const { data: existingMeetingDetails } = useMeetingDetails(
+    project?.project_type === "meeting" ? projectId : undefined
+  );
   const updateProject = useUpdateProject();
   const uploadThumbnail = useUploadProjectThumbnail();
-  const uploadFile = useUploadProjectFile();
 
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const descriptionRef = useRef<HTMLTextAreaElement>(null);
-  const [projectType, setProjectType] = useState<ProjectType>("other");
   const [topicIds, setTopicIds] = useState<Set<string>>(new Set());
-  const [externalUrl, setExternalUrl] = useState("");
   const [priceUsd, setPriceUsd] = useState("0");
   const [showPromo, setShowPromo] = useState(false);
   const [promoPriceUsd, setPromoPriceUsd] = useState("");
   const [status, setStatus] = useState<ProjectStatus>("active");
   const [thumbnailUrl, setThumbnailUrl] = useState<string | null>(null);
   const [thumbnailRatio, setThumbnailRatio] = useState<{ width: number; height: number } | null>(null);
-  const [filePath, setFilePath] = useState<string | null>(null);
-  const [fileName, setFileName] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [hydrated, setHydrated] = useState(false);
   const [topicsHydrated, setTopicsHydrated] = useState(false);
 
+  const [deliverable, setDeliverable] = useState<DeliverableFieldsValue>(EMPTY_DELIVERABLE_FIELDS);
+  const [eventFields, setEventFields] = useState<EventFieldsValue>(EMPTY_EVENT_FIELDS);
+  const [meetingFields, setMeetingFields] = useState<MeetingFieldsValue>(EMPTY_MEETING_FIELDS);
+  const [typeDetailsHydrated, setTypeDetailsHydrated] = useState(false);
+
   const thumbnailInputRef = useRef<HTMLInputElement>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
 
   function toggleTopic(interestId: string) {
     setTopicIds((prev) => {
       const next = new Set(prev);
-      if (next.has(interestId)) {
-        next.delete(interestId);
-      } else {
-        next.add(interestId);
-      }
+      if (next.has(interestId)) next.delete(interestId);
+      else next.add(interestId);
       return next;
     });
   }
 
-  // Topics load via a separate query from the project itself, so
-  // they get their own hydration guard rather than piggybacking on
-  // `hydrated` — otherwise whichever query resolves first would
-  // block the other's prefil.
   useEffect(() => {
     if (existingTopicIds && !topicsHydrated) {
       setTopicIds(new Set(existingTopicIds));
@@ -77,22 +86,21 @@ export function EditProject() {
     }
   }, [existingTopicIds, topicsHydrated]);
 
-  // Prefill the form once the project loads — guarded by `hydrated`
-  // so a background refetch (e.g. after saving) doesn't stomp on
-  // whatever the user is currently typing.
   useEffect(() => {
     if (project && !hydrated) {
       setTitle(project.title);
       setDescription(project.description ?? "");
-      setProjectType(project.project_type);
-      setExternalUrl(project.external_url ?? "");
       setPriceUsd(String(project.price_usd));
-      setStatus(project.status);
+      setStatus(project.status === "cancelled" ? "archived" : project.status);
       setThumbnailUrl(project.thumbnail_url);
       if (project.thumbnail_width && project.thumbnail_height) {
         setThumbnailRatio({ width: project.thumbnail_width, height: project.thumbnail_height });
       }
-      setFilePath(project.file_path);
+      setDeliverable({
+        external_url: project.external_url ?? "",
+        file_path: project.file_path,
+        file_name: null,
+      });
       if (project.promo_price_usd !== null) {
         setShowPromo(true);
         setPromoPriceUsd(String(project.promo_price_usd));
@@ -100,6 +108,27 @@ export function EditProject() {
       setHydrated(true);
     }
   }, [project, hydrated]);
+
+  // Type-detail hydration waits on its own query (undefined until the
+  // relevant useEventDetails/useMeetingDetails call resolves), guarded
+  // separately so it doesn't block the rest of the form's hydration.
+  useEffect(() => {
+    if (!project || typeDetailsHydrated) return;
+    if (project.project_type === "event" && existingEventDetails) {
+      setEventFields({
+        event_date: existingEventDetails.event_date?.slice(0, 16) ?? "",
+        location_type: existingEventDetails.location_type,
+        location_value: existingEventDetails.location_value,
+        ticket_template_url: existingEventDetails.ticket_template_url ?? "",
+      });
+      setTypeDetailsHydrated(true);
+    } else if (project.project_type === "meeting" && existingMeetingDetails) {
+      setMeetingFields({ scheduled_at: existingMeetingDetails.scheduled_at.slice(0, 16) });
+      setTypeDetailsHydrated(true);
+    } else if (!["event", "meeting"].includes(project.project_type)) {
+      setTypeDetailsHydrated(true);
+    }
+  }, [project, existingEventDetails, existingMeetingDetails, typeDetailsHydrated]);
 
   async function handleThumbnailSelect(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -114,37 +143,30 @@ export function EditProject() {
     }
   }
 
-  async function handleFileSelect(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    e.target.value = "";
-    if (!file) return;
-    try {
-      const path = await uploadFile.mutateAsync(file);
-      setFilePath(path);
-      setFileName(file.name);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "File upload failed.");
-    }
-  }
-
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
     setError(null);
-
-    if (!projectId) return;
+    if (!projectId || !project) return;
 
     if (!title.trim()) {
       setError("Title is required.");
       return;
     }
-    if (!externalUrl.trim() && !filePath) {
-      setError("Add a link or upload a file — at least one is required.");
-      return;
-    }
 
     const price = parseFloat(priceUsd) || 0;
-    if (price > 0 && !filePath && !externalUrl.trim()) {
-      setError("Paid projects need something to unlock — a link or a file.");
+
+    if ((DELIVERABLE_TYPES as readonly string[]).includes(project.project_type)) {
+      if (!deliverable.external_url.trim() && !deliverable.file_path) {
+        setError("Add a link or upload a file — at least one is required.");
+        return;
+      }
+    }
+    if (project.project_type === "event" && !eventFields.location_value.trim()) {
+      setError(eventFields.location_type === "physical" ? "Add the event address." : "Add the join link.");
+      return;
+    }
+    if (project.project_type === "meeting" && !meetingFields.scheduled_at) {
+      setError("Set when this meeting happens.");
       return;
     }
 
@@ -166,9 +188,13 @@ export function EditProject() {
         id: projectId,
         title: title.trim(),
         description: description.trim() || null,
-        project_type: projectType,
-        external_url: externalUrl.trim() || null,
-        file_path: filePath,
+        project_type: project.project_type, // fixed — see note near the type display below
+        external_url: (DELIVERABLE_TYPES as readonly string[]).includes(project.project_type)
+          ? deliverable.external_url.trim() || null
+          : project.external_url,
+        file_path: (DELIVERABLE_TYPES as readonly string[]).includes(project.project_type)
+          ? deliverable.file_path
+          : project.file_path,
         thumbnail_url: thumbnailUrl,
         thumbnail_width: thumbnailRatio?.width ?? null,
         thumbnail_height: thumbnailRatio?.height ?? null,
@@ -177,13 +203,34 @@ export function EditProject() {
         status,
         topic_ids: Array.from(topicIds),
       });
+
+      if (project.project_type === "event") {
+        const { error: detailsError } = await supabase
+          .from("project_event_details")
+          .update({
+            event_date: eventFields.event_date || null,
+            location_type: eventFields.location_type,
+            location_value: eventFields.location_value.trim(),
+            ticket_template_url: eventFields.ticket_template_url || null,
+          })
+          .eq("project_id", projectId);
+        if (detailsError) throw detailsError;
+      }
+      if (project.project_type === "meeting") {
+        const { error: detailsError } = await supabase
+          .from("project_meeting_details")
+          .update({ scheduled_at: meetingFields.scheduled_at })
+          .eq("project_id", projectId);
+        if (detailsError) throw detailsError;
+      }
+
       navigate(-1);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Couldn't save changes.");
     }
   }
 
-  if (isLoading || !project) {
+  if (isLoading || !project || !typeDetailsHydrated) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-canvas">
         <p className="text-ink-muted">Loading…</p>
@@ -201,9 +248,6 @@ export function EditProject() {
         <h2 className="font-display text-2xl text-ink mb-6">Edit project</h2>
 
         <form onSubmit={handleSubmit}>
-          {/* Status — publish / unpublish (draft) / archive, all from
-              one control, in addition to the quick actions available
-              directly from the project card's menu. */}
           <div className="mb-6">
             <label className="block text-sm font-medium text-ink-muted mb-1.5">Status</label>
             <div className="flex flex-col gap-2">
@@ -231,14 +275,11 @@ export function EditProject() {
             </div>
           </div>
 
-          {/* Thumbnail — aspect ratio matches the stored dimensions */}
           <button
             type="button"
             onClick={() => thumbnailInputRef.current?.click()}
             style={{
-              aspectRatio: thumbnailRatio
-                ? `${thumbnailRatio.width} / ${thumbnailRatio.height}`
-                : "16 / 9",
+              aspectRatio: thumbnailRatio ? `${thumbnailRatio.width} / ${thumbnailRatio.height}` : "16 / 9",
             }}
             className="w-full bg-surface border border-border rounded-xl flex items-center justify-center mb-4 overflow-hidden"
           >
@@ -247,9 +288,7 @@ export function EditProject() {
             ) : (
               <div className="text-ink-muted flex flex-col items-center gap-1">
                 <ImageIcon size={24} />
-                <span className="text-sm">
-                  {uploadThumbnail.isPending ? "Uploading…" : "Add thumbnail"}
-                </span>
+                <span className="text-sm">{uploadThumbnail.isPending ? "Uploading…" : "Add thumbnail"}</span>
               </div>
             )}
           </button>
@@ -261,41 +300,22 @@ export function EditProject() {
             className="hidden"
           />
 
-          <FormField
-            id="title"
-            label="Title"
-            value={title}
-            onChange={(e) => setTitle(e.target.value)}
-            required
-          />
+          <FormField id="title" label="Title" value={title} onChange={(e) => setTitle(e.target.value)} required />
 
+          {/* Project type is fixed after creation — Event/Meeting have
+              their own detail tables, and Room/Course have member
+              rosters and content tied to that type. Changing it here
+              would orphan that data, so it's shown, not editable. */}
           <div className="mb-4">
-            <label htmlFor="project_type" className="block text-sm font-medium text-ink-muted mb-1.5">
-              Project type
-            </label>
-            <select
-              id="project_type"
-              value={projectType}
-              onChange={(e) => setProjectType(e.target.value as ProjectType)}
-              className="w-full px-4 py-3 rounded-xl border border-border bg-canvas text-ink
-                focus:outline-none focus:ring-2 focus:ring-accent/40 focus:border-accent"
-            >
-              {PROJECT_TYPE_OPTIONS.map((type) => (
-                <option key={type} value={type}>
-                  {PROJECT_TYPE_LABELS[type]}
-                </option>
-              ))}
-            </select>
+            <label className="block text-sm font-medium text-ink-muted mb-1.5">Project type</label>
+            <p className="px-4 py-3 rounded-xl border border-border bg-surface text-ink-muted text-sm">
+              {PROJECT_TYPE_LABELS[project.project_type]} — can't be changed after creation
+            </p>
           </div>
 
           <div className="mb-4">
             <label className="block text-sm font-medium text-ink-muted mb-1.5">Description</label>
-            <FormatToolbar
-              textareaRef={descriptionRef}
-              value={description}
-              onChange={setDescription}
-              className="mb-1.5"
-            />
+            <FormatToolbar textareaRef={descriptionRef} value={description} onChange={setDescription} className="mb-1.5" />
             <textarea
               ref={descriptionRef}
               value={description}
@@ -312,38 +332,30 @@ export function EditProject() {
               Topics <span className="font-normal text-ink-muted">(optional)</span>
             </label>
             <TopicPicker selected={topicIds} onToggle={toggleTopic} />
-            <p className="text-xs text-ink-muted mt-1.5">
-              Helps people browsing find this project, and powers "similar projects" for it.
-            </p>
           </div>
 
-          <FormField
-            id="external_url"
-            label="Link (video, book, article, etc.)"
-            type="url"
-            value={externalUrl}
-            onChange={(e) => setExternalUrl(e.target.value)}
-            placeholder="https://"
-          />
-
-          <div className="mb-4">
-            <label className="block text-sm font-medium text-ink-muted mb-1.5">
-              Hosted file (optional — for digital products)
-            </label>
-            <button
-              type="button"
-              onClick={() => fileInputRef.current?.click()}
-              disabled={uploadFile.isPending}
-              className="w-full flex items-center gap-2 px-4 py-3 rounded-xl border border-border bg-surface text-sm text-ink-muted disabled:opacity-50"
-            >
-              <FileUp size={16} />
-              {uploadFile.isPending ? "Uploading…" : fileName ?? (filePath ? "Replace file" : "Choose file")}
-            </button>
-            <input ref={fileInputRef} type="file" onChange={handleFileSelect} className="hidden" />
-            <p className="text-xs text-ink-muted mt-1">
-              Stored privately — only unlocked for buyers or if the project is free.
+          {(DELIVERABLE_TYPES as readonly string[]).includes(project.project_type) && (
+            <DeliverableFields
+              kind={project.project_type as "audio" | "video" | "file"}
+              value={deliverable}
+              onChange={setDeliverable}
+              onError={setError}
+            />
+          )}
+          {project.project_type === "event" && <EventFields value={eventFields} onChange={setEventFields} />}
+          {project.project_type === "meeting" && (
+            <MeetingFields value={meetingFields} onChange={setMeetingFields} />
+          )}
+          {project.project_type === "room" && (
+            <p className="text-xs text-ink-muted mb-4">
+              Manage announcements, meetings, and assignments from the room itself.
             </p>
-          </div>
+          )}
+          {project.project_type === "course" && (
+            <p className="text-xs text-ink-muted mb-4">
+              Manage modules and lessons from the course builder.
+            </p>
+          )}
 
           <div className="mb-4">
             <label className="block text-sm font-medium text-ink-muted mb-1.5">Price (USD)</label>
@@ -372,7 +384,6 @@ export function EditProject() {
               />
               Add a promo price
             </label>
-
             {showPromo && (
               <>
                 <input
