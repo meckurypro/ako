@@ -1,18 +1,13 @@
+// src/components/CommentThread.tsx
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import { Heart, ThumbsDown } from "lucide-react";
 import { Avatar } from "./Avatar";
-import { StanceComposer } from "./StanceComposer";
+import { StanceComposer, STANCE_COLORS } from "./StanceComposer";
 import { useMyReaction, useToggleReaction } from "../hooks/useReactions";
 import type { CommentNode } from "../hooks/useComments";
 import type { Stance } from "../types/database";
 import { renderFormattedText } from "../lib/formatText";
-
-const STANCE_STYLES: Record<Stance, { label: string; className: string }> = {
-  support: { label: "Support", className: "text-accent bg-accent-soft" },
-  disagree: { label: "Disagree", className: "text-danger bg-danger/10" },
-  pushback: { label: "Pushback", className: "text-ink bg-surface" },
-};
 
 function timeAgo(dateString: string): string {
   const seconds = Math.floor((Date.now() - new Date(dateString).getTime()) / 1000);
@@ -32,7 +27,7 @@ interface CommentItemProps {
 
 function CommentItem({ comment, postId, depth = 0 }: CommentItemProps) {
   const [replyStance, setReplyStance] = useState<Stance | null>(null);
-  const stanceStyle = comment.stance ? STANCE_STYLES[comment.stance] : null;
+  const stanceColors = comment.stance ? STANCE_COLORS[comment.stance] : null;
 
   const likeQuery = useMyReaction(comment.id, "comment", "like");
   const dislikeQuery = useMyReaction(comment.id, "comment", "dislike");
@@ -45,7 +40,11 @@ function CommentItem({ comment, postId, depth = 0 }: CommentItemProps) {
     <div className={depth > 0 ? "ml-6 mt-3 border-l border-border pl-4" : "mt-4"}>
       <div className="flex items-start gap-2.5">
         <Link to={`/profile/${comment.author.username}`}>
-          <Avatar src={comment.author.avatar_url} name={comment.author.display_name} size="sm" />
+          <Avatar
+            src={comment.author.avatar_url}
+            name={comment.author.display_name}
+            size="sm"
+          />
         </Link>
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
@@ -55,13 +54,16 @@ function CommentItem({ comment, postId, depth = 0 }: CommentItemProps) {
             >
               {comment.author.display_name}
             </Link>
-            {stanceStyle && (
-              <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${stanceStyle.className}`}>
-                {stanceStyle.label}
+            {stanceColors && (
+              <span
+                className={`text-xs font-medium px-2 py-0.5 rounded-full ${stanceColors.pillClass}`}
+              >
+                {stanceColors.label}
               </span>
             )}
             <span className="text-xs text-ink-muted">{timeAgo(comment.created_at)}</span>
           </div>
+
           <p className="text-sm text-ink mt-1 whitespace-pre-wrap break-words">
             {renderFormattedText(comment.content, "c")}
           </p>
@@ -81,13 +83,15 @@ function CommentItem({ comment, postId, depth = 0 }: CommentItemProps) {
               <ThumbsDown size={13} fill={isDisliked ? "currentColor" : "none"} />
               {comment.dislike_count > 0 && comment.dislike_count}
             </button>
+
+            {/* Reply stance buttons — each coloured with its own stance colour */}
             {(["support", "disagree", "pushback"] as Stance[]).map((s) => (
               <button
                 key={s}
                 onClick={() => setReplyStance(s)}
-                className="text-xs text-ink-muted hover:text-accent"
+                className={`text-xs font-medium hover:opacity-70 transition-opacity ${STANCE_COLORS[s].iconClass}`}
               >
-                {STANCE_STYLES[s].label}
+                {STANCE_COLORS[s].label}
               </button>
             ))}
           </div>
@@ -114,7 +118,13 @@ function CommentItem({ comment, postId, depth = 0 }: CommentItemProps) {
   );
 }
 
-export function CommentThread({ comments, postId }: { comments: CommentNode[]; postId: string }) {
+export function CommentThread({
+  comments,
+  postId,
+}: {
+  comments: CommentNode[];
+  postId: string;
+}) {
   if (comments.length === 0) {
     return <p className="text-sm text-ink-muted mt-6 text-center">No responses yet.</p>;
   }
