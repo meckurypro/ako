@@ -1,7 +1,8 @@
 // src/pages/ProjectDetail.tsx
 import { useParams, useNavigate, Link } from "react-router-dom";
-import { ArrowLeft, ImageIcon } from "lucide-react";
+import { ArrowLeft, ImageIcon, MapPin, Video, CalendarClock } from "lucide-react";
 import { useProjectDetail, useSimilarProjects, PROJECT_TYPE_LABELS, type Project } from "../hooks/useProjects";
+import { useEventDetails, useMeetingDetails } from "../hooks/useProjectTypeDetails";
 import { Avatar } from "../components/Avatar";
 import { TierBadge } from "../components/TierBadge";
 import { RoleTags } from "../components/RoleTags";
@@ -51,6 +52,8 @@ export function ProjectDetail() {
   const navigate = useNavigate();
   const { data: project, isLoading } = useProjectDetail(projectId);
   const { data: similar } = useSimilarProjects(project);
+  const { data: eventDetails } = useEventDetails(project?.project_type === "event" ? projectId : undefined);
+  const { data: meetingDetails } = useMeetingDetails(project?.project_type === "meeting" ? projectId : undefined);
 
   return (
     <div className="min-h-screen bg-canvas px-4 pt-4 pb-24">
@@ -64,6 +67,27 @@ export function ProjectDetail() {
         ) : (
           <>
             <ProjectCard project={project} />
+
+            {/* Event/Meeting browsing info — shown to everyone, purchase
+                is what unlocks the ticket/join page, not this block. */}
+            {project.project_type === "event" && eventDetails && (
+              <div className="flex flex-col gap-1.5 -mt-2 mb-4 text-sm text-ink-muted">
+                {eventDetails.event_date && (
+                  <span className="flex items-center gap-1.5">
+                    <CalendarClock size={14} /> {new Date(eventDetails.event_date).toLocaleString()}
+                  </span>
+                )}
+                <span className="flex items-center gap-1.5">
+                  <MapPin size={14} />
+                  {eventDetails.location_type === "physical" ? eventDetails.location_value : "Online"}
+                </span>
+              </div>
+            )}
+            {project.project_type === "meeting" && meetingDetails && (
+              <div className="flex items-center gap-1.5 -mt-2 mb-4 text-sm text-ink-muted">
+                <Video size={14} /> {new Date(meetingDetails.scheduled_at).toLocaleString()}
+              </div>
+            )}
 
             {project.topics.length > 0 && (
               <div className="flex flex-wrap gap-2 -mt-2 mb-4">
