@@ -16,8 +16,49 @@ export interface ConversationSummary {
     avatar_url: string | null;
     last_seen_at: string | null;
   };
-  last_message: { content: string; sender_id: string; delivered_at: string | null; read_at: string | null } | null;
+  last_message: {
+    content: string;
+    sender_id: string;
+    delivered_at: string | null;
+    read_at: string | null;
+    // True when this preview is a tombstone ("deleted for everyone") —
+    // list/archive rows should render the "message was deleted" label
+    // instead of `content` in that case (content is kept for callers
+    // that don't care, same as the thread view).
+    is_deleted: boolean;
+  } | null;
   unread: boolean;
+}
+
+/**
+ * Finds the most recent message in a conversation that's actually
+ * visible to `userId` — skipping any message they've hidden or deleted
+ * for themselves (message_user_state), but NOT skipping a tombstone
+ * ("deleted for everyone"): that still shows as the preview, same as
+ * it still occupies a slot in the open thread. Looks back up to 10
+ * messages before giving up, which comfortably covers a user hiding/
+ * deleting a small run of recent messages without a full table scan.
+ */
+async function getVisibleLastMessage(conversationId: string, userId: string) {
+  const { data: recent, error } = await supabase
+    .from("messages")
+    .select("id, content, sender_id, created_at, delivered_at, read_at, is_deleted")
+    .eq("conversation_id", conversationId)
+    .order("created_at", { ascending: false })
+    .limit(10);
+  if (error || !recent?.length) return null;
+
+  const { data: states } = await supabase
+    .from("message_user_state")
+    .select("message_id, hidden_at, deleted_for_me_at")
+    .eq("user_id", userId)
+    .in(
+      "message_id",
+      recent.map((m) => m.id)
+    );
+  const excluded = new Set((states ?? []).filter((s) => s.hidden_at || s.deleted_for_me_at).map((s) => s.message_id));
+
+  return recent.find((m) => !excluded.has(m.id)) ?? null;
 }
 
 /**
@@ -70,14 +111,7 @@ export function useConversations() {
           .neq("user_id", user!.id)
           .maybeSingle();
 
-        const { data: lastMessage } = await supabase
-          .from("messages")
-          .select("content, sender_id, created_at, delivered_at, read_at")
-          .eq("conversation_id", conv.id)
-          .eq("is_deleted", false)
-          .order("created_at", { ascending: false })
-          .limit(1)
-          .maybeSingle();
+        const lastMessage = await getVisibleLastMessage(conv.id, user!.id);
 
         if (!otherParticipant?.profile) continue;
 
@@ -102,6 +136,7 @@ export function useConversations() {
                 sender_id: lastMessage.sender_id,
                 delivered_at: lastMessage.delivered_at,
                 read_at: lastMessage.read_at,
+                is_deleted: lastMessage.is_deleted,
               }
             : null,
           unread,
@@ -129,6 +164,14 @@ export interface MessageWithSender {
   delivered_at: string | null;
   read_at: string | null;
   reply_to_message_id: string | null;
+  // "Deleted for everyone" — the row stays in the thread for BOTH
+  // participants but renders as a tombstone ("This message was
+  // deleted") instead of its content. Set only by the sender (see
+  // useDeleteMessage's "everyone" scope). Distinct from a message being
+  // hidden or deleted-for-me, which are per-user and filtered out of
+  // this list entirely client-side (see MessageThread's use of
+  // useMessageUserStates' hidden_at/deleted_for_me_at).
+  is_deleted: boolean;
   // Embedded snippet of the message being replied to, if any —
   // Supabase returns the self-join as an array even for a single FK,
   // so callers should read reply_to?.[0].
@@ -140,6 +183,12 @@ export interface MessageWithSender {
  * Supabase Realtime, so an open conversation updates live without
  * polling. Falls back gracefully if Realtime isn't enabled on the
  * project — the initial fetch still works either way.
+ *
+ * Deliberately does NOT filter out is_deleted rows anymore — a message
+ * deleted "for everyone" must still occupy its slot in the thread as a
+ * tombstone for both participants (see MessageWithSender.is_deleted).
+ * Messages hidden or deleted-for-me are per-user and filtered out by
+ * the caller (MessageThread) using useMessageUserStates, not here.
  */
 export function useMessages(conversationId: string) {
   const queryClient = useQueryClient();
@@ -150,11 +199,10 @@ export function useMessages(conversationId: string) {
       const { data, error } = await supabase
         .from("messages")
         .select(
-          `id, conversation_id, sender_id, content, created_at, delivered_at, read_at, reply_to_message_id,
+          `id, conversation_id, sender_id, content, created_at, delivered_at, read_at, reply_to_message_id, is_deleted,
            reply_to:messages!messages_reply_to_message_id_fkey(id, content, sender_id, is_deleted)`
         )
         .eq("conversation_id", conversationId)
-        .eq("is_deleted", false)
         .order("created_at", { ascending: true });
       if (error) throw error;
       return data as unknown as MessageWithSender[];
@@ -236,23 +284,132 @@ export function useSendMessage(conversationId: string) {
   });
 }
 
+export type DeleteScope = "me" | "everyone";
+
 /**
- * Soft-deletes a message the current user sent (flips is_deleted —
- * mirrors posts/comments' soft-delete pattern). RLS should restrict
- * this to sender_id = auth.uid() at the database level; not re-checked
- * client-side here.
+ * Deletes one message in one of two scopes:
+ *  - "everyone": flips messages.is_deleted (mirrors posts/comments'
+ *    soft-delete pattern). RLS should restrict this to
+ *    sender_id = auth.uid() at the database level — not re-checked
+ *    client-side here, and callers must not offer this scope for a
+ *    message that isn't the current user's own.
+ *  - "me": stamps message_user_state.deleted_for_me_at for the current
+ *    user only. Permanent (no restore, unlike hidden_at) and works on
+ *    ANY message regardless of sender — including a tombstone already
+ *    deleted "for everyone", which is how a user clears a tombstone out
+ *    of their own view after the fact.
  */
 export function useDeleteMessage(conversationId: string) {
+  const { user } = useAuth();
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async (messageId: string) => {
-      const { error } = await supabase.from("messages").update({ is_deleted: true }).eq("id", messageId);
+    mutationFn: async ({ messageId, scope }: { messageId: string; scope: DeleteScope }) => {
+      if (scope === "everyone") {
+        const { error } = await supabase.from("messages").update({ is_deleted: true }).eq("id", messageId);
+        if (error) throw error;
+        return;
+      }
+      if (!user) throw new Error("Not signed in");
+      const { error } = await supabase
+        .from("message_user_state")
+        .upsert(
+          { message_id: messageId, user_id: user.id, deleted_for_me_at: new Date().toISOString() },
+          { onConflict: "message_id,user_id" }
+        );
       if (error) throw error;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["messages", conversationId] });
       queryClient.invalidateQueries({ queryKey: ["conversations"] });
+      queryClient.invalidateQueries({ queryKey: ["message-user-state", conversationId] });
+    },
+  });
+}
+
+/** Bulk version of useDeleteMessage — backs the multi-select delete action. */
+export function useBulkDeleteMessages(conversationId: string) {
+  const { user } = useAuth();
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ messageIds, scope }: { messageIds: string[]; scope: DeleteScope }) => {
+      if (!messageIds.length) return;
+      if (scope === "everyone") {
+        const { error } = await supabase.from("messages").update({ is_deleted: true }).in("id", messageIds);
+        if (error) throw error;
+        return;
+      }
+      if (!user) throw new Error("Not signed in");
+      const now = new Date().toISOString();
+      const { error } = await supabase
+        .from("message_user_state")
+        .upsert(
+          messageIds.map((message_id) => ({ message_id, user_id: user.id, deleted_for_me_at: now })),
+          { onConflict: "message_id,user_id" }
+        );
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["messages", conversationId] });
+      queryClient.invalidateQueries({ queryKey: ["conversations"] });
+      queryClient.invalidateQueries({ queryKey: ["message-user-state", conversationId] });
+    },
+  });
+}
+
+/**
+ * Forwards one or more messages' content into one or more OTHER
+ * conversations, as brand-new messages sent by the current user right
+ * now — this is the in-app "share to another user" path (as opposed to
+ * MessageActionMenu's onShare, which hands content to the OS share
+ * sheet / clipboard for outside the app). Deliberately plain inserts,
+ * same shape as useSendMessage, with no reply_to_message_id: a forwarded
+ * message isn't a reply, and the source message may not even belong to
+ * the target conversation.
+ */
+export function useForwardMessages() {
+  const { user } = useAuth();
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({
+      messages,
+      targetConversationIds,
+    }: {
+      messages: { content: string }[];
+      targetConversationIds: string[];
+    }) => {
+      if (!user) throw new Error("Not signed in");
+      if (!messages.length || !targetConversationIds.length) return;
+
+      const rows = targetConversationIds.flatMap((conversation_id) =>
+        messages.map((m) => ({
+          conversation_id,
+          sender_id: user.id,
+          content: m.content,
+        }))
+      );
+      const { error } = await supabase.from("messages").insert(rows);
+      if (error) throw error;
+
+      // Forwarding into a conversation that was a pending request (rare,
+      // but possible if forwarding into an old thread) should accept it
+      // the same way a normal reply does — mirrors useSendMessage.
+      const { error: acceptError } = await supabase
+        .from("conversation_participants")
+        .update({ is_request: false, archived_at: null })
+        .eq("user_id", user.id)
+        .in("conversation_id", targetConversationIds)
+        .eq("is_request", true);
+      if (acceptError) console.error("Failed to accept message request while forwarding:", acceptError);
+    },
+    onSuccess: (_data, variables) => {
+      for (const id of variables.targetConversationIds) {
+        queryClient.invalidateQueries({ queryKey: ["messages", id] });
+      }
+      queryClient.invalidateQueries({ queryKey: ["conversations"] });
+      queryClient.invalidateQueries({ queryKey: ["archived-conversations"] });
     },
   });
 }
@@ -411,6 +568,41 @@ export function useUpdateConversationState() {
 }
 
 /**
+ * Bulk version of useUpdateConversationState — backs multi-select
+ * archive/delete/unarchive on both ConversationList and
+ * ArchivedConversations. Same per-user semantics: only ever touches the
+ * current user's own conversation_participants rows.
+ */
+export function useBulkUpdateConversationState() {
+  const { user } = useAuth();
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({
+      conversationIds,
+      ...updates
+    }: {
+      conversationIds: string[];
+      pinned_at?: string | null;
+      archived_at?: string | null;
+      hidden_at?: string | null;
+    }) => {
+      if (!user || !conversationIds.length) return;
+      const { error } = await supabase
+        .from("conversation_participants")
+        .update(updates)
+        .in("conversation_id", conversationIds)
+        .eq("user_id", user.id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["conversations"] });
+      queryClient.invalidateQueries({ queryKey: ["archived-conversations"] });
+    },
+  });
+}
+
+/**
  * Finds or creates a 1:1 conversation with another user, via the
  * get_or_create_direct_conversation() RPC (see 13_direct_messaging.sql) —
  * never inserts into conversations directly.
@@ -487,14 +679,7 @@ export function useArchivedConversations() {
           .neq("user_id", user!.id)
           .maybeSingle();
 
-        const { data: lastMessage } = await supabase
-          .from("messages")
-          .select("content, sender_id, created_at, delivered_at, read_at")
-          .eq("conversation_id", conv.id)
-          .eq("is_deleted", false)
-          .order("created_at", { ascending: false })
-          .limit(1)
-          .maybeSingle();
+        const lastMessage = await getVisibleLastMessage(conv.id, user!.id);
 
         if (!otherParticipant?.profile) continue;
 
@@ -517,6 +702,7 @@ export function useArchivedConversations() {
                 sender_id: lastMessage.sender_id,
                 delivered_at: lastMessage.delivered_at,
                 read_at: lastMessage.read_at,
+                is_deleted: lastMessage.is_deleted,
               }
             : null,
           unread,
