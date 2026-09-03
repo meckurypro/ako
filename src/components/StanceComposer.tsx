@@ -1,6 +1,5 @@
 // src/components/StanceComposer.tsx
 import { useRef, useState } from "react";
-import { X } from "lucide-react";
 import { useCreateComment } from "../hooks/useComments";
 import type { Stance } from "../types/database";
 import { FormatToolbar } from "./FormatToolbar";
@@ -73,14 +72,24 @@ export function StanceComposer({
   parentCommentId,
 }: StanceComposerProps) {
   const [activeStance, setActiveStance] = useState<Stance>(initialStance);
-  // A single content state shared across all tabs — text is retained
-  // when the user switches stance so they never lose what they typed.
+  // Single content state shared across tabs — text is retained when
+  // the user switches stance so they never lose what they typed.
   const [content, setContent] = useState("");
   const contentRef = useRef<HTMLTextAreaElement>(null);
   const [error, setError] = useState<string | null>(null);
   const createComment = useCreateComment(postId);
 
   const colors = STANCE_COLORS[activeStance];
+
+  // Switch stance WITHOUT losing keyboard focus:
+  //   • onMouseDown preventDefault stops the browser from moving focus
+  //     away from the textarea on pointer-driven events (desktop/tablet).
+  //   • setTimeout(0) refocuses after the touch event cycle completes on
+  //     mobile, where preventDefault alone isn't always enough.
+  function switchStance(s: Stance) {
+    setActiveStance(s);
+    setTimeout(() => contentRef.current?.focus(), 0);
+  }
 
   async function handleSubmit() {
     if (!content.trim()) return;
@@ -101,15 +110,18 @@ export function StanceComposer({
 
   return (
     <div className="fixed inset-0 bg-ink/40 flex items-end sm:items-center justify-center z-50 px-4">
-      {/* The top border colour changes with the active stance */}
+      {/* Top border colour changes with the active stance */}
       <div className={`bg-canvas rounded-2xl w-full max-w-md mb-safe overflow-hidden ${colors.topBorderClass}`}>
 
-        {/* ── Stance tabs ── */}
-        <div className="flex border-b border-border relative">
+        {/* ── Stance tabs — no close button here anymore ── */}
+        <div className="flex border-b border-border">
           {STANCES.map((s) => (
             <button
               key={s}
-              onClick={() => setActiveStance(s)}
+              // preventDefault on mousedown keeps focus on the textarea
+              // (prevents the browser moving focus to this button).
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={() => switchStance(s)}
               className={`flex-1 py-3 text-sm font-medium transition-colors ${
                 activeStance === s
                   ? STANCE_COLORS[s].tabActive
@@ -119,13 +131,6 @@ export function StanceComposer({
               {STANCE_COLORS[s].label}
             </button>
           ))}
-          <button
-            onClick={onClose}
-            className="absolute right-3 top-1/2 -translate-y-1/2 text-ink-muted p-1"
-            aria-label="Close"
-          >
-            <X size={16} />
-          </button>
         </div>
 
         {/* ── Body ── */}
@@ -153,6 +158,7 @@ export function StanceComposer({
 
           {error && <p className="text-danger text-sm mt-2">{error}</p>}
 
+          {/* Char count + submit */}
           <div className="flex items-center justify-between mt-3">
             <span className="text-xs text-ink-muted">{content.length}/2000</span>
             <button
@@ -162,6 +168,17 @@ export function StanceComposer({
                 disabled:opacity-50 transition-colors duration-150 ${colors.submitClass}`}
             >
               {createComment.isPending ? "Posting…" : colors.label}
+            </button>
+          </div>
+
+          {/* Cancel — bottom center, defined pill button */}
+          <div className="flex justify-center mt-3">
+            <button
+              onClick={onClose}
+              className="px-6 py-2 rounded-full text-sm font-medium text-ink-muted
+                border border-border hover:bg-surface transition-colors"
+            >
+              Cancel
             </button>
           </div>
         </div>
