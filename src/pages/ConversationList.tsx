@@ -230,7 +230,7 @@ export function ConversationList() {
               e.stopPropagation();
               navigate(`/post/${unseenPostId}`);
             }}
-            className="flex-shrink-0 rounded-full p-[2.5px] bg-accent shadow-[0_0_6px_rgba(61,90,69,0.45)]"
+            className="flex-shrink-0 rounded-full p-[2.5px] bg-accent shadow-[0_0_6px_rgba(var(--accent-rgb),0.45)]"
           >
             <span className="block rounded-full bg-canvas p-[2px]">
               <Avatar src={c.other_participant.avatar_url} name={c.other_participant.display_name} />
