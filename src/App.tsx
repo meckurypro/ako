@@ -1,3 +1,4 @@
+// src/App.tsx
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { AuthProvider } from "./hooks/useAuth";
@@ -32,7 +33,6 @@ import { Notifications } from "./pages/Notifications";
 import { FollowRequests } from "./pages/FollowRequests";
 import { Bookmarks } from "./pages/Bookmarks";
 import { ConversationList } from "./pages/ConversationList";
-import { ArchivedConversations } from "./pages/ArchivedConversations";
 import { MessageThread } from "./pages/MessageThread";
 import { Search } from "./pages/Search";
 import { Settings } from "./pages/Settings";
@@ -49,6 +49,12 @@ import { AdminReports } from "./pages/admin/AdminReports";
 import { CreateProject } from "./pages/CreateProject";
 import { EditProject } from "./pages/EditProject";
 import { ProjectDetail } from "./pages/ProjectDetail";
+import { Room } from "./pages/Room";
+import { Course } from "./pages/Course";
+import { MeetingRoom } from "./pages/MeetingRoom";
+import { TicketView } from "./pages/TicketView";
+import { Activity } from "./pages/Activity";
+import { SavedProjects } from "./pages/SavedProjects";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -237,14 +243,6 @@ export default function App() {
               }
             />
             <Route
-              path="/messages/archive"
-              element={
-                <RequireAuth>
-                  <ArchivedConversations />
-                </RequireAuth>
-              }
-            />
-            <Route
               path="/messages/:conversationId"
               element={
                 <RequireAuth>
@@ -356,6 +354,50 @@ export default function App() {
               element={
                 <RequireAuth>
                   <EditProject />
+                </RequireAuth>
+              }
+            />
+            <Route
+              path="/projects/:projectId/ticket"
+              element={
+                <RequireAuth>
+                  <TicketView />
+                </RequireAuth>
+              }
+            />
+            <Route
+              path="/rooms/:projectId"
+              element={
+                <RequireAuth>
+                  <Room />
+                </RequireAuth>
+              }
+            />
+            {/* Public — same reasoning as ProjectDetail: a shared course
+                link should load for a logged-out visitor, who then just
+                sees the "buy to unlock" state Course.tsx already handles. */}
+            <Route path="/courses/:projectId" element={<Course />} />
+            <Route
+              path="/meetings/:projectId"
+              element={
+                <RequireAuth>
+                  <MeetingRoom />
+                </RequireAuth>
+              }
+            />
+            <Route
+              path="/activity"
+              element={
+                <RequireAuth>
+                  <Activity />
+                </RequireAuth>
+              }
+            />
+            <Route
+              path="/saved-projects"
+              element={
+                <RequireAuth>
+                  <SavedProjects />
                 </RequireAuth>
               }
             />
