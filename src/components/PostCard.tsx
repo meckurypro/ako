@@ -74,28 +74,30 @@ export function PostCard({
   const lastTapRef = useRef(0);
 
   // Reshare/quote: reshared_post_id set + empty content = plain reshare
-  // (renders/engages as the original, badge in the corner — same as a
-  // retweet: no separate engagement surface for the repost itself).
-  // Non-empty content = quote (own post, original embedded as a card
-  // below the caption, own engagement).
+  // (own card, own engagement — attributed to the resharer, with a
+  // "Reposted" tag and the original embedded below, same treatment as
+  // a quote just without a caption line). Non-empty content = quote
+  // (own post, original embedded as a card below the caption).
+  //
+  // Both render/engage as `post` itself now (never swapped to the
+  // original) — the person who reshared owns this card. The original
+  // is only ever reached via the embedded RepostEmbed card, which
+  // already renders its own "no longer available" state when the
+  // source has been deleted/archived, so no special-casing is needed
+  // here for that.
   const plainReshare = isPlainReshare(post);
   const quotePost = isQuote(post);
   const original = post.reshared_post;
-  const originalUnavailable = plainReshare && (!original || original.is_deleted || original.is_archived);
 
-  // What the card actually renders/engages against. `post` itself for
-  // quotes and normal posts; the original for a live plain reshare.
-  const displayPost = plainReshare && original && !originalUnavailable ? original : post;
-
-  const isBookmarkedQuery = useIsBookmarked(displayPost.id);
-  const toggleBookmark = useToggleBookmark(displayPost.id);
+  const isBookmarkedQuery = useIsBookmarked(post.id);
+  const toggleBookmark = useToggleBookmark(post.id);
   const isBookmarked = !!isBookmarkedQuery.data;
 
-  const likeQuery   = useMyReaction(displayPost.id, "post", "like");
-  const dislikeQuery = useMyReaction(displayPost.id, "post", "dislike");
-  const toggleLike   = useToggleReaction(displayPost.id, "post", "like");
-  const toggleDislike = useToggleReaction(displayPost.id, "post", "dislike");
-  const toggleShare  = useToggleReaction(displayPost.id, "post", "share");
+  const likeQuery   = useMyReaction(post.id, "post", "like");
+  const dislikeQuery = useMyReaction(post.id, "post", "dislike");
+  const toggleLike   = useToggleReaction(post.id, "post", "like");
+  const toggleDislike = useToggleReaction(post.id, "post", "dislike");
+  const toggleShare  = useToggleReaction(post.id, "post", "share");
   const isLiked    = !!likeQuery.data;
   const isDisliked = !!dislikeQuery.data;
 
@@ -114,15 +116,15 @@ export function PostCard({
 
   // Already on the post page → scroll to discussion; otherwise navigate there.
   function handleCommentTap() {
-    if (location.pathname === `/post/${displayPost.id}`) {
+    if (location.pathname === `/post/${post.id}`) {
       document.getElementById("discussion")?.scrollIntoView({ behavior: "smooth" });
     } else {
-      navigate(`/post/${displayPost.id}`);
+      navigate(`/post/${post.id}`);
     }
   }
 
   async function handleShare() {
-    const url = `${window.location.origin}/post/${displayPost.id}`;
+    const url = `${window.location.origin}/post/${post.id}`;
     if (navigator.share) {
       try {
         await navigator.share({ url });
@@ -141,7 +143,7 @@ export function PostCard({
 
   // TODO: replace with GiftPicker modal once that component exists.
   function handleGift() {
-    navigate(`/post/${displayPost.id}?gift=1`);
+    navigate(`/post/${post.id}?gift=1`);
   }
 
   // Owner actions always operate on this row (the reshare/quote/normal
@@ -168,21 +170,21 @@ export function PostCard({
       key: "support",
       label: "Support",
       icon: <Handshake size={20} className={STANCE_COLORS.support.iconClass} />,
-      count: displayPost.support_count > 0 ? displayPost.support_count : null,
+      count: post.support_count > 0 ? post.support_count : null,
       onAction: () => handleStance("support"),
     },
     disagree: {
       key: "disagree",
       label: "Disagree",
       icon: <XCircle size={20} className={STANCE_COLORS.disagree.iconClass} />,
-      count: displayPost.disagree_count > 0 ? displayPost.disagree_count : null,
+      count: post.disagree_count > 0 ? post.disagree_count : null,
       onAction: () => handleStance("disagree"),
     },
     pushback: {
       key: "pushback",
       label: "Pushback",
       icon: <Hand size={20} className={STANCE_COLORS.pushback.iconClass} />,
-      count: displayPost.pushback_count > 0 ? displayPost.pushback_count : null,
+      count: post.pushback_count > 0 ? post.pushback_count : null,
       onAction: () => handleStance("pushback"),
     },
     dislike: {
@@ -195,14 +197,14 @@ export function PostCard({
           className={isDisliked ? "text-danger" : ""}
         />
       ),
-      count: displayPost.dislike_count > 0 ? displayPost.dislike_count : null,
+      count: post.dislike_count > 0 ? post.dislike_count : null,
       onAction: () => toggleDislike.mutate(isDisliked),
     },
     gift: {
       key: "gift",
       label: "Gift",
       icon: <GiftIcon size={20} />,
-      count: displayPost.gift_count > 0 ? displayPost.gift_count : null,
+      count: post.gift_count > 0 ? post.gift_count : null,
       onAction: handleGift,
     },
     save: {
@@ -245,15 +247,15 @@ export function PostCard({
           className={isLiked ? "text-accent" : ""}
         />
       ),
-      count: displayPost.like_count > 0 ? displayPost.like_count : null,
+      count: post.like_count > 0 ? post.like_count : null,
       onClick: () => toggleLike.mutate(isLiked),
     },
     {
       key: "reshare",
       label: "Reshare",
       icon: <Repeat2 size={20} />,
-      count: displayPost.share_count > 0 ? displayPost.share_count : null,
-      onClick: () => setShowReshareSheet(true),
+      count: post.share_count > 0 ? post.share_count : null,
+      onClick: handleReshareTap,
     },
     ...order.map((k): EngagementAction => ({
       key: secondaryDefs[k].key,
@@ -265,11 +267,23 @@ export function PostCard({
   ];
 
   // Owner-ness and edit eligibility are always about this row (the
-  // reshare/quote/normal post belonging to the viewer), never the
-  // displayed original. A plain reshare has no content of its own, so
-  // there's nothing to edit — only Archive/Delete apply to it.
+  // reshare/quote/normal post belonging to the viewer). A plain reshare
+  // has no content of its own, so there's nothing to edit — only
+  // Archive/Delete apply to it.
   const isOwner = isOwnerView || user?.id === post.author.id;
   const canEdit = !plainReshare && canEditPost(post);
+
+  // Reposting a plain reshare should target the original post (matching
+  // standard retweet-of-a-retweet behavior — no reshare chains). Quotes
+  // keep their own content, so resharing a quote targets the quote
+  // itself, same as `post` normally would.
+  const originalGone = !original || original.is_deleted || original.is_archived;
+  const reshareTarget = plainReshare && !originalGone ? original! : post;
+
+  function handleReshareTap() {
+    if (plainReshare && originalGone) return; // nothing valid left to reshare
+    setShowReshareSheet(true);
+  }
 
   return (
     <article
@@ -277,34 +291,40 @@ export function PostCard({
       className="bg-surface rounded-2xl p-4 mb-4 relative shadow-[0_0_0_1px_rgba(var(--shadow-ink-rgb),0.07),0_10px_24px_-6px_rgba(var(--shadow-ink-rgb),0.16)]"
     >
       <div className="flex items-start gap-3">
-        <Link to={`/profile/${displayPost.author.username}`}>
-          <Avatar src={displayPost.author.avatar_url} name={displayPost.author.display_name} size="md" />
+        <Link to={`/profile/${post.author.username}`}>
+          <Avatar src={post.author.avatar_url} name={post.author.display_name} size="md" />
         </Link>
 
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-1.5 flex-wrap">
             <Link
-              to={`/profile/${displayPost.author.username}`}
+              to={`/profile/${post.author.username}`}
               className="font-display font-semibold text-[17px] leading-5 text-ink hover:underline"
             >
-              {shortDisplayName(displayPost.author.display_name)}
+              {shortDisplayName(post.author.display_name)}
             </Link>
-            <TierBadge tier={displayPost.author.tier} />
+            <TierBadge tier={post.author.tier} />
           </div>
 
-          {displayPost.author.roles.length > 0 && (
+          {post.author.roles.length > 0 && (
             <RoleTags
-              roles={displayPost.author.roles}
+              roles={post.author.roles}
               className="text-[13px] font-normal leading-[18px] text-ink-muted block"
             />
           )}
 
           <p className="text-xs leading-[18px] text-ink-muted flex items-center gap-1">
             <span>
-              {timeAgo(displayPost.created_at)}
-              {displayPost.edited_at && " · edited"}
+              {timeAgo(post.created_at)}
+              {post.edited_at && " · edited"}
             </span>
-            {displayPost.visibility === "public" && <Globe size={11} />}
+            {post.visibility === "public" && <Globe size={11} />}
+            {plainReshare && (
+              <span className="flex items-center gap-0.5 text-accent">
+                <Repeat2 size={11} />
+                Reposted
+              </span>
+            )}
           </p>
         </div>
 
@@ -322,64 +342,61 @@ export function PostCard({
             </button>
           )}
 
-          {!originalUnavailable && (
-            <>
-              <button
-                onClick={handleCommentTap}
-                aria-label="Comments"
-                className="flex flex-col items-center gap-0.5 text-ink-muted"
-              >
-                <MessageCircle size={18} />
-                {displayPost.comment_count > 0 && (
-                  <span className="text-[11px] font-medium leading-none text-ink">
-                    {displayPost.comment_count}
-                  </span>
-                )}
-              </button>
+          <button
+            onClick={handleCommentTap}
+            aria-label="Comments"
+            className="flex flex-col items-center gap-0.5 text-ink-muted"
+          >
+            <MessageCircle size={18} />
+            {post.comment_count > 0 && (
+              <span className="text-[11px] font-medium leading-none text-ink">
+                {post.comment_count}
+              </span>
+            )}
+          </button>
 
-              <button
-                onClick={() => void handleShare()}
-                aria-label="Share"
-                className="text-ink-muted"
-              >
-                <Share2 size={18} />
-              </button>
-            </>
-          )}
+          <button
+            onClick={() => void handleShare()}
+            aria-label="Share"
+            className="text-ink-muted"
+          >
+            <Share2 size={18} />
+          </button>
         </div>
       </div>
 
-      {originalUnavailable ? (
-        <p className="mt-3 text-sm text-ink-muted italic">
-          This post is no longer available.
-        </p>
-      ) : (
-        <>
-          <Link to={`/post/${displayPost.id}`} onClick={handleContentTap} className="block mt-3">
-            <PostContent heading={displayPost.heading} content={displayPost.content} />
-          </Link>
-
-          <PostMedia mediaUrls={displayPost.media_urls} />
-
-          {quotePost && <RepostEmbed source={original} />}
-
-          {/* 8 actions in a scrollable row: Like · Reshare · [6 ranked secondary] */}
-          <ReactionTray actions={trayActions} />
-        </>
+      {/* Own content — skipped for a plain reshare, which has none of its
+          own (just the embedded original below). Always present for a
+          quote (the caption) and a normal post. */}
+      {(post.content.trim() !== "" || post.heading) && (
+        <Link to={`/post/${post.id}`} onClick={handleContentTap} className="block mt-3">
+          <PostContent heading={post.heading} content={post.content} />
+        </Link>
       )}
+
+      <PostMedia mediaUrls={post.media_urls} />
+
+      {/* Embedded original — for both a plain reshare and a quote. Handles
+          its own "no longer available" state internally, and always
+          links to the original post with the original creator's own
+          details, regardless of whether it's still reachable. */}
+      {(plainReshare || quotePost) && <RepostEmbed source={original} />}
+
+      {/* 8 actions in a scrollable row: Like · Reshare · [6 ranked secondary] */}
+      <ReactionTray actions={trayActions} />
 
       {activeStance && (
         <StanceComposer
-          postId={displayPost.id}
+          postId={post.id}
           stance={activeStance}
           onClose={() => setActiveStance(null)}
         />
       )}
 
-      {showReshareSheet && !originalUnavailable && (
+      {showReshareSheet && (
         <ReshareSheet
-          postId={displayPost.id}
-          source={displayPost}
+          postId={reshareTarget.id}
+          source={reshareTarget}
           onClose={() => setShowReshareSheet(false)}
         />
       )}
