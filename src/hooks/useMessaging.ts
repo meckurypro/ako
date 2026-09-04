@@ -28,6 +28,9 @@ export interface ConversationSummary {
     is_deleted: boolean;
   } | null;
   unread: boolean;
+  /** Number of messages from the other participant since we last read
+   *  the thread — powers the numeric badge in the chat list. */
+  unreadCount: number;
 }
 
 /**
@@ -59,6 +62,27 @@ async function getVisibleLastMessage(conversationId: string, userId: string) {
   const excluded = new Set((states ?? []).filter((s) => s.hidden_at || s.deleted_for_me_at).map((s) => s.message_id));
 
   return recent.find((m) => !excluded.has(m.id)) ?? null;
+}
+
+/**
+ * Counts messages from the other participant that arrived after
+ * `lastReadAt`, for the numeric badge in the chat list. Unlike
+ * getVisibleLastMessage above, this doesn't subtract messages the user
+ * has individually hidden/deleted for themselves (message_user_state)
+ * — an occasional off-by-one on that rarely-used combination isn't
+ * worth a second per-row query.
+ */
+async function getUnreadCount(conversationId: string, userId: string, lastReadAt: string | null) {
+  let query = supabase
+    .from("messages")
+    .select("id", { count: "exact", head: true })
+    .eq("conversation_id", conversationId)
+    .neq("sender_id", userId);
+  if (lastReadAt) query = query.gt("created_at", lastReadAt);
+
+  const { count, error } = await query;
+  if (error) return 0;
+  return count ?? 0;
 }
 
 /**
@@ -116,13 +140,10 @@ export function useConversations() {
         if (!otherParticipant?.profile) continue;
 
         const lastReadAt = readMap.get(conv.id);
-        // A conversation is only "unread" if the newest message came from
-        // the OTHER participant and arrived after we last read the thread.
-        // Our own sent messages must never flip this back to unread.
-        const unread =
-          !!lastMessage &&
-          lastMessage.sender_id !== user!.id &&
-          (!lastReadAt || new Date(lastMessage.created_at) > new Date(lastReadAt));
+        // Our own sent messages must never flip a conversation back to
+        // unread — getUnreadCount already only counts the OTHER
+        // participant's messages, so "unread" falls straight out of it.
+        const unreadCount = await getUnreadCount(conv.id, user!.id, lastReadAt ?? null);
 
         results.push({
           id: conv.id,
@@ -139,7 +160,8 @@ export function useConversations() {
                 is_deleted: lastMessage.is_deleted,
               }
             : null,
-          unread,
+          unread: unreadCount > 0,
+          unreadCount,
         });
       }
 
@@ -569,8 +591,8 @@ export function useUpdateConversationState() {
 
 /**
  * Bulk version of useUpdateConversationState — backs multi-select
- * archive/delete/unarchive on both ConversationList and
- * ArchivedConversations. Same per-user semantics: only ever touches the
+ * archive/delete/unarchive on both ConversationList and Archive. Same
+ * per-user semantics: only ever touches the
  * current user's own conversation_participants rows.
  */
 export function useBulkUpdateConversationState() {
@@ -684,10 +706,7 @@ export function useArchivedConversations() {
         if (!otherParticipant?.profile) continue;
 
         const lastReadAt = readMap.get(conv.id);
-        const unread =
-          !!lastMessage &&
-          lastMessage.sender_id !== user!.id &&
-          (!lastReadAt || new Date(lastMessage.created_at) > new Date(lastReadAt));
+        const unreadCount = await getUnreadCount(conv.id, user!.id, lastReadAt ?? null);
 
         results.push({
           id: conv.id,
@@ -705,7 +724,8 @@ export function useArchivedConversations() {
                 is_deleted: lastMessage.is_deleted,
               }
             : null,
-          unread,
+          unread: unreadCount > 0,
+          unreadCount,
         });
       }
 
