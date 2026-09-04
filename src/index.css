@@ -7,6 +7,12 @@
   generic AI-tool cream+terracotta or near-black+neon-accent looks.
   Playfair Display (serif, high-contrast, editorial) for headlines/
   identity moments, Inter (humanist sans) for UI and body text.
+
+  Dark mode is a straight token swap, not a component rewrite: every
+  component reads bg-canvas/text-ink/border-border/etc, never a raw
+  Tailwind palette color, so overriding these custom properties under
+  .dark (see below) re-themes the whole app with zero component changes.
+  See src/hooks/useTheme.tsx for how .dark gets applied to <html>.
 */
 @theme {
   --color-canvas: #F7F4EF;        /* warm off-white background (was topnav color) */
@@ -18,6 +24,7 @@
   --color-accent-soft: #E3E9E1;   /* pale sage tint for subtle backgrounds/badges */
   --color-border: #E9E4D8;        /* hairline borders, nudged for brighter surface */
   --color-danger: #A64B3F;        /* warm brick-red for destructive/dislike states, not pure red */
+  --color-pushback: #B8862E;      /* muted warm gold/ochre — Pushback stance only (was raw amber-*) */
   --color-tick-read: #FF6A00;     /* neon orange — read-receipt double-ticks ONLY, deliberately loud so it snaps against both the accent bubble and the plain canvas list background. Reused for the "recently online" presence dot. */
   --color-presence-online: #39FF6A; /* neon green — online-now presence dot */
 
@@ -25,10 +32,50 @@
   --font-body: "Inter", -apple-system, BlinkMacSystemFont, sans-serif;
 }
 
+/*
+  Raw rgb() triplets for the handful of spots that build a shadow/glow
+  color manually (box-shadow can't take a Tailwind color token
+  directly). Kept as plain :root vars — outside @theme so Tailwind
+  doesn't try to turn them into a `shadow-*`/`accent-rgb-*` utility
+  family — and referenced as rgba(var(--shadow-ink-rgb), 0.06) etc.
+  Override alongside the palette in .dark below so shadows stay
+  correct instead of silently keeping light-mode values.
+*/
+:root {
+  --shadow-ink-rgb: 31, 29, 26;   /* == --color-ink, light mode */
+  --accent-rgb: 61, 90, 69;       /* == --color-accent, light mode */
+}
+
+/*
+  Dark palette. Same warm hue family as light mode, inverted in
+  lightness — a warm near-black (not blue-slate, not pure #000), warm
+  off-white ink (not pure #FFF). Accent/danger/pushback are lifted a
+  step brighter than their light-mode values, since a saturated color
+  that reads fine on a bright surface loses contrast on a dark one.
+  Neon tick/presence colors are unchanged — they're accent flashes
+  that already pop on either background.
+*/
+.dark {
+  --color-canvas: #15130E;
+  --color-surface: #1D1A13;
+  --color-ink: #F2EEE4;
+  --color-ink-muted: #A69C89;
+  --color-accent: #6B9279;
+  --color-accent-hover: #7FA88C;
+  --color-accent-soft: #212C24;
+  --color-border: #332E22;
+  --color-danger: #C97C6B;
+  --color-pushback: #D9A857;
+
+  --shadow-ink-rgb: 0, 0, 0;
+  --accent-rgb: 107, 146, 121;
+}
+
 body {
   background-color: var(--color-canvas);
   color: var(--color-ink);
   font-family: var(--font-body);
+  transition: background-color 150ms ease, color 150ms ease;
 }
 
 .no-scrollbar {
