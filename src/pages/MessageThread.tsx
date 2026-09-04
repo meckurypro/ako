@@ -577,7 +577,7 @@ export function MessageThread() {
                     type="button"
                     onClick={() => navigate(`/post/${unseenPostId}`)}
                     aria-label={`View ${otherParticipant.display_name}'s new post`}
-                    className="flex-shrink-0 rounded-full p-[2.5px] bg-accent shadow-[0_0_6px_rgba(61,90,69,0.45)]"
+                    className="flex-shrink-0 rounded-full p-[2.5px] bg-accent shadow-[0_0_6px_rgba(var(--accent-rgb),0.45)]"
                   >
                     <span className="block rounded-full bg-canvas p-[2px]">
                       <Avatar src={otherParticipant.avatar_url} name={otherParticipant.display_name} size="sm" />
