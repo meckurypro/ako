@@ -3,6 +3,7 @@ import { useRef, useState } from "react";
 import { useCreateComment } from "../hooks/useComments";
 import type { Stance } from "../types/database";
 import { FormatToolbar } from "./FormatToolbar";
+import { CONTENT_LIMIT, contentCounterClass } from "../lib/textLimits";
 
 const STANCES: Stance[] = ["support", "disagree", "pushback"];
 
@@ -148,7 +149,7 @@ export function StanceComposer({
             ref={contentRef}
             value={content}
             onChange={(e) => setContent(e.target.value)}
-            maxLength={2000}
+            maxLength={CONTENT_LIMIT}
             rows={4}
             autoFocus
             placeholder={colors.prompt}
@@ -160,7 +161,9 @@ export function StanceComposer({
 
           {/* Char count + submit */}
           <div className="flex items-center justify-between mt-3">
-            <span className="text-xs text-ink-muted">{content.length}/2000</span>
+            <span className={`text-xs ${contentCounterClass(content.length)}`}>
+              {content.length}/{CONTENT_LIMIT}
+            </span>
             <button
               onClick={handleSubmit}
               disabled={!content.trim() || createComment.isPending}
