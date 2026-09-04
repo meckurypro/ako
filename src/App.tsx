@@ -21,7 +21,6 @@ import { HashtagFeed } from "./pages/HashtagFeed";
 import { Discover } from "./pages/Discover";
 
 import { ProfilePage } from "./pages/ProfilePage";
-import { EditProfile } from "./pages/EditProfile";
 import { FollowListPage } from "./pages/FollowListPage";
 import { MyProfileRedirect } from "./pages/MyProfileRedirect";
 
@@ -38,8 +37,6 @@ import { MessageThread } from "./pages/MessageThread";
 import { HiddenMessages } from "./pages/HiddenMessages";
 import { Search } from "./pages/Search";
 import { Settings } from "./pages/Settings";
-import { AdvancedSettings } from "./pages/AdvancedSettings";
-import { AppearanceSettings } from "./pages/AppearanceSettings";
 
 import { RequireAdmin } from "./components/RequireAdmin";
 import { AdminHome } from "./pages/admin/AdminHome";
@@ -180,7 +177,7 @@ export default function App() {
               path="/settings/profile"
               element={
                 <RequireAuth>
-                  <EditProfile />
+                  <Settings />
                 </RequireAuth>
               }
             />
@@ -284,22 +281,11 @@ export default function App() {
                 </RequireAuth>
               }
             />
-            <Route
-              path="/settings/advanced"
-              element={
-                <RequireAuth>
-                  <AdvancedSettings />
-                </RequireAuth>
-              }
-            />
-            <Route
-              path="/settings/appearance"
-              element={
-                <RequireAuth>
-                  <AppearanceSettings />
-                </RequireAuth>
-              }
-            />
+            {/* Old dedicated sub-pages are folded into the single /settings
+                hub now — keep the routes as redirects so any stale links
+                (bookmarks, browser history) still land somewhere valid. */}
+            <Route path="/settings/advanced" element={<Navigate to="/settings" replace />} />
+            <Route path="/settings/appearance" element={<Navigate to="/settings" replace />} />
 
             {/* Admin */}
             <Route
