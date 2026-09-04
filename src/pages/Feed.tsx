@@ -184,7 +184,7 @@ export function Feed() {
 
   return (
     <div className="min-h-screen bg-canvas pb-24">
-      <div className="sticky top-0 z-20 bg-surface shadow-[0_2px_8px_-4px_rgba(31,29,26,0.10)]">
+      <div className="sticky top-0 z-20 bg-surface shadow-[0_2px_8px_-4px_rgba(var(--shadow-ink-rgb),0.10)]">
         <TopHeader showTagline />
 
         <div className="px-4 overflow-x-auto scrollbar-none">
