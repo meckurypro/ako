@@ -15,7 +15,6 @@ import { useAuth } from "../hooks/useAuth";
 import { Avatar } from "../components/Avatar";
 import { BottomNav } from "../components/BottomNav";
 import { MessageStatusTicks } from "../components/MessageStatusTicks";
-import { PresenceDot } from "../components/PresenceDot";
 import { ConversationActionSheet } from "../components/ConversationActionSheet";
 import { ConfirmDialog } from "../components/ConfirmDialog";
 
@@ -242,16 +241,13 @@ export function ConversationList() {
 
         <div className="min-w-0 flex-1">
           <div className="flex items-center justify-between">
-            <p className={`text-sm truncate flex items-center gap-1 ${c.unread ? "font-semibold text-ink" : "font-medium text-ink"}`}>
+            <p className={`text-sm truncate flex items-center gap-1 ${c.unreadCount > 0 ? "font-semibold text-ink" : "font-medium text-ink"}`}>
               {c.pinned_at && <Pin size={12} className="text-ink-muted flex-shrink-0" />}
               <span className="truncate">{c.other_participant.display_name}</span>
             </p>
-            <span className="flex flex-col items-end gap-1 flex-shrink-0 ml-2">
-              <span className="text-xs text-ink-muted">{timeAgo(c.last_message_at)}</span>
-              <PresenceDot lastSeenAt={c.other_participant.last_seen_at} />
-            </span>
+            <span className="text-xs text-ink-muted flex-shrink-0 ml-2">{timeAgo(c.last_message_at)}</span>
           </div>
-          <p className={`text-sm flex items-center gap-1 min-w-0 ${c.unread ? "text-ink" : "text-ink-muted"}`}>
+          <p className={`text-sm flex items-center gap-1 min-w-0 ${c.unreadCount > 0 ? "text-ink" : "text-ink-muted"}`}>
             {showTicksInPreview && c.last_message && !c.last_message.is_deleted && (
               <span className="flex-shrink-0 inline-flex">
                 <MessageStatusTicks
@@ -267,7 +263,11 @@ export function ConversationList() {
             </span>
           </p>
         </div>
-        {c.unread && <div className="w-2 h-2 rounded-full bg-accent flex-shrink-0" />}
+        {c.unreadCount > 0 && (
+          <span className="min-w-[22px] h-[22px] px-1.5 rounded-full bg-accent text-canvas text-xs font-semibold flex items-center justify-center flex-shrink-0">
+            {c.unreadCount > 99 ? "99+" : c.unreadCount}
+          </span>
+        )}
       </div>
     );
   }
