@@ -55,7 +55,7 @@ export function PostActionSheet({
             onDelete();
             onClose();
           }}
-          className="w-full flex items-center gap-3 px-4 py-3.5 text-sm text-red-600"
+          className="w-full flex items-center gap-3 px-4 py-3.5 text-sm text-danger"
         >
           <Trash2 size={18} />
           Delete post
