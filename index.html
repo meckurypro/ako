@@ -11,6 +11,29 @@
       href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,500;0,600;0,700;0,800;0,900;1,400;1,500;1,600;1,700&family=Inter:wght@400;500;600;700&display=swap"
       rel="stylesheet"
     />
+    <!--
+      Sets .dark on <html> before React mounts (and before first paint),
+      reading the same localStorage key useTheme.tsx uses. Without this,
+      the page always paints light first, then flips to dark a beat
+      later once React runs — a visible flash on every load for anyone
+      using dark mode. Kept deliberately tiny and dependency-free since
+      it has to run synchronously, blocking, in <head>.
+    -->
+    <script>
+      (function () {
+        try {
+          var stored = localStorage.getItem("ako-theme");
+          var isDark =
+            stored === "dark" ||
+            (stored !== "light" &&
+              window.matchMedia("(prefers-color-scheme: dark)").matches);
+          if (isDark) document.documentElement.classList.add("dark");
+        } catch (e) {
+          // localStorage/matchMedia unavailable (privacy mode, old
+          // browser) — fall back to light, same as if nothing were set.
+        }
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>
