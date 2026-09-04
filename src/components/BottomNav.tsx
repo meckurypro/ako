@@ -60,7 +60,7 @@ export function BottomNav() {
     }`;
 
   return (
-    <nav className="fixed bottom-0 left-0 right-0 z-40 bg-surface rounded-t-[28px] border-t border-border shadow-[0_-1px_3px_rgba(31,29,26,0.06)] px-2 pt-3 pb-[calc(env(safe-area-inset-bottom)+0.75rem)]">
+    <nav className="fixed bottom-0 left-0 right-0 z-40 bg-surface rounded-t-[28px] border-t border-border shadow-[0_-1px_3px_rgba(var(--shadow-ink-rgb),0.06)] px-2 pt-3 pb-[calc(env(safe-area-inset-bottom)+0.75rem)]">
       <div className="flex items-end justify-around">
         {sideItems.map(({ to, icon: Icon, label }) => (
           <NavLink key={to} to={to} className={linkClass}>
@@ -77,7 +77,7 @@ export function BottomNav() {
           <div className="relative -mt-4 mb-1">
             <span
               aria-hidden
-              className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-16 h-16 rounded-full bg-surface shadow-[0_-1px_3px_rgba(31,29,26,0.06)]"
+              className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-16 h-16 rounded-full bg-surface shadow-[0_-1px_3px_rgba(var(--shadow-ink-rgb),0.06)]"
             />
             <NavLink
               to="/compose"
