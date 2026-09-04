@@ -10,6 +10,10 @@ interface ImageLightboxProps {
 
 // Near-fullscreen image viewer — used for profile photos so a visitor can
 // tap the avatar to see it large instead of squinting at a small circle.
+// bg-black/text-white below are intentional, not a missed theme token —
+// photo-viewer chrome (same as Instagram/Twitter/Apple Photos) stays a
+// fixed black scrim in both light and dark app themes, since a themed
+// canvas color behind photos would wash out contrast either way.
 export function ImageLightbox({ src, alt, onClose }: ImageLightboxProps) {
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
