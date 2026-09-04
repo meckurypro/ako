@@ -200,10 +200,10 @@ export function ProjectCard({
   const TypeIcon = TYPE_ICON[project.project_type];
 
   return (
-    <div className="bg-surface rounded-2xl overflow-hidden border border-border mb-3 relative">
+    <div className="bg-surface rounded-2xl border border-border mb-3 relative">
       <div
         style={{ aspectRatio }}
-        className="w-full bg-canvas flex items-center justify-center"
+        className="w-full bg-canvas flex items-center justify-center rounded-t-2xl overflow-hidden"
       >
         {project.thumbnail_url ? (
           <img src={project.thumbnail_url} alt="" className="w-full h-full object-cover" />
