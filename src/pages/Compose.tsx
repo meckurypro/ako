@@ -7,9 +7,9 @@ import { useCreatePost } from "../hooks/usePosts";
 import { useCategories } from "../hooks/useCategories";
 import { useUploadPostMedia, isVideoUrl } from "../hooks/useUploadPostMedia";
 import { MentionTextarea } from "../components/MentionTextarea";
+import { CONTENT_LIMIT, contentCounterClass } from "../lib/textLimits";
 
 const HEADING_LIMIT = 50;
-const CONTENT_LIMIT = 1000;
 const MAX_MEDIA_FILES = 4;
 
 export function Compose() {
@@ -136,9 +136,7 @@ export function Compose() {
             {uploadMedia.isPending ? "Uploading…" : "Add photo/video"}
           </button>
           <span
-            className={`text-xs ${
-              content.length > CONTENT_LIMIT * 0.9 ? "text-danger" : "text-ink-muted"
-            }`}
+            className={`text-xs ${contentCounterClass(content.length)}`}
           >
             {content.length}/{CONTENT_LIMIT}
           </span>
