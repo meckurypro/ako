@@ -12,6 +12,7 @@ import {
 import { useUploadProjectThumbnail } from "../hooks/useUploadProjectThumbnail";
 import { FormField } from "../components/FormField";
 import { Button } from "../components/Button";
+import { PrivacyToggle } from "../components/PrivacyToggle";
 import { TopicPicker, MAX_TOPICS } from "../components/TopicPicker";
 import { FormatToolbar } from "../components/FormatToolbar";
 import { CONTENT_LIMIT, contentCounterClass } from "../lib/textLimits";
@@ -19,14 +20,14 @@ import { EventFields, EMPTY_EVENT_FIELDS, type EventFieldsValue } from "../compo
 import { MeetingFields, EMPTY_MEETING_FIELDS, type MeetingFieldsValue } from "../components/project-types/MeetingFields";
 import { RoomFields } from "../components/project-types/RoomFields";
 import { CourseFields } from "../components/project-types/CourseFields";
+import { FileFields, EMPTY_FILE_FIELDS, type FileFieldsValue } from "../components/project-types/FileFields";
+import { UrlFields, EMPTY_URL_FIELDS, type UrlFieldsValue } from "../components/project-types/UrlFields";
 import {
-  DeliverableFields,
-  EMPTY_DELIVERABLE_FIELDS,
-  type DeliverableFieldsValue,
-} from "../components/project-types/DeliverableFields";
-
-// Types that use the shared link-or-upload block.
-const DELIVERABLE_TYPES: ProjectType[] = ["audio", "video", "file"];
+  MediaFields,
+  EMPTY_MEDIA_FIELDS,
+  mediaFieldsAreValid,
+  type MediaFieldsValue,
+} from "../components/project-types/MediaFields";
 
 export function CreateProject() {
   const navigate = useNavigate();
@@ -41,6 +42,7 @@ export function CreateProject() {
   const [priceUsd, setPriceUsd] = useState("0");
   const [showPromo, setShowPromo] = useState(false);
   const [promoPriceUsd, setPromoPriceUsd] = useState("");
+  const [isPrivate, setIsPrivate] = useState(false);
   const [thumbnailUrl, setThumbnailUrl] = useState<string | null>(null);
   const [thumbnailRatio, setThumbnailRatio] = useState<{ width: number; height: number } | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -49,7 +51,9 @@ export function CreateProject() {
   // read/validated/sent; switching types keeps the others' state
   // around harmlessly rather than resetting it, in case the host
   // switches back.
-  const [deliverable, setDeliverable] = useState<DeliverableFieldsValue>(EMPTY_DELIVERABLE_FIELDS);
+  const [fileFields, setFileFields] = useState<FileFieldsValue>(EMPTY_FILE_FIELDS);
+  const [urlFields, setUrlFields] = useState<UrlFieldsValue>(EMPTY_URL_FIELDS);
+  const [mediaFields, setMediaFields] = useState<MediaFieldsValue>(EMPTY_MEDIA_FIELDS);
   const [eventFields, setEventFields] = useState<EventFieldsValue>(EMPTY_EVENT_FIELDS);
   const [meetingFields, setMeetingFields] = useState<MeetingFieldsValue>(EMPTY_MEETING_FIELDS);
 
@@ -83,24 +87,24 @@ export function CreateProject() {
     }
   }
 
-  function validateTypeSpecific(price: number): string | null {
-    if (DELIVERABLE_TYPES.includes(projectType)) {
-      if (!deliverable.external_url.trim() && !deliverable.file_path) {
-        return "Add a link or upload a file — at least one is required.";
-      }
-      if (price > 0 && !deliverable.file_path && !deliverable.external_url.trim()) {
-        return "Paid projects need something to unlock — a link or a file.";
-      }
+  function validateTypeSpecific(): string | null {
+    if (projectType === "file" && !fileFields.file_path) {
+      return "Upload a file to continue.";
     }
-    if (projectType === "event") {
-      if (!eventFields.location_value.trim()) {
-        return eventFields.location_type === "physical" ? "Add the event address." : "Add the join link.";
-      }
+    if (projectType === "url" && !urlFields.url.trim()) {
+      return "Add the link you're sharing access to.";
     }
-    if (projectType === "meeting") {
-      if (!meetingFields.scheduled_at) {
-        return "Set when this meeting happens.";
+    if (projectType === "media" && !mediaFieldsAreValid(mediaFields)) {
+      if (!mediaFields.audio.enabled && !mediaFields.video.enabled) {
+        return "Turn on Audio, Video, or both.";
       }
+      return "Add a link or upload a file for each channel you turned on.";
+    }
+    if (projectType === "event" && !eventFields.location_value.trim()) {
+      return eventFields.location_type === "physical" ? "Add the event address." : "Add the join link.";
+    }
+    if (projectType === "meeting" && !meetingFields.scheduled_at) {
+      return "Set when this meeting happens.";
     }
     return null;
   }
@@ -116,7 +120,7 @@ export function CreateProject() {
 
     const price = parseFloat(priceUsd) || 0;
 
-    const typeError = validateTypeSpecific(price);
+    const typeError = validateTypeSpecific();
     if (typeError) {
       setError(typeError);
       return;
@@ -140,16 +144,17 @@ export function CreateProject() {
         title: title.trim(),
         description: description.trim() || undefined,
         project_type: projectType,
-        // Deliverable types only — Event/Meeting/Room/Course don't use these.
-        external_url: DELIVERABLE_TYPES.includes(projectType)
-          ? deliverable.external_url.trim() || undefined
-          : undefined,
-        file_path: DELIVERABLE_TYPES.includes(projectType) ? deliverable.file_path ?? undefined : undefined,
+        // File stores only an uploaded file, URL stores only a link —
+        // Media doesn't use either base column at all, it lives
+        // entirely in media_details below.
+        external_url: projectType === "url" ? urlFields.url.trim() : undefined,
+        file_path: projectType === "file" ? fileFields.file_path ?? undefined : undefined,
         thumbnail_url: thumbnailUrl ?? undefined,
         thumbnail_width: thumbnailRatio?.width,
         thumbnail_height: thumbnailRatio?.height,
         price_usd: price,
         promo_price_usd: promoPrice,
+        is_private: isPrivate,
         // Course always starts as a draft, no matter what — it can't
         // be purchased until the host publishes it from the builder.
         status: projectType === "course" ? "draft" : undefined,
@@ -165,6 +170,31 @@ export function CreateProject() {
             : undefined,
         meeting_details:
           projectType === "meeting" ? { scheduled_at: meetingFields.scheduled_at } : undefined,
+        media_details:
+          projectType === "media"
+            ? {
+                has_audio: mediaFields.audio.enabled,
+                has_video: mediaFields.video.enabled,
+                audio_source: mediaFields.audio.enabled ? mediaFields.audio.source : undefined,
+                audio_url:
+                  mediaFields.audio.enabled && mediaFields.audio.source === "link"
+                    ? mediaFields.audio.url.trim()
+                    : undefined,
+                audio_file_path:
+                  mediaFields.audio.enabled && mediaFields.audio.source === "upload"
+                    ? mediaFields.audio.file_path ?? undefined
+                    : undefined,
+                video_source: mediaFields.video.enabled ? mediaFields.video.source : undefined,
+                video_url:
+                  mediaFields.video.enabled && mediaFields.video.source === "link"
+                    ? mediaFields.video.url.trim()
+                    : undefined,
+                video_file_path:
+                  mediaFields.video.enabled && mediaFields.video.source === "upload"
+                    ? mediaFields.video.file_path ?? undefined
+                    : undefined,
+              }
+            : undefined,
       });
       navigate(-1);
     } catch (err) {
@@ -277,14 +307,13 @@ export function CreateProject() {
           </div>
 
           {/* ---- Type-specific block ---- */}
-          {DELIVERABLE_TYPES.includes(projectType) && (
-            <DeliverableFields
-              kind={projectType as "audio" | "video" | "file"}
-              value={deliverable}
-              onChange={setDeliverable}
-              onError={setError}
-            />
+          {projectType === "media" && (
+            <MediaFields value={mediaFields} onChange={setMediaFields} onError={setError} />
           )}
+          {projectType === "file" && (
+            <FileFields value={fileFields} onChange={setFileFields} onError={setError} />
+          )}
+          {projectType === "url" && <UrlFields value={urlFields} onChange={setUrlFields} />}
           {projectType === "event" && <EventFields value={eventFields} onChange={setEventFields} />}
           {projectType === "meeting" && <MeetingFields value={meetingFields} onChange={setMeetingFields} />}
           {projectType === "room" && <RoomFields />}
@@ -339,6 +368,8 @@ export function CreateProject() {
               </>
             )}
           </div>
+
+          <PrivacyToggle checked={isPrivate} onChange={setIsPrivate} />
 
           {error && (
             <p className="text-danger text-sm mb-4" role="alert">
