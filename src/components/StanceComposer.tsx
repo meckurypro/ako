@@ -47,12 +47,12 @@ export const STANCE_COLORS: Record<
   pushback: {
     label: "Pushback",
     prompt: "What would you question, qualify, or add?",
-    iconClass: "text-amber-500",
-    tabActive: "text-amber-600 border-b-2 border-amber-500 bg-amber-50",
-    topBorderClass: "border-t-4 border-amber-500",
-    ringClass: "focus:ring-amber-500/40 focus:border-amber-500",
-    submitClass: "bg-amber-500 text-canvas",
-    pillClass: "text-amber-700 bg-amber-50",
+    iconClass: "text-pushback",
+    tabActive: "text-pushback border-b-2 border-pushback bg-pushback/10",
+    topBorderClass: "border-t-4 border-pushback",
+    ringClass: "focus:ring-pushback/40 focus:border-pushback",
+    submitClass: "bg-pushback text-canvas",
+    pillClass: "text-pushback bg-pushback/10",
   },
 };
 
