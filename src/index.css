@@ -47,25 +47,32 @@
 }
 
 /*
-  Dark palette, v2 — darker and more neutral than the original warm-brown
-  take (canvas/surface pulled toward true near-black, R/G/B channels much
-  closer together so they no longer read as brown), off-white ink pushed
-  closer to actual white, and the accent green boosted in brightness/
-  saturation so it pops more against the darker surfaces. Border and
-  accent-soft were nudged along with canvas/surface/accent so the whole
-  palette still reads as one coherent set rather than old warm tones
-  sitting on top of new neutral ones. Danger/pushback/neon tick/presence
-  are unchanged.
+  Dark palette, v3 — surface pulled much closer to canvas.
+
+  v2 kept the light-theme's big canvas→surface jump (roughly +11 per
+  channel) and just darkened both ends, which is why topnav/bottomnav/
+  cards still read as a visibly lighter "panel" floating on the
+  background — that gap reads fine in light mode but is oversized for
+  dark mode. Material's own dark spec is explicit about this: don't
+  reuse light-mode's elevation contrast, keep the baseline surface only
+  a few percent lighter than the true background (their reference dark
+  surface is #121212 against a near-black canvas) and reserve bigger
+  jumps for genuinely floating elements like modals/sheets. So `surface`
+  here is a small, single-token nudge above `canvas` — topnav,
+  bottomnav, and PostCard all read this same variable, so this one
+  change moves all three at once instead of patching each component.
+  `border` was pulled down slightly to match so hairlines don't now
+  read as brighter than the surface they're outlining.
 */
 .dark {
   --color-canvas: #0C0C0B;
-  --color-surface: #17161A;
+  --color-surface: #131311;
   --color-ink: #F9F8F5;
   --color-ink-muted: #ADA99E;
   --color-accent: #4CAE7C;
   --color-accent-hover: #63C695;
   --color-accent-soft: #17281F;
-  --color-border: #2A2924;
+  --color-border: #232220;
   --color-danger: #C97C6B;
   --color-pushback: #D9A857;
 
