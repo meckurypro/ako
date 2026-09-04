@@ -65,6 +65,29 @@ async function getVisibleLastMessage(conversationId: string, userId: string) {
 }
 
 /**
+ * Fetching a message into this user's inbox is itself proof of
+ * delivery. delivered_at otherwise only ever gets stamped by
+ * useGlobalMessageDelivery's live Realtime listener below, which
+ * requires that listener to have been subscribed at the exact instant
+ * the message was inserted — a recipient who wasn't connected right
+ * then (tab opened afterward, dropped socket, cold load) would
+ * otherwise leave the sender stuck on a single tick forever, even
+ * though the message is sitting right there in the recipient's list.
+ * Called from both useConversations and useArchivedConversations,
+ * which between the 15s poll and mount-time fetch means this closes
+ * the gap within a few seconds even when the live event was missed.
+ */
+async function backfillDelivered(messageIds: string[]) {
+  if (!messageIds.length) return;
+  const { error } = await supabase
+    .from("messages")
+    .update({ delivered_at: new Date().toISOString() })
+    .in("id", messageIds)
+    .is("delivered_at", null);
+  if (error) console.error("Failed to backfill delivered_at:", error);
+}
+
+/**
  * Counts messages from the other participant that arrived after
  * `lastReadAt`, for the numeric badge in the chat list. Unlike
  * getVisibleLastMessage above, this doesn't subtract messages the user
@@ -124,6 +147,7 @@ export function useConversations() {
       if (convError) throw convError;
 
       const results: ConversationSummary[] = [];
+      const undeliveredIds: string[] = [];
 
       for (const conv of conversations ?? []) {
         const { data: otherParticipant } = await supabase
@@ -138,6 +162,10 @@ export function useConversations() {
         const lastMessage = await getVisibleLastMessage(conv.id, user!.id);
 
         if (!otherParticipant?.profile) continue;
+
+        if (lastMessage && lastMessage.sender_id !== user!.id && !lastMessage.delivered_at) {
+          undeliveredIds.push(lastMessage.id);
+        }
 
         const lastReadAt = readMap.get(conv.id);
         // Our own sent messages must never flip a conversation back to
@@ -164,6 +192,8 @@ export function useConversations() {
           unreadCount,
         });
       }
+
+      await backfillDelivered(undeliveredIds);
 
       // Pinned conversations float to the top; recency order (already
       // applied by the query above) is preserved within each group
@@ -690,6 +720,7 @@ export function useArchivedConversations() {
       if (convError) throw convError;
 
       const results: ArchivedConversationSummary[] = [];
+      const undeliveredIds: string[] = [];
 
       for (const conv of conversations ?? []) {
         const { data: otherParticipant } = await supabase
@@ -704,6 +735,10 @@ export function useArchivedConversations() {
         const lastMessage = await getVisibleLastMessage(conv.id, user!.id);
 
         if (!otherParticipant?.profile) continue;
+
+        if (lastMessage && lastMessage.sender_id !== user!.id && !lastMessage.delivered_at) {
+          undeliveredIds.push(lastMessage.id);
+        }
 
         const lastReadAt = readMap.get(conv.id);
         const unreadCount = await getUnreadCount(conv.id, user!.id, lastReadAt ?? null);
@@ -728,6 +763,8 @@ export function useArchivedConversations() {
           unreadCount,
         });
       }
+
+      await backfillDelivered(undeliveredIds);
 
       return results;
     },
