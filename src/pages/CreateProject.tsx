@@ -14,6 +14,7 @@ import { FormField } from "../components/FormField";
 import { Button } from "../components/Button";
 import { TopicPicker, MAX_TOPICS } from "../components/TopicPicker";
 import { FormatToolbar } from "../components/FormatToolbar";
+import { CONTENT_LIMIT, contentCounterClass } from "../lib/textLimits";
 import { EventFields, EMPTY_EVENT_FIELDS, type EventFieldsValue } from "../components/project-types/EventFields";
 import { MeetingFields, EMPTY_MEETING_FIELDS, type MeetingFieldsValue } from "../components/project-types/MeetingFields";
 import { RoomFields } from "../components/project-types/RoomFields";
@@ -255,11 +256,14 @@ export function CreateProject() {
               ref={descriptionRef}
               value={description}
               onChange={(e) => setDescription(e.target.value)}
-              maxLength={1000}
+              maxLength={CONTENT_LIMIT}
               rows={3}
               className="w-full px-4 py-3 rounded-xl border border-border bg-canvas text-ink resize-none
                 focus:outline-none focus:ring-2 focus:ring-accent/40 focus:border-accent"
             />
+            <p className={`text-xs mt-1.5 text-right ${contentCounterClass(description.length)}`}>
+              {description.length}/{CONTENT_LIMIT}
+            </p>
           </div>
 
           <div className="mb-4">
