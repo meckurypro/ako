@@ -2,7 +2,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
-  ExternalLink,
   Lock,
   Download,
   ImageIcon,
@@ -19,8 +18,10 @@ import {
   Ticket,
   Users,
   Video,
+  Music,
   BookOpen,
   Eye,
+  Link as LinkIcon,
 } from "lucide-react";
 import { useAuth } from "../hooks/useAuth";
 import { renderFormattedText } from "../lib/formatText";
@@ -36,13 +37,16 @@ import {
   PROJECT_TYPE_LABELS,
   type Project,
 } from "../hooks/useProjects";
+import { useMediaDetails } from "../hooks/useProjectTypeDetails";
 import { useIsProjectSaved, useToggleSavedProject } from "../hooks/useSavedProjects";
 import { useProjectAccessCount } from "../hooks/useProjectAccess";
 
-// Types whose "unlock" is the classic link/file pattern this card
-// already handled. Event/Meeting/Room/Course each unlock into their
-// own dedicated page instead — see TYPE_ROUTE below.
-const DELIVERABLE_TYPES: Project["project_type"][] = ["audio", "video", "file"];
+// File and URL keep the original single-link/download "unlock"
+// pattern inline in the action row. Media gets its own block above
+// that row (it can show up to two rows — audio and video — so it
+// doesn't fit the single-line pattern). Event/Meeting/Room/Course
+// each unlock into their own dedicated page instead — see TYPE_ROUTE.
+const INLINE_TYPES: Project["project_type"][] = ["file", "url"];
 
 const TYPE_ROUTE: Partial<Record<Project["project_type"], (id: string) => string>> = {
   event: (id) => `/projects/${id}/ticket`,
@@ -96,16 +100,21 @@ export function ProjectCard({
 
   const hasPurchasedQuery = useHasPurchased(project.id);
   const purchaseProject = usePurchaseProject();
-  const getFile = useGetProjectFile();
+  const getFileDownload = useGetProjectFile();
+  const getAudioStream = useGetProjectFile();
+  const getVideoStream = useGetProjectFile();
   const setStatus = useSetProjectStatus();
   const deleteProject = useDeleteProject();
   const isSavedQuery = useIsProjectSaved(project.id);
   const toggleSaved = useToggleSavedProject(project.id);
   const accessCountQuery = useProjectAccessCount(project.id);
+  const { data: mediaDetails } = useMediaDetails(project.project_type === "media" ? project.id : undefined);
 
   const [error, setError] = useState<string | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
+  const [audioSrc, setAudioSrc] = useState<string | null>(null);
+  const [videoSrc, setVideoSrc] = useState<string | null>(null);
   const hasPurchased = !!hasPurchasedQuery.data;
   const hasAccess = isOwner || isFree || hasPurchased;
   const isSaved = !!isSavedQuery.data;
@@ -160,10 +169,41 @@ export function ProjectCard({
     }
     setError(null);
     try {
-      const url = await getFile.mutateAsync(project.id);
+      const url = await getFileDownload.mutateAsync({ projectId: project.id, kind: "file" });
       window.open(url, "_blank");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Couldn't access file.");
+    }
+  }
+
+  // Media streaming — deliberately sets the signed URL as playback
+  // src instead of window.open()-ing it: an uploaded audio/video
+  // channel streams in place, with no download or redirect at all.
+  async function handlePlayAudio() {
+    if (!user) {
+      navigate(`/login?redirect=${encodeURIComponent(`/projects/${project.id}`)}`);
+      return;
+    }
+    setError(null);
+    try {
+      const url = await getAudioStream.mutateAsync({ projectId: project.id, kind: "audio" });
+      setAudioSrc(url);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Couldn't load audio.");
+    }
+  }
+
+  async function handlePlayVideo() {
+    if (!user) {
+      navigate(`/login?redirect=${encodeURIComponent(`/projects/${project.id}`)}`);
+      return;
+    }
+    setError(null);
+    try {
+      const url = await getVideoStream.mutateAsync({ projectId: project.id, kind: "video" });
+      setVideoSrc(url);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Couldn't load video.");
     }
   }
 
@@ -198,6 +238,8 @@ export function ProjectCard({
       : "16 / 9";
 
   const TypeIcon = TYPE_ICON[project.project_type];
+  const isMedia = project.project_type === "media";
+  const showOwnerBadges = isOwner && (project.status !== "active" || project.is_private);
 
   return (
     <div className="bg-surface rounded-2xl border border-border mb-3 relative">
@@ -212,16 +254,26 @@ export function ProjectCard({
         )}
       </div>
 
-      {/* Owner-only status badge — visitors only ever see active
-          projects at all, so this badge would never make sense to them. */}
-      {isOwner && project.status !== "active" && (
-        <span className="absolute top-3 left-3 text-xs font-medium px-2 py-0.5 rounded-full bg-ink text-canvas">
-          {project.status === "draft"
-            ? "Draft"
-            : project.status === "cancelled"
-              ? "Cancelled"
-              : "Archived"}
-        </span>
+      {/* Owner-only badges — visitors only ever see active, listed
+          projects at all, so neither badge would make sense to them. */}
+      {showOwnerBadges && (
+        <div className="absolute top-3 left-3 flex items-center gap-1.5">
+          {project.status !== "active" && (
+            <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-ink text-canvas">
+              {project.status === "draft"
+                ? "Draft"
+                : project.status === "cancelled"
+                  ? "Cancelled"
+                  : "Archived"}
+            </span>
+          )}
+          {project.is_private && (
+            <span className="flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full bg-ink/80 text-canvas">
+              <EyeOff size={10} />
+              Private
+            </span>
+          )}
+        </div>
       )}
 
       {/* Save toggle — sits left of the kebab for owners, alone
@@ -368,44 +420,119 @@ export function ProjectCard({
 
         {error && <p className="text-danger text-sm mt-2">{error}</p>}
 
-        <div className="flex items-center gap-2 mt-3">
-          {/* Deliverable types (audio/video/file) — original link/download pattern. */}
-          {DELIVERABLE_TYPES.includes(project.project_type) && (
-            <>
-              {project.external_url && hasAccess && (
-                <a
-                  href={project.external_url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex items-center gap-1.5 text-sm text-accent font-medium"
-                >
-                  <ExternalLink size={15} />
-                  Open link
-                </a>
-              )}
-
-              {project.file_path &&
-                (hasAccess ? (
-                  <button
-                    onClick={handleOpenFile}
-                    disabled={getFile.isPending}
-                    className="flex items-center gap-1.5 text-sm text-accent font-medium disabled:opacity-50"
-                  >
-                    <Download size={15} />
-                    {getFile.isPending ? "Preparing…" : "Download"}
-                  </button>
-                ) : (
+        {/* Media gets its own block above the action row — it can
+            show up to two channel rows (audio, video), so it doesn't
+            fit the single-line pattern the other inline types use. */}
+        {isMedia && mediaDetails && (
+          <div className="flex flex-col gap-2 mt-3">
+            {mediaDetails.has_audio && (
+              <div>
+                {!hasAccess ? (
                   <span className="flex items-center gap-1.5 text-sm text-ink-muted">
                     <Lock size={15} />
-                    Locked
+                    Audio locked
                   </span>
-                ))}
-            </>
-          )}
+                ) : mediaDetails.audio_source === "link" ? (
+                  <a
+                    href={mediaDetails.audio_url ?? undefined}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-1.5 text-sm text-accent font-medium"
+                  >
+                    <Music size={15} />
+                    Open audio link
+                  </a>
+                ) : audioSrc ? (
+                  <audio controls autoPlay src={audioSrc} className="w-full h-9" />
+                ) : (
+                  <button
+                    onClick={handlePlayAudio}
+                    disabled={getAudioStream.isPending}
+                    className="flex items-center gap-1.5 text-sm text-accent font-medium disabled:opacity-50"
+                  >
+                    <Music size={15} />
+                    {getAudioStream.isPending ? "Loading…" : "Play audio"}
+                  </button>
+                )}
+              </div>
+            )}
+
+            {mediaDetails.has_video && (
+              <div>
+                {!hasAccess ? (
+                  <span className="flex items-center gap-1.5 text-sm text-ink-muted">
+                    <Lock size={15} />
+                    Video locked
+                  </span>
+                ) : mediaDetails.video_source === "link" ? (
+                  <a
+                    href={mediaDetails.video_url ?? undefined}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-1.5 text-sm text-accent font-medium"
+                  >
+                    <Video size={15} />
+                    Open video link
+                  </a>
+                ) : videoSrc ? (
+                  <video controls autoPlay src={videoSrc} className="w-full rounded-lg max-h-72" />
+                ) : (
+                  <button
+                    onClick={handlePlayVideo}
+                    disabled={getVideoStream.isPending}
+                    className="flex items-center gap-1.5 text-sm text-accent font-medium disabled:opacity-50"
+                  >
+                    <Video size={15} />
+                    {getVideoStream.isPending ? "Loading…" : "Play video"}
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+
+        <div className="flex items-center gap-2 mt-3">
+          {/* File — hosted download, no external link ever stored. */}
+          {project.project_type === "file" &&
+            (hasAccess ? (
+              <button
+                onClick={handleOpenFile}
+                disabled={getFileDownload.isPending}
+                className="flex items-center gap-1.5 text-sm text-accent font-medium disabled:opacity-50"
+              >
+                <Download size={15} />
+                {getFileDownload.isPending ? "Preparing…" : "Download"}
+              </button>
+            ) : (
+              <span className="flex items-center gap-1.5 text-sm text-ink-muted">
+                <Lock size={15} />
+                Locked
+              </span>
+            ))}
+
+          {/* URL — a single link the host is selling/gating access to. */}
+          {project.project_type === "url" &&
+            (hasAccess ? (
+              <a
+                href={project.external_url ?? undefined}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-1.5 text-sm text-accent font-medium"
+              >
+                <LinkIcon size={15} />
+                Open link
+              </a>
+            ) : (
+              <span className="flex items-center gap-1.5 text-sm text-ink-muted">
+                <Lock size={15} />
+                Locked
+              </span>
+            ))}
 
           {/* Event/Meeting/Room/Course — once unlocked, hand off to
               their own dedicated page rather than a link/download here. */}
-          {!DELIVERABLE_TYPES.includes(project.project_type) &&
+          {!INLINE_TYPES.includes(project.project_type) &&
+            !isMedia &&
             hasAccess &&
             TYPE_ROUTE[project.project_type] && (
               <button
@@ -417,12 +544,15 @@ export function ProjectCard({
               </button>
             )}
 
-          {!DELIVERABLE_TYPES.includes(project.project_type) && !hasAccess && !isCourseUnpublished && (
-            <span className="flex items-center gap-1.5 text-sm text-ink-muted">
-              <Lock size={15} />
-              Locked
-            </span>
-          )}
+          {!INLINE_TYPES.includes(project.project_type) &&
+            !isMedia &&
+            !hasAccess &&
+            !isCourseUnpublished && (
+              <span className="flex items-center gap-1.5 text-sm text-ink-muted">
+                <Lock size={15} />
+                Locked
+              </span>
+            )}
 
           {isCourseUnpublished && isOwner && (
             <span className="text-sm text-ink-muted">Not published yet</span>
@@ -438,7 +568,9 @@ export function ProjectCard({
                 ? "Purchasing…"
                 : project.project_type === "event"
                   ? `Buy ticket $${effectivePrice.toFixed(2)}`
-                  : `Buy for $${effectivePrice.toFixed(2)}`}
+                  : project.project_type === "url"
+                    ? `Get access for $${effectivePrice.toFixed(2)}`
+                    : `Buy for $${effectivePrice.toFixed(2)}`}
             </button>
           )}
 
