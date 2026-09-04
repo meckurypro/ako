@@ -33,6 +33,7 @@ import { Notifications } from "./pages/Notifications";
 import { FollowRequests } from "./pages/FollowRequests";
 import { Bookmarks } from "./pages/Bookmarks";
 import { ConversationList } from "./pages/ConversationList";
+import { Archive } from "./pages/Archive";
 import { MessageThread } from "./pages/MessageThread";
 import { Search } from "./pages/Search";
 import { Settings } from "./pages/Settings";
@@ -239,6 +240,14 @@ export default function App() {
               element={
                 <RequireAuth>
                   <ConversationList />
+                </RequireAuth>
+              }
+            />
+            <Route
+              path="/messages/archive"
+              element={
+                <RequireAuth>
+                  <Archive />
                 </RequireAuth>
               }
             />
