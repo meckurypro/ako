@@ -288,7 +288,7 @@ export function PostCard({
   return (
     <article
       data-owner-view={isOwner}
-      className="bg-surface rounded-2xl p-4 mb-4 relative shadow-[0_0_0_1px_rgba(var(--shadow-ink-rgb),0.07),0_10px_24px_-6px_rgba(var(--shadow-ink-rgb),0.16)]"
+      className="bg-surface dark:bg-[#121114] rounded-2xl p-4 mb-4 relative shadow-[0_0_0_1px_rgba(var(--shadow-ink-rgb),0.07),0_10px_24px_-6px_rgba(var(--shadow-ink-rgb),0.16)]"
     >
       <div className="flex items-start gap-3">
         <Link to={`/profile/${post.author.username}`}>
