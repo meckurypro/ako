@@ -14,7 +14,7 @@ import { supabase } from "../lib/supabase";
 import { useUploadProjectThumbnail } from "../hooks/useUploadProjectThumbnail";
 import { FormField } from "../components/FormField";
 import { Button } from "../components/Button";
-import { TopicPicker } from "../components/TopicPicker";
+import { TopicPicker, MAX_TOPICS } from "../components/TopicPicker";
 import { FormatToolbar } from "../components/FormatToolbar";
 import { EventFields, EMPTY_EVENT_FIELDS, type EventFieldsValue } from "../components/project-types/EventFields";
 import { MeetingFields, EMPTY_MEETING_FIELDS, type MeetingFieldsValue } from "../components/project-types/MeetingFields";
@@ -74,7 +74,12 @@ export function EditProject() {
     setTopicIds((prev) => {
       const next = new Set(prev);
       if (next.has(interestId)) next.delete(interestId);
-      else next.add(interestId);
+      else {
+        // TopicPicker already disables the pill past the cap — this is
+        // a second guard at the state layer so the two never drift.
+        if (next.size >= MAX_TOPICS) return prev;
+        next.add(interestId);
+      }
       return next;
     });
   }
@@ -183,6 +188,13 @@ export function EditProject() {
       }
     }
 
+    // Belt-and-suspenders for projects saved before the link/upload
+    // toggle existed, where both fields could already be populated:
+    // if the picker was never touched this edit, submit whichever one
+    // the toggle itself would treat as authoritative (file wins, same
+    // rule DeliverableFields uses to derive its own mode).
+    const normalizedExternalUrl = deliverable.file_path ? "" : deliverable.external_url;
+
     try {
       await updateProject.mutateAsync({
         id: projectId,
@@ -190,7 +202,7 @@ export function EditProject() {
         description: description.trim() || null,
         project_type: project.project_type, // fixed — see note near the type display below
         external_url: (DELIVERABLE_TYPES as readonly string[]).includes(project.project_type)
-          ? deliverable.external_url.trim() || null
+          ? normalizedExternalUrl.trim() || null
           : project.external_url,
         file_path: (DELIVERABLE_TYPES as readonly string[]).includes(project.project_type)
           ? deliverable.file_path
