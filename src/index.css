@@ -47,28 +47,30 @@
 }
 
 /*
-  Dark palette. Same warm hue family as light mode, inverted in
-  lightness — a warm near-black (not blue-slate, not pure #000), warm
-  off-white ink (not pure #FFF). Accent/danger/pushback are lifted a
-  step brighter than their light-mode values, since a saturated color
-  that reads fine on a bright surface loses contrast on a dark one.
-  Neon tick/presence colors are unchanged — they're accent flashes
-  that already pop on either background.
+  Dark palette, v2 — darker and more neutral than the original warm-brown
+  take (canvas/surface pulled toward true near-black, R/G/B channels much
+  closer together so they no longer read as brown), off-white ink pushed
+  closer to actual white, and the accent green boosted in brightness/
+  saturation so it pops more against the darker surfaces. Border and
+  accent-soft were nudged along with canvas/surface/accent so the whole
+  palette still reads as one coherent set rather than old warm tones
+  sitting on top of new neutral ones. Danger/pushback/neon tick/presence
+  are unchanged.
 */
 .dark {
-  --color-canvas: #15130E;
-  --color-surface: #1D1A13;
-  --color-ink: #F2EEE4;
-  --color-ink-muted: #A69C89;
-  --color-accent: #6B9279;
-  --color-accent-hover: #7FA88C;
-  --color-accent-soft: #212C24;
-  --color-border: #332E22;
+  --color-canvas: #0C0C0B;
+  --color-surface: #17161A;
+  --color-ink: #F9F8F5;
+  --color-ink-muted: #ADA99E;
+  --color-accent: #4CAE7C;
+  --color-accent-hover: #63C695;
+  --color-accent-soft: #17281F;
+  --color-border: #2A2924;
   --color-danger: #C97C6B;
   --color-pushback: #D9A857;
 
   --shadow-ink-rgb: 0, 0, 0;
-  --accent-rgb: 107, 146, 121;
+  --accent-rgb: 76, 174, 124;
 }
 
 body {
