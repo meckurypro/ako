@@ -1,7 +1,7 @@
 // src/pages/ProfilePage.tsx
 import { useState, useEffect, useRef } from "react";
 import { useParams, Link, useNavigate, useSearchParams } from "react-router-dom";
-import { Settings, Wallet, MessageCircle, MoreHorizontal, Plus, Eye, X, Archive, Globe, UserCheck } from "lucide-react";
+import { Settings, Wallet, MessageCircle, MoreHorizontal, Plus, Eye, X, Globe, UserCheck } from "lucide-react";
 import { useAuth } from "../hooks/useAuth";
 import { useProfileByUsername, useIsFollowing, useIsFollowedByUser, useToggleFollow } from "../hooks/useProfile";
 import {
@@ -50,8 +50,6 @@ export function ProfilePage() {
   const [showUnfollowConfirm, setShowUnfollowConfirm] = useState(false);
 
   const [previewingAsVisitor, setPreviewingAsVisitor] = useState(false);
-  const [showArchived, setShowArchived] = useState(false);
-  const [showArchivedProjects, setShowArchivedProjects] = useState(false);
   const [avatarOpen, setAvatarOpen] = useState(false);
 
   const { data: profile, isLoading } = useProfileByUsername(username!);
@@ -80,21 +78,15 @@ export function ProfilePage() {
 
   const { data: projects } = useUserProjects(profile?.id ?? "", showOwnerView);
 
-  // Archived projects only ever come back at all when showOwnerView is
-  // true (see useUserProjects) — split them out here so the main
-  // Projects tab never mixes them in with active/draft ones; the
-  // "Archived" toggle swaps to the archived-only view instead.
-  const visibleProjects = showArchivedProjects
-    ? projects?.filter((p) => p.status === "archived")
-    : projects?.filter((p) => p.status !== "archived");
+  // Archived projects have their own home on the merged Archive page
+  // now (see Archive.tsx) — this tab only ever shows active/draft/
+  // cancelled ones.
+  const visibleProjects = projects?.filter((p) => p.status !== "archived");
   // useActivity() always reflects the signed-in user, not whichever
   // profile is being viewed — there's no "someone else's activity" to
   // fetch, which is exactly why this tab only renders for showOwnerView.
   const { data: activityItems } = useActivity();
-  const { data: posts } = useUserPostsWithArchived(
-    profile?.id ?? "",
-    showOwnerView && showArchived
-  );
+  const { data: posts } = useUserPostsWithArchived(profile?.id ?? "", false);
 
   const isFollowing = !!isFollowingQuery.data;
   const isFollowedByUser = !!isFollowedByUserQuery.data;
@@ -383,28 +375,10 @@ export function ProfilePage() {
               Activity
             </button>
           )}
-          {showOwnerView && activeTab === "posts" && (
-            <button
-              onClick={() => setShowArchived((v) => !v)}
-              className={`ml-auto flex items-center gap-1 text-sm font-medium pb-3 ${
-                showArchived ? "text-accent" : "text-ink-muted"
-              }`}
-            >
-              <span
-                className={`flex items-center gap-1 px-2.5 py-1 rounded-full ${
-                  showArchived ? "bg-accent-soft" : ""
-                }`}
-              >
-                <Archive size={16} />
-                Archived
-              </span>
-            </button>
-          )}
           {showOwnerView && activeTab === "projects" && (
-            // Archived stays in the same trailing slot it occupies on the
-            // Posts tab (ml-auto, rightmost) — New moves before it instead
-            // of after, so the position of "Archived" never shifts between
-            // tabs; only what it renders (posts vs. projects) changes.
+            // "New" stays in the same trailing slot (ml-auto, rightmost)
+            // on both tabs it can appear in — only Posts never has one,
+            // since posts are composed from Feed/Compose instead.
             <div className="ml-auto flex items-center gap-4">
               <Link
                 to="/projects/new"
@@ -413,21 +387,6 @@ export function ProfilePage() {
                 <Plus size={16} />
                 New
               </Link>
-              <button
-                onClick={() => setShowArchivedProjects((v) => !v)}
-                className={`flex items-center gap-1 text-sm font-medium pb-3 ${
-                  showArchivedProjects ? "text-accent" : "text-ink-muted"
-                }`}
-              >
-                <span
-                  className={`flex items-center gap-1 px-2.5 py-1 rounded-full ${
-                    showArchivedProjects ? "bg-accent-soft" : ""
-                  }`}
-                >
-                  <Archive size={16} />
-                  Archived
-                </span>
-              </button>
             </div>
           )}
         </div>
@@ -479,11 +438,7 @@ export function ProfilePage() {
             ))
           ) : (
             <p className="text-ink-muted text-center py-10 text-sm">
-              {showArchivedProjects
-                ? "No archived projects."
-                : showOwnerView
-                ? "No projects yet — publish your first one."
-                : "No projects yet."}
+              {showOwnerView ? "No projects yet — publish your first one." : "No projects yet."}
             </p>
           )}
         </div>
