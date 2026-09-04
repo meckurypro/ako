@@ -35,6 +35,7 @@ import { Bookmarks } from "./pages/Bookmarks";
 import { ConversationList } from "./pages/ConversationList";
 import { Archive } from "./pages/Archive";
 import { MessageThread } from "./pages/MessageThread";
+import { HiddenMessages } from "./pages/HiddenMessages";
 import { Search } from "./pages/Search";
 import { Settings } from "./pages/Settings";
 import { AdvancedSettings } from "./pages/AdvancedSettings";
@@ -248,6 +249,14 @@ export default function App() {
               element={
                 <RequireAuth>
                   <Archive />
+                </RequireAuth>
+              }
+            />
+            <Route
+              path="/messages/:conversationId/hidden"
+              element={
+                <RequireAuth>
+                  <HiddenMessages />
                 </RequireAuth>
               }
             />
