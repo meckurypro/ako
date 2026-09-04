@@ -1,5 +1,5 @@
 // src/components/SettingsSection.tsx
-import { useId, useState, type ReactNode } from "react";
+import { useId, type ReactNode } from "react";
 import { ChevronDown } from "lucide-react";
 
 interface SettingsSectionProps {
@@ -10,8 +10,13 @@ interface SettingsSectionProps {
    *  practice: the header alone should communicate enough to decide whether
    *  to open it). */
   summary?: string;
-  /** Opens on first render. Reserve for the single most-used section. */
-  defaultOpen?: boolean;
+  /** Whether this section is currently expanded. Controlled by the parent
+   *  so it can enforce "only one section open at a time" — this component
+   *  no longer tracks its own open state. */
+  open: boolean;
+  /** Called when the header is clicked, so the parent can decide what
+   *  opens/closes (e.g. toggle this one, close whichever else was open). */
+  onToggle: () => void;
   /** Red-tinted header for destructive/irreversible settings (kept last, on
    *  its own, never collapsed together with routine settings). */
   danger?: boolean;
@@ -25,18 +30,18 @@ export function SettingsSection({
   icon,
   title,
   summary,
-  defaultOpen = false,
+  open,
+  onToggle,
   danger = false,
   children,
 }: SettingsSectionProps) {
-  const [open, setOpen] = useState(defaultOpen);
   const panelId = useId();
 
   return (
     <div className="bg-surface rounded-2xl overflow-hidden">
       <button
         type="button"
-        onClick={() => setOpen((v) => !v)}
+        onClick={onToggle}
         aria-expanded={open}
         aria-controls={panelId}
         className="w-full flex items-center gap-3 p-4 text-left"
