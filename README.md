@@ -40,8 +40,9 @@ have upcoming or attended — see `hooks/useActivity.ts`.
 
 ## Database
 
-Two migrations on top of the original schema, run in order via the
-Supabase SQL editor (not committed as versioned migrations here):
+Migrations on top of the original schema, run in order via the
+Supabase SQL editor (not committed as versioned migrations here —
+except the v3 pair below, now checked into `supabase/` for reference):
 
 1. `ako_projects_v2_migration.sql` — new `project_type`/`status`
    values, `project_access_events`, `saved_projects`,
@@ -54,6 +55,29 @@ Supabase SQL editor (not committed as versioned migrations here):
    (issued only by the purchase edge function via the service role);
    course module/lesson content is only readable by the owner or a
    buyer, with no public syllabus preview yet.
+3. `supabase/ako_projects_v3_media_url_privacy.sql` — merges the old
+   `audio`/`video` project types into one `media` type (independent
+   audio/video channels, each a link or a hosted upload — see
+   `project_media_details`), adds the `url` type (a bare link a host
+   sells access to, stored in the existing `external_url` column),
+   and adds `projects.is_private`. Migrates existing audio/video
+   projects' data into `project_media_details` in place — see the
+   file header for the constraint-name assumption it makes.
+4. `supabase/ako_projects_v3_rls.sql` — RLS for `project_media_details`
+   (public read, owner-scoped write), mirrored off how
+   `project_event_details`/`project_meeting_details` are used from
+   the client — see the file header for that assumption too.
+
+**Not yet updated — needs the actual deployed source to change
+correctly, which isn't in this repo:** the `get-project-file` edge
+function. The client now calls it with `{ project_id, kind }` where
+`kind` is `"file"`, `"audio"`, or `"video"` (see `useGetProjectFile`
+in `hooks/useProjects.ts`); the function needs to branch on `kind` to
+sign `projects.file_path` vs.
+`project_media_details.audio_file_path`/`video_file_path` instead of
+always assuming `projects.file_path`. Existing `"file"` calls keep
+working today since that's the default, but streaming an uploaded
+audio/video channel won't work until this ships.
 
 ## Known gaps (as of this build)
 
