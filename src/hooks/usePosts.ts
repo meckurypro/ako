@@ -15,7 +15,7 @@ const AUTHOR_SELECT = `id, username, display_name, avatar_url, tier, ${PROFILE_R
 // One level deep: the embedded reshared_post carries its own author but
 // not a further-nested reshared_post, so repost-of-a-repost links to the
 // immediate parent rather than recursing indefinitely.
-const FEED_SELECT = `*, author:profiles!posts_author_id_fkey(${AUTHOR_SELECT}), reshared_post:posts!posts_reshared_post_id_fkey(*, author:profiles!posts_author_id_fkey(${AUTHOR_SELECT}))`;
+const FEED_SELECT = `*, author:profiles!posts_author_id_fkey(${AUTHOR_SELECT}), reshared_post(*, author:profiles!posts_author_id_fkey(${AUTHOR_SELECT}))`;
 
 export function canEditPost(post: Pick<PostWithAuthor, "created_at">): boolean {
   return Date.now() - new Date(post.created_at).getTime() <= POST_EDIT_WINDOW_MS;
