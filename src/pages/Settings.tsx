@@ -157,8 +157,18 @@ const THEME_OPTIONS: { value: ThemeSetting; label: string; description: string; 
   },
 ];
 
+type SectionId = "profile" | "security" | "privacy" | "appearance" | "advanced";
+
 export function Settings() {
   const navigate = useNavigate();
+
+  // Accordion: exactly one section open at a time. "profile" starts open
+  // since it's the one people land on and edit most; opening another
+  // section closes whichever was open, clicking the open one closes it.
+  const [openSection, setOpenSection] = useState<SectionId | null>("profile");
+  function toggleSection(id: SectionId) {
+    setOpenSection((current) => (current === id ? null : id));
+  }
 
   // ---- Profile ----
   const { data: profile, isLoading: profileLoading } = useOwnProfile();
@@ -319,7 +329,8 @@ export function Settings() {
             icon={<UserCircle2 size={18} />}
             title="Profile"
             summary={displayName || undefined}
-            defaultOpen
+            open={openSection === "profile"}
+            onToggle={() => toggleSection("profile")}
           >
             <form onSubmit={handleSaveProfile}>
               <div className="flex flex-col items-center mb-6 mt-3">
@@ -425,7 +436,12 @@ export function Settings() {
           </SettingsSection>
 
           {/* Account & security */}
-          <SettingsSection icon={<KeyRound size={18} />} title="Account &amp; security">
+          <SettingsSection
+            icon={<KeyRound size={18} />}
+            title="Account &amp; security"
+            open={openSection === "security"}
+            onToggle={() => toggleSection("security")}
+          >
             <form onSubmit={handleChangePassword} className="mt-3">
               <PasswordField
                 id="current_password"
@@ -463,6 +479,8 @@ export function Settings() {
             icon={<Shield size={18} />}
             title="Privacy"
             summary={profile?.is_private ? "Private" : "Public"}
+            open={openSection === "privacy"}
+            onToggle={() => toggleSection("privacy")}
           >
             <div className="mt-3">
               <ToggleRow
@@ -536,7 +554,13 @@ export function Settings() {
           </SettingsSection>
 
           {/* Appearance */}
-          <SettingsSection icon={<Palette size={18} />} title="Appearance" summary={themeLabel}>
+          <SettingsSection
+            icon={<Palette size={18} />}
+            title="Appearance"
+            summary={themeLabel}
+            open={openSection === "appearance"}
+            onToggle={() => toggleSection("appearance")}
+          >
             <div className="rounded-xl overflow-hidden border border-border mt-3">
               {THEME_OPTIONS.map((opt, i) => (
                 <button
@@ -561,7 +585,13 @@ export function Settings() {
           {/* Advanced / danger zone — kept last and on its own, the standard
               place for irreversible actions so they're never mistaken for a
               routine toggle. */}
-          <SettingsSection icon={<SlidersHorizontal size={18} />} title="Advanced" danger>
+          <SettingsSection
+            icon={<SlidersHorizontal size={18} />}
+            title="Advanced"
+            danger
+            open={openSection === "advanced"}
+            onToggle={() => toggleSection("advanced")}
+          >
             <div className="mt-3">
               {!showDeactivateConfirm ? (
                 <button
