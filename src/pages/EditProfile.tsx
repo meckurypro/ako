@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, type FormEvent } from "react";
 import { useNavigate, Link } from "react-router-dom";
-import { ArrowLeft, Camera, Shield, SlidersHorizontal, LogOut } from "lucide-react";
+import { ArrowLeft, Camera, Shield, SlidersHorizontal, Palette, LogOut } from "lucide-react";
 import { useAuth } from "../hooks/useAuth";
 import { useUpdateProfile, useUpdateProfileRoles } from "../hooks/useProfile";
 import { useUploadAvatar } from "../hooks/useUploadAvatar";
@@ -239,6 +239,14 @@ export function EditProfile() {
         >
           <Shield size={16} />
           Privacy Settings
+        </Link>
+
+        <Link
+          to="/settings/appearance"
+          className="flex items-center gap-2 justify-center text-sm text-ink-muted mt-4"
+        >
+          <Palette size={16} />
+          Appearance
         </Link>
 
         <Link
