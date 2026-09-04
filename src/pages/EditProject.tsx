@@ -9,23 +9,25 @@ import {
   PROJECT_TYPE_LABELS,
   type ProjectStatus,
 } from "../hooks/useProjects";
-import { useEventDetails, useMeetingDetails } from "../hooks/useProjectTypeDetails";
+import { useEventDetails, useMeetingDetails, useMediaDetails } from "../hooks/useProjectTypeDetails";
 import { supabase } from "../lib/supabase";
 import { useUploadProjectThumbnail } from "../hooks/useUploadProjectThumbnail";
 import { FormField } from "../components/FormField";
 import { Button } from "../components/Button";
+import { PrivacyToggle } from "../components/PrivacyToggle";
 import { TopicPicker, MAX_TOPICS } from "../components/TopicPicker";
 import { FormatToolbar } from "../components/FormatToolbar";
 import { CONTENT_LIMIT, contentCounterClass } from "../lib/textLimits";
 import { EventFields, EMPTY_EVENT_FIELDS, type EventFieldsValue } from "../components/project-types/EventFields";
 import { MeetingFields, EMPTY_MEETING_FIELDS, type MeetingFieldsValue } from "../components/project-types/MeetingFields";
+import { FileFields, EMPTY_FILE_FIELDS, type FileFieldsValue } from "../components/project-types/FileFields";
+import { UrlFields, EMPTY_URL_FIELDS, type UrlFieldsValue } from "../components/project-types/UrlFields";
 import {
-  DeliverableFields,
-  EMPTY_DELIVERABLE_FIELDS,
-  type DeliverableFieldsValue,
-} from "../components/project-types/DeliverableFields";
-
-const DELIVERABLE_TYPES = ["audio", "video", "file"] as const;
+  MediaFields,
+  EMPTY_MEDIA_FIELDS,
+  mediaFieldsAreValid,
+  type MediaFieldsValue,
+} from "../components/project-types/MediaFields";
 
 // 'cancelled' is deliberately not offered here — it only happens
 // through the (not-yet-built) Event/Meeting cancellation flow, which
@@ -47,6 +49,9 @@ export function EditProject() {
   const { data: existingMeetingDetails } = useMeetingDetails(
     project?.project_type === "meeting" ? projectId : undefined
   );
+  const { data: existingMediaDetails } = useMediaDetails(
+    project?.project_type === "media" ? projectId : undefined
+  );
   const updateProject = useUpdateProject();
   const uploadThumbnail = useUploadProjectThumbnail();
 
@@ -58,13 +63,16 @@ export function EditProject() {
   const [showPromo, setShowPromo] = useState(false);
   const [promoPriceUsd, setPromoPriceUsd] = useState("");
   const [status, setStatus] = useState<ProjectStatus>("active");
+  const [isPrivate, setIsPrivate] = useState(false);
   const [thumbnailUrl, setThumbnailUrl] = useState<string | null>(null);
   const [thumbnailRatio, setThumbnailRatio] = useState<{ width: number; height: number } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [hydrated, setHydrated] = useState(false);
   const [topicsHydrated, setTopicsHydrated] = useState(false);
 
-  const [deliverable, setDeliverable] = useState<DeliverableFieldsValue>(EMPTY_DELIVERABLE_FIELDS);
+  const [fileFields, setFileFields] = useState<FileFieldsValue>(EMPTY_FILE_FIELDS);
+  const [urlFields, setUrlFields] = useState<UrlFieldsValue>(EMPTY_URL_FIELDS);
+  const [mediaFields, setMediaFields] = useState<MediaFieldsValue>(EMPTY_MEDIA_FIELDS);
   const [eventFields, setEventFields] = useState<EventFieldsValue>(EMPTY_EVENT_FIELDS);
   const [meetingFields, setMeetingFields] = useState<MeetingFieldsValue>(EMPTY_MEETING_FIELDS);
   const [typeDetailsHydrated, setTypeDetailsHydrated] = useState(false);
@@ -98,15 +106,17 @@ export function EditProject() {
       setDescription(project.description ?? "");
       setPriceUsd(String(project.price_usd));
       setStatus(project.status === "cancelled" ? "archived" : project.status);
+      setIsPrivate(project.is_private);
       setThumbnailUrl(project.thumbnail_url);
       if (project.thumbnail_width && project.thumbnail_height) {
         setThumbnailRatio({ width: project.thumbnail_width, height: project.thumbnail_height });
       }
-      setDeliverable({
-        external_url: project.external_url ?? "",
-        file_path: project.file_path,
-        file_name: null,
-      });
+      if (project.project_type === "file") {
+        setFileFields({ file_path: project.file_path, file_name: null });
+      }
+      if (project.project_type === "url") {
+        setUrlFields({ url: project.external_url ?? "" });
+      }
       if (project.promo_price_usd !== null) {
         setShowPromo(true);
         setPromoPriceUsd(String(project.promo_price_usd));
@@ -116,8 +126,9 @@ export function EditProject() {
   }, [project, hydrated]);
 
   // Type-detail hydration waits on its own query (undefined until the
-  // relevant useEventDetails/useMeetingDetails call resolves), guarded
-  // separately so it doesn't block the rest of the form's hydration.
+  // relevant useEventDetails/useMeetingDetails/useMediaDetails call
+  // resolves), guarded separately so it doesn't block the rest of the
+  // form's hydration.
   useEffect(() => {
     if (!project || typeDetailsHydrated) return;
     if (project.project_type === "event" && existingEventDetails) {
@@ -131,10 +142,28 @@ export function EditProject() {
     } else if (project.project_type === "meeting" && existingMeetingDetails) {
       setMeetingFields({ scheduled_at: existingMeetingDetails.scheduled_at.slice(0, 16) });
       setTypeDetailsHydrated(true);
-    } else if (!["event", "meeting"].includes(project.project_type)) {
+    } else if (project.project_type === "media" && existingMediaDetails) {
+      setMediaFields({
+        audio: {
+          enabled: existingMediaDetails.has_audio,
+          source: existingMediaDetails.audio_source ?? "link",
+          url: existingMediaDetails.audio_url ?? "",
+          file_path: existingMediaDetails.audio_file_path,
+          file_name: null,
+        },
+        video: {
+          enabled: existingMediaDetails.has_video,
+          source: existingMediaDetails.video_source ?? "link",
+          url: existingMediaDetails.video_url ?? "",
+          file_path: existingMediaDetails.video_file_path,
+          file_name: null,
+        },
+      });
+      setTypeDetailsHydrated(true);
+    } else if (!["event", "meeting", "media"].includes(project.project_type)) {
       setTypeDetailsHydrated(true);
     }
-  }, [project, existingEventDetails, existingMeetingDetails, typeDetailsHydrated]);
+  }, [project, existingEventDetails, existingMeetingDetails, existingMediaDetails, typeDetailsHydrated]);
 
   async function handleThumbnailSelect(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -149,6 +178,29 @@ export function EditProject() {
     }
   }
 
+  function validateTypeSpecific(): string | null {
+    if (!project) return null;
+    if (project.project_type === "file" && !fileFields.file_path) {
+      return "Upload a file to continue.";
+    }
+    if (project.project_type === "url" && !urlFields.url.trim()) {
+      return "Add the link you're sharing access to.";
+    }
+    if (project.project_type === "media" && !mediaFieldsAreValid(mediaFields)) {
+      if (!mediaFields.audio.enabled && !mediaFields.video.enabled) {
+        return "Turn on Audio, Video, or both.";
+      }
+      return "Add a link or upload a file for each channel you turned on.";
+    }
+    if (project.project_type === "event" && !eventFields.location_value.trim()) {
+      return eventFields.location_type === "physical" ? "Add the event address." : "Add the join link.";
+    }
+    if (project.project_type === "meeting" && !meetingFields.scheduled_at) {
+      return "Set when this meeting happens.";
+    }
+    return null;
+  }
+
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
     setError(null);
@@ -161,18 +213,9 @@ export function EditProject() {
 
     const price = parseFloat(priceUsd) || 0;
 
-    if ((DELIVERABLE_TYPES as readonly string[]).includes(project.project_type)) {
-      if (!deliverable.external_url.trim() && !deliverable.file_path) {
-        setError("Add a link or upload a file — at least one is required.");
-        return;
-      }
-    }
-    if (project.project_type === "event" && !eventFields.location_value.trim()) {
-      setError(eventFields.location_type === "physical" ? "Add the event address." : "Add the join link.");
-      return;
-    }
-    if (project.project_type === "meeting" && !meetingFields.scheduled_at) {
-      setError("Set when this meeting happens.");
+    const typeError = validateTypeSpecific();
+    if (typeError) {
+      setError(typeError);
       return;
     }
 
@@ -189,31 +232,21 @@ export function EditProject() {
       }
     }
 
-    // Belt-and-suspenders for projects saved before the link/upload
-    // toggle existed, where both fields could already be populated:
-    // if the picker was never touched this edit, submit whichever one
-    // the toggle itself would treat as authoritative (file wins, same
-    // rule DeliverableFields uses to derive its own mode).
-    const normalizedExternalUrl = deliverable.file_path ? "" : deliverable.external_url;
-
     try {
       await updateProject.mutateAsync({
         id: projectId,
         title: title.trim(),
         description: description.trim() || null,
         project_type: project.project_type, // fixed — see note near the type display below
-        external_url: (DELIVERABLE_TYPES as readonly string[]).includes(project.project_type)
-          ? normalizedExternalUrl.trim() || null
-          : project.external_url,
-        file_path: (DELIVERABLE_TYPES as readonly string[]).includes(project.project_type)
-          ? deliverable.file_path
-          : project.file_path,
+        external_url: project.project_type === "url" ? urlFields.url.trim() || null : project.external_url,
+        file_path: project.project_type === "file" ? fileFields.file_path : project.file_path,
         thumbnail_url: thumbnailUrl,
         thumbnail_width: thumbnailRatio?.width ?? null,
         thumbnail_height: thumbnailRatio?.height ?? null,
         price_usd: price,
         promo_price_usd: promoPrice,
         status,
+        is_private: isPrivate,
         topic_ids: Array.from(topicIds),
       });
 
@@ -234,6 +267,36 @@ export function EditProject() {
           .from("project_meeting_details")
           .update({ scheduled_at: meetingFields.scheduled_at })
           .eq("project_id", projectId);
+        if (detailsError) throw detailsError;
+      }
+      if (project.project_type === "media") {
+        // Upsert, not update: a project created before this row
+        // existed (migrated from the old audio/video types) already
+        // has one from the migration script, but upsert covers both
+        // that case and any future edge case cleanly either way.
+        const { error: detailsError } = await supabase.from("project_media_details").upsert({
+          project_id: projectId,
+          has_audio: mediaFields.audio.enabled,
+          has_video: mediaFields.video.enabled,
+          audio_source: mediaFields.audio.enabled ? mediaFields.audio.source : null,
+          audio_url:
+            mediaFields.audio.enabled && mediaFields.audio.source === "link"
+              ? mediaFields.audio.url.trim()
+              : null,
+          audio_file_path:
+            mediaFields.audio.enabled && mediaFields.audio.source === "upload"
+              ? mediaFields.audio.file_path
+              : null,
+          video_source: mediaFields.video.enabled ? mediaFields.video.source : null,
+          video_url:
+            mediaFields.video.enabled && mediaFields.video.source === "link"
+              ? mediaFields.video.url.trim()
+              : null,
+          video_file_path:
+            mediaFields.video.enabled && mediaFields.video.source === "upload"
+              ? mediaFields.video.file_path
+              : null,
+        });
         if (detailsError) throw detailsError;
       }
 
@@ -315,8 +378,8 @@ export function EditProject() {
 
           <FormField id="title" label="Title" value={title} onChange={(e) => setTitle(e.target.value)} required />
 
-          {/* Project type is fixed after creation — Event/Meeting have
-              their own detail tables, and Room/Course have member
+          {/* Project type is fixed after creation — Event/Meeting/Media
+              have their own detail tables, and Room/Course have member
               rosters and content tied to that type. Changing it here
               would orphan that data, so it's shown, not editable. */}
           <div className="mb-4">
@@ -350,14 +413,14 @@ export function EditProject() {
             <TopicPicker selected={topicIds} onToggle={toggleTopic} />
           </div>
 
-          {(DELIVERABLE_TYPES as readonly string[]).includes(project.project_type) && (
-            <DeliverableFields
-              kind={project.project_type as "audio" | "video" | "file"}
-              value={deliverable}
-              onChange={setDeliverable}
-              onError={setError}
-            />
+          {/* ---- Type-specific block ---- */}
+          {project.project_type === "media" && (
+            <MediaFields value={mediaFields} onChange={setMediaFields} onError={setError} />
           )}
+          {project.project_type === "file" && (
+            <FileFields value={fileFields} onChange={setFileFields} onError={setError} />
+          )}
+          {project.project_type === "url" && <UrlFields value={urlFields} onChange={setUrlFields} />}
           {project.project_type === "event" && <EventFields value={eventFields} onChange={setEventFields} />}
           {project.project_type === "meeting" && (
             <MeetingFields value={meetingFields} onChange={setMeetingFields} />
@@ -372,6 +435,7 @@ export function EditProject() {
               Manage modules and lessons from the course builder.
             </p>
           )}
+          {/* ---- end type-specific block ---- */}
 
           <div className="mb-4">
             <label className="block text-sm font-medium text-ink-muted mb-1.5">Price (USD)</label>
@@ -418,6 +482,8 @@ export function EditProject() {
               </>
             )}
           </div>
+
+          <PrivacyToggle checked={isPrivate} onChange={setIsPrivate} />
 
           {error && (
             <p className="text-danger text-sm mb-4" role="alert">
