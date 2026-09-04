@@ -12,7 +12,7 @@ import {
 import { useUploadProjectThumbnail } from "../hooks/useUploadProjectThumbnail";
 import { FormField } from "../components/FormField";
 import { Button } from "../components/Button";
-import { TopicPicker } from "../components/TopicPicker";
+import { TopicPicker, MAX_TOPICS } from "../components/TopicPicker";
 import { FormatToolbar } from "../components/FormatToolbar";
 import { EventFields, EMPTY_EVENT_FIELDS, type EventFieldsValue } from "../components/project-types/EventFields";
 import { MeetingFields, EMPTY_MEETING_FIELDS, type MeetingFieldsValue } from "../components/project-types/MeetingFields";
@@ -60,6 +60,9 @@ export function CreateProject() {
       if (next.has(interestId)) {
         next.delete(interestId);
       } else {
+        // TopicPicker already disables the pill past the cap — this is
+        // a second guard at the state layer so the two never drift.
+        if (next.size >= MAX_TOPICS) return prev;
         next.add(interestId);
       }
       return next;
