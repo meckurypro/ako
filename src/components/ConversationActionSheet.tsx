@@ -16,7 +16,7 @@ interface ConversationActionSheetProps {
  * archive, delete (hides the chat for this user only; the other
  * participant's copy is untouched), or enter multi-select mode to act
  * on several chats at once. onDelete here just opens the confirmation
- * step in the caller (ConversationList/ArchivedConversations) — this
+ * step in the caller (ConversationList/Archive) — this
  * sheet never deletes directly, since deleting a whole chat is
  * significant enough to warrant a second "are you sure?" beat.
  */
