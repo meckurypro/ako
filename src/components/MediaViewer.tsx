@@ -21,6 +21,10 @@ const SWIPE_THRESHOLD = 50;
  * fight with swipe gestures. Close lives in a fixed bar at the
  * bottom center rather than a top-right corner, easier to reach
  * one-handed on a tall screen.
+ *
+ * bg-black/text-white below are intentional, not a missed theme token
+ * — same reasoning as ImageLightbox: photo/video-viewer chrome stays a
+ * fixed black scrim regardless of the app's light/dark theme.
  */
 export function MediaViewer({ mediaUrls, startIndex, onClose }: MediaViewerProps) {
   const [index, setIndex] = useState(startIndex);
