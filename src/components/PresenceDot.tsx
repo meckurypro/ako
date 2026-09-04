@@ -9,11 +9,22 @@ const DOT_STYLES = {
 
 export function PresenceDot({
   lastSeenAt,
+  size = 11,
   className = "",
 }: {
   lastSeenAt: string | null | undefined;
+  /** Diameter in px. Default bumped up from the old fixed 8px now that
+   *  this only lives in the DM header (see MessageThread.tsx) — it no
+   *  longer has to compete for space in the chat list row. */
+  size?: number;
   className?: string;
 }) {
   const status = getPresenceStatus(lastSeenAt);
-  return <span className={`inline-block w-2 h-2 rounded-full flex-shrink-0 ${DOT_STYLES[status]} ${className}`} aria-hidden="true" />;
+  return (
+    <span
+      className={`inline-block rounded-full flex-shrink-0 ${DOT_STYLES[status]} ${className}`}
+      style={{ width: size, height: size }}
+      aria-hidden="true"
+    />
+  );
 }
