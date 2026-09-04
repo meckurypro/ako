@@ -6,7 +6,7 @@ import { PROFILE_ROLES_SELECT, toProfileRoles } from "../lib/profileRoles";
 import type { AuthorSummary } from "../types/database";
 
 // ------------------------------------------------------------
-// Types — mirror the projects table after 19_projects_enhancements.sql
+// Types — mirror the projects table after ako_projects_v3_media_url_privacy.sql
 // ------------------------------------------------------------
 
 // 'cancelled' only applies to event/meeting — set when a host cancels
@@ -14,20 +14,25 @@ import type { AuthorSummary } from "../types/database";
 // below). Other types go active <-> draft/archived only.
 export type ProjectStatus = "active" | "draft" | "archived" | "cancelled";
 
+// 'audio' and 'video' were merged into a single 'media' type (a media
+// project can carry an audio channel, a video channel, or both — see
+// MediaDetails in useProjectTypeDetails.ts). 'url' is new: a bare
+// link the host is selling access to (a WhatsApp group invite, a
+// gated page, anything).
 export type ProjectType =
   | "event"
-  | "audio"
-  | "video"
+  | "media"
   | "file"
+  | "url"
   | "course"
   | "room"
   | "meeting";
 
 export const PROJECT_TYPE_LABELS: Record<ProjectType, string> = {
   event: "Event",
-  audio: "Audio",
-  video: "Video",
+  media: "Media",
   file: "File",
+  url: "URL",
   course: "Course",
   room: "Room",
   meeting: "Meeting",
@@ -39,9 +44,9 @@ export const PROJECT_TYPE_OPTIONS: ProjectType[] = [
   "meeting",
   "room",
   "course",
-  "audio",
-  "video",
+  "media",
   "file",
+  "url",
 ];
 
 // Short helper text shown under the type picker once a type is chosen —
@@ -51,9 +56,9 @@ export const PROJECT_TYPE_HINTS: Record<ProjectType, string> = {
   meeting: "A single scheduled live session people buy access to join.",
   room: "An ongoing paid group — announcements, live meetings, assignments.",
   course: "Structured modules and lessons. Build it, then publish when ready.",
-  audio: "A single audio piece — upload or link, gated by price.",
-  video: "A single video piece — upload or link, gated by price.",
-  file: "A downloadable file, or a link you're marketing access to.",
+  media: "Audio, video, or both. Link out (Spotify, YouTube) or upload to stream here.",
+  file: "A file you upload and host here — visitors download it with one click.",
+  url: "A link you're selling access to — a WhatsApp group, a page, anything.",
 };
 
 export interface Project {
@@ -79,6 +84,13 @@ export interface Project {
   cancelled_at: string | null;
   created_at: string;
   updated_at: string;
+  // Set by the host, before or after publishing. Doesn't gate direct
+  // access (a private project is still reachable by anyone with its
+  // URL, same as before) — it only controls whether the project is
+  // surfaced anywhere the host didn't hand out directly: their
+  // profile's Projects tab (to visitors), and the "similar projects"
+  // rails. See useUserProjects/useSimilarProjects below.
+  is_private: boolean;
 }
 
 // --------------------------------------------------------
@@ -142,6 +154,13 @@ export function useProject(projectId: string | undefined) {
 // of status, while still restricting everyone else to status =
 // 'active'. Flagging this since I haven't seen that policy's SQL.
 // --------------------------------------------------------
+// includeAllStatuses does double duty as "is this the owner's own
+// management view" — the same view that's allowed to see drafts and
+// archived projects is the one allowed to see private ones too, so a
+// visitor (or the owner previewing their profile as a visitor) never
+// sees either. Direct access by id/URL (useProject, useProjectDetail)
+// is intentionally NOT filtered by is_private — privacy only affects
+// what gets listed, never what a held link can open.
 export function useUserProjects(userId: string, includeAllStatuses: boolean) {
   return useQuery({
     queryKey: ["user-projects", userId, includeAllStatuses],
@@ -149,7 +168,7 @@ export function useUserProjects(userId: string, includeAllStatuses: boolean) {
       let query = supabase.from("projects").select("*").eq("owner_id", userId);
 
       if (!includeAllStatuses) {
-        query = query.eq("status", "active");
+        query = query.eq("status", "active").eq("is_private", false);
       }
 
       const { data, error } = await query.order("created_at", { ascending: false });
@@ -178,6 +197,20 @@ interface MeetingDetailsInput {
   scheduled_at: string; // ISO
 }
 
+// A 'media' project's audio/video channels — see MediaDetails in
+// useProjectTypeDetails.ts for the full shape/invariants. Channel
+// fields are only meaningful when the matching has_* flag is true.
+interface MediaDetailsInput {
+  has_audio: boolean;
+  has_video: boolean;
+  audio_source?: "link" | "upload";
+  audio_url?: string;
+  audio_file_path?: string;
+  video_source?: "link" | "upload";
+  video_url?: string;
+  video_file_path?: string;
+}
+
 interface CreateProjectInput {
   title: string;
   description?: string;
@@ -190,9 +223,11 @@ interface CreateProjectInput {
   price_usd: number;
   promo_price_usd?: number | null;
   status?: ProjectStatus;   // defaults to 'active' (publish immediately) if omitted
+  is_private?: boolean;     // defaults to false (listed/discoverable) if omitted
   topic_ids?: string[];
   event_details?: EventDetailsInput;
   meeting_details?: MeetingDetailsInput;
+  media_details?: MediaDetailsInput;
 }
 
 export function useCreateProject() {
@@ -204,6 +239,7 @@ export function useCreateProject() {
       topic_ids,
       event_details,
       meeting_details,
+      media_details,
       ...input
     }: CreateProjectInput) => {
       if (!user) throw new Error("Not signed in");
@@ -225,7 +261,7 @@ export function useCreateProject() {
 
       // Type-specific detail row. Same reasoning as topics above: the
       // project row already exists, so a failure here needs to surface
-      // rather than leave a silently incomplete Event/Meeting.
+      // rather than leave a silently incomplete Event/Meeting/Media.
       if (input.project_type === "event" && event_details) {
         const { error: detailsError } = await supabase
           .from("project_event_details")
@@ -236,6 +272,12 @@ export function useCreateProject() {
         const { error: detailsError } = await supabase
           .from("project_meeting_details")
           .insert({ project_id: data.id, ...meeting_details });
+        if (detailsError) throw detailsError;
+      }
+      if (input.project_type === "media" && media_details) {
+        const { error: detailsError } = await supabase
+          .from("project_media_details")
+          .insert({ project_id: data.id, ...media_details });
         if (detailsError) throw detailsError;
       }
 
@@ -261,6 +303,7 @@ interface UpdateProjectInput {
   price_usd?: number;
   promo_price_usd?: number | null;
   status?: ProjectStatus;
+  is_private?: boolean;
   // undefined = leave topics untouched (e.g. a status-only change).
   // An array — including [] — replaces the full topic set.
   topic_ids?: string[];
@@ -395,12 +438,26 @@ export function usePurchaseProject() {
  * Fetches a short-lived signed URL for a project's hosted file.
  * The edge function itself is the access gate (owner/free/purchased) —
  * this hook just calls it and surfaces the result or the rejection.
+ *
+ * `kind` tells the edge function which stored path to sign:
+ *  - "file"  → projects.file_path            (File-type projects)
+ *  - "audio" → project_media_details.audio_file_path
+ *  - "video" → project_media_details.video_file_path
+ * Defaults to "file" for existing call sites. NOTE: the deployed
+ * get-project-file function needs to be updated to branch on this —
+ * see the note in project-types/MediaFields.tsx / README.
  */
 export function useGetProjectFile() {
   return useMutation({
-    mutationFn: async (projectId: string): Promise<string> => {
+    mutationFn: async ({
+      projectId,
+      kind = "file",
+    }: {
+      projectId: string;
+      kind?: "file" | "audio" | "video";
+    }): Promise<string> => {
       const { data, error } = await supabase.functions.invoke("get-project-file", {
-        body: { project_id: projectId },
+        body: { project_id: projectId, kind },
       });
       if (error) throw error;
       if (data?.error) throw new Error(data.error);
@@ -489,12 +546,16 @@ export function useSimilarProjects(
     }> => {
       const topicIds = (project!.topics ?? []).map((t) => t.id);
 
+      // is_private = false on every branch here — these rails are
+      // discovery surfaces, exactly what a private project must stay
+      // out of (see the is_private note on the Project type above).
       const [creatorRes, typeRes, topicLinkRes] = await Promise.all([
         supabase
           .from("projects")
           .select("*")
           .eq("owner_id", project!.owner_id)
           .eq("status", "active")
+          .eq("is_private", false)
           .neq("id", project!.id)
           .order("created_at", { ascending: false })
           .limit(6),
@@ -503,6 +564,7 @@ export function useSimilarProjects(
           .select("*")
           .eq("project_type", project!.project_type)
           .eq("status", "active")
+          .eq("is_private", false)
           .neq("id", project!.id)
           .neq("owner_id", project!.owner_id) // avoid duplicating the "more from creator" list
           .order("created_at", { ascending: false })
@@ -529,6 +591,7 @@ export function useSimilarProjects(
           .select("*")
           .in("id", topicProjectIds)
           .eq("status", "active")
+          .eq("is_private", false)
           .order("created_at", { ascending: false })
           .limit(6);
         if (error) throw error;
