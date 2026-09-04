@@ -595,8 +595,8 @@ export function MessageThread() {
                 )}
                 <div className="flex-1 min-w-0">
                   <p className="font-medium text-ink truncate">{otherParticipant.display_name}</p>
-                  <p className="flex items-center gap-1.5 text-xs text-ink-muted">
-                    <PresenceDot lastSeenAt={otherParticipant.last_seen_at} />
+                  <p className="flex items-center gap-2 text-xs text-ink-muted">
+                    <PresenceDot lastSeenAt={otherParticipant.last_seen_at} size={12} />
                     {formatLastSeen(otherParticipant.last_seen_at)}
                   </p>
                 </div>
