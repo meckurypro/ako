@@ -52,3 +52,42 @@ export function useMeetingDetails(projectId: string | undefined) {
   });
 }
 
+// A 'media' project holds an audio channel, a video channel, or both.
+// Each channel is independently either a link out (Spotify/YouTube/etc.)
+// or an uploaded file streamed from our own storage — never both at
+// once, mirroring the link-vs-upload toggle used elsewhere. Exactly
+// one of {audio_url, audio_file_path} is set when has_audio is true
+// (same for video); both null when the channel is off.
+export interface MediaDetails {
+  project_id: string;
+  has_audio: boolean;
+  has_video: boolean;
+  audio_source: "link" | "upload" | null;
+  audio_url: string | null;
+  audio_file_path: string | null;
+  video_source: "link" | "upload" | null;
+  video_url: string | null;
+  video_file_path: string | null;
+}
+
+// Publicly readable, same as event/meeting details above. Note that
+// *_file_path values are private-bucket storage paths, not usable
+// URLs on their own — same safety property projects.file_path
+// already relies on — so exposing them here is harmless; only
+// get-project-file (service role) can turn one into a signed,
+// time-limited streaming URL after checking access.
+export function useMediaDetails(projectId: string | undefined) {
+  return useQuery({
+    queryKey: ["project-media-details", projectId],
+    queryFn: async (): Promise<MediaDetails | null> => {
+      const { data, error } = await supabase
+        .from("project_media_details")
+        .select("*")
+        .eq("project_id", projectId)
+        .maybeSingle();
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!projectId,
+  });
+}
