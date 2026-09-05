@@ -11,7 +11,7 @@ import {
   RotateCcw,
   Send,
   EyeOff,
-  Share2,
+  Redo2,
   Trash2,
   Bookmark,
   BookmarkCheck,
@@ -315,7 +315,7 @@ export function ProjectCard({
                 onClick={handleShare}
                 className="w-full flex items-center gap-2 text-left px-4 py-2.5 text-sm text-ink hover:bg-surface"
               >
-                <Share2 size={14} />
+                <Redo2 size={14} />
                 Share
               </button>
 
@@ -581,7 +581,7 @@ export function ProjectCard({
               hasAccess || isFree ? "" : "ml-auto"
             }`}
           >
-            <Share2 size={15} />
+            <Redo2 size={15} />
           </button>
         </div>
       </div>
