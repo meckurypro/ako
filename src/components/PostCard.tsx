@@ -436,15 +436,34 @@ export function PostCard({
               </span>
             )}
           </p>
+
+          {/* Relationship badge (Follow/Following/Friends/Requested) used to
+              sit in a fixed column to the right of the name row, where it
+              competed with long display names/role tags for width. Moved
+              here instead: a divider — same border-border line used above
+              the engagement tray — drawn under the time row, with the badge
+              overlaid on its right end, like a labeled divider with the
+              label pushed to the end instead of the middle. Frees the name
+              row to use the card's full width. bg-surface (+ dark variant,
+              matching the card's own background below) lets the badge "cut"
+              into the line instead of drawing on top of it. */}
+          {!isOwner && (
+            <div className="relative mt-2 border-t border-border">
+              <span className="absolute right-0 top-1/2 -translate-y-1/2 pl-2 bg-surface dark:bg-[#121114]">
+                <FollowButton authorId={post.author.id} isPrivate={post.author.is_private} />
+              </span>
+            </div>
+          )}
         </div>
 
-        {/* Reshare badge (+ Follow control). Comment count now lives in the
-            engagement tray below, under Like; Share lives in the tray's
-            fixed right slot for everyone. */}
-        <div className="flex flex-col items-center gap-2.5 self-start pt-0.5">
-          {plainReshare && <RepostBadge source={original} />}
-          {!isOwner && <FollowButton authorId={post.author.id} isPrivate={post.author.is_private} />}
-        </div>
+        {/* Reshare badge only now — the relationship badge moved to overlay
+            the divider under the time row (above), so this fixed right-hand
+            column no longer competes with the poster's name for width. */}
+        {plainReshare && (
+          <div className="self-start pt-0.5">
+            <RepostBadge source={original} />
+          </div>
+        )}
       </div>
 
       {/* Own content — skipped for a plain reshare, which has none of its
