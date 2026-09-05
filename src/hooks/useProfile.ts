@@ -178,6 +178,7 @@ interface UpdateProfileInput {
   bio?: string;
   avatar_url?: string;
   website_url?: string;
+  username?: string;
 }
 
 export function useUpdateProfile() {
@@ -193,6 +194,13 @@ export function useUpdateProfile() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["profile"] });
+      // Settings' own profile lookup, plus the two username-keyed caches
+      // (TopHeader's avatar link, BottomNav's "is this my own profile"
+      // check) — a username change makes both stale immediately, not
+      // just the ["profile", oldUsername] lookup above.
+      queryClient.invalidateQueries({ queryKey: ["own-profile"] });
+      queryClient.invalidateQueries({ queryKey: ["my-username"] });
+      queryClient.invalidateQueries({ queryKey: ["my-profile"] });
     },
   });
 }
