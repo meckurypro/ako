@@ -2,6 +2,7 @@ import { useState } from "react";
 import { X, Gift as GiftIcon } from "lucide-react";
 import { useGiftTypes } from "../hooks/useWallet";
 import { useSendGift } from "../hooks/useGifting";
+import { useBackDismiss } from "../hooks/useBackDismiss";
 
 interface GiftPickerProps {
   recipientId: string;
@@ -11,6 +12,7 @@ interface GiftPickerProps {
 }
 
 export function GiftPicker({ recipientId, postId, commentId, onClose }: GiftPickerProps) {
+  useBackDismiss(onClose);
   const { data: giftTypes, isLoading } = useGiftTypes();
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
