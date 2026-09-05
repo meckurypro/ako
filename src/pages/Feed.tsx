@@ -1,4 +1,4 @@
-import { useEffect, useState, type TouchEvent, type CSSProperties } from "react";
+import { useEffect, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { X } from "lucide-react";
 import { useFeedPosts, useFollowingFeed, useTopDiscussionsFeed } from "../hooks/usePosts";
@@ -6,6 +6,7 @@ import { useTabState } from "../hooks/useTabState";
 import { PostCard } from "../components/PostCard";
 import { BottomNav } from "../components/BottomNav";
 import { TopHeader } from "../components/TopHeader";
+import { SwipeableTabs } from "../components/SwipeableTabs";
 
 // "Saved" moved into the Activity hub (see SavedHub.tsx, reachable
 // from the Activity icon in BottomNav) — it now covers saved posts
@@ -19,8 +20,6 @@ const TABS = [
 
 type TabKey = (typeof TABS)[number]["key"];
 const TAB_KEYS = TABS.map((t) => t.key);
-
-const SWIPE_THRESHOLD_PX = 50;
 
 function useAccumulatedPages<T>(pageData: T[] | undefined, page: number, resetKey: unknown) {
   const [all, setAll] = useState<T[]>([]);
@@ -132,51 +131,22 @@ export function Feed() {
   const interestId = searchParams.get("interest") ?? undefined;
 
   const [activeTab, setActiveTab] = useTabState<TabKey>(TAB_KEYS, "for-you");
-  // Which side new tab content springs in from — 1 (from the right) when
-  // moving to a later tab, -1 (from the left) moving to an earlier one.
-  // Read by the CSS animation via the --tab-dir custom property below.
-  const [tabDirection, setTabDirection] = useState(1);
-  const [touchStartX, setTouchStartX] = useState<number | null>(null);
-  const [touchStartY, setTouchStartY] = useState<number | null>(null);
+  // Continuous tab position fed by SwipeableTabs' onProgress — e.g. 1.4
+  // while 40% of the way from "top" toward "following" — so the sliding
+  // indicator bar tracks the finger during the drag instead of only
+  // jumping once the swipe commits. Defaults to the real index so the bar
+  // starts in the right place before any drag has happened.
+  const activeIndex = TABS.findIndex((t) => t.key === activeTab);
+  const [tabProgress, setTabProgress] = useState(activeIndex);
+  const [tabDragging, setTabDragging] = useState(false);
 
   useEffect(() => {
     if (interestId) setActiveTab("for-you");
   }, [interestId]);
 
-  const activeIndex = TABS.findIndex((t) => t.key === activeTab);
-
-  function goToIndex(index: number) {
-    const clamped = Math.max(0, Math.min(TABS.length - 1, index));
-    if (clamped === activeIndex) return;
-    setTabDirection(clamped > activeIndex ? 1 : -1);
-    setActiveTab(TABS[clamped].key);
-  }
-
   function handleTabClick(index: number, key: TabKey) {
     if (index === activeIndex) return;
-    setTabDirection(index > activeIndex ? 1 : -1);
     setActiveTab(key);
-  }
-
-  function handleTouchStart(e: TouchEvent) {
-    setTouchStartX(e.touches[0].clientX);
-    setTouchStartY(e.touches[0].clientY);
-  }
-
-  function handleTouchEnd(e: TouchEvent) {
-    if (touchStartX === null || touchStartY === null) return;
-    const deltaX = e.changedTouches[0].clientX - touchStartX;
-    const deltaY = e.changedTouches[0].clientY - touchStartY;
-    setTouchStartX(null);
-    setTouchStartY(null);
-
-    if (Math.abs(deltaX) < SWIPE_THRESHOLD_PX || Math.abs(deltaX) <= Math.abs(deltaY)) return;
-
-    if (deltaX < 0) {
-      goToIndex(activeIndex + 1);
-    } else {
-      goToIndex(activeIndex - 1);
-    }
   }
 
   return (
@@ -204,18 +174,16 @@ export function Feed() {
               </button>
             ))}
             <div
-              className="ako-tab-indicator absolute bottom-0 left-0 h-[4px] w-1/3 bg-accent rounded-full"
-              style={{ transform: `translateX(${activeIndex * 100}%)` }}
+              className={`ako-tab-indicator absolute bottom-0 left-0 h-[4px] w-1/3 bg-accent rounded-full ${
+                tabDragging ? "ako-tab-indicator--dragging" : ""
+              }`}
+              style={{ transform: `translateX(${tabProgress * 100}%)` }}
             />
           </div>
         </div>
       </div>
 
-      <div
-        className="max-w-xl mx-auto px-5 pt-5 min-h-[70vh]"
-        onTouchStart={handleTouchStart}
-        onTouchEnd={handleTouchEnd}
-      >
+      <div className="max-w-xl mx-auto px-5 pt-5">
         {activeTab === "for-you" && interestId && (
           <button
             onClick={() => setSearchParams({})}
@@ -226,18 +194,25 @@ export function Feed() {
           </button>
         )}
 
-        {/* Keyed by tab so each switch remounts this wrapper and replays
-            the spring-in animation; --tab-dir picks which side it comes
-            from (see the keyframe in index.css). */}
-        <div
-          key={activeTab}
-          className="animate-tab-spring"
-          style={{ "--tab-dir": tabDirection } as CSSProperties}
+        {/* Real drag-tracking carousel — content follows your finger during
+            the swipe, WhatsApp-style, and settles into the nearest tab on
+            release. All three tabs are mounted at once (see
+            SwipeableTabs.tsx) so the neighboring pane is already there to
+            slide into view mid-gesture. */}
+        <SwipeableTabs
+          index={activeIndex}
+          onIndexChange={(i) => setActiveTab(TABS[i].key)}
+          onProgress={(progress, dragging) => {
+            setTabProgress(progress);
+            setTabDragging(dragging);
+          }}
         >
-          {activeTab === "for-you" && <ForYouTab interestId={interestId} />}
-          {activeTab === "following" && <FollowingTab />}
-          {activeTab === "top" && <TopDiscussionsTab />}
-        </div>
+          {[
+            <ForYouTab key="for-you" interestId={interestId} />,
+            <TopDiscussionsTab key="top" />,
+            <FollowingTab key="following" />,
+          ]}
+        </SwipeableTabs>
       </div>
 
       <BottomNav />
