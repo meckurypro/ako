@@ -1,6 +1,7 @@
 // src/components/StanceComposer.tsx
 import { useRef, useState } from "react";
 import { useCreateComment } from "../hooks/useComments";
+import { useBackDismiss } from "../hooks/useBackDismiss";
 import type { Stance } from "../types/database";
 import { FormatToolbar } from "./FormatToolbar";
 import { CONTENT_LIMIT, contentCounterClass } from "../lib/textLimits";
@@ -77,6 +78,7 @@ export function StanceComposer({
   parentCommentId,
   stances = STANCES,
 }: StanceComposerProps) {
+  useBackDismiss(onClose);
   const [activeStance, setActiveStance] = useState<Stance>(initialStance);
   // Single content state shared across tabs — text is retained when
   // the user switches stance so they never lose what they typed.
