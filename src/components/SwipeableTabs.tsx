@@ -1,4 +1,4 @@
-// src/components/SwipeableTabs.tx
+// src/components/SwipeableTabs.tsx
 import { useEffect, useRef, useState, type ReactNode } from "react";
 
 /**
@@ -27,6 +27,22 @@ const COMMIT_RATIO = 0.33; // drag past 1/3 of the pane width commits the swipe
 const COMMIT_VELOCITY = 0.5; // px/ms — a fast-enough flick commits even short of the ratio
 const EDGE_RESISTANCE = 2.5; // divides drag distance past the first/last pane
 const AXIS_LOCK_PX = 6; // movement needed before we decide horizontal vs. vertical intent
+
+// Elements that need to own horizontal touch gestures themselves — right
+// now just ReactionTray's swipable action strip (see ReactionTray.tsx) —
+// mark their touch surface with this attribute. A touch that starts inside
+// one is never claimed here at all: we don't preventDefault it, don't
+// track it as a drag, nothing. ReactionTray used to isolate itself from
+// the old per-page touchStart/touchEnd handlers with a plain React
+// e.stopPropagation() (effective because both it and the old handler were
+// React synthetic listeners on the same synthetic tree). This component's
+// listeners are attached with a real addEventListener instead — necessary
+// to preventDefault a non-passive touchmove — and native listeners fire
+// regardless of what a descendant's *synthetic* stopPropagation does, so a
+// plain stopPropagation() in ReactionTray no longer has anything to say to
+// this component. The attribute check below is what actually keeps the two
+// gestures apart now.
+const IGNORE_SELECTOR = "[data-swipeable-ignore]";
 
 interface SwipeableTabsProps {
   /** Index of the currently active tab (owned by the parent, e.g. via useTabState). */
@@ -109,6 +125,15 @@ export function SwipeableTabs({ index, onIndexChange, onProgress, children, clas
     if (!node) return;
 
     function handleTouchStart(e: TouchEvent) {
+      // A touch that starts on the reaction tray (or anything else marked
+      // data-swipeable-ignore) is never claimed here — see IGNORE_SELECTOR
+      // above. Leaving touchState null means every later touchmove/touchend
+      // for this gesture just no-ops (they all check `if (!state) return`),
+      // so the tray's own handlers run completely undisturbed.
+      if ((e.target as HTMLElement | null)?.closest(IGNORE_SELECTOR)) {
+        touchState.current = null;
+        return;
+      }
       const t = e.touches[0];
       const now = Date.now();
       touchState.current = {
@@ -120,7 +145,9 @@ export function SwipeableTabs({ index, onIndexChange, onProgress, children, clas
         lastT: now,
         axis: null,
       };
-      setDragging(true);
+      // Not marked "dragging" yet — only once axis resolves to "x" below —
+      // so a touch that turns out to be an ordinary vertical scroll never
+      // even briefly disables the indicator/content transitions.
     }
 
     function handleTouchMove(e: TouchEvent) {
@@ -137,9 +164,9 @@ export function SwipeableTabs({ index, onIndexChange, onProgress, children, clas
           // A vertical scroll, not a tab swipe — hand back to the page and
           // stop tracking this gesture entirely.
           touchState.current = null;
-          setDragging(false);
           return;
         }
+        setDragging(true);
       }
 
       // Committed to a horizontal swipe: stop the page (or pull-to-refresh)
