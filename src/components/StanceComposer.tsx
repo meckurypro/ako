@@ -28,7 +28,7 @@ export const STANCE_COLORS: Record<
   support: {
     label: "Support",
     prompt: "Add your reasoning or build on the argument.",
-    iconClass: "text-accent",
+    iconClass: "text-ink",
     tabActive: "text-accent border-b-2 border-accent bg-accent-soft",
     topBorderClass: "border-t-4 border-accent",
     ringClass: "focus:ring-accent/40 focus:border-accent",
@@ -38,7 +38,7 @@ export const STANCE_COLORS: Record<
   disagree: {
     label: "Disagree",
     prompt: "Explain your position.",
-    iconClass: "text-accent",
+    iconClass: "text-ink",
     tabActive: "text-danger border-b-2 border-danger bg-danger/10",
     topBorderClass: "border-t-4 border-danger",
     ringClass: "focus:ring-danger/40 focus:border-danger",
@@ -48,7 +48,7 @@ export const STANCE_COLORS: Record<
   pushback: {
     label: "Pushback",
     prompt: "What would you question, qualify, or add?",
-    iconClass: "text-accent",
+    iconClass: "text-ink",
     tabActive: "text-pushback border-b-2 border-pushback bg-pushback/10",
     topBorderClass: "border-t-4 border-pushback",
     ringClass: "focus:ring-pushback/40 focus:border-pushback",
