@@ -2,7 +2,6 @@
 import { useRef, useState } from "react";
 import { Link, useNavigate, useLocation } from "react-router-dom";
 import {
-  MessageCircle,
   Heart,
   ThumbsDown,
   Repeat2,
@@ -21,6 +20,7 @@ import {
 import { Avatar } from "./Avatar";
 import { TierBadge } from "./TierBadge";
 import { RoleTags } from "./RoleTags";
+import { FollowButton } from "./FollowButton";
 import { ReactionTray, type EngagementAction } from "./ReactionTray";
 import { PostMedia } from "./PostMedia";
 import { PostContent } from "./PostContent";
@@ -33,8 +33,15 @@ import { useAuth } from "../hooks/useAuth";
 import { useIsBookmarked, useToggleBookmark } from "../hooks/useBookmarks";
 import { useMyReaction, useToggleReaction } from "../hooks/useReactions";
 import { useEngagementOrder, type SecondaryActionKey } from "../hooks/useEngagementOrder";
-import { useDeletePost, useSetPostArchived, useHasReshared, canEditPost } from "../hooks/usePosts";
+import {
+  useDeletePost,
+  useSetPostArchived,
+  useHasReshared,
+  usePostViewCount,
+  canEditPost,
+} from "../hooks/usePosts";
 import { shortDisplayName } from "../lib/displayName";
+import { formatPostTime, formatPostDate, formatCompactCount } from "../lib/formatStats";
 import { isPlainReshare, isQuote, type PostWithAuthor, type Stance } from "../types/database";
 
 function timeAgo(dateString: string): string {
@@ -62,11 +69,16 @@ type ActionDef = {
 export function PostCard({
   post,
   isOwnerView = false,
+  showStats = false,
 }: {
   post: PostWithAuthor;
   // Accepted so callers like ProfilePage can flag the viewer as the post's
   // owner (e.g. viewing their own profile while impersonating no one).
   isOwnerView?: boolean;
+  // Only PostDetail/ProjectDetail (the "expanded", comments-visible view)
+  // pass this — shows the X-style time/date/views line just above the
+  // engagement tray. Feed-context cards leave it off.
+  showStats?: boolean;
 }) {
   const { user } = useAuth();
   const navigate = useNavigate();
@@ -131,6 +143,9 @@ export function PostCard({
   // no need to query this for your own posts.
   const hasResharedQuery = useHasReshared(reshareTarget.id, !isOwner);
   const hasReshared = !!hasResharedQuery.data;
+
+  const viewCountQuery = usePostViewCount(post.id, showStats);
+  const viewCount = viewCountQuery.data ?? 0;
 
   function handleContentTap() {
     const now = Date.now();
@@ -423,23 +438,12 @@ export function PostCard({
           </p>
         </div>
 
-        {/* Comment count (+ reshare badge). Share now lives exclusively in
-            the fixed right slot of the engagement row below, for everyone. */}
+        {/* Reshare badge (+ Follow control). Comment count now lives in the
+            engagement tray below, under Like; Share lives in the tray's
+            fixed right slot for everyone. */}
         <div className="flex flex-col items-center gap-2.5 self-start pt-0.5">
           {plainReshare && <RepostBadge source={original} />}
-
-          <button
-            onClick={handleCommentTap}
-            aria-label="Comments"
-            className="flex flex-col items-center gap-0.5 text-ink-muted"
-          >
-            <MessageCircle size={16} />
-            {post.comment_count > 0 && (
-              <span className="text-[11px] font-medium leading-none text-ink">
-                {post.comment_count}
-              </span>
-            )}
-          </button>
+          {!isOwner && <FollowButton authorId={post.author.id} isPrivate={post.author.is_private} />}
         </div>
       </div>
 
@@ -460,8 +464,28 @@ export function PostCard({
           details, regardless of whether it's still reachable. */}
       {(plainReshare || quotePost) && <RepostEmbed source={original} />}
 
-      {/* Like + Reshare fixed left · ranked secondary (+ owner management) swipable in the middle · Save + Share fixed right */}
-      <ReactionTray leftActions={leftActions} middleActions={middleActions} rightActions={rightActions} />
+      {/* Time · date · views — only on the expanded (comments-visible) post,
+          matching X's post-detail formatting. Feed cards don't show this. */}
+      {showStats && (
+        <div className="flex items-center gap-1.5 text-sm text-ink-muted mt-3 pb-3 border-b border-border">
+          <span>{formatPostTime(post.created_at)}</span>
+          <span aria-hidden="true">·</span>
+          <span>{formatPostDate(post.created_at)}</span>
+          <span aria-hidden="true">·</span>
+          <span className="font-semibold text-ink">{formatCompactCount(viewCount)}</span>
+          <span>Views</span>
+        </div>
+      )}
+
+      {/* Like fixed left · ranked secondary (Reshare, Save + more, + owner
+          management) swipable in the middle · Share fixed right · Comments
+          count under Like */}
+      <ReactionTray
+        leftActions={leftActions}
+        middleActions={middleActions}
+        rightActions={rightActions}
+        belowLeftLabel={{ text: `Comments: ${post.comment_count}`, onClick: handleCommentTap }}
+      />
 
       {activeStance && (
         <StanceComposer
