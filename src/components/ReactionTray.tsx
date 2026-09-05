@@ -13,24 +13,29 @@ export interface EngagementAction {
 interface ReactionTrayProps {
   /** Like, Reshare — always visible, never scrolled. */
   leftActions: EngagementAction[];
-  /** Ranked secondary actions (+ owner management). 2 slots visible, swipable for more. */
+  /** Ranked secondary actions (+ owner management), swipable for overflow. */
   middleActions: EngagementAction[];
   /** Save, Share — always visible, never scrolled. */
   rightActions: EngagementAction[];
 }
 
-// Width of one action slot (icon + count). SLOT_COUNT sizes the swipable
-// middle section to show exactly 2 items at a time.
-const SLOT_WIDTH = 44; // px, ~w-11
-const SLOT_COUNT = 2;
+// The row always shows exactly 6 icon slots, evenly spaced (each 1/6 of the
+// row's width) — regardless of how those 6 are split across the three
+// groups. Left + right are fixed; whatever's left goes to the middle,
+// swipable group, so the row is always full and evenly balanced. E.g. on
+// your own post Reshare drops out of the left group (1 icon instead of 2),
+// so the middle group grows from 2 to 3 visible slots to make up the six —
+// one of those extra slots effectively "complements" the missing Reshare
+// next to Like.
+const VISIBLE_SLOTS = 6;
 
-function ActionButton({ action }: { action: EngagementAction }) {
+function ActionButton({ action, widthPercent }: { action: EngagementAction; widthPercent: number }) {
   return (
     <button
       onClick={action.onClick}
       aria-label={action.label}
       className="flex flex-col items-center gap-0.5 flex-shrink-0 text-ink"
-      style={{ width: SLOT_WIDTH }}
+      style={{ width: `${widthPercent}%` }}
     >
       {action.icon}
       {/* min-h keeps button height uniform whether there's a count or not */}
@@ -43,32 +48,38 @@ function ActionButton({ action }: { action: EngagementAction }) {
 
 // Purely presentational. PostCard passes three groups:
 // - leftActions (Like, Reshare) pinned to the left, no scroll
-// - middleActions (ranked secondary + owner management) in a swipable strip
-//   sized to show exactly 2 items at a time, with the rest a left-swipe away
+// - middleActions (ranked secondary + owner management) in a swipable strip,
+//   sized to show exactly (6 - left.length - right.length) items at a time
 // - rightActions (Save, Share) pinned to the right, no scroll
+//
+// Every slot — fixed or swipable — occupies the same 1/6 share of the row's
+// width, so all 6 visible icons end up evenly spaced with no lopsided gaps
+// between groups.
 //
 // Touch isolation: onTouchStart on the middle strip calls stopPropagation so
 // a horizontal swipe there never bubbles up to Feed's tab-swipe handler.
 // Feed's handleTouchEnd checks touchStartX === null and exits early, so no
 // tab change fires even though touchEnd still bubbles.
 export function ReactionTray({ leftActions, middleActions, rightActions }: ReactionTrayProps) {
-  const hasOverflow = middleActions.length > SLOT_COUNT;
+  const slotPct = 100 / VISIBLE_SLOTS;
+  const middleVisibleCount = Math.max(1, VISIBLE_SLOTS - leftActions.length - rightActions.length);
+  const hasOverflow = middleActions.length > middleVisibleCount;
 
   return (
-    <div className="flex items-center justify-between mt-3 pt-3">
-      <div className="flex items-center flex-shrink-0">
+    <div className="flex items-center mt-3 pt-3 w-full">
+      <div className="flex flex-shrink-0" style={{ width: `${leftActions.length * slotPct}%` }}>
         {leftActions.map((action) => (
-          <ActionButton key={action.key} action={action} />
+          <ActionButton key={action.key} action={action} widthPercent={100 / leftActions.length} />
         ))}
       </div>
 
-      <div className="relative flex-shrink-0" style={{ width: SLOT_WIDTH * SLOT_COUNT }}>
+      <div className="relative flex-shrink-0" style={{ width: `${middleVisibleCount * slotPct}%` }}>
         <div
           className="flex overflow-x-auto scrollbar-none"
           onTouchStart={(e) => e.stopPropagation()}
         >
           {middleActions.map((action) => (
-            <ActionButton key={action.key} action={action} />
+            <ActionButton key={action.key} action={action} widthPercent={100 / middleVisibleCount} />
           ))}
         </div>
 
@@ -81,9 +92,9 @@ export function ReactionTray({ leftActions, middleActions, rightActions }: React
         )}
       </div>
 
-      <div className="flex items-center flex-shrink-0">
+      <div className="flex flex-shrink-0" style={{ width: `${rightActions.length * slotPct}%` }}>
         {rightActions.map((action) => (
-          <ActionButton key={action.key} action={action} />
+          <ActionButton key={action.key} action={action} widthPercent={100 / rightActions.length} />
         ))}
       </div>
     </div>
