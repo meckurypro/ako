@@ -6,6 +6,7 @@ import { useBookmarkedPosts } from "../hooks/useBookmarks";
 import { useSavedProjects } from "../hooks/useSavedProjects";
 import { PostCard } from "../components/PostCard";
 import { ProjectCard } from "../components/ProjectCard";
+import { BottomNav } from "../components/BottomNav";
 
 type Tab = "posts" | "projects";
 
@@ -19,7 +20,7 @@ export function SavedHub() {
   const { data: projects, isLoading: projectsLoading } = useSavedProjects();
 
   return (
-    <div className="min-h-screen bg-canvas pb-16">
+    <div className="min-h-screen bg-canvas pb-24">
       <header className="px-4 pt-6 pb-3 sticky top-0 bg-canvas z-30 border-b border-border flex items-center gap-3">
         <button onClick={() => navigate(-1)} className="text-ink-muted">
           <ArrowLeft size={22} />
@@ -69,6 +70,8 @@ export function SavedHub() {
           )}
         </div>
       </div>
+
+      <BottomNav />
     </div>
   );
 }
