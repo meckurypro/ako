@@ -66,7 +66,7 @@ export function BottomNav() {
     <nav className="fixed bottom-0 left-0 right-0 z-40 bg-surface rounded-t-[28px] border-t border-border shadow-[0_-1px_3px_rgba(var(--shadow-ink-rgb),0.06)] px-2 pt-3 pb-[calc(env(safe-area-inset-bottom)+0.75rem)]">
       <div className="flex items-center justify-around">
         {navItems.map(({ to, icon: Icon, label }) => (
-          <NavLink key={to} to={to} className={linkClass}>
+          <NavLink key={to} to={to} replace className={linkClass}>
             {({ isActive }) => (
               <>
                 <NavIcon Icon={Icon} isActive={isActive} />
@@ -76,7 +76,7 @@ export function BottomNav() {
           </NavLink>
         ))}
 
-        <NavLink to="/activity" className={linkClass}>
+        <NavLink to="/activity" replace className={linkClass}>
           {({ isActive }) => (
             <>
               <NavIcon Icon={ActivityIcon} isActive={isActive} />
@@ -85,7 +85,7 @@ export function BottomNav() {
           )}
         </NavLink>
 
-        <NavLink to="/messages" className={linkClass}>
+        <NavLink to="/messages" replace className={linkClass}>
           {({ isActive }) => (
             <>
               <div className="relative">
@@ -103,6 +103,7 @@ export function BottomNav() {
 
         <NavLink
           to={user ? "/me" : "/login"}
+          replace
           className={`flex flex-col items-center gap-1 w-14 text-[11px] font-medium transition-colors ${
             isOwnProfileActive ? "text-accent" : "text-ink-muted"
           }`}
