@@ -27,6 +27,7 @@
   --color-pushback: #B8862E;      /* muted warm gold/ochre — Pushback stance only (was raw amber-*) */
   --color-tick-read: #FF6A00;     /* neon orange — read-receipt double-ticks ONLY, deliberately loud so it snaps against both the accent bubble and the plain canvas list background. Reused for the "recently online" presence dot. */
   --color-presence-online: #39FF6A; /* neon green — online-now presence dot */
+  --color-highlight: #BFE6C6;     /* saturated sage — deliberately more vivid than accent-soft, used for the few spots that need to visually pop against a list (unread notification rows, jump-to-comment flash) rather than sit quietly like an accent-soft badge */
 
   --font-display: "Playfair Display", Georgia, serif;
   --font-body: "Inter", -apple-system, BlinkMacSystemFont, sans-serif;
@@ -75,6 +76,7 @@
   --color-border: #232220;
   --color-danger: #C97C6B;
   --color-pushback: #D9A857;
+  --color-highlight: #1E4B31;    /* dark-mode counterpart — noticeably more saturated/green than --color-accent-soft's #17281F so unread rows still pop against near-black canvas */
 
   --shadow-ink-rgb: 0, 0, 0;
   --accent-rgb: 76, 174, 124;
