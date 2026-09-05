@@ -1,4 +1,4 @@
-// src/pages/PostDetail.tsx
+// src/pages/ProjectDetail.tsx
 import { useParams, useNavigate, useLocation } from "react-router-dom";
 import { ArrowLeft } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
@@ -35,7 +35,7 @@ function usePost(postId: string) {
   });
 }
 
-export function PostDetail() {
+export function ProjectDetail() {
   const { postId } = useParams<{ postId: string }>();
   const navigate = useNavigate();
   const location = useLocation();
