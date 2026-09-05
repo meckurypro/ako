@@ -11,7 +11,7 @@ import {
   UserCheck,
   Repeat2,
   Quote,
-  Share2,
+  Redo2,
 } from "lucide-react";
 import { useNotifications, useMarkNotificationRead, useMarkAllRead } from "../hooks/useNotifications";
 import { Avatar } from "../components/Avatar";
@@ -26,7 +26,7 @@ const TYPE_CONFIG: Record<string, { icon: typeof Heart; verb: string }> = {
   pushback: { icon: Handshake, verb: "pushed back on your post" },
   reshare: { icon: Repeat2, verb: "reposted your post" },
   quote: { icon: Quote, verb: "quoted your post" },
-  share: { icon: Share2, verb: "shared your post" },
+  share: { icon: Redo2, verb: "shared your post" },
   comment_like: { icon: Heart, verb: "liked your comment" },
   comment_dislike: { icon: ThumbsDown, verb: "disliked your comment" },
   comment_reply: { icon: MessageCircle, verb: "replied to you" },
