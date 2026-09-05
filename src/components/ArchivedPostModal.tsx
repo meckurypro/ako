@@ -11,8 +11,8 @@ interface ArchivedPostModalProps {
 
 /**
  * Full post preview from the Archive screen — renders the exact same
- * PostCard the feed uses, so Restore/Edit/Delete all come for free
- * from its own "…" menu (PostActionSheet) instead of being
+ * PostCard the feed uses, so Restore/Edit/Delete all come for free from
+ * its own inline owner actions (in the reaction tray) instead of being
  * reimplemented here. The caller is responsible for closing this once
  * the post falls out of the archived list (see the effect in
  * Archive.tsx) — restoring/deleting doesn't close it on its own since
