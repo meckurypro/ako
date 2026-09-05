@@ -3,7 +3,11 @@
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <!-- viewport-fit=cover lets the page paint into the iOS safe-area
+         insets (notch/home-indicator strips) instead of Safari treating
+         that space as a separate, unstyled bar — required for the
+         bottom bar to pick up the app's background color. -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <!-- Colors Safari's address-bar/toolbar chrome (and Android's status
          bar) to match the app. Content is overwritten synchronously below
          and again by useTheme.tsx on every theme change — this starting
