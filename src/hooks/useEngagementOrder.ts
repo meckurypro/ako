@@ -5,13 +5,16 @@ import { useAuth } from "./useAuth";
 
 // 'share' removed — share now lives as a dedicated header button on PostCard.
 // 'dislike' added — it's now part of the scrollable tray, ranked by usage.
+// 'reshare' added — no longer a fixed left-side slot; ranked like everything
+// else now that only Like (left) and Share (right) stay fixed.
 export type SecondaryActionKey =
   | "support"
   | "disagree"
   | "pushback"
   | "dislike"
   | "gift"
-  | "save";
+  | "save"
+  | "reshare";
 
 const ALL_SECONDARY: SecondaryActionKey[] = [
   "support",
@@ -20,11 +23,13 @@ const ALL_SECONDARY: SecondaryActionKey[] = [
   "dislike",
   "gift",
   "save",
+  "reshare",
 ];
 
 // Tiebreaker for brand-new users (all counts = 0).
 const DEFAULT_ORDER: SecondaryActionKey[] = [
   "support",
+  "reshare",
   "gift",
   "save",
   "disagree",
@@ -43,9 +48,12 @@ type UsageCounts = Record<SecondaryActionKey, number>;
  *   dislike                        →  reactions of type "dislike"
  *   gift                           →  gifts.sender_id
  *   save                           →  bookmarks.user_id
+ *   reshare                        →  posts authored by this user with
+ *                                      reshared_post_id set (plain reshares
+ *                                      and quotes both count as "resharing")
  *
- * PostCard places Like first (fixed), then streams all 6 in this ranked
- * order into the horizontally-scrollable tray. The first 4-5 are visible;
+ * PostCard places Like first (fixed), then streams all 7 in this ranked
+ * order into the horizontally-scrollable tray. The first few are visible;
  * the rest reveal on swipe. Cached 5 min — usage shifts slowly.
  */
 export function useEngagementOrder() {
@@ -61,9 +69,10 @@ export function useEngagementOrder() {
         dislike: 0,
         gift: 0,
         save: 0,
+        reshare: 0,
       };
 
-      const [stanceRes, dislikeRes, giftRes, saveRes] = await Promise.all([
+      const [stanceRes, dislikeRes, giftRes, saveRes, reshareRes] = await Promise.all([
         // Support/Disagree/Pushback are stance-tagged comments.
         supabase
           .from("comments")
@@ -87,12 +96,19 @@ export function useEngagementOrder() {
           .from("bookmarks")
           .select("id", { count: "exact", head: true })
           .eq("user_id", user!.id),
+
+        supabase
+          .from("posts")
+          .select("id", { count: "exact", head: true })
+          .eq("author_id", user!.id)
+          .not("reshared_post_id", "is", null),
       ]);
 
       if (stanceRes.error) throw stanceRes.error;
       if (dislikeRes.error) throw dislikeRes.error;
       if (giftRes.error) throw giftRes.error;
       if (saveRes.error) throw saveRes.error;
+      if (reshareRes.error) throw reshareRes.error;
 
       for (const row of stanceRes.data ?? []) {
         if (row.stance === "support") counts.support++;
@@ -102,6 +118,7 @@ export function useEngagementOrder() {
       counts.dislike = dislikeRes.count ?? 0;
       counts.gift = giftRes.count ?? 0;
       counts.save = saveRes.count ?? 0;
+      counts.reshare = reshareRes.count ?? 0;
 
       return [...ALL_SECONDARY].sort((a, b) => {
         const diff = counts[b] - counts[a];
