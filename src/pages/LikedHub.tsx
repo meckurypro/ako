@@ -1,5 +1,5 @@
 // src/pages/LikedHub.tsx
-import { useState, type TouchEvent, type CSSProperties } from "react";
+import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { ArrowLeft } from "lucide-react";
 import { useTabState } from "../hooks/useTabState";
@@ -7,58 +7,31 @@ import { useLikedPosts, useLikedProjects } from "../hooks/useReactions";
 import { PostCard } from "../components/PostCard";
 import { ProjectCard } from "../components/ProjectCard";
 import { BottomNav } from "../components/BottomNav";
+import { SwipeableTabs } from "../components/SwipeableTabs";
 
 const TABS = ["posts", "projects"] as const;
 type Tab = (typeof TABS)[number];
-const SWIPE_THRESHOLD_PX = 50;
 
 // Same shape as SavedHub — liked posts and liked projects side by
 // side inside the Activity hub, with the same click/swipe tab
-// mechanics (URL-backed state, sliding underline, smooth spring-in).
+// mechanics (URL-backed state, sliding underline, real drag-tracking
+// carousel — see SwipeableTabs.tsx).
 export function LikedHub() {
   const navigate = useNavigate();
   const [tab, setTab] = useTabState<Tab>(TABS, "posts");
-  const [tabDirection, setTabDirection] = useState(1);
-  const [touchStartX, setTouchStartX] = useState<number | null>(null);
-  const [touchStartY, setTouchStartY] = useState<number | null>(null);
+  const activeIndex = TABS.indexOf(tab);
+  // Continuous tab position fed by SwipeableTabs' onProgress, so the
+  // sliding indicator bar tracks the finger during a drag instead of
+  // only jumping once the swipe commits.
+  const [tabProgress, setTabProgress] = useState(activeIndex);
+  const [tabDragging, setTabDragging] = useState(false);
 
   const { data: posts, isLoading: postsLoading } = useLikedPosts();
   const { data: projects, isLoading: projectsLoading } = useLikedProjects();
 
-  const activeIndex = TABS.indexOf(tab);
-
-  function goToIndex(index: number) {
-    const clamped = Math.max(0, Math.min(TABS.length - 1, index));
-    if (clamped === activeIndex) return;
-    setTabDirection(clamped > activeIndex ? 1 : -1);
-    setTab(TABS[clamped]);
-  }
-
   function handleTabClick(index: number, next: Tab) {
     if (index === activeIndex) return;
-    setTabDirection(index > activeIndex ? 1 : -1);
     setTab(next);
-  }
-
-  function handleTouchStart(e: TouchEvent) {
-    setTouchStartX(e.touches[0].clientX);
-    setTouchStartY(e.touches[0].clientY);
-  }
-
-  function handleTouchEnd(e: TouchEvent) {
-    if (touchStartX === null || touchStartY === null) return;
-    const deltaX = e.changedTouches[0].clientX - touchStartX;
-    const deltaY = e.changedTouches[0].clientY - touchStartY;
-    setTouchStartX(null);
-    setTouchStartY(null);
-
-    if (Math.abs(deltaX) < SWIPE_THRESHOLD_PX || Math.abs(deltaX) <= Math.abs(deltaY)) return;
-
-    if (deltaX < 0) {
-      goToIndex(activeIndex + 1);
-    } else {
-      goToIndex(activeIndex - 1);
-    }
   }
 
   return (
@@ -89,33 +62,47 @@ export function LikedHub() {
             Projects
           </button>
           <div
-            className="ako-tab-indicator absolute bottom-0 left-0 h-[2px] w-1/2 bg-accent rounded-full"
-            style={{ transform: `translateX(${activeIndex * 100}%)` }}
+            className={`ako-tab-indicator absolute bottom-0 left-0 h-[2px] w-1/2 bg-accent rounded-full ${
+              tabDragging ? "ako-tab-indicator--dragging" : ""
+            }`}
+            style={{ transform: `translateX(${tabProgress * 100}%)` }}
           />
         </div>
 
-        <div className="pt-4" onTouchStart={handleTouchStart} onTouchEnd={handleTouchEnd}>
-          <div key={tab} className="animate-tab-spring" style={{ "--tab-dir": tabDirection } as CSSProperties}>
-            {tab === "posts" ? (
-              postsLoading ? (
-                <p className="text-ink-muted text-center py-10">Loading…</p>
-              ) : !posts || posts.length === 0 ? (
-                <p className="text-ink-muted text-center py-10 text-sm">
-                  Posts you like will show up here.
-                </p>
-              ) : (
-                posts.map((post: any) => <PostCard key={post.id} post={post} />)
-              )
-            ) : projectsLoading ? (
-              <p className="text-ink-muted text-center py-10">Loading…</p>
-            ) : !projects || projects.length === 0 ? (
-              <p className="text-ink-muted text-center py-10 text-sm">
-                Projects you like will show up here.
-              </p>
-            ) : (
-              projects.map((project: any) => <ProjectCard key={project.id} project={project} />)
-            )}
-          </div>
+        <div className="pt-4">
+          <SwipeableTabs
+            index={activeIndex}
+            onIndexChange={(i) => setTab(TABS[i])}
+            onProgress={(progress, dragging) => {
+              setTabProgress(progress);
+              setTabDragging(dragging);
+            }}
+          >
+            {[
+              <div key="posts">
+                {postsLoading ? (
+                  <p className="text-ink-muted text-center py-10">Loading…</p>
+                ) : !posts || posts.length === 0 ? (
+                  <p className="text-ink-muted text-center py-10 text-sm">
+                    Posts you like will show up here.
+                  </p>
+                ) : (
+                  posts.map((post: any) => <PostCard key={post.id} post={post} />)
+                )}
+              </div>,
+              <div key="projects">
+                {projectsLoading ? (
+                  <p className="text-ink-muted text-center py-10">Loading…</p>
+                ) : !projects || projects.length === 0 ? (
+                  <p className="text-ink-muted text-center py-10 text-sm">
+                    Projects you like will show up here.
+                  </p>
+                ) : (
+                  projects.map((project: any) => <ProjectCard key={project.id} project={project} />)
+                )}
+              </div>,
+            ]}
+          </SwipeableTabs>
         </div>
       </div>
 
