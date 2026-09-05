@@ -38,7 +38,7 @@ export function ReactionTray({ actions }: ReactionTrayProps) {
             aria-label={action.label}
             // w-14 (56px) gives ~5.5–5.8 visible items on typical phones,
             // so the 6th icon peeks at the right edge — signalling scrollability.
-            className="flex flex-col items-center gap-1 flex-shrink-0 w-14 text-accent"
+            className="flex flex-col items-center gap-1 flex-shrink-0 w-14 text-ink"
           >
             {action.icon}
             {/* min-h keeps button height uniform whether there's a count or not */}
