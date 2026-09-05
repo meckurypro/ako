@@ -10,7 +10,7 @@ export const POST_EDIT_WINDOW_MS = 15 * 60 * 1000;
 
 const TOP_DISCUSSIONS_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
 
-const AUTHOR_SELECT = `id, username, display_name, avatar_url, tier, ${PROFILE_ROLES_SELECT}`;
+const AUTHOR_SELECT = `id, username, display_name, avatar_url, tier, is_private, ${PROFILE_ROLES_SELECT}`;
 
 // One level deep: the embedded reshared_post carries its own author but
 // not a further-nested reshared_post, so repost-of-a-repost links to the
@@ -228,6 +228,26 @@ export function useHasReshared(postId: string, enabled: boolean = true) {
       return !!data;
     },
     enabled: !!user && enabled,
+  });
+}
+
+/** Total distinct viewers of a post, from the same post_views rows
+ * useMarkPostSeen writes to (one row per user, author's own views excluded
+ * at write-time). Only fetched when `enabled` — call sites pass their
+ * showStats flag so feed cards, which never show this, skip the query. */
+export function usePostViewCount(postId: string, enabled: boolean = true) {
+  return useQuery({
+    queryKey: ["post-view-count", postId],
+    queryFn: async () => {
+      const { count, error } = await supabase
+        .from("post_views")
+        .select("*", { count: "exact", head: true })
+        .eq("post_id", postId);
+      if (error) throw error;
+      return count ?? 0;
+    },
+    enabled: !!postId && enabled,
+    staleTime: 60 * 1000,
   });
 }
 
