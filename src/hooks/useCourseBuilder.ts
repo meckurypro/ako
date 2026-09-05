@@ -52,6 +52,7 @@ export function useCourseModules(projectId: string | undefined) {
 export function useAddModule(projectId: string) {
   const queryClient = useQueryClient();
   return useMutation({
+    meta: { blocking: true },
     mutationFn: async ({ title, sortOrder }: { title: string; sortOrder: number }) => {
       const { error } = await supabase
         .from("course_modules")
@@ -65,6 +66,7 @@ export function useAddModule(projectId: string) {
 export function useAddLesson(projectId: string) {
   const queryClient = useQueryClient();
   return useMutation({
+    meta: { blocking: true },
     mutationFn: async (input: { moduleId: string; title: string; content?: string; sortOrder: number }) => {
       const { error } = await supabase.from("course_lessons").insert({
         module_id: input.moduleId,
@@ -81,6 +83,7 @@ export function useAddLesson(projectId: string) {
 export function useDeleteModule(projectId: string) {
   const queryClient = useQueryClient();
   return useMutation({
+    meta: { blocking: true },
     mutationFn: async (moduleId: string) => {
       // Lessons under this module have no ON DELETE CASCADE in the
       // migration, so remove them first or the FK will reject this.
@@ -99,6 +102,7 @@ export function useDeleteModule(projectId: string) {
 export function usePublishCourse(projectId: string) {
   const queryClient = useQueryClient();
   return useMutation({
+    meta: { blocking: true },
     mutationFn: async () => {
       const { error } = await supabase
         .from("projects")
