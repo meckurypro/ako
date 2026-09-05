@@ -6,7 +6,7 @@ import {
   Heart,
   ThumbsDown,
   Repeat2,
-  Share2,
+  Redo2,
   Bookmark,
   Handshake,
   Frown,
@@ -74,6 +74,7 @@ export function PostCard({
   const [activeStance, setActiveStance] = useState<Stance | null>(null);
   const [showReshareSheet, setShowReshareSheet] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [showArchiveConfirm, setShowArchiveConfirm] = useState(false);
   const lastTapRef = useRef(0);
 
   // Reshare/quote: reshared_post_id set + empty content = plain reshare
@@ -162,8 +163,20 @@ export function PostCard({
     navigate(`/post/${post.id}/edit`);
   }
 
+  // Archiving prompts for confirmation (same ConfirmDialog as delete,
+  // just non-danger styled); unarchiving is the reversal of that, so it
+  // goes straight through with no extra prompt.
   function handleToggleArchive() {
-    setArchived.mutate({ postId: post.id, archived: !post.is_archived });
+    if (post.is_archived) {
+      setArchived.mutate({ postId: post.id, archived: false });
+    } else {
+      setShowArchiveConfirm(true);
+    }
+  }
+
+  function handleConfirmArchive() {
+    setShowArchiveConfirm(false);
+    setArchived.mutate({ postId: post.id, archived: true });
   }
 
   // Was `window.confirm(...)` — blocking native dialogs like confirm/alert
@@ -329,7 +342,7 @@ export function PostCard({
           {
             key: "share",
             label: "Share",
-            icon: <Share2 size={20} className="text-ink" />,
+            icon: <Redo2 size={20} className="text-ink" />,
             count: null,
             onClick: () => void handleShare(),
           },
@@ -417,7 +430,7 @@ export function PostCard({
               aria-label="Share"
               className="text-ink-muted"
             >
-              <Share2 size={18} />
+              <Redo2 size={18} />
             </button>
           )}
         </div>
@@ -457,6 +470,17 @@ export function PostCard({
           postId={reshareTarget.id}
           source={reshareTarget}
           onClose={() => setShowReshareSheet(false)}
+        />
+      )}
+
+      {showArchiveConfirm && (
+        <ConfirmDialog
+          title="Archive this post?"
+          description="It'll be hidden from your profile and the feed until you unarchive it from your Archive."
+          confirmLabel="Archive"
+          danger={false}
+          onConfirm={handleConfirmArchive}
+          onCancel={() => setShowArchiveConfirm(false)}
         />
       )}
 
