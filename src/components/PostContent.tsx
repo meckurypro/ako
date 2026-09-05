@@ -22,7 +22,19 @@ function renderParagraphs(content: string) {
 // Heading matches the author name in family (both font-display) so the
 // two read as one consistent "stylised" voice, per the Uche reference —
 // large serif headline, roomy sans body underneath.
+//
+// A heading with no body underneath isn't really a "headline" for
+// anything — it's just what the person typed into the title field with
+// nothing added below — so it renders as plain body text instead of a
+// large bold headline, which otherwise reads like a shouty, half-empty
+// post.
 export function PostContent({ heading, content }: PostContentProps) {
+  const hasBody = content.trim() !== "";
+
+  if (heading && !hasBody) {
+    return <div>{renderParagraphs(heading)}</div>;
+  }
+
   return (
     <div>
       {heading && (
@@ -30,7 +42,7 @@ export function PostContent({ heading, content }: PostContentProps) {
           {renderFormattedText(heading, "h")}
         </h3>
       )}
-      {content && renderParagraphs(content)}
+      {hasBody && renderParagraphs(content)}
     </div>
   );
 }
