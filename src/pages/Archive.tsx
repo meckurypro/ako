@@ -1,7 +1,7 @@
 // src/pages/Archive.tsx
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { ArrowLeft, ArchiveRestore, Trash2, X, CheckSquare, ChevronDown } from "lucide-react";
+import { ArrowLeft, ArchiveRestore, Trash2, X, CheckSquare, ChevronDown, Repeat2 } from "lucide-react";
 import {
   useArchivedConversations,
   useMarkArchiveSeen,
@@ -16,7 +16,7 @@ import { Avatar } from "../components/Avatar";
 import { ProjectCard } from "../components/ProjectCard";
 import { ArchivedPostModal } from "../components/ArchivedPostModal";
 import { ConfirmDialog } from "../components/ConfirmDialog";
-import type { PostWithAuthor } from "../types/database";
+import { isPlainReshare, isQuote, type PostWithAuthor } from "../types/database";
 
 function timeAgo(dateString: string): string {
   const seconds = Math.floor((Date.now() - new Date(dateString).getTime()) / 1000);
@@ -339,18 +339,36 @@ export function Archive() {
                 />
                 <AccordionBody isOpen={openSection === "posts"}>
                   <div className="pb-2">
-                    {archivedPosts.map((post) => (
-                      <button
-                        key={post.id}
-                        onClick={() => setPreviewPost(post)}
-                        className="w-full flex items-start justify-between gap-3 py-2.5 text-left border-t border-border/60 first:border-t-0"
-                      >
-                        <span className="text-sm text-ink truncate">
-                          {post.heading || post.content || "Untitled post"}
-                        </span>
-                        <span className="text-xs text-ink-muted flex-shrink-0">{timeAgo(post.created_at)}</span>
-                      </button>
-                    ))}
+                    {archivedPosts.map((post) => {
+                      // A plain reshare/quote has no heading or content of
+                      // its own (or, for a quote, its own caption should
+                      // still win first) — fall back to the original
+                      // post's heading/content so the row isn't just
+                      // "Untitled post" for every repost.
+                      const isRepost = isPlainReshare(post) || isQuote(post);
+                      const title =
+                        post.heading ||
+                        post.content ||
+                        post.reshared_post?.heading ||
+                        post.reshared_post?.content ||
+                        "Untitled post";
+
+                      return (
+                        <button
+                          key={post.id}
+                          onClick={() => setPreviewPost(post)}
+                          className="w-full flex items-start justify-between gap-3 py-2.5 text-left border-t border-border/60 first:border-t-0"
+                        >
+                          <span className="flex items-center gap-1.5 min-w-0 text-sm text-ink">
+                            {isRepost && (
+                              <Repeat2 size={13} className="text-ink-muted flex-shrink-0" />
+                            )}
+                            <span className="truncate">{title}</span>
+                          </span>
+                          <span className="text-xs text-ink-muted flex-shrink-0">{timeAgo(post.created_at)}</span>
+                        </button>
+                      );
+                    })}
                   </div>
                 </AccordionBody>
               </div>
