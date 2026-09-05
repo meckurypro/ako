@@ -24,7 +24,7 @@ interface ReactionTrayProps {
 // so no tab change fires even though touchEnd still bubbles.
 export function ReactionTray({ actions }: ReactionTrayProps) {
   return (
-    <div className="relative border-t border-border dark:border-[#1B1A17] mt-3 pt-3">
+    <div className="relative mt-3 pt-3">
       {/* Scrollable row */}
       <div
         className="flex overflow-x-auto scrollbar-none"
