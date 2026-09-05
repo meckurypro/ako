@@ -1,6 +1,7 @@
 // src/components/MessageActionMenu.tsx
 import { useEffect, useState } from "react";
 import { Copy, Trash2, Redo2, MoreHorizontal, Star, Pin, Plus, X, Reply, Forward, EyeOff, CheckSquare } from "lucide-react";
+import { useBackDismiss } from "../hooks/useBackDismiss";
 
 interface MessageActionMenuProps {
   content: string;
@@ -63,6 +64,7 @@ export function MessageActionMenu({
   onSelect,
   onClose,
 }: MessageActionMenuProps) {
+  useBackDismiss(onClose);
   const [moreOpen, setMoreOpen] = useState(false);
 
   useEffect(() => {
