@@ -54,7 +54,7 @@ function ActionButton({
     <button
       onClick={wrapClick ? wrapClick(action.onClick) : action.onClick}
       aria-label={action.label}
-      className="flex flex-row items-center justify-center gap-1 flex-shrink-0 text-ink"
+      className="flex flex-row items-center justify-center gap-1.5 py-1.5 flex-shrink-0 text-ink"
       style={{ width: `${widthPercent}%` }}
     >
       {action.icon}
@@ -148,7 +148,7 @@ export function ReactionTray({
 
   return (
     <div
-      className="flex items-start mt-3 pt-3 w-full"
+      className="flex items-start mt-4 pt-4 pb-1 w-full"
       onTouchStart={handleRowTouchStart}
       onTouchMove={handleRowTouchMove}
     >
@@ -167,7 +167,7 @@ export function ReactionTray({
         {belowLeftLabel && (
           <button
             onClick={guardFixedClick(belowLeftLabel.onClick)}
-            className="text-[11px] font-medium leading-none text-ink-muted mt-1.5 whitespace-nowrap"
+            className="text-[11px] font-medium leading-none text-ink-muted mt-2 whitespace-nowrap"
           >
             {belowLeftLabel.text}
           </button>
