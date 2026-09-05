@@ -1,4 +1,4 @@
-import { useEffect, useState, type TouchEvent } from "react";
+import { useEffect, useState, type TouchEvent, type CSSProperties } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { X } from "lucide-react";
 import { useFeedPosts, useFollowingFeed, useTopDiscussionsFeed } from "../hooks/usePosts";
@@ -130,6 +130,10 @@ export function Feed() {
   const interestId = searchParams.get("interest") ?? undefined;
 
   const [activeTab, setActiveTab] = useState<TabKey>("for-you");
+  // Which side new tab content springs in from — 1 (from the right) when
+  // moving to a later tab, -1 (from the left) moving to an earlier one.
+  // Read by the CSS animation via the --tab-dir custom property below.
+  const [tabDirection, setTabDirection] = useState(1);
   const [touchStartX, setTouchStartX] = useState<number | null>(null);
   const [touchStartY, setTouchStartY] = useState<number | null>(null);
 
@@ -141,7 +145,15 @@ export function Feed() {
 
   function goToIndex(index: number) {
     const clamped = Math.max(0, Math.min(TABS.length - 1, index));
+    if (clamped === activeIndex) return;
+    setTabDirection(clamped > activeIndex ? 1 : -1);
     setActiveTab(TABS[clamped].key);
+  }
+
+  function handleTabClick(index: number, key: TabKey) {
+    if (index === activeIndex) return;
+    setTabDirection(index > activeIndex ? 1 : -1);
+    setActiveTab(key);
   }
 
   function handleTouchStart(e: TouchEvent) {
@@ -171,24 +183,28 @@ export function Feed() {
         <TopHeader showTagline leftAction="create" />
 
         <div className="px-4">
-          <div className="max-w-xl mx-auto grid grid-cols-3">
-            {/* Equal-width columns (not intrinsic-width + fixed gap) so the
-                three tabs sit evenly spaced regardless of label length —
-                "Top Discussions" no longer crowds its neighbors. Bolder tab
-                labels, and a heavier active underline (4px instead of 3px)
-                so the selected tab reads with more visual weight, matching
-                the reference. */}
-            {TABS.map((tab) => (
+          {/* Equal-width columns (not intrinsic-width + fixed gap) so the
+              three tabs sit evenly spaced regardless of label length —
+              "Top Discussions" no longer crowds its neighbors. The active
+              indicator is now one sliding bar (see below) instead of each
+              button drawing its own border, so it can spring across to the
+              new position instead of just appearing on a different tab. */}
+          <div className="max-w-xl mx-auto relative grid grid-cols-3 pb-1">
+            {TABS.map((tab, i) => (
               <button
                 key={tab.key}
-                onClick={() => setActiveTab(tab.key)}
-                className={`whitespace-nowrap text-sm font-semibold pb-2 pt-1 border-b-[4px] -mb-px text-center ${
-                  activeTab === tab.key ? "text-accent border-accent" : "text-ink-muted border-transparent"
+                onClick={() => handleTabClick(i, tab.key)}
+                className={`whitespace-nowrap text-sm font-semibold pb-2 pt-1 text-center ${
+                  activeTab === tab.key ? "text-accent" : "text-ink-muted"
                 }`}
               >
                 {tab.label}
               </button>
             ))}
+            <div
+              className="ako-tab-indicator absolute bottom-0 left-0 h-[4px] w-1/3 bg-accent rounded-full"
+              style={{ transform: `translateX(${activeIndex * 100}%)` }}
+            />
           </div>
         </div>
       </div>
@@ -208,9 +224,18 @@ export function Feed() {
           </button>
         )}
 
-        {activeTab === "for-you" && <ForYouTab interestId={interestId} />}
-        {activeTab === "following" && <FollowingTab />}
-        {activeTab === "top" && <TopDiscussionsTab />}
+        {/* Keyed by tab so each switch remounts this wrapper and replays
+            the spring-in animation; --tab-dir picks which side it comes
+            from (see the keyframe in index.css). */}
+        <div
+          key={activeTab}
+          className="animate-tab-spring"
+          style={{ "--tab-dir": tabDirection } as CSSProperties}
+        >
+          {activeTab === "for-you" && <ForYouTab interestId={interestId} />}
+          {activeTab === "following" && <FollowingTab />}
+          {activeTab === "top" && <TopDiscussionsTab />}
+        </div>
       </div>
 
       <BottomNav />
