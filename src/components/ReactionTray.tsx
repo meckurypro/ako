@@ -19,15 +19,15 @@ interface ReactionTrayProps {
   rightActions: EngagementAction[];
 }
 
-// The row always shows exactly 6 icon slots, evenly spaced (each 1/6 of the
-// row's width) — regardless of how those 6 are split across the three
-// groups. Left + right are fixed; whatever's left goes to the middle,
-// swipable group, so the row is always full and evenly balanced. E.g. on
-// your own post Reshare drops out of the left group (1 icon instead of 2),
-// so the middle group grows from 2 to 3 visible slots to make up the six —
-// one of those extra slots effectively "complements" the missing Reshare
-// next to Like.
-const VISIBLE_SLOTS = 6;
+// The row always shows exactly 5 icon slots, evenly spaced (each 1/5 of the
+// row's width): Like fixed on the left, Share fixed on the right, and 3
+// swipable slots in between for everything else (Reshare, Save, Support,
+// Disagree, Pushback, Dislike, Gift — ranked by usage — plus owner-only
+// Edit/Archive/Delete). Left and right are always exactly 1 icon each now,
+// so the middle group's visible window is a constant 3 — it never needs to
+// grow or shrink to compensate the way it used to when Reshare/Save could
+// still appear as fixed slots.
+const VISIBLE_SLOTS = 5;
 
 // A drag that hasn't moved at least this many px is still treated as a tap,
 // so a slightly-wobbly finger on Like/Save/etc. doesn't get eaten as a scroll.
@@ -47,34 +47,34 @@ function ActionButton({
     <button
       onClick={wrapClick ? wrapClick(action.onClick) : action.onClick}
       aria-label={action.label}
-      className="flex flex-col items-center gap-0.5 flex-shrink-0 text-ink"
+      className="flex flex-row items-center justify-center gap-1 flex-shrink-0 text-ink"
       style={{ width: `${widthPercent}%` }}
     >
       {action.icon}
-      {/* min-h keeps button height uniform whether there's a count or not */}
-      <span className="text-xs font-semibold leading-none min-h-[1em]">
-        {action.count !== null ? action.count : ""}
-      </span>
+      {action.count !== null && (
+        <span className="text-xs font-semibold leading-none">{action.count}</span>
+      )}
     </button>
   );
 }
 
 // Purely presentational. PostCard passes three groups:
-// - leftActions (Like, Reshare) pinned to the left, no scroll
-// - middleActions (ranked secondary + owner management) in a swipable strip,
-//   sized to show exactly (6 - left.length - right.length) items at a time
-// - rightActions (Save, Share) pinned to the right, no scroll
+// - leftActions (Like) pinned to the left, no scroll
+// - middleActions (Reshare, Save + ranked secondary + owner management) in a
+//   swipable strip, sized to show exactly (5 - left.length - right.length)
+//   items at a time — a constant 3, since left/right are always 1 icon each
+// - rightActions (Share) pinned to the right, no scroll
 //
-// Every slot — fixed or swipable — occupies the same 1/6 share of the row's
-// width, so all 6 visible icons end up evenly spaced with no lopsided gaps
+// Every slot — fixed or swipable — occupies the same 1/5 share of the row's
+// width, so all 5 visible icons end up evenly spaced with no lopsided gaps
 // between groups.
 //
-// Dragging anywhere on the row — including directly on the fixed Like/
-// Reshare/Save/Share icons — scrolls the middle swipable strip. The fixed
-// icons themselves never move; a touch that starts on one of them is just
-// treated as a scroll handle for the middle group once it's clearly a drag
-// (past DRAG_THRESHOLD_PX) rather than a tap. Dragging directly on the
-// middle strip still uses native overflow-x-auto scrolling as before.
+// Dragging anywhere on the row — including directly on the fixed Like/Share
+// icons — scrolls the middle swipable strip. The fixed icons themselves
+// never move; a touch that starts on one of them is just treated as a
+// scroll handle for the middle group once it's clearly a drag (past
+// DRAG_THRESHOLD_PX) rather than a tap. Dragging directly on the middle
+// strip still uses native overflow-x-auto scrolling as before.
 //
 // Touch isolation: once a touch is claimed as a drag (on the middle strip,
 // or on a fixed icon past the threshold), stopPropagation keeps it from
