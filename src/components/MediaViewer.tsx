@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { X, ChevronLeft, ChevronRight } from "lucide-react";
 import { isVideoUrl } from "../hooks/useUploadPostMedia";
+import { useBackDismiss } from "../hooks/useBackDismiss";
 
 interface MediaViewerProps {
   mediaUrls: string[];
@@ -27,6 +28,7 @@ const SWIPE_THRESHOLD = 50;
  * fixed black scrim regardless of the app's light/dark theme.
  */
 export function MediaViewer({ mediaUrls, startIndex, onClose }: MediaViewerProps) {
+  useBackDismiss(onClose);
   const [index, setIndex] = useState(startIndex);
   const [touchStartX, setTouchStartX] = useState<number | null>(null);
 
