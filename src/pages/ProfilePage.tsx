@@ -1,9 +1,11 @@
 // src/pages/ProfilePage.tsx
 import { useState, useEffect, useRef, type TouchEvent as ReactTouchEvent, type CSSProperties } from "react";
-import { useParams, Link, useNavigate, useSearchParams } from "react-router-dom";
+import { useParams, Link, useNavigate } from "react-router-dom";
 import { Settings, Wallet, MessageCircle, MoreHorizontal, Plus, Eye, X, Globe, UserCheck, Lock, Redo2 } from "lucide-react";
 import { useAuth } from "../hooks/useAuth";
 import { useProfileByUsername, useIsFollowing, useIsFollowedByUser, useToggleFollow } from "../hooks/useProfile";
+import { useTabState } from "../hooks/useTabState";
+import { useBackDismiss } from "../hooks/useBackDismiss";
 import {
   useHasPendingFollowRequest,
   useSendFollowRequest,
@@ -62,19 +64,16 @@ export function ProfilePage() {
   const [ownerMenuOpen, setOwnerMenuOpen] = useState(false);
   const ownerMenuRef = useRef<HTMLDivElement>(null);
   const [showUnfollowConfirm, setShowUnfollowConfirm] = useState(false);
+  useBackDismiss(() => setShowUnfollowConfirm(false), showUnfollowConfirm);
 
   const [previewingAsVisitor, setPreviewingAsVisitor] = useState(false);
   const [avatarOpen, setAvatarOpen] = useState(false);
 
   const { data: profile, isLoading } = useProfileByUsername(username!);
-  const [searchParams] = useSearchParams();
   // Lets a shared project link (?tab=projects) land directly on the
-  // Projects tab instead of Posts. Read once on mount — the tabs are
-  // still plain buttons after that, so clicking Posts/Projects
-  // doesn't fight the URL.
-  const [activeTab, setActiveTab] = useState<ProfileTab>(
-    searchParams.get("tab") === "projects" ? "projects" : "posts"
-  );
+  // Projects tab, and now also survives a refresh either way — see
+  // useTabState.
+  const [activeTab, setActiveTab] = useTabState<ProfileTab>(TABS, "posts");
   // Which side new tab content springs in from — same idea as Feed's tab
   // row: 1 (from the right) moving to a later tab, -1 (from the left)
   // moving to an earlier one. Read by the CSS animation via --tab-dir.
