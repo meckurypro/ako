@@ -1,6 +1,6 @@
 // src/components/MessageActionMenu.tsx
 import { useEffect, useState } from "react";
-import { Copy, Trash2, Share2, MoreHorizontal, Star, Pin, Plus, X, Reply, Forward, EyeOff, CheckSquare } from "lucide-react";
+import { Copy, Trash2, Redo2, MoreHorizontal, Star, Pin, Plus, X, Reply, Forward, EyeOff, CheckSquare } from "lucide-react";
 
 interface MessageActionMenuProps {
   content: string;
@@ -139,7 +139,7 @@ export function MessageActionMenu({
               className="p-2 text-ink"
               aria-label="Share outside the app"
             >
-              <Share2 size={19} />
+              <Redo2 size={19} />
             </button>
           </>
         )}
