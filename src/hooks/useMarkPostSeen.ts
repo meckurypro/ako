@@ -6,15 +6,20 @@ import { useAuth } from "./useAuth";
 
 /**
  * Records that the current user has seen this post — powers the
- * unseen-post "ring" on chat avatars (see useUnseenPosts.ts). Fires
- * once per postId/user, silently no-ops on conflict (already seen)
- * or if the viewer is the post's own author.
+ * unseen-post "ring" on chat avatars (see useUnseenPosts.ts) AND the
+ * Activity hub's "History" tab (see useViewHistory.ts). No-ops if the
+ * viewer is the post's own author.
+ *
+ * Upserts on (user_id, post_id) so a re-view bumps viewed_at instead
+ * of being ignored — the ring only cares whether a row exists at all
+ * (unaffected by this), but History wants most-recently-viewed order,
+ * which needs the timestamp to actually move on repeat views.
  *
  * Uses a raw `fetch` with `keepalive: true` instead of the
  * supabase-js client so the write survives a fast back-navigation
  * on mobile — without keepalive, a request that's still in flight
- * when the user backs out can get cut off, leaving the ring stuck
- * "unseen" even though the user did view the post.
+ * when the user backs out can get cut off, leaving the write dropped
+ * entirely even though the user did view the post.
  */
 export function useMarkPostSeen(postId: string, authorId: string | undefined) {
   const { user } = useAuth();
@@ -32,7 +37,7 @@ export function useMarkPostSeen(postId: string, authorId: string | undefined) {
 
       try {
         const res = await fetch(
-          `${import.meta.env.VITE_SUPABASE_URL}/rest/v1/post_views`,
+          `${import.meta.env.VITE_SUPABASE_URL}/rest/v1/post_views?on_conflict=user_id,post_id`,
           {
             method: "POST",
             keepalive: true,
@@ -40,10 +45,10 @@ export function useMarkPostSeen(postId: string, authorId: string | undefined) {
               "Content-Type": "application/json",
               apikey: import.meta.env.VITE_SUPABASE_ANON_KEY,
               Authorization: `Bearer ${session.access_token}`,
-              // ignore-duplicates ~= upsert onConflict + ignoreDuplicates
-              Prefer: "resolution=ignore-duplicates,return=minimal",
+              // merge-duplicates ~= upsert onConflict + update viewed_at
+              Prefer: "resolution=merge-duplicates,return=minimal",
             },
-            body: JSON.stringify({ user_id: user.id, post_id: postId }),
+            body: JSON.stringify({ user_id: user.id, post_id: postId, viewed_at: new Date().toISOString() }),
           }
         );
 
@@ -53,6 +58,7 @@ export function useMarkPostSeen(postId: string, authorId: string | undefined) {
         }
 
         queryClient.invalidateQueries({ queryKey: ["unseen-posts"] });
+        queryClient.invalidateQueries({ queryKey: ["view-history"] });
       } catch (err) {
         console.error("Failed to mark post as seen:", err);
       }
