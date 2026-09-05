@@ -1,7 +1,7 @@
 // src/pages/ProfilePage.tsx
 import { useState, useEffect, useRef } from "react";
 import { useParams, Link, useNavigate, useSearchParams } from "react-router-dom";
-import { Settings, Wallet, MessageCircle, MoreHorizontal, Plus, Eye, X, Globe, UserCheck } from "lucide-react";
+import { Settings, Wallet, MessageCircle, MoreHorizontal, Plus, Eye, X, Globe, UserCheck, Lock } from "lucide-react";
 import { useAuth } from "../hooks/useAuth";
 import { useProfileByUsername, useIsFollowing, useIsFollowedByUser, useToggleFollow } from "../hooks/useProfile";
 import {
@@ -15,6 +15,7 @@ import { useStartConversation } from "../hooks/useMessaging";
 import { useIsBlocked, useToggleBlock, useIsMuted, useToggleMute } from "../hooks/usePrivacy";
 import { useUserProjects } from "../hooks/useProjects";
 import { useActivity, type ActivityItem } from "../hooks/useActivity";
+import { useRecordProfileVisit, useProfileVisitCount } from "../hooks/useProfileVisits";
 import { Avatar } from "../components/Avatar";
 import { ImageLightbox } from "../components/ImageLightbox";
 import { TierBadge } from "../components/TierBadge";
@@ -76,7 +77,26 @@ export function ProfilePage() {
   const isOwnProfile = user?.id === profile?.id;
   const showOwnerView = isOwnProfile && !previewingAsVisitor;
 
-  const { data: projects } = useUserProjects(profile?.id ?? "", showOwnerView);
+  const isFollowing = !!isFollowingQuery.data;
+  const isFollowedByUser = !!isFollowedByUserQuery.data;
+  const hasPendingRequest = !!hasPendingRequestQuery.data;
+  const isBlocked = !!isBlockedQuery.data;
+  const isMuted = !!isMutedQuery.data;
+  const firstName = profile?.display_name?.trim().split(/\s+/)[0] ?? "";
+
+  // A private account's posts and projects must never reach a visitor
+  // who isn't an approved follower — not "hidden behind a tab", not
+  // "shown then blocked", genuinely never fetched. While the follow
+  // status is still loading, this defaults to locked (rather than
+  // briefly showing content and yanking it back a moment later), which
+  // is the safer direction to be wrong in for a privacy gate.
+  const isPrivateLocked = !!profile?.is_private && !showOwnerView && !isFollowing;
+
+  // Passing "" makes each hook's own `enabled: !!userId` guard skip the
+  // request entirely — a locked-out visitor's client never asks the
+  // server for this profile's posts/projects in the first place.
+  const { data: projects } = useUserProjects(isPrivateLocked ? "" : profile?.id ?? "", showOwnerView);
+  const { data: posts } = useUserPostsWithArchived(isPrivateLocked ? "" : profile?.id ?? "", false);
 
   // Archived projects have their own home on the merged Archive page
   // now (see Archive.tsx) — this tab only ever shows active/draft/
@@ -86,14 +106,13 @@ export function ProfilePage() {
   // profile is being viewed — there's no "someone else's activity" to
   // fetch, which is exactly why this tab only renders for showOwnerView.
   const { data: activityItems } = useActivity();
-  const { data: posts } = useUserPostsWithArchived(profile?.id ?? "", false);
 
-  const isFollowing = !!isFollowingQuery.data;
-  const isFollowedByUser = !!isFollowedByUserQuery.data;
-  const hasPendingRequest = !!hasPendingRequestQuery.data;
-  const isBlocked = !!isBlockedQuery.data;
-  const isMuted = !!isMutedQuery.data;
-  const firstName = profile?.display_name?.trim().split(/\s+/)[0] ?? "";
+  // Profile visits: recording a visit is safe to fire on every mount
+  // (it no-ops for self-visits inside the hook); the 30-day count is
+  // only ever fetched — and only ever shown — in the true owner view,
+  // never while previewing as a visitor.
+  useRecordProfileVisit(profile?.id);
+  const { data: visitCount } = useProfileVisitCount(profile?.id, showOwnerView);
 
   // Outside-click / outside-tap closes the "…" menu. It only listened
   // for clicks on the toggle button itself before, so tapping anywhere
@@ -333,7 +352,7 @@ export function ProfilePage() {
 
         {profile.bio && <p className="text-ink mt-4">{profile.bio}</p>}
 
-        <div className="flex items-center gap-5 mt-4">
+        <div className="flex items-center gap-5 mt-4 flex-wrap">
           <Link to={`/profile/${profile.username}/following`} className="text-sm">
             <span className="font-medium text-ink">{profile.following_count}</span>{" "}
             <span className="text-ink-muted">Following</span>
@@ -342,54 +361,69 @@ export function ProfilePage() {
             <span className="font-medium text-ink">{profile.follower_count}</span>{" "}
             <span className="text-ink-muted">Followers</span>
           </Link>
+          {/* Owner-only, and only ever the true owner view — never shown
+              while previewing as a visitor, since a visitor could never
+              see this about themselves either. */}
+          {showOwnerView && (
+            <span
+              className="flex items-center gap-1.5 text-sm text-ink-muted"
+              title="Only visible to you"
+            >
+              <Eye size={14} />
+              <span className="font-medium text-ink">{visitCount ?? 0}</span> visits (30d)
+            </span>
+          )}
         </div>
 
-        {/* Tabs */}
-        <div className="flex items-center gap-6 mt-6 border-b border-border">
-          <button
-            onClick={() => setActiveTab("posts")}
-            className={`text-sm font-medium pb-3 border-b-2 -mb-px ${
-              activeTab === "posts" ? "text-accent border-accent" : "text-ink-muted border-transparent"
-            }`}
-          >
-            Posts
-          </button>
-          <button
-            onClick={() => setActiveTab("projects")}
-            className={`text-sm font-medium pb-3 border-b-2 -mb-px ${
-              activeTab === "projects" ? "text-accent border-accent" : "text-ink-muted border-transparent"
-            }`}
-          >
-            Projects
-          </button>
-          {/* Owner-only — this is the signed-in user's own tickets/
-              meetings/room activity, never something a visitor should
-              see on someone else's profile. */}
-          {showOwnerView && (
+        {/* Tabs — hidden entirely for a locked private profile, since
+            there's nothing behind either tab for a visitor to switch to. */}
+        {!isPrivateLocked && (
+          <div className="flex items-center gap-6 mt-6 border-b border-border">
             <button
-              onClick={() => setActiveTab("activity")}
+              onClick={() => setActiveTab("posts")}
               className={`text-sm font-medium pb-3 border-b-2 -mb-px ${
-                activeTab === "activity" ? "text-accent border-accent" : "text-ink-muted border-transparent"
+                activeTab === "posts" ? "text-accent border-accent" : "text-ink-muted border-transparent"
               }`}
             >
-              Activity
+              Posts
             </button>
-          )}
-          {showOwnerView && activeTab === "projects" && (
-            // "New" stays in the same trailing slot (ml-auto, rightmost)
-            // on both tabs it can appear in — only Posts never has one,
-            // since posts are composed from Feed/Compose instead.
-            <div className="ml-auto flex items-center gap-4">
-              <Link
-                to="/projects/new"
-                className="flex items-center gap-1 text-sm text-accent font-medium pb-3"
+            <button
+              onClick={() => setActiveTab("projects")}
+              className={`text-sm font-medium pb-3 border-b-2 -mb-px ${
+                activeTab === "projects" ? "text-accent border-accent" : "text-ink-muted border-transparent"
+              }`}
+            >
+              Projects
+            </button>
+            {/* Owner-only — this is the signed-in user's own tickets/
+                meetings/room activity, never something a visitor should
+                see on someone else's profile. */}
+            {showOwnerView && (
+              <button
+                onClick={() => setActiveTab("activity")}
+                className={`text-sm font-medium pb-3 border-b-2 -mb-px ${
+                  activeTab === "activity" ? "text-accent border-accent" : "text-ink-muted border-transparent"
+                }`}
               >
-                <Plus size={16} />
-                New
-              </Link>
-            </div>
-          )}
-        </div>
+                Activity
+              </button>
+            )}
+            {showOwnerView && activeTab === "projects" && (
+              // "New" stays in the same trailing slot (ml-auto, rightmost)
+              // on both tabs it can appear in — only Posts never has one,
+              // since posts are composed from Feed/Compose instead.
+              <div className="ml-auto flex items-center gap-4">
+                <Link
+                  to="/projects/new"
+                  className="flex items-center gap-1 text-sm text-accent font-medium pb-3"
+                >
+                  <Plus size={16} />
+                  New
+                </Link>
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Tab content */}
         <div className="mt-4">
@@ -397,6 +431,16 @@ export function ProfilePage() {
             <p className="text-ink-muted text-center py-10 text-sm">
               You've blocked this account. Unblock to see their content.
             </p>
+          ) : isPrivateLocked ? (
+            <div className="flex flex-col items-center text-center py-14 px-6">
+              <div className="w-14 h-14 rounded-full bg-accent-soft flex items-center justify-center mb-3">
+                <Lock size={22} className="text-accent" />
+              </div>
+              <p className="text-ink font-medium">This account is private</p>
+              <p className="text-ink-muted text-sm mt-1 max-w-xs">
+                Follow {firstName || "this account"} to see their posts and projects.
+              </p>
+            </div>
           ) : activeTab === "posts" ? (
             posts && posts.length > 0 ? (
               posts.map((post: any) => (
@@ -496,4 +540,4 @@ export function ProfilePage() {
       )}
     </div>
   );
-        }
+}
