@@ -2,6 +2,7 @@ import { useEffect, useState, type TouchEvent, type CSSProperties } from "react"
 import { Link, useSearchParams } from "react-router-dom";
 import { X } from "lucide-react";
 import { useFeedPosts, useFollowingFeed, useTopDiscussionsFeed } from "../hooks/usePosts";
+import { useTabState } from "../hooks/useTabState";
 import { PostCard } from "../components/PostCard";
 import { BottomNav } from "../components/BottomNav";
 import { TopHeader } from "../components/TopHeader";
@@ -17,6 +18,7 @@ const TABS = [
 ] as const;
 
 type TabKey = (typeof TABS)[number]["key"];
+const TAB_KEYS = TABS.map((t) => t.key);
 
 const SWIPE_THRESHOLD_PX = 50;
 
@@ -129,7 +131,7 @@ export function Feed() {
   const [searchParams, setSearchParams] = useSearchParams();
   const interestId = searchParams.get("interest") ?? undefined;
 
-  const [activeTab, setActiveTab] = useState<TabKey>("for-you");
+  const [activeTab, setActiveTab] = useTabState<TabKey>(TAB_KEYS, "for-you");
   // Which side new tab content springs in from — 1 (from the right) when
   // moving to a later tab, -1 (from the left) moving to an earlier one.
   // Read by the CSS animation via the --tab-dir custom property below.
