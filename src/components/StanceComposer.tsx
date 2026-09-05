@@ -38,7 +38,7 @@ export const STANCE_COLORS: Record<
   disagree: {
     label: "Disagree",
     prompt: "Explain your position.",
-    iconClass: "text-danger",
+    iconClass: "text-accent",
     tabActive: "text-danger border-b-2 border-danger bg-danger/10",
     topBorderClass: "border-t-4 border-danger",
     ringClass: "focus:ring-danger/40 focus:border-danger",
@@ -48,7 +48,7 @@ export const STANCE_COLORS: Record<
   pushback: {
     label: "Pushback",
     prompt: "What would you question, qualify, or add?",
-    iconClass: "text-pushback",
+    iconClass: "text-accent",
     tabActive: "text-pushback border-b-2 border-pushback bg-pushback/10",
     topBorderClass: "border-t-4 border-pushback",
     ringClass: "focus:ring-pushback/40 focus:border-pushback",
@@ -64,6 +64,10 @@ interface StanceComposerProps {
   onClose: () => void;
   /** Set when replying to a specific comment rather than the post itself. */
   parentCommentId?: string;
+  /** Stances offered as tabs. Defaults to all three; pass a shorter list
+   *  (e.g. just ["support"] for the post's own author) to restrict what's
+   *  choosable. The tab row itself is hidden when only one is offered. */
+  stances?: Stance[];
 }
 
 export function StanceComposer({
@@ -71,6 +75,7 @@ export function StanceComposer({
   stance: initialStance,
   onClose,
   parentCommentId,
+  stances = STANCES,
 }: StanceComposerProps) {
   const [activeStance, setActiveStance] = useState<Stance>(initialStance);
   // Single content state shared across tabs — text is retained when
@@ -114,25 +119,27 @@ export function StanceComposer({
       {/* Top border colour changes with the active stance */}
       <div className={`bg-canvas rounded-2xl w-full max-w-md mb-safe overflow-hidden ${colors.topBorderClass}`}>
 
-        {/* ── Stance tabs — no close button here anymore ── */}
-        <div className="flex border-b border-border">
-          {STANCES.map((s) => (
-            <button
-              key={s}
-              // preventDefault on mousedown keeps focus on the textarea
-              // (prevents the browser moving focus to this button).
-              onMouseDown={(e) => e.preventDefault()}
-              onClick={() => switchStance(s)}
-              className={`flex-1 py-3 text-sm font-medium transition-colors ${
-                activeStance === s
-                  ? STANCE_COLORS[s].tabActive
-                  : "text-ink-muted hover:text-ink"
-              }`}
-            >
-              {STANCE_COLORS[s].label}
-            </button>
-          ))}
-        </div>
+        {/* ── Stance tabs — only shown when there's more than one choice ── */}
+        {stances.length > 1 && (
+          <div className="flex border-b border-border">
+            {stances.map((s) => (
+              <button
+                key={s}
+                // preventDefault on mousedown keeps focus on the textarea
+                // (prevents the browser moving focus to this button).
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={() => switchStance(s)}
+                className={`flex-1 py-3 text-sm font-medium transition-colors ${
+                  activeStance === s
+                    ? STANCE_COLORS[s].tabActive
+                    : "text-ink-muted hover:text-ink"
+                }`}
+              >
+                {STANCE_COLORS[s].label}
+              </button>
+            ))}
+          </div>
+        )}
 
         {/* ── Body ── */}
         <div className="p-5">
