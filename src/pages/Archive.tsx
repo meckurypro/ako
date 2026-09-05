@@ -16,6 +16,7 @@ import { Avatar } from "../components/Avatar";
 import { ProjectCard } from "../components/ProjectCard";
 import { ArchivedPostModal } from "../components/ArchivedPostModal";
 import { ConfirmDialog } from "../components/ConfirmDialog";
+import { useBackDismiss } from "../hooks/useBackDismiss";
 import { BottomNav } from "../components/BottomNav";
 import { isPlainReshare, isQuote, type PostWithAuthor } from "../types/database";
 
@@ -125,6 +126,7 @@ export function Archive() {
   // shared by both the requests group and the archived-messages
   // accordion below. ---
   const [actionTarget, setActionTarget] = useState<ArchivedConversationSummary | null>(null);
+  useBackDismiss(() => setActionTarget(null), !!actionTarget);
   const longPressTimers = useRef<Record<string, ReturnType<typeof setTimeout> | null>>({});
   const longPressStart = useRef<Record<string, { x: number; y: number }>>({});
   const longPressFired = useRef<Record<string, boolean>>({});
