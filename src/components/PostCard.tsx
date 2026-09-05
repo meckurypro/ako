@@ -8,10 +8,15 @@ import {
   Repeat2,
   Share2,
   Bookmark,
+  Handshake,
   Frown,
   Hand,
+  Gift as GiftIcon,
   Globe,
-  MoreHorizontal,
+  Pencil,
+  Archive,
+  RotateCcw,
+  Trash2,
 } from "lucide-react";
 import { Avatar } from "./Avatar";
 import { TierBadge } from "./TierBadge";
@@ -23,7 +28,7 @@ import { StanceComposer, STANCE_COLORS } from "./StanceComposer";
 import { ReshareSheet } from "./ReshareSheet";
 import { RepostEmbed } from "./RepostEmbed";
 import { RepostBadge } from "./RepostBadge";
-import { PostActionSheet } from "./PostActionSheet";
+import { ConfirmDialog } from "./ConfirmDialog";
 import { useAuth } from "../hooks/useAuth";
 import { useIsBookmarked, useToggleBookmark } from "../hooks/useBookmarks";
 import { useMyReaction, useToggleReaction } from "../hooks/useReactions";
@@ -68,7 +73,7 @@ export function PostCard({
   const location = useLocation();
   const [activeStance, setActiveStance] = useState<Stance | null>(null);
   const [showReshareSheet, setShowReshareSheet] = useState(false);
-  const [showActionSheet, setShowActionSheet] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const lastTapRef = useRef(0);
 
   // Reshare/quote: reshared_post_id set + empty content = plain reshare
@@ -161,8 +166,20 @@ export function PostCard({
     setArchived.mutate({ postId: post.id, archived: !post.is_archived });
   }
 
+  // Was `window.confirm(...)` — blocking native dialogs like confirm/alert
+  // are unreliable (often suppressed or auto-dismissed with no visible
+  // prompt) inside the mobile WebView/PWA shell this app runs in, which is
+  // almost certainly why delete looked like it "didn't work": the early
+  // `return` on a silently-false confirm() meant deletePost.mutate() never
+  // even ran. Archive never had a confirm gate, which is why it worked.
+  // Routed through the app's own ConfirmDialog instead, same as every
+  // other destructive "are you sure?" prompt (chat/message delete).
   function handleDelete() {
-    if (!window.confirm("Delete this post? This can't be undone.")) return;
+    setShowDeleteConfirm(true);
+  }
+
+  function handleConfirmDelete() {
+    setShowDeleteConfirm(false);
     deletePost.mutate(post.id);
   }
 
@@ -174,11 +191,7 @@ export function PostCard({
     support: {
       key: "support",
       label: "Support",
-      icon: (
-        <span className="text-xl leading-none" role="img" aria-label="Support">
-          👌
-        </span>
-      ),
+      icon: <Handshake size={20} className="text-ink" />,
       count: post.support_count > 0 ? post.support_count : null,
       onAction: () => handleStance("support"),
     },
@@ -203,7 +216,6 @@ export function PostCard({
         <ThumbsDown
           size={20}
           fill={isDisliked ? "currentColor" : "none"}
-          className={isDisliked ? "text-danger" : ""}
         />
       ),
       count: post.dislike_count > 0 ? post.dislike_count : null,
@@ -212,11 +224,7 @@ export function PostCard({
     gift: {
       key: "gift",
       label: "Gift",
-      icon: (
-        <span className="text-xl leading-none" role="img" aria-label="Gift">
-          🫶
-        </span>
-      ),
+      icon: <GiftIcon size={20} className="text-ink" />,
       count: post.gift_count > 0 ? post.gift_count : null,
       onAction: handleGift,
     },
@@ -227,7 +235,6 @@ export function PostCard({
         <Bookmark
           size={20}
           fill={isBookmarked ? "currentColor" : "none"}
-          className={isBookmarked ? "text-accent" : ""}
         />
       ),
       count: null,
@@ -245,6 +252,11 @@ export function PostCard({
   // ─── Tray: Like (fixed) + Reshare (fixed, hidden for owner) + ranked secondary ─
   // ReactionTray scrolls horizontally — no slicing needed here. The CSS
   // item width determines how many are visible vs off-screen.
+
+  // Edit eligibility is always about this row (the reshare/quote/normal
+  // post belonging to the viewer). A plain reshare has no content of its
+  // own, so there's nothing to edit — only Archive/Delete apply to it.
+  const canEdit = !plainReshare && canEditPost(post);
 
   const trayActions: EngagementAction[] = [
     {
@@ -278,12 +290,52 @@ export function PostCard({
       count: secondaryDefs[k].count,
       onClick: () => secondaryDefs[k].onAction(),
     })),
+    // Own-post management — moved down here instead of behind a "…" sheet
+    // since the tray already has room to spare once the actions above
+    // that don't apply to your own post (reshare/disagree/pushback/gift/
+    // dislike) are hidden. Native share moves down here too rather than
+    // staying in the header, so all of it lives in one place.
+    ...(isOwner
+      ? ([
+          ...(canEdit
+            ? [
+                {
+                  key: "edit",
+                  label: "Edit",
+                  icon: <Pencil size={20} className="text-ink" />,
+                  count: null,
+                  onClick: handleEdit,
+                } satisfies EngagementAction,
+              ]
+            : []),
+          {
+            key: "archive",
+            label: post.is_archived ? "Unarchive" : "Archive",
+            icon: post.is_archived ? (
+              <RotateCcw size={20} className="text-ink" />
+            ) : (
+              <Archive size={20} className="text-ink" />
+            ),
+            count: null,
+            onClick: handleToggleArchive,
+          },
+          {
+            key: "delete",
+            label: "Delete",
+            icon: <Trash2 size={20} className="text-danger" />,
+            count: null,
+            onClick: handleDelete,
+          },
+          {
+            key: "share",
+            label: "Share",
+            icon: <Share2 size={20} className="text-ink" />,
+            count: null,
+            onClick: () => void handleShare(),
+          },
+        ] satisfies EngagementAction[])
+      : []),
   ];
-
-  // Edit eligibility is always about this row (the reshare/quote/normal
-  // post belonging to the viewer). A plain reshare has no content of its
-  // own, so there's nothing to edit — only Archive/Delete apply to it.
-  const canEdit = !plainReshare && canEditPost(post);
 
   // Reposting a plain reshare should target the original post (matching
   // standard retweet-of-a-retweet behavior — no reshare chains). Quotes
@@ -340,19 +392,11 @@ export function PostCard({
           </p>
         </div>
 
-        {/* ── Comment count + Share (+ reshare badge / owner menu) ─────────── */}
+        {/* Comment count (+ reshare badge). Share moves down into the
+            tray for the post's own author (see trayActions above) —
+            everyone else keeps it here. */}
         <div className="flex flex-col items-center gap-2.5 self-start pt-0.5">
           {plainReshare && <RepostBadge source={original} />}
-
-          {isOwner && (
-            <button
-              onClick={() => setShowActionSheet(true)}
-              aria-label="Post options"
-              className="text-ink-muted"
-            >
-              <MoreHorizontal size={18} />
-            </button>
-          )}
 
           <button
             onClick={handleCommentTap}
@@ -367,13 +411,15 @@ export function PostCard({
             )}
           </button>
 
-          <button
-            onClick={() => void handleShare()}
-            aria-label="Share"
-            className="text-ink-muted"
-          >
-            <Share2 size={18} />
-          </button>
+          {!isOwner && (
+            <button
+              onClick={() => void handleShare()}
+              aria-label="Share"
+              className="text-ink-muted"
+            >
+              <Share2 size={18} />
+            </button>
+          )}
         </div>
       </div>
 
@@ -414,14 +460,13 @@ export function PostCard({
         />
       )}
 
-      {showActionSheet && (
-        <PostActionSheet
-          canEdit={canEdit}
-          isArchived={post.is_archived}
-          onEdit={handleEdit}
-          onToggleArchive={handleToggleArchive}
-          onDelete={handleDelete}
-          onClose={() => setShowActionSheet(false)}
+      {showDeleteConfirm && (
+        <ConfirmDialog
+          title="Delete this post?"
+          description="This can't be undone."
+          confirmLabel="Delete"
+          onConfirm={handleConfirmDelete}
+          onCancel={() => setShowDeleteConfirm(false)}
         />
       )}
     </article>
