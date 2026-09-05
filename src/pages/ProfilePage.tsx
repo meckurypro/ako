@@ -1,5 +1,5 @@
 // src/pages/ProfilePage.tsx
-import { useState, useEffect, useRef, type TouchEvent as ReactTouchEvent } from "react";
+import { useState, useEffect, useRef, type TouchEvent as ReactTouchEvent, type CSSProperties } from "react";
 import { useParams, Link, useNavigate, useSearchParams } from "react-router-dom";
 import { Settings, Wallet, MessageCircle, MoreHorizontal, Plus, Eye, X, Globe, UserCheck, Lock, Redo2 } from "lucide-react";
 import { useAuth } from "../hooks/useAuth";
@@ -75,6 +75,10 @@ export function ProfilePage() {
   const [activeTab, setActiveTab] = useState<ProfileTab>(
     searchParams.get("tab") === "projects" ? "projects" : "posts"
   );
+  // Which side new tab content springs in from — same idea as Feed's tab
+  // row: 1 (from the right) moving to a later tab, -1 (from the left)
+  // moving to an earlier one. Read by the CSS animation via --tab-dir.
+  const [tabDirection, setTabDirection] = useState(1);
   const [touchStartX, setTouchStartX] = useState<number | null>(null);
   const [touchStartY, setTouchStartY] = useState<number | null>(null);
 
@@ -233,7 +237,15 @@ export function ProfilePage() {
 
   function goToIndex(index: number) {
     const clamped = Math.max(0, Math.min(TABS.length - 1, index));
+    if (clamped === activeIndex) return;
+    setTabDirection(clamped > activeIndex ? 1 : -1);
     setActiveTab(TABS[clamped]);
+  }
+
+  function handleTabClick(index: number, tab: ProfileTab) {
+    if (index === activeIndex) return;
+    setTabDirection(index > activeIndex ? 1 : -1);
+    setActiveTab(tab);
   }
 
   function handleTouchStart(e: ReactTouchEvent) {
@@ -519,34 +531,50 @@ export function ProfilePage() {
         {/* Tabs — hidden entirely for a locked private profile, since
             there's nothing behind either tab for a visitor to switch to.
             Equal width now that Activity has moved out: Posts and
-            Projects split the row evenly instead of hugging the left. */}
+            Projects split the row evenly instead of hugging the left.
+            The active indicator is one sliding bar (below) instead of
+            each button drawing its own border, so switching tabs springs
+            the bar across rather than just appearing under the other
+            button — same pattern as Feed's tab row. */}
         {!isPrivateLocked && (
-          <div className="flex items-stretch mt-6 border-b border-border">
+          <div className="relative flex items-stretch mt-6 border-b border-border">
             <button
-              onClick={() => setActiveTab("posts")}
-              className={`flex-1 text-center text-sm font-medium pb-3 border-b-2 -mb-px ${
-                activeTab === "posts" ? "text-accent border-accent" : "text-ink-muted border-transparent"
+              onClick={() => handleTabClick(0, "posts")}
+              className={`flex-1 text-center text-sm font-medium pb-3 ${
+                activeTab === "posts" ? "text-accent" : "text-ink-muted"
               }`}
             >
               Posts
             </button>
             <button
-              onClick={() => setActiveTab("projects")}
-              className={`flex-1 text-center text-sm font-medium pb-3 border-b-2 -mb-px ${
-                activeTab === "projects" ? "text-accent border-accent" : "text-ink-muted border-transparent"
+              onClick={() => handleTabClick(1, "projects")}
+              className={`flex-1 text-center text-sm font-medium pb-3 ${
+                activeTab === "projects" ? "text-accent" : "text-ink-muted"
               }`}
             >
               Projects
             </button>
+            <div
+              className="ako-tab-indicator absolute bottom-0 left-0 h-[2px] w-1/2 bg-accent rounded-full"
+              style={{ transform: `translateX(${activeIndex * 100}%)` }}
+            />
           </div>
         )}
 
-        {/* Tab content — swipeable, same gesture as Feed's tab row */}
+        {/* Tab content — swipeable, same gesture as Feed's tab row. Keyed
+            by tab so each switch remounts this wrapper and replays the
+            spring-in animation; --tab-dir picks which side it comes from
+            (see the keyframe in index.css). */}
         <div
           className="mt-4"
           onTouchStart={handleTouchStart}
           onTouchEnd={handleTouchEnd}
         >
+          <div
+            key={activeTab}
+            className="animate-tab-spring"
+            style={{ "--tab-dir": tabDirection } as CSSProperties}
+          >
           {isBlocked ? (
             <p className="text-ink-muted text-center py-10 text-sm">
               You've blocked this account. Unblock to see their content.
@@ -578,6 +606,7 @@ export function ProfilePage() {
               {showOwnerView ? "No projects yet — publish your first one." : "No projects yet."}
             </p>
           )}
+          </div>
         </div>
       </div>
 
