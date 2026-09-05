@@ -153,7 +153,7 @@ export function SignUp() {
     <div className="min-h-screen flex flex-col items-center justify-center px-6 bg-canvas">
       <div className="w-full max-w-sm">
         <div className="mb-10">
-          <Wordmark />
+          <Wordmark asIcon />
         </div>
 
         <form onSubmit={handleSubmit}>
