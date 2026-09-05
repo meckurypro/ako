@@ -132,6 +132,7 @@ export function useCreatePost() {
   const queryClient = useQueryClient();
 
   return useMutation({
+    meta: { blocking: true },
     mutationFn: async (input: CreatePostInput) => {
       const { data, error } = await supabase.functions.invoke("create-post", {
         body: input,
@@ -168,6 +169,7 @@ export function useCreateReshare() {
   const queryClient = useQueryClient();
 
   return useMutation({
+    meta: { blocking: true },
     mutationFn: async ({ originalPostId, caption }: ReshareInput) => {
       if (!user) throw new Error("Not signed in");
 
@@ -241,6 +243,7 @@ export function useUpdatePost() {
   const queryClient = useQueryClient();
 
   return useMutation({
+    meta: { blocking: true },
     mutationFn: async (input: UpdatePostInput) => {
       const { data, error } = await supabase.functions.invoke("update-post", {
         body: input,
@@ -261,6 +264,7 @@ export function useDeletePost() {
   const queryClient = useQueryClient();
 
   return useMutation({
+    meta: { blocking: true },
     mutationFn: async (postId: string) => {
       const { error } = await supabase
         .from("posts")
