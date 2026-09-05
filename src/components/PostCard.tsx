@@ -8,10 +8,8 @@ import {
   Repeat2,
   Share2,
   Bookmark,
-  Handshake,
-  XCircle,
+  Frown,
   Hand,
-  Gift as GiftIcon,
   Globe,
   MoreHorizontal,
 } from "lucide-react";
@@ -88,6 +86,13 @@ export function PostCard({
   const plainReshare = isPlainReshare(post);
   const quotePost = isQuote(post);
   const original = post.reshared_post;
+
+  // Own-post view: several engagement actions don't make sense directed
+  // at yourself (resharing, taking a stance on, or gifting your own
+  // post), so they're hidden from the tray entirely rather than just
+  // disabled.
+  const isOwner = isOwnerView || user?.id === post.author.id;
+  const HIDDEN_FOR_OWNER: SecondaryActionKey[] = ["disagree", "pushback", "gift", "dislike"];
 
   const isBookmarkedQuery = useIsBookmarked(post.id);
   const toggleBookmark = useToggleBookmark(post.id);
@@ -169,14 +174,18 @@ export function PostCard({
     support: {
       key: "support",
       label: "Support",
-      icon: <Handshake size={20} className={STANCE_COLORS.support.iconClass} />,
+      icon: (
+        <span className="text-xl leading-none" role="img" aria-label="Support">
+          👌
+        </span>
+      ),
       count: post.support_count > 0 ? post.support_count : null,
       onAction: () => handleStance("support"),
     },
     disagree: {
       key: "disagree",
       label: "Disagree",
-      icon: <XCircle size={20} className={STANCE_COLORS.disagree.iconClass} />,
+      icon: <Frown size={20} className={STANCE_COLORS.disagree.iconClass} />,
       count: post.disagree_count > 0 ? post.disagree_count : null,
       onAction: () => handleStance("disagree"),
     },
@@ -203,7 +212,11 @@ export function PostCard({
     gift: {
       key: "gift",
       label: "Gift",
-      icon: <GiftIcon size={20} />,
+      icon: (
+        <span className="text-xl leading-none" role="img" aria-label="Gift">
+          🫶
+        </span>
+      ),
       count: post.gift_count > 0 ? post.gift_count : null,
       onAction: handleGift,
     },
@@ -223,16 +236,13 @@ export function PostCard({
   };
 
   // Ranked order from the hook, falling back to the default until loaded.
-  const order: SecondaryActionKey[] = engagementOrder ?? [
-    "support",
-    "gift",
-    "save",
-    "disagree",
-    "pushback",
-    "dislike",
-  ];
+  // Actions that don't make sense on your own post (see HIDDEN_FOR_OWNER
+  // above) are dropped from the tray entirely when viewing as the owner.
+  const order: SecondaryActionKey[] = (
+    engagementOrder ?? ["support", "gift", "save", "disagree", "pushback", "dislike"]
+  ).filter((k) => !isOwner || !HIDDEN_FOR_OWNER.includes(k));
 
-  // ─── Tray: Like (fixed) + Reshare (fixed) + all 6 secondary in ranked order ─
+  // ─── Tray: Like (fixed) + Reshare (fixed, hidden for owner) + ranked secondary ─
   // ReactionTray scrolls horizontally — no slicing needed here. The CSS
   // item width determines how many are visible vs off-screen.
 
@@ -244,19 +254,23 @@ export function PostCard({
         <Heart
           size={20}
           fill={isLiked ? "currentColor" : "none"}
-          className={isLiked ? "text-accent" : ""}
+          className="text-danger"
         />
       ),
       count: post.like_count > 0 ? post.like_count : null,
       onClick: () => toggleLike.mutate(isLiked),
     },
-    {
-      key: "reshare",
-      label: "Reshare",
-      icon: <Repeat2 size={20} />,
-      count: post.share_count > 0 ? post.share_count : null,
-      onClick: handleReshareTap,
-    },
+    ...(!isOwner
+      ? [
+          {
+            key: "reshare",
+            label: "Reshare",
+            icon: <Repeat2 size={20} />,
+            count: post.share_count > 0 ? post.share_count : null,
+            onClick: handleReshareTap,
+          } satisfies EngagementAction,
+        ]
+      : []),
     ...order.map((k): EngagementAction => ({
       key: secondaryDefs[k].key,
       label: secondaryDefs[k].label,
@@ -266,11 +280,9 @@ export function PostCard({
     })),
   ];
 
-  // Owner-ness and edit eligibility are always about this row (the
-  // reshare/quote/normal post belonging to the viewer). A plain reshare
-  // has no content of its own, so there's nothing to edit — only
-  // Archive/Delete apply to it.
-  const isOwner = isOwnerView || user?.id === post.author.id;
+  // Edit eligibility is always about this row (the reshare/quote/normal
+  // post belonging to the viewer). A plain reshare has no content of its
+  // own, so there's nothing to edit — only Archive/Delete apply to it.
   const canEdit = !plainReshare && canEditPost(post);
 
   // Reposting a plain reshare should target the original post (matching
@@ -382,13 +394,14 @@ export function PostCard({
           details, regardless of whether it's still reachable. */}
       {(plainReshare || quotePost) && <RepostEmbed source={original} />}
 
-      {/* 8 actions in a scrollable row: Like · Reshare · [6 ranked secondary] */}
+      {/* Like · Reshare (unless own post) · ranked secondary (owner-hidden ones dropped) */}
       <ReactionTray actions={trayActions} />
 
       {activeStance && (
         <StanceComposer
           postId={post.id}
           stance={activeStance}
+          stances={isOwner ? ["support"] : undefined}
           onClose={() => setActiveStance(null)}
         />
       )}
