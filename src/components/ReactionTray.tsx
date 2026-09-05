@@ -1,5 +1,5 @@
 // src/components/ReactionTray.tsx
-import { useEffect, useLayoutEffect,useRef, type ReactNode, type MouseEvent, type TouchEvent } from "react";
+import { useEffect, useLayoutEffect, useRef, type ReactNode, type MouseEvent, type TouchEvent } from "react";
 
 export interface EngagementAction {
   key: string;
@@ -121,10 +121,18 @@ function ActionButton({
 // visible snap.
 //
 // Touch isolation: once a touch is claimed as a drag (on the middle strip,
-// or on the row past the threshold), stopPropagation keeps it from
-// bubbling up to Feed's tab-swipe handler. Feed's handleTouchEnd checks
-// touchStartX === null and exits early, so no tab change fires even though
-// touchEnd still bubbles for plain taps.
+// or on the row past the threshold), stopPropagation keeps the drag from
+// also being interpreted as a click once it ends (see guardFixedClick).
+// Isolation from the page's own swipe gesture (Feed/ProfilePage/LikedHub/
+// SavedHub's tab carousel, see SwipeableTabs.tsx) is handled a level up:
+// the outer row below carries data-swipeable-ignore, which SwipeableTabs
+// checks before claiming any touch as a tab-swipe candidate, so a touch
+// starting anywhere on this row is never seen by the tab carousel at all.
+// (A plain React stopPropagation() here wouldn't reach it on its own —
+// SwipeableTabs attaches its listeners with a real addEventListener rather
+// than JSX props, since it needs to preventDefault a non-passive
+// touchmove, and native listeners aren't stopped by a descendant's
+// *synthetic* stopPropagation.)
 export function ReactionTray({
   leftActions,
   middleActions,
@@ -218,6 +226,7 @@ export function ReactionTray({
     <div
       className="flex items-start mt-4 pt-4 pb-1 w-full"
       style={{ touchAction: "pan-y" }}
+      data-swipeable-ignore
       onTouchStart={handleRowTouchStart}
       onTouchMove={handleRowTouchMove}
     >
