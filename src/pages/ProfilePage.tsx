@@ -1,7 +1,7 @@
 // src/pages/ProfilePage.tsx
 import { useState, useEffect, useRef, type TouchEvent as ReactTouchEvent } from "react";
 import { useParams, Link, useNavigate, useSearchParams } from "react-router-dom";
-import { Settings, Wallet, MessageCircle, MoreHorizontal, Plus, Eye, X, Globe, UserCheck, Lock } from "lucide-react";
+import { Settings, Wallet, MessageCircle, MoreHorizontal, Plus, Eye, X, Globe, UserCheck, Lock, Redo2 } from "lucide-react";
 import { useAuth } from "../hooks/useAuth";
 import { useProfileByUsername, useIsFollowing, useIsFollowedByUser, useToggleFollow } from "../hooks/useProfile";
 import {
@@ -55,6 +55,12 @@ export function ProfilePage() {
   const startConversation = useStartConversation();
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
+  // Separate menu from the visitor-side mute/block one below — the
+  // owner's dropdown (Share profile / View as visitor / Follow
+  // requests / Wallet / Settings) needs its own open state and its
+  // own outside-click ref.
+  const [ownerMenuOpen, setOwnerMenuOpen] = useState(false);
+  const ownerMenuRef = useRef<HTMLDivElement>(null);
   const [showUnfollowConfirm, setShowUnfollowConfirm] = useState(false);
 
   const [previewingAsVisitor, setPreviewingAsVisitor] = useState(false);
@@ -120,9 +126,10 @@ export function ProfilePage() {
   useRecordProfileVisit(profile?.id);
   const { data: visitCount } = useProfileVisitCount(profile?.id, showOwnerView);
 
-  // Outside-click / outside-tap closes the "…" menu. It only listened
-  // for clicks on the toggle button itself before, so tapping anywhere
-  // else on the page while it was open did nothing.
+  // Outside-click / outside-tap closes whichever "…" menu is open —
+  // the visitor-side mute/block one, or the owner-side options one.
+  // Each only listened for clicks on its own toggle button before, so
+  // tapping anywhere else on the page while open did nothing.
   useEffect(() => {
     if (!menuOpen) return;
     function handleOutside(e: MouseEvent | TouchEvent) {
@@ -137,6 +144,21 @@ export function ProfilePage() {
       document.removeEventListener("touchstart", handleOutside);
     };
   }, [menuOpen]);
+
+  useEffect(() => {
+    if (!ownerMenuOpen) return;
+    function handleOutside(e: MouseEvent | TouchEvent) {
+      if (ownerMenuRef.current && !ownerMenuRef.current.contains(e.target as Node)) {
+        setOwnerMenuOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleOutside);
+    document.addEventListener("touchstart", handleOutside);
+    return () => {
+      document.removeEventListener("mousedown", handleOutside);
+      document.removeEventListener("touchstart", handleOutside);
+    };
+  }, [ownerMenuOpen]);
 
   function handleFollowClick() {
     if (isFollowing) {
@@ -175,6 +197,27 @@ export function ProfilePage() {
     if (!profile) return;
     const conversationId = await startConversation.mutateAsync(profile.id);
     navigate(`/messages/${conversationId}`);
+  }
+
+  // Same pattern as ProjectCard's share button: native share sheet
+  // when available (it already offers "copy link" alongside apps on
+  // most platforms), plain clipboard copy otherwise. The URL is the
+  // profile's own canonical route — opened by anyone other than the
+  // owner, it renders exactly as the ordinary visitor view already
+  // does, so no separate "visitor mode" flag is needed.
+  async function handleShareProfile() {
+    setOwnerMenuOpen(false);
+    if (!profile) return;
+    const url = `${window.location.origin}/profile/${profile.username}`;
+    if (navigator.share) {
+      try {
+        await navigator.share({ title: profile.display_name, url });
+      } catch {
+        // User cancelled the native share sheet — nothing to do.
+      }
+    } else {
+      await navigator.clipboard.writeText(url);
+    }
   }
 
   // Same swipe pattern as Feed's tab row — bound only to the content
@@ -239,40 +282,81 @@ export function ProfilePage() {
 
         {/* Action toolbar */}
         {showOwnerView ? (
-          <div className="flex items-center justify-end gap-2">
-            <button
-              onClick={() => setPreviewingAsVisitor(true)}
-              className="flex items-center gap-1.5 text-sm text-ink-muted border border-border rounded-full px-4 py-2"
-            >
-              <Eye size={16} />
-              Visitor
-            </button>
-            <Link
-              to="/requests"
-              aria-label="Follow requests"
-              className="relative flex items-center justify-center text-ink-muted border border-border rounded-full p-2"
-            >
-              <UserCheck size={16} />
-              {incomingRequestCount > 0 && (
-                <span className="absolute -top-1 -right-1 bg-danger text-canvas text-[10px] font-medium rounded-full w-4 h-4 flex items-center justify-center">
-                  {incomingRequestCount > 9 ? "9+" : incomingRequestCount}
-                </span>
+          <div className="flex items-center justify-end gap-1">
+            <Link to="/create" aria-label="Create" className="p-2 text-ink-muted">
+              <Plus size={22} />
+            </Link>
+
+            <div ref={ownerMenuRef} className="relative">
+              <button
+                onClick={() => setOwnerMenuOpen((o) => !o)}
+                className="relative p-2 text-ink-muted"
+                aria-label="Profile options"
+              >
+                <MoreHorizontal size={20} />
+                {/* Same badge shown again on the "Follow requests" row
+                    below — this one flags that something inside the
+                    menu needs attention before it's even opened. */}
+                {incomingRequestCount > 0 && (
+                  <span className="absolute top-0.5 right-0.5 bg-danger text-canvas text-[10px] font-medium rounded-full w-4 h-4 flex items-center justify-center">
+                    {incomingRequestCount > 9 ? "9+" : incomingRequestCount}
+                  </span>
+                )}
+              </button>
+
+              {ownerMenuOpen && (
+                <div className="absolute top-full right-0 mt-1 bg-canvas border border-border rounded-xl shadow-lg py-1 w-56 z-10">
+                  <button
+                    onClick={handleShareProfile}
+                    className="w-full flex items-center gap-2.5 text-left px-4 py-2.5 text-sm text-ink hover:bg-surface"
+                  >
+                    <Redo2 size={16} />
+                    Share profile
+                  </button>
+                  <button
+                    onClick={() => {
+                      setPreviewingAsVisitor(true);
+                      setOwnerMenuOpen(false);
+                    }}
+                    className="w-full flex items-center gap-2.5 text-left px-4 py-2.5 text-sm text-ink hover:bg-surface"
+                  >
+                    <Eye size={16} />
+                    View as visitor
+                  </button>
+                  {profile.is_private && (
+                    <Link
+                      to="/requests"
+                      onClick={() => setOwnerMenuOpen(false)}
+                      className="flex items-center gap-2.5 px-4 py-2.5 text-sm text-ink hover:bg-surface"
+                    >
+                      <UserCheck size={16} />
+                      Follow requests
+                      {incomingRequestCount > 0 && (
+                        <span className="ml-auto bg-danger text-canvas text-[10px] font-medium rounded-full w-4 h-4 flex items-center justify-center shrink-0">
+                          {incomingRequestCount > 9 ? "9+" : incomingRequestCount}
+                        </span>
+                      )}
+                    </Link>
+                  )}
+                  <Link
+                    to="/wallet"
+                    onClick={() => setOwnerMenuOpen(false)}
+                    className="flex items-center gap-2.5 px-4 py-2.5 text-sm text-ink hover:bg-surface"
+                  >
+                    <Wallet size={16} />
+                    Wallet
+                  </Link>
+                  <Link
+                    to="/settings/profile"
+                    onClick={() => setOwnerMenuOpen(false)}
+                    className="flex items-center gap-2.5 px-4 py-2.5 text-sm text-ink hover:bg-surface"
+                  >
+                    <Settings size={16} />
+                    Settings
+                  </Link>
+                </div>
               )}
-            </Link>
-            <Link
-              to="/wallet"
-              aria-label="Wallet"
-              className="flex items-center justify-center text-ink-muted border border-border rounded-full p-2"
-            >
-              <Wallet size={16} />
-            </Link>
-            <Link
-              to="/settings/profile"
-              aria-label="Edit profile"
-              className="flex items-center justify-center text-ink-muted border border-border rounded-full p-2"
-            >
-              <Settings size={16} />
-            </Link>
+            </div>
           </div>
         ) : isOwnProfile ? (
           null
@@ -407,7 +491,7 @@ export function ProfilePage() {
               title="Only visible to you"
             >
               <Eye size={14} />
-              <span className="font-medium text-ink">{visitCount ?? 0}</span> visits (30d)
+              <span className="font-medium text-ink">{visitCount ?? 0}</span> visits in the last 30 days.
             </span>
           )}
         </div>
@@ -434,18 +518,6 @@ export function ProfilePage() {
             >
               Projects
             </button>
-          </div>
-        )}
-
-        {showOwnerView && !isPrivateLocked && activeTab === "projects" && (
-          <div className="flex justify-end mt-3">
-            <Link
-              to="/projects/new"
-              className="flex items-center gap-1 text-sm text-accent font-medium"
-            >
-              <Plus size={16} />
-              New
-            </Link>
           </div>
         )}
 
