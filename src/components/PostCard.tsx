@@ -234,21 +234,21 @@ export function PostCard({
     support: {
       key: "support",
       label: "Support",
-      icon: <Handshake size={16} className="text-ink" />,
+      icon: <Handshake size={18} className="text-ink" />,
       count: post.support_count > 0 ? post.support_count : null,
       onAction: () => handleStance("support"),
     },
     disagree: {
       key: "disagree",
       label: "Disagree",
-      icon: <Frown size={16} className={STANCE_COLORS.disagree.iconClass} />,
+      icon: <Frown size={18} className={STANCE_COLORS.disagree.iconClass} />,
       count: post.disagree_count > 0 ? post.disagree_count : null,
       onAction: () => handleStance("disagree"),
     },
     pushback: {
       key: "pushback",
       label: "Pushback",
-      icon: <Hand size={16} className={STANCE_COLORS.pushback.iconClass} />,
+      icon: <Hand size={18} className={STANCE_COLORS.pushback.iconClass} />,
       count: post.pushback_count > 0 ? post.pushback_count : null,
       onAction: () => handleStance("pushback"),
     },
@@ -257,7 +257,7 @@ export function PostCard({
       label: isDisliked ? "Disliked" : "Dislike",
       icon: (
         <ThumbsDown
-          size={16}
+          size={18}
           fill={isDisliked ? "currentColor" : "none"}
         />
       ),
@@ -267,14 +267,14 @@ export function PostCard({
     gift: {
       key: "gift",
       label: "Gift",
-      icon: <GiftIcon size={16} className="text-ink" />,
+      icon: <GiftIcon size={18} className="text-ink" />,
       count: post.gift_count > 0 ? post.gift_count : null,
       onAction: handleGift,
     },
     reshare: {
       key: "reshare",
       label: "Reshare",
-      icon: <Repeat2 size={16} className="text-ink" />,
+      icon: <Repeat2 size={18} className="text-ink" />,
       count: post.share_count > 0 ? post.share_count : null,
       onAction: handleReshareTap,
     },
@@ -283,7 +283,7 @@ export function PostCard({
       label: isBookmarked ? "Saved" : "Save",
       icon: (
         <Bookmark
-          size={16}
+          size={18}
           fill={isBookmarked ? "currentColor" : "none"}
         />
       ),
@@ -320,7 +320,7 @@ export function PostCard({
       label: isLiked ? "Liked" : "Like",
       icon: (
         <Heart
-          size={16}
+          size={18}
           fill={isLiked ? "currentColor" : "none"}
           className="text-danger"
         />
@@ -337,7 +337,7 @@ export function PostCard({
     {
       key: "share",
       label: "Share",
-      icon: <Redo2 size={16} className="text-ink" />,
+      icon: <Redo2 size={18} className="text-ink" />,
       count: null,
       onClick: () => void handleShare(),
     },
@@ -361,7 +361,7 @@ export function PostCard({
                 {
                   key: "edit",
                   label: "Edit",
-                  icon: <Pencil size={16} className="text-ink" />,
+                  icon: <Pencil size={18} className="text-ink" />,
                   count: null,
                   onClick: handleEdit,
                 } satisfies EngagementAction,
@@ -371,9 +371,9 @@ export function PostCard({
             key: "archive",
             label: post.is_archived ? "Unarchive" : "Archive",
             icon: post.is_archived ? (
-              <RotateCcw size={16} className="text-ink" />
+              <RotateCcw size={18} className="text-ink" />
             ) : (
-              <Archive size={16} className="text-ink" />
+              <Archive size={18} className="text-ink" />
             ),
             count: null,
             onClick: handleToggleArchive,
@@ -381,7 +381,7 @@ export function PostCard({
           {
             key: "delete",
             label: "Delete",
-            icon: <Trash2 size={16} className="text-ink" />,
+            icon: <Trash2 size={18} className="text-ink" />,
             count: null,
             onClick: handleDelete,
           },
