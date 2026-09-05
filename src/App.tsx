@@ -31,7 +31,6 @@ import { Withdraw } from "./pages/Withdraw";
 
 import { Notifications } from "./pages/Notifications";
 import { FollowRequests } from "./pages/FollowRequests";
-import { Bookmarks } from "./pages/Bookmarks";
 import { ConversationList } from "./pages/ConversationList";
 import { Archive } from "./pages/Archive";
 import { MessageThread } from "./pages/MessageThread";
@@ -54,7 +53,11 @@ import { Course } from "./pages/Course";
 import { MeetingRoom } from "./pages/MeetingRoom";
 import { TicketView } from "./pages/TicketView";
 import { Activity } from "./pages/Activity";
-import { SavedProjects } from "./pages/SavedProjects";
+import { CreateChoice } from "./pages/CreateChoice";
+import { SavedHub } from "./pages/SavedHub";
+import { LikedHub } from "./pages/LikedHub";
+import { EventsActivity } from "./pages/EventsActivity";
+import { HistoryActivity } from "./pages/HistoryActivity";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -106,6 +109,14 @@ export default function App() {
               element={
                 <RequireAuth>
                   <Compose />
+                </RequireAuth>
+              }
+            />
+            <Route
+              path="/create"
+              element={
+                <RequireAuth>
+                  <CreateChoice />
                 </RequireAuth>
               }
             />
@@ -227,14 +238,10 @@ export default function App() {
                 </RequireAuth>
               }
             />
-            <Route
-              path="/bookmarks"
-              element={
-                <RequireAuth>
-                  <Bookmarks />
-                </RequireAuth>
-              }
-            />
+            {/* Folded into the Activity hub's Saved tab now (see
+                SavedHub.tsx) — kept as a redirect so any stale links
+                still land somewhere valid. */}
+            <Route path="/bookmarks" element={<Navigate to="/activity/saved" replace />} />
             <Route
               path="/messages"
               element={
@@ -400,16 +407,43 @@ export default function App() {
               }
             />
             <Route
-              path="/saved-projects"
+              path="/activity/saved"
               element={
                 <RequireAuth>
-                  <SavedProjects />
+                  <SavedHub />
                 </RequireAuth>
               }
             />
+            <Route
+              path="/activity/liked"
+              element={
+                <RequireAuth>
+                  <LikedHub />
+                </RequireAuth>
+              }
+            />
+            <Route
+              path="/activity/history"
+              element={
+                <RequireAuth>
+                  <HistoryActivity />
+                </RequireAuth>
+              }
+            />
+            <Route
+              path="/activity/events"
+              element={
+                <RequireAuth>
+                  <EventsActivity />
+                </RequireAuth>
+              }
+            />
+            {/* Folded into the Activity hub's Saved tab now — kept as a
+                redirect so any stale links still land somewhere valid. */}
+            <Route path="/saved-projects" element={<Navigate to="/activity/saved" replace />} />
           </Routes>
         </BrowserRouter>
       </AuthProvider>
     </QueryClientProvider>
   );
-              }
+}
