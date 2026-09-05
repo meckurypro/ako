@@ -9,6 +9,7 @@ export function useUploadAvatar() {
   const { user } = useAuth();
 
   return useMutation({
+    meta: { blocking: true },
     mutationFn: async (file: File): Promise<string> => {
       if (!user) throw new Error("Not signed in");
 
