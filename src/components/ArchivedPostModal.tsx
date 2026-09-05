@@ -2,6 +2,7 @@
 import { useEffect } from "react";
 import { X } from "lucide-react";
 import { PostCard } from "./PostCard";
+import { useBackDismiss } from "../hooks/useBackDismiss";
 import type { PostWithAuthor } from "../types/database";
 
 interface ArchivedPostModalProps {
@@ -19,6 +20,8 @@ interface ArchivedPostModalProps {
  * PostCard has no way to tell us that happened.
  */
 export function ArchivedPostModal({ post, onClose }: ArchivedPostModalProps) {
+  useBackDismiss(onClose);
+
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
       if (e.key === "Escape") onClose();
