@@ -45,7 +45,7 @@ export interface ProfileWithRoles extends Profile {
 
 // Enough of a profile to render an author byline anywhere in the app
 // (post card, comment, message, notification).
-export type AuthorSummary = Pick<Profile, "id" | "username" | "display_name" | "avatar_url" | "tier"> & {
+export type AuthorSummary = Pick<Profile, "id" | "username" | "display_name" | "avatar_url" | "tier" | "is_private"> & {
   roles: ProfileRole[];
 };
 
