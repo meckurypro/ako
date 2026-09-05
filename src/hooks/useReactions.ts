@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "../lib/supabase";
 import { useAuth } from "./useAuth";
+import { PROFILE_ROLES_SELECT, toProfileRoles } from "../lib/profileRoles";
 import type { ReactionType } from "../types/database";
 
 type TargetType = "post" | "comment" | "project";
@@ -95,7 +96,8 @@ export function useToggleReaction(targetId: string, targetType: TargetType, type
 }
 
 // Full list of posts the current user has liked — for the Activity
-// hub's "Liked" tab. Same join shape as useBookmarkedPosts.
+// hub's "Liked" tab. Same join shape as useBookmarkedPosts (roles
+// included and flattened the same way PostCard requires elsewhere).
 export function useLikedPosts() {
   const { user } = useAuth();
 
@@ -105,13 +107,19 @@ export function useLikedPosts() {
       const { data, error } = await supabase
         .from("reactions")
         .select(
-          `post:posts!reactions_post_id_fkey(*, author:profiles!posts_author_id_fkey(id, username, display_name, avatar_url, tier))`
+          `post:posts!reactions_post_id_fkey(*, author:profiles!posts_author_id_fkey(id, username, display_name, avatar_url, tier, ${PROFILE_ROLES_SELECT}))`
         )
         .eq("type", "like")
         .eq("target_type", "post")
         .order("created_at", { ascending: false });
       if (error) throw error;
-      return (data ?? []).map((row: any) => row.post).filter(Boolean);
+      return (data ?? [])
+        .map((row: any) => row.post)
+        .filter(Boolean)
+        .map((post: any) => {
+          const { profile_roles, ...author } = post.author ?? {};
+          return { ...post, author: { ...author, roles: toProfileRoles(profile_roles) } };
+        });
     },
     enabled: !!user,
   });
