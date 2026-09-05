@@ -2,6 +2,7 @@
 import { useMemo, useState } from "react";
 import { Search, X, Send } from "lucide-react";
 import { useConversations, useForwardMessages } from "../hooks/useMessaging";
+import { useBackDismiss } from "../hooks/useBackDismiss";
 import { Avatar } from "./Avatar";
 
 interface ForwardMessageSheetProps {
@@ -20,6 +21,7 @@ interface ForwardMessageSheetProps {
  * reusing that here would duplicate it for little benefit.
  */
 export function ForwardMessageSheet({ messages, onClose, onSent }: ForwardMessageSheetProps) {
+  useBackDismiss(onClose);
   const { data: conversations, isLoading } = useConversations();
   const forwardMessages = useForwardMessages();
   const [query, setQuery] = useState("");
