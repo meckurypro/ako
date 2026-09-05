@@ -1,5 +1,6 @@
 // src/components/ConfirmDialog.tsx
 import { AlertTriangle } from "lucide-react";
+import { useBackDismiss } from "../hooks/useBackDismiss";
 
 interface ConfirmDialogProps {
   title: string;
@@ -29,6 +30,8 @@ export function ConfirmDialog({
   onConfirm,
   onCancel,
 }: ConfirmDialogProps) {
+  useBackDismiss(onCancel);
+
   return (
     <div className="fixed inset-0 z-[60] flex items-center justify-center px-6" role="alertdialog" aria-modal="true">
       <div className="absolute inset-0 bg-ink/50" onClick={onCancel} />
