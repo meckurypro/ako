@@ -1,11 +1,12 @@
 // src/pages/ProfilePage.tsx
-import { useState, useEffect, useRef, type TouchEvent as ReactTouchEvent, type CSSProperties } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useParams, Link, useNavigate } from "react-router-dom";
 import { Settings, Wallet, MessageCircle, MoreHorizontal, Plus, Eye, X, Globe, UserCheck, Lock, Redo2 } from "lucide-react";
 import { useAuth } from "../hooks/useAuth";
 import { useProfileByUsername, useIsFollowing, useIsFollowedByUser, useToggleFollow } from "../hooks/useProfile";
 import { useTabState } from "../hooks/useTabState";
 import { useBackDismiss } from "../hooks/useBackDismiss";
+import { SwipeableTabs } from "../components/SwipeableTabs";
 import {
   useHasPendingFollowRequest,
   useSendFollowRequest,
@@ -48,7 +49,6 @@ function getWebsiteDomain(url: string): string {
 // rather than living here as a third profile tab.
 const TABS = ["posts", "projects"] as const;
 type ProfileTab = (typeof TABS)[number];
-const SWIPE_THRESHOLD_PX = 50;
 
 export function ProfilePage() {
   const { username } = useParams<{ username: string }>();
@@ -74,12 +74,11 @@ export function ProfilePage() {
   // Projects tab, and now also survives a refresh either way — see
   // useTabState.
   const [activeTab, setActiveTab] = useTabState<ProfileTab>(TABS, "posts");
-  // Which side new tab content springs in from — same idea as Feed's tab
-  // row: 1 (from the right) moving to a later tab, -1 (from the left)
-  // moving to an earlier one. Read by the CSS animation via --tab-dir.
-  const [tabDirection, setTabDirection] = useState(1);
-  const [touchStartX, setTouchStartX] = useState<number | null>(null);
-  const [touchStartY, setTouchStartY] = useState<number | null>(null);
+  // Continuous tab position fed by SwipeableTabs' onProgress, same idea as
+  // Feed's tab row — lets the sliding indicator bar track the finger
+  // during a drag instead of only jumping once the swipe commits.
+  const [tabProgress, setTabProgress] = useState(TABS.indexOf(activeTab));
+  const [tabDragging, setTabDragging] = useState(false);
 
   const isFollowingQuery = useIsFollowing(profile?.id ?? "");
   const isFollowedByUserQuery = useIsFollowedByUser(profile?.id ?? "");
@@ -229,43 +228,14 @@ export function ProfilePage() {
     void shareProfile();
   }
 
-  // Same swipe pattern as Feed's tab row — bound only to the content
-  // area below the tab bar (see the wrapping div further down), so
-  // swiping over the header/bio never accidentally flips tabs.
+  // Same swipe pattern as Feed's tab row — SwipeableTabs is bound only to
+  // the content area below the tab bar (see the wrapping div further
+  // down), so swiping over the header/bio never accidentally flips tabs.
   const activeIndex = TABS.indexOf(activeTab);
-
-  function goToIndex(index: number) {
-    const clamped = Math.max(0, Math.min(TABS.length - 1, index));
-    if (clamped === activeIndex) return;
-    setTabDirection(clamped > activeIndex ? 1 : -1);
-    setActiveTab(TABS[clamped]);
-  }
 
   function handleTabClick(index: number, tab: ProfileTab) {
     if (index === activeIndex) return;
-    setTabDirection(index > activeIndex ? 1 : -1);
     setActiveTab(tab);
-  }
-
-  function handleTouchStart(e: ReactTouchEvent) {
-    setTouchStartX(e.touches[0].clientX);
-    setTouchStartY(e.touches[0].clientY);
-  }
-
-  function handleTouchEnd(e: ReactTouchEvent) {
-    if (touchStartX === null || touchStartY === null) return;
-    const deltaX = e.changedTouches[0].clientX - touchStartX;
-    const deltaY = e.changedTouches[0].clientY - touchStartY;
-    setTouchStartX(null);
-    setTouchStartY(null);
-
-    if (Math.abs(deltaX) < SWIPE_THRESHOLD_PX || Math.abs(deltaX) <= Math.abs(deltaY)) return;
-
-    if (deltaX < 0) {
-      goToIndex(activeIndex + 1);
-    } else {
-      goToIndex(activeIndex - 1);
-    }
   }
 
   if (isLoading || !profile) {
@@ -554,26 +524,19 @@ export function ProfilePage() {
               Projects
             </button>
             <div
-              className="ako-tab-indicator absolute bottom-0 left-0 h-[2px] w-1/2 bg-accent rounded-full"
-              style={{ transform: `translateX(${activeIndex * 100}%)` }}
+              className={`ako-tab-indicator absolute bottom-0 left-0 h-[2px] w-1/2 bg-accent rounded-full ${
+                tabDragging ? "ako-tab-indicator--dragging" : ""
+              }`}
+              style={{ transform: `translateX(${tabProgress * 100}%)` }}
             />
           </div>
         )}
 
-        {/* Tab content — swipeable, same gesture as Feed's tab row. Keyed
-            by tab so each switch remounts this wrapper and replays the
-            spring-in animation; --tab-dir picks which side it comes from
-            (see the keyframe in index.css). */}
-        <div
-          className="mt-4"
-          onTouchStart={handleTouchStart}
-          onTouchEnd={handleTouchEnd}
-        >
-          <div
-            key={activeTab}
-            className="animate-tab-spring"
-            style={{ "--tab-dir": tabDirection } as CSSProperties}
-          >
+        {/* Tab content — real drag-tracking carousel, same as Feed's tab
+            row (see SwipeableTabs.tsx). A locked/blocked profile has
+            nothing behind either tab, so it skips the carousel and just
+            shows the one relevant message instead of two identical panes. */}
+        <div className="mt-4">
           {isBlocked ? (
             <p className="text-ink-muted text-center py-10 text-sm">
               You've blocked this account. Unblock to see their content.
@@ -588,24 +551,39 @@ export function ProfilePage() {
                 Follow {firstName || "this account"} to see their posts and projects.
               </p>
             </div>
-          ) : activeTab === "posts" ? (
-            posts && posts.length > 0 ? (
-              posts.map((post: any) => (
-                <PostCard key={post.id} post={post} isOwnerView={showOwnerView} />
-              ))
-            ) : (
-              <p className="text-ink-muted text-center py-10 text-sm">No posts yet.</p>
-            )
-          ) : visibleProjects && visibleProjects.length > 0 ? (
-            visibleProjects.map((project) => (
-              <ProjectCard key={project.id} project={project} isOwnerView={showOwnerView} />
-            ))
           ) : (
-            <p className="text-ink-muted text-center py-10 text-sm">
-              {showOwnerView ? "No projects yet — publish your first one." : "No projects yet."}
-            </p>
+            <SwipeableTabs
+              index={activeIndex}
+              onIndexChange={(i) => setActiveTab(TABS[i])}
+              onProgress={(progress, dragging) => {
+                setTabProgress(progress);
+                setTabDragging(dragging);
+              }}
+            >
+              {[
+                <div key="posts">
+                  {posts && posts.length > 0 ? (
+                    posts.map((post: any) => (
+                      <PostCard key={post.id} post={post} isOwnerView={showOwnerView} />
+                    ))
+                  ) : (
+                    <p className="text-ink-muted text-center py-10 text-sm">No posts yet.</p>
+                  )}
+                </div>,
+                <div key="projects">
+                  {visibleProjects && visibleProjects.length > 0 ? (
+                    visibleProjects.map((project) => (
+                      <ProjectCard key={project.id} project={project} isOwnerView={showOwnerView} />
+                    ))
+                  ) : (
+                    <p className="text-ink-muted text-center py-10 text-sm">
+                      {showOwnerView ? "No projects yet — publish your first one." : "No projects yet."}
+                    </p>
+                  )}
+                </div>,
+              ]}
+            </SwipeableTabs>
           )}
-          </div>
         </div>
       </div>
 
