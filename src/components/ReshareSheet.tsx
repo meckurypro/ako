@@ -2,6 +2,7 @@
 import { useState } from "react";
 import { Repeat2, PenSquare } from "lucide-react";
 import { useCreateReshare } from "../hooks/usePosts";
+import { useBackDismiss } from "../hooks/useBackDismiss";
 import { RepostEmbed } from "./RepostEmbed";
 import type { RepostSource } from "../types/database";
 
@@ -23,6 +24,13 @@ export function ReshareSheet({ postId, source, onClose }: ReshareSheetProps) {
   const [caption, setCaption] = useState("");
   const [error, setError] = useState<string | null>(null);
   const createReshare = useCreateReshare();
+
+  // Base level — always on while the sheet is open. Back from the
+  // "choose" step closes the whole sheet.
+  useBackDismiss(onClose);
+  // Second level — only pushed while in the "quote" step, so back
+  // from there returns to "choose" instead of closing outright.
+  useBackDismiss(() => setMode("choose"), mode === "quote");
 
   async function handleRepost() {
     setError(null);
