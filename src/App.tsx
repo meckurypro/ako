@@ -4,6 +4,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { AuthProvider } from "./hooks/useAuth";
 import { RequireAuth } from "./components/RequireAuth";
 import { ScrollToTop } from "./components/ScrollToTop";
+import { LoadingOverlay } from "./components/LoadingOverlay";
 
 import { SignUp } from "./pages/auth/SignUp";
 import { Login } from "./pages/auth/Login";
@@ -67,6 +68,7 @@ const queryClient = new QueryClient({
 export default function App() {
   return (
     <QueryClientProvider client={queryClient}>
+      <LoadingOverlay />
       <AuthProvider>
         <BrowserRouter>
           <ScrollToTop />
