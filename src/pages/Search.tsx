@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { ArrowLeft, Search as SearchIcon } from "lucide-react";
 import { useSearchPosts, useSearchPeople } from "../hooks/useSearch";
+import { useTabState } from "../hooks/useTabState";
 import { PostCard } from "../components/PostCard";
 import { Avatar } from "../components/Avatar";
 import { BottomNav } from "../components/BottomNav";
@@ -9,7 +10,7 @@ import { BottomNav } from "../components/BottomNav";
 export function Search() {
   const navigate = useNavigate();
   const [query, setQuery] = useState("");
-  const [tab, setTab] = useState<"posts" | "people">("posts");
+  const [tab, setTab] = useTabState<"posts" | "people">(["posts", "people"], "posts");
 
   const { data: posts, isLoading: postsLoading } = useSearchPosts(query);
   const { data: people, isLoading: peopleLoading } = useSearchPeople(query);
