@@ -1,95 +1,67 @@
 // src/pages/Activity.tsx
-import { Link } from "react-router-dom";
-import { ArrowLeft, ImageIcon, CalendarClock } from "lucide-react";
 import { useNavigate } from "react-router-dom";
-import { useActivity, type ActivityItem } from "../hooks/useActivity";
+import { ArrowLeft, Bookmark, Heart, History, CalendarClock, ChevronRight } from "lucide-react";
 
-const ROUTE_FOR: Record<ActivityItem["kind"], (item: ActivityItem) => string> = {
-  event: (item) => `/projects/${item.projectId}/ticket`,
-  meeting: (item) => `/meetings/${item.projectId}`,
-  room_meeting: (item) => `/rooms/${item.projectId}`,
-};
+const ROWS = [
+  {
+    to: "/activity/saved",
+    icon: Bookmark,
+    label: "Saved",
+    description: "Posts and projects you've bookmarked",
+  },
+  {
+    to: "/activity/liked",
+    icon: Heart,
+    label: "Liked",
+    description: "Posts and projects you've liked",
+  },
+  {
+    to: "/activity/history",
+    icon: History,
+    label: "History",
+    description: "Posts and projects you've viewed",
+  },
+  {
+    to: "/activity/events",
+    icon: CalendarClock,
+    label: "Events & meetings",
+    description: "Tickets, meetings, and rooms you're part of",
+  },
+] as const;
 
-const LABEL_FOR: Record<ActivityItem["kind"], string> = {
-  event: "Event",
-  meeting: "Meeting",
-  room_meeting: "Room meeting",
-};
-
-function ActivityRow({ item }: { item: ActivityItem }) {
-  return (
-    <Link
-      to={ROUTE_FOR[item.kind](item)}
-      className="flex items-center gap-3 p-3 rounded-xl border border-border bg-surface"
-    >
-      <div className="w-12 h-12 rounded-lg bg-canvas flex items-center justify-center overflow-hidden shrink-0">
-        {item.thumbnailUrl ? (
-          <img src={item.thumbnailUrl} alt="" className="w-full h-full object-cover" />
-        ) : (
-          <ImageIcon size={18} className="text-ink-muted" />
-        )}
-      </div>
-      <div className="min-w-0">
-        <p className="text-sm text-ink truncate">{item.projectTitle}</p>
-        <p className="text-xs text-ink-muted">
-          {LABEL_FOR[item.kind]}
-          {item.when ? ` · ${new Date(item.when).toLocaleString()}` : " · Date TBA"}
-        </p>
-      </div>
-    </Link>
-  );
-}
-
-// Shown as the "Activity" tab on the profile page (after Posts and
-// Projects) — this file is just the list; wiring it into the tab bar
-// is a one-line addition wherever ProfilePage's tabs are defined.
+// Landing page for the Activity icon in BottomNav — replaces the old
+// per-feature destinations (Feed's "Saved" tab, ProfilePage's
+// "Activity" tab, standalone Bookmarks/SavedProjects pages) with one
+// hub that fans out to each.
 export function Activity() {
   const navigate = useNavigate();
-  const { data: items, isLoading } = useActivity();
-  const now = Date.now();
-  const upcoming = (items ?? []).filter((i) => !i.when || new Date(i.when).getTime() >= now);
-  const past = (items ?? []).filter((i) => i.when && new Date(i.when).getTime() < now);
 
   return (
-    <div className="min-h-screen bg-canvas px-4 pt-4 pb-10">
-      <div className="max-w-md mx-auto">
-        <button onClick={() => navigate(-1)} className="text-ink-muted mb-4">
+    <div className="min-h-screen bg-canvas pb-16">
+      <header className="px-4 pt-6 pb-3 flex items-center gap-3">
+        <button onClick={() => navigate(-1)} className="text-ink-muted">
           <ArrowLeft size={22} />
         </button>
+        <h2 className="font-display text-2xl text-ink">Activity</h2>
+      </header>
 
-        <h2 className="font-display text-2xl text-ink mb-6">Activity</h2>
-
-        {isLoading ? (
-          <p className="text-ink-muted text-sm">Loading…</p>
-        ) : (items ?? []).length === 0 ? (
-          <div className="flex flex-col items-center text-center gap-2 mt-16 text-ink-muted">
-            <CalendarClock size={24} />
-            <p className="text-sm">Events, meetings, and rooms you've joined will show up here.</p>
-          </div>
-        ) : (
-          <>
-            <div className="mb-6">
-              <h3 className="text-sm font-medium text-ink-muted mb-2">Upcoming</h3>
-              <div className="flex flex-col gap-2">
-                {upcoming.length === 0 ? (
-                  <p className="text-xs text-ink-muted">Nothing upcoming.</p>
-                ) : (
-                  upcoming.map((item, i) => <ActivityRow key={`${item.kind}-${item.projectId}-${i}`} item={item} />)
-                )}
-              </div>
-            </div>
-            <div>
-              <h3 className="text-sm font-medium text-ink-muted mb-2">Past</h3>
-              <div className="flex flex-col gap-2">
-                {past.length === 0 ? (
-                  <p className="text-xs text-ink-muted">Nothing past yet.</p>
-                ) : (
-                  past.map((item, i) => <ActivityRow key={`${item.kind}-${item.projectId}-${i}`} item={item} />)
-                )}
-              </div>
-            </div>
-          </>
-        )}
+      <div className="max-w-xl mx-auto px-4 pt-2">
+        {ROWS.map(({ to, icon: Icon, label, description }) => (
+          <button
+            key={to}
+            onClick={() => navigate(to)}
+            className="w-full flex items-center gap-3 py-3.5 border-b border-border text-left"
+          >
+            <span className="flex items-center justify-center w-10 h-10 rounded-full bg-accent-soft text-accent shrink-0">
+              <Icon size={18} />
+            </span>
+            <span className="flex-1 min-w-0">
+              <span className="block text-sm font-medium text-ink">{label}</span>
+              <span className="block text-xs text-ink-muted truncate">{description}</span>
+            </span>
+            <ChevronRight size={18} className="text-ink-muted shrink-0" />
+          </button>
+        ))}
       </div>
     </div>
   );
