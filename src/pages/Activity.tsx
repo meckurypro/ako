@@ -1,6 +1,7 @@
 // src/pages/Activity.tsx
 import { useNavigate } from "react-router-dom";
 import { ArrowLeft, Bookmark, Heart, History, CalendarClock, ChevronRight } from "lucide-react";
+import { BottomNav } from "../components/BottomNav";
 
 const ROWS = [
   {
@@ -37,7 +38,7 @@ export function Activity() {
   const navigate = useNavigate();
 
   return (
-    <div className="min-h-screen bg-canvas pb-16">
+    <div className="min-h-screen bg-canvas pb-24">
       <header className="px-4 pt-6 pb-3 flex items-center gap-3">
         <button onClick={() => navigate(-1)} className="text-ink-muted">
           <ArrowLeft size={22} />
@@ -63,6 +64,8 @@ export function Activity() {
           </button>
         ))}
       </div>
+
+      <BottomNav />
     </div>
   );
 }
