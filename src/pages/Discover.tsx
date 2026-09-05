@@ -3,6 +3,7 @@ import { useNavigate, Link } from "react-router-dom";
 import { Search, ChevronDown, X } from "lucide-react";
 import { useCategories } from "../hooks/useCategories";
 import { useSearchPeople, useSearchPosts, useSuggestedPeople } from "../hooks/useSearch";
+import { useTabState } from "../hooks/useTabState";
 import { Avatar } from "../components/Avatar";
 import { TierBadge } from "../components/TierBadge";
 import { RoleTags } from "../components/RoleTags";
@@ -40,7 +41,7 @@ function PersonRow({ profile }: { profile: ProfileWithRoles }) {
 export function Discover() {
   const navigate = useNavigate();
   const [query, setQuery] = useState("");
-  const [activeTab, setActiveTab] = useState<"people" | "posts">("people");
+  const [activeTab, setActiveTab] = useTabState<"people" | "posts">(["people", "posts"], "people");
   const [openCategoryId, setOpenCategoryId] = useState<string | null>(null);
 
   const { data: categories, isLoading: categoriesLoading } = useCategories();
