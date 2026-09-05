@@ -16,6 +16,7 @@ import { Avatar } from "../components/Avatar";
 import { ProjectCard } from "../components/ProjectCard";
 import { ArchivedPostModal } from "../components/ArchivedPostModal";
 import { ConfirmDialog } from "../components/ConfirmDialog";
+import { BottomNav } from "../components/BottomNav";
 import { isPlainReshare, isQuote, type PostWithAuthor } from "../types/database";
 
 function timeAgo(dateString: string): string {
@@ -469,6 +470,8 @@ export function Archive() {
           onCancel={() => setDeleteTarget(null)}
         />
       )}
+
+      <BottomNav />
     </div>
   );
 }
