@@ -179,7 +179,10 @@ export function useCreateReshare() {
         })
         .select(FEED_SELECT)
         .single();
-      if (error) throw error;
+      if (error) {
+        console.error("[useCreateReshare] Supabase error:", error);
+        throw error;
+      }
       return normalizePost(data);
     },
     onSuccess: () => {
