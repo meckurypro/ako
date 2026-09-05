@@ -1,5 +1,18 @@
 import { Link } from "react-router-dom";
-import { Heart, ThumbsDown, Handshake, XCircle, UserPlus, Gift, MessageCircle, Bell, UserCheck } from "lucide-react";
+import {
+  Heart,
+  ThumbsDown,
+  Handshake,
+  XCircle,
+  UserPlus,
+  Gift,
+  MessageCircle,
+  Bell,
+  UserCheck,
+  Repeat2,
+  Quote,
+  Share2,
+} from "lucide-react";
 import { useNotifications, useMarkNotificationRead, useMarkAllRead } from "../hooks/useNotifications";
 import { Avatar } from "../components/Avatar";
 import { BottomNav } from "../components/BottomNav";
@@ -11,7 +24,17 @@ const TYPE_CONFIG: Record<string, { icon: typeof Heart; verb: string }> = {
   support: { icon: Handshake, verb: "supported your post" },
   disagree: { icon: XCircle, verb: "disagreed with your post" },
   pushback: { icon: Handshake, verb: "pushed back on your post" },
+  reshare: { icon: Repeat2, verb: "reposted your post" },
+  quote: { icon: Quote, verb: "quoted your post" },
+  share: { icon: Share2, verb: "shared your post" },
+  comment_like: { icon: Heart, verb: "liked your comment" },
+  comment_dislike: { icon: ThumbsDown, verb: "disliked your comment" },
   comment_reply: { icon: MessageCircle, verb: "replied to you" },
+  // Sent to the POST's author (not the comment's author) when someone
+  // reacts to or replies to a comment underneath their post — a
+  // different person from whoever gets comment_like/comment_reply for
+  // the same event, so it needs its own copy.
+  post_comment_activity: { icon: MessageCircle, verb: "was active in the discussion on your post" },
   follow: { icon: UserPlus, verb: "followed you" },
   gift_received: { icon: Gift, verb: "sent you a gift" },
   message: { icon: MessageCircle, verb: "sent you a message" },
