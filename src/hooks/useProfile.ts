@@ -51,7 +51,7 @@ export function useUserPosts(userId: string) {
       const { data, error } = await supabase
         .from("posts")
         .select(
-          `*, author:profiles!posts_author_id_fkey(id, username, display_name, avatar_url, tier, ${PROFILE_ROLES_SELECT})`
+          `*, author:profiles!posts_author_id_fkey(id, username, display_name, avatar_url, tier, is_private, ${PROFILE_ROLES_SELECT})`
         )
         .eq("author_id", userId)
         .eq("is_deleted", false)
