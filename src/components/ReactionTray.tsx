@@ -1,5 +1,5 @@
 // src/components/ReactionTray.tsx
-import { useEffect, useLayoutEffect, useRef, type ReactNode, type MouseEvent, type TouchEvent } from "react";
+import { useEffect, useLayoutEffect,useRef, type ReactNode, type MouseEvent, type TouchEvent } from "react";
 
 export interface EngagementAction {
   key: string;
