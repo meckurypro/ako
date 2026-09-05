@@ -1,4 +1,4 @@
-// msrc/pages/LikedHub.tsx
+// src/pages/LikedHub.tsx
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { ArrowLeft } from "lucide-react";
