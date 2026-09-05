@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "../lib/supabase";
 import { useAuth } from "./useAuth";
+import { PROFILE_ROLES_SELECT, toProfileRoles } from "../lib/profileRoles";
 import type { PostWithAuthor } from "../types/database";
 
 export function useIsBookmarked(postId: string) {
@@ -60,11 +61,17 @@ export function useBookmarkedPosts() {
       const { data, error } = await supabase
         .from("bookmarks")
         .select(
-          `post:posts!bookmarks_post_id_fkey(*, author:profiles!posts_author_id_fkey(id, username, display_name, avatar_url, tier))`
+          `post:posts!bookmarks_post_id_fkey(*, author:profiles!posts_author_id_fkey(id, username, display_name, avatar_url, tier, ${PROFILE_ROLES_SELECT}))`
         )
         .order("created_at", { ascending: false });
       if (error) throw error;
-      return (data ?? []).map((row: any) => row.post).filter(Boolean);
+      return (data ?? [])
+        .map((row: any) => row.post)
+        .filter(Boolean)
+        .map((post: any) => {
+          const { profile_roles, ...author } = post.author ?? {};
+          return { ...post, author: { ...author, roles: toProfileRoles(profile_roles) } };
+        });
     },
     enabled: !!user,
   });
