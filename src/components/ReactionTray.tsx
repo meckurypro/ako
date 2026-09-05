@@ -1,5 +1,5 @@
 // src/components/ReactionTray.tsx
-import { useRef, type ReactNode, type MouseEvent, type TouchEvent } from "react";
+import { useEffect, useLayoutEffect, useRef, type ReactNode, type MouseEvent, type TouchEvent } from "react";
 
 export interface EngagementAction {
   key: string;
@@ -39,6 +39,13 @@ const VISIBLE_SLOTS = 5;
 // so a slightly-wobbly finger on Like/Share/Comments doesn't get eaten as a
 // scroll.
 const DRAG_THRESHOLD_PX = 6;
+
+// How many real copies of middleActions to render back-to-back when the
+// strip loops (see "Looping" below). 3 is the minimum that always works
+// regardless of scroll speed: one to scroll into on either side of the
+// "real" copy the user starts on, with a full copy's worth of travel
+// available before a correction is needed.
+const LOOP_COPIES = 3;
 
 function ActionButton({
   action,
@@ -90,6 +97,29 @@ function ActionButton({
 // native overflow-x-auto scrolling as before (its own onTouchStart calls
 // stopPropagation so the outer handler doesn't fight the native scroll).
 //
+// touch-action: the row is `pan-y` (only default-handle vertical pans;
+// horizontal movement is ours to interpret) so a slow, low-velocity drag
+// doesn't get ambiguously claimed by the browser as a page scroll attempt
+// partway through — that hijack is what made slow drags feel like they
+// "misbehaved": the browser would occasionally decide a slow horizontal-ish
+// touch was actually a vertical scroll and stop delivering touchmove events
+// to us. A fast flick was never ambiguous enough to trigger it, which is
+// why the bug only showed up when scrolling slowly. The inner strip is
+// `pan-x` for the same reason in the other axis, on top of its own native
+// horizontal scrolling.
+//
+// Looping: when there's overflow, the middle strip renders LOOP_COPIES back
+// -to-back copies of middleActions instead of one, and starts scrolled to
+// the start of the middle copy. A `scroll` listener watches for the
+// position crossing into a neighboring copy and silently jumps it back by
+// exactly one copy's width — invisible, since every copy is pixel-
+// identical — which is what makes scrolling past the last icon reveal the
+// first one again, and vice versa. That correction also has to nudge the
+// in-progress manual drag's reference point (dragRef.startScrollLeft) by
+// the same amount, or the very next touchmove would compute a position
+// back in the old (pre-jump) coordinate space and undo the wrap with a
+// visible snap.
+//
 // Touch isolation: once a touch is claimed as a drag (on the middle strip,
 // or on the row past the threshold), stopPropagation keeps it from
 // bubbling up to Feed's tab-swipe handler. Feed's handleTouchEnd checks
@@ -107,6 +137,44 @@ export function ReactionTray({
 
   const middleScrollRef = useRef<HTMLDivElement>(null);
   const dragRef = useRef({ startX: 0, startScrollLeft: 0, dragging: false });
+
+  const loopedActions = hasOverflow
+    ? Array.from({ length: LOOP_COPIES }, () => middleActions).flat()
+    : middleActions;
+
+  // Center the strip on the middle copy on mount, and whenever the set of
+  // actions changes shape (e.g. owner-only actions appearing/disappearing
+  // changes middleActions.length, which changes each copy's width).
+  useLayoutEffect(() => {
+    const el = middleScrollRef.current;
+    if (!el || !hasOverflow) return;
+    el.scrollLeft = el.scrollWidth / LOOP_COPIES;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hasOverflow, middleActions.length]);
+
+  // Wraps scrollLeft back into the middle copy whenever it drifts into a
+  // neighboring one — see the "Looping" note above.
+  useEffect(() => {
+    const el = middleScrollRef.current;
+    if (!el || !hasOverflow) return;
+
+    function handleScroll() {
+      if (!el) return;
+      const copyWidth = el.scrollWidth / LOOP_COPIES;
+      if (copyWidth <= 0) return;
+
+      if (el.scrollLeft < copyWidth) {
+        el.scrollLeft += copyWidth;
+        dragRef.current.startScrollLeft += copyWidth;
+      } else if (el.scrollLeft >= copyWidth * (LOOP_COPIES - 1)) {
+        el.scrollLeft -= copyWidth;
+        dragRef.current.startScrollLeft -= copyWidth;
+      }
+    }
+
+    el.addEventListener("scroll", handleScroll, { passive: true });
+    return () => el.removeEventListener("scroll", handleScroll);
+  }, [hasOverflow, middleActions.length]);
 
   function handleRowTouchStart(e: TouchEvent) {
     const touch = e.touches[0];
@@ -149,6 +217,7 @@ export function ReactionTray({
   return (
     <div
       className="flex items-start mt-4 pt-4 pb-1 w-full"
+      style={{ touchAction: "pan-y" }}
       onTouchStart={handleRowTouchStart}
       onTouchMove={handleRowTouchMove}
     >
@@ -178,19 +247,31 @@ export function ReactionTray({
         <div
           ref={middleScrollRef}
           className="flex overflow-x-auto scrollbar-none"
+          style={{ touchAction: "pan-x" }}
           onTouchStart={(e) => e.stopPropagation()}
         >
-          {middleActions.map((action) => (
-            <ActionButton key={action.key} action={action} widthPercent={100 / middleVisibleCount} />
+          {loopedActions.map((action, i) => (
+            <ActionButton
+              key={hasOverflow ? `${action.key}::${Math.floor(i / middleActions.length)}` : action.key}
+              action={action}
+              widthPercent={100 / middleVisibleCount}
+            />
           ))}
         </div>
 
-        {/* Right-edge fade: signals more icons are off-screen */}
+        {/* Edge fades on both sides now that the strip loops — either
+            direction always has more to reveal, not just the right. */}
         {hasOverflow && (
-          <div
-            className="absolute right-0 top-0 bottom-0 w-4 bg-gradient-to-l from-surface dark:from-[#121114] to-transparent pointer-events-none"
-            aria-hidden="true"
-          />
+          <>
+            <div
+              className="absolute left-0 top-0 bottom-0 w-4 bg-gradient-to-r from-surface dark:from-[#121114] to-transparent pointer-events-none"
+              aria-hidden="true"
+            />
+            <div
+              className="absolute right-0 top-0 bottom-0 w-4 bg-gradient-to-l from-surface dark:from-[#121114] to-transparent pointer-events-none"
+              aria-hidden="true"
+            />
+          </>
         )}
       </div>
 
