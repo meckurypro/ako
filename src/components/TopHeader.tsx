@@ -11,6 +11,9 @@ interface TopHeaderProps {
   // CreateChoice.tsx) in place of the own-avatar link. Every other
   // caller (Discover) keeps the avatar, unchanged.
   leftAction?: "avatar" | "create";
+  // Feed passes this to render the app icon (theme-swapped) in place
+  // of the "Akọ" text + tagline. See Wordmark.tsx.
+  asIcon?: boolean;
 }
 
 // Matches the mockup: your own avatar on the left (in place of the
@@ -22,7 +25,7 @@ interface TopHeaderProps {
 // No shadow here — this sits inside Feed's sticky bg-surface wrapper
 // together with the tabs row below it, and the shadow for that whole
 // combined block lives on the wrapper, not here.
-export function TopHeader({ showTagline = false, leftAction = "avatar" }: TopHeaderProps) {
+export function TopHeader({ showTagline = false, leftAction = "avatar", asIcon = false }: TopHeaderProps) {
   const unreadCount = useUnreadCount();
   const { data: me } = useMyProfile();
 
@@ -42,7 +45,7 @@ export function TopHeader({ showTagline = false, leftAction = "avatar" }: TopHea
         </Link>
       )}
 
-      <Wordmark size="sm" showTagline={showTagline} />
+      <Wordmark size="sm" showTagline={showTagline} asIcon={asIcon} />
 
       <Link to="/notifications" className="relative text-ink-muted">
         <Bell size={22} />
