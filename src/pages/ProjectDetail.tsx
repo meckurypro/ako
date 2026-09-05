@@ -8,6 +8,7 @@ import { Avatar } from "../components/Avatar";
 import { TierBadge } from "../components/TierBadge";
 import { RoleTags } from "../components/RoleTags";
 import { ProjectCard } from "../components/ProjectCard";
+import { BottomNav } from "../components/BottomNav";
 
 // Compact, non-interactive project tile for the "similar projects"
 // rails — just enough to identify it and tap through. The full
@@ -135,6 +136,8 @@ export function ProjectDetail() {
           </>
         )}
       </div>
+
+      <BottomNav />
     </div>
   );
 }
