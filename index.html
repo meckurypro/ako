@@ -4,6 +4,11 @@
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <!-- Colors Safari's address-bar/toolbar chrome (and Android's status
+         bar) to match the app. Content is overwritten synchronously below
+         and again by useTheme.tsx on every theme change — this starting
+         value only matters for a split second before that script runs. -->
+    <meta name="theme-color" content="#FDFBF6" />
     <title>Akọ — A Reason To Reason</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -28,6 +33,11 @@
             (stored !== "light" &&
               window.matchMedia("(prefers-color-scheme: dark)").matches);
           if (isDark) document.documentElement.classList.add("dark");
+          // Keep in sync with --color-surface in src/index.css (topnav/
+          // bottomnav color) for both themes.
+          document
+            .querySelector('meta[name="theme-color"]')
+            .setAttribute("content", isDark ? "#131311" : "#FDFBF6");
         } catch (e) {
           // localStorage/matchMedia unavailable (privacy mode, old
           // browser) — fall back to light, same as if nothing were set.
