@@ -211,7 +211,7 @@ export function PostCard({
     deletePost.mutate(post.id);
   }
 
-  // ─── Secondary action definitions (all 6, passed to scrollable tray) ──────
+  // ─── Secondary action definitions (all 7, passed to scrollable tray) ──────
   // Stance icons carry STANCE_COLORS.iconClass so they stay in sync with
   // StanceComposer tabs and CommentThread pills.
 
@@ -256,6 +256,13 @@ export function PostCard({
       count: post.gift_count > 0 ? post.gift_count : null,
       onAction: handleGift,
     },
+    reshare: {
+      key: "reshare",
+      label: "Reshare",
+      icon: <Repeat2 size={16} className="text-ink" />,
+      count: post.share_count > 0 ? post.share_count : null,
+      onAction: handleReshareTap,
+    },
     save: {
       key: "save",
       label: isBookmarked ? "Saved" : "Save",
@@ -272,24 +279,26 @@ export function PostCard({
 
   // Ranked order from the hook, falling back to the default until loaded.
   // Actions that don't make sense on your own post (see HIDDEN_FOR_OWNER
-  // above) are dropped entirely when viewing as the owner. "save" is
-  // excluded here — it's now a fixed right-side slot, not part of the
-  // ranked/swipable set.
+  // above) are dropped entirely when viewing as the owner. Reshare gets its
+  // own exclusion rule below rather than living in HIDDEN_FOR_OWNER, since
+  // it's hidden not just for owners but also once you've already reshared
+  // this post — the same condition that used to gate it out of leftActions.
   const order: SecondaryActionKey[] = (
-    engagementOrder ?? ["support", "gift", "save", "disagree", "pushback", "dislike"]
-  ).filter((k) => k !== "save" && (!isOwner || !HIDDEN_FOR_OWNER.includes(k)));
+    engagementOrder ?? ["support", "reshare", "gift", "save", "disagree", "pushback", "dislike"]
+  ).filter((k) => {
+    if (isOwner && HIDDEN_FOR_OWNER.includes(k)) return false;
+    if (k === "reshare" && (isOwner || hasReshared)) return false;
+    return true;
+  });
 
   // Edit eligibility is always about this row (the reshare/quote/normal
   // post belonging to the viewer). A plain reshare has no content of its
   // own, so there's nothing to edit — only Archive/Delete apply to it.
   const canEdit = !plainReshare && canEditPost(post);
 
-  // ─── Left (fixed): Like, then Reshare — unless it's your own post, or you've
-  // already reshared this one (a post can only be reshared once per user).
-  // Dropping Reshare here shrinks the left group from 2 to 1, which
-  // ReactionTray's slot math automatically compensates for by giving the
-  // swipable middle group a 3rd visible slot instead of 2 — so the row
-  // still always shows 6 evenly-spaced icons, no dead gap where Reshare was.
+  // ─── Left (fixed): Like only. Reshare used to live here too but is now
+  // ranked alongside the other secondary actions in the swipable middle
+  // group (see `order` above) rather than getting a permanent slot.
   const leftActions: EngagementAction[] = [
     {
       key: "like",
@@ -304,28 +313,12 @@ export function PostCard({
       count: post.like_count > 0 ? post.like_count : null,
       onClick: () => toggleLike.mutate(isLiked),
     },
-    ...(!isOwner && !hasReshared
-      ? [
-          {
-            key: "reshare",
-            label: "Reshare",
-            icon: <Repeat2 size={16} />,
-            count: post.share_count > 0 ? post.share_count : null,
-            onClick: handleReshareTap,
-          } satisfies EngagementAction,
-        ]
-      : []),
   ];
 
-  // ─── Right (fixed): Save, Share — always visible, never scrolled away ───
+  // ─── Right (fixed): Share only. Save used to live here too but is now
+  // ranked by usage in the swipable middle group, same as the other
+  // secondary actions.
   const rightActions: EngagementAction[] = [
-    {
-      key: "save",
-      label: secondaryDefs.save.label,
-      icon: secondaryDefs.save.icon,
-      count: null,
-      onClick: () => secondaryDefs.save.onAction(),
-    },
     {
       key: "share",
       label: "Share",
@@ -335,8 +328,9 @@ export function PostCard({
     },
   ];
 
-  // ─── Middle (swipable, 2 slots visible): ranked secondary actions, plus
-  // own-post management folded in here instead of a separate "…" sheet.
+  // ─── Middle (swipable, 3 slots visible): ranked secondary actions —
+  // including Reshare and Save now — plus own-post management folded in
+  // here instead of a separate "…" sheet.
   const middleActions: EngagementAction[] = [
     ...order.map((k): EngagementAction => ({
       key: secondaryDefs[k].key,
