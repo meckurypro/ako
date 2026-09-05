@@ -1,4 +1,4 @@
-// src/components/SwipeableTabs.tsx
+// src/components/SwipeableTabs.tx
 import { useEffect, useRef, useState, type ReactNode } from "react";
 
 /**
