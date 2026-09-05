@@ -56,6 +56,7 @@ export function useAddPayoutAccount() {
   const queryClient = useQueryClient();
 
   return useMutation({
+    meta: { blocking: true },
     mutationFn: async (input: AddPayoutAccountInput) => {
       const { data, error } = await supabase.functions.invoke("add-payout-account", {
         body: input,
@@ -104,6 +105,7 @@ export function useWithdraw() {
   const queryClient = useQueryClient();
 
   return useMutation({
+    meta: { blocking: true },
     mutationFn: async (input: WithdrawInput) => {
       const { data, error } = await supabase.functions.invoke("process-withdrawal", {
         body: input,
