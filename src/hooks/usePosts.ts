@@ -170,6 +170,20 @@ export function useCreateReshare() {
   return useMutation({
     mutationFn: async ({ originalPostId, caption }: ReshareInput) => {
       if (!user) throw new Error("Not signed in");
+
+      // Guard against double-resharing the same post — the UI already hides
+      // the Reshare button once you've reshared, but this is a second line
+      // of defense against races (two taps before the query cache updates,
+      // stale UI, etc.) rather than relying on the client alone.
+      const { data: existing } = await supabase
+        .from("posts")
+        .select("id")
+        .eq("author_id", user.id)
+        .eq("reshared_post_id", originalPostId)
+        .eq("is_deleted", false)
+        .maybeSingle();
+      if (existing) throw new Error("You've already reshared this post.");
+
       const { data, error } = await supabase
         .from("posts")
         .insert({
@@ -185,10 +199,33 @@ export function useCreateReshare() {
       }
       return normalizePost(data);
     },
-    onSuccess: () => {
+    onSuccess: (_data, variables) => {
       queryClient.invalidateQueries({ queryKey: ["feed-posts"] });
       queryClient.invalidateQueries({ queryKey: ["user-posts"] });
+      queryClient.invalidateQueries({ queryKey: ["has-reshared", variables.originalPostId] });
     },
+  });
+}
+
+/** Whether the current user has already reshared/quoted the given post — used
+ * to hide the Reshare button (you can only reshare a given post once). */
+export function useHasReshared(postId: string, enabled: boolean = true) {
+  const { user } = useAuth();
+
+  return useQuery({
+    queryKey: ["has-reshared", postId, user?.id],
+    queryFn: async () => {
+      if (!user) return false;
+      const { data } = await supabase
+        .from("posts")
+        .select("id")
+        .eq("author_id", user.id)
+        .eq("reshared_post_id", postId)
+        .eq("is_deleted", false)
+        .maybeSingle();
+      return !!data;
+    },
+    enabled: !!user && enabled,
   });
 }
 
