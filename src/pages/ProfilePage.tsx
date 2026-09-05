@@ -1,5 +1,5 @@
 // src/pages/ProfilePage.tsx
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, type TouchEvent as ReactTouchEvent } from "react";
 import { useParams, Link, useNavigate, useSearchParams } from "react-router-dom";
 import { Settings, Wallet, MessageCircle, MoreHorizontal, Plus, Eye, X, Globe, UserCheck, Lock } from "lucide-react";
 import { useAuth } from "../hooks/useAuth";
@@ -14,7 +14,6 @@ import { useUserPostsWithArchived } from "../hooks/usePosts";
 import { useStartConversation } from "../hooks/useMessaging";
 import { useIsBlocked, useToggleBlock, useIsMuted, useToggleMute } from "../hooks/usePrivacy";
 import { useUserProjects } from "../hooks/useProjects";
-import { useActivity, type ActivityItem } from "../hooks/useActivity";
 import { useRecordProfileVisit, useProfileVisitCount } from "../hooks/useProfileVisits";
 import { Avatar } from "../components/Avatar";
 import { ImageLightbox } from "../components/ImageLightbox";
@@ -41,6 +40,14 @@ function getWebsiteDomain(url: string): string {
   }
 }
 
+// Posts/Projects only now — the owner's tickets/meetings/room
+// activity moved to its own page in the Activity hub (see
+// EventsActivity.tsx, reachable from the Activity icon in BottomNav)
+// rather than living here as a third profile tab.
+const TABS = ["posts", "projects"] as const;
+type ProfileTab = (typeof TABS)[number];
+const SWIPE_THRESHOLD_PX = 50;
+
 export function ProfilePage() {
   const { username } = useParams<{ username: string }>();
   const { user } = useAuth();
@@ -59,9 +66,12 @@ export function ProfilePage() {
   // Projects tab instead of Posts. Read once on mount — the tabs are
   // still plain buttons after that, so clicking Posts/Projects
   // doesn't fight the URL.
-  const [activeTab, setActiveTab] = useState<"posts" | "projects" | "activity">(
+  const [activeTab, setActiveTab] = useState<ProfileTab>(
     searchParams.get("tab") === "projects" ? "projects" : "posts"
   );
+  const [touchStartX, setTouchStartX] = useState<number | null>(null);
+  const [touchStartY, setTouchStartY] = useState<number | null>(null);
+
   const isFollowingQuery = useIsFollowing(profile?.id ?? "");
   const isFollowedByUserQuery = useIsFollowedByUser(profile?.id ?? "");
   const toggleFollow = useToggleFollow(profile?.id ?? "");
@@ -102,10 +112,6 @@ export function ProfilePage() {
   // now (see Archive.tsx) — this tab only ever shows active/draft/
   // cancelled ones.
   const visibleProjects = projects?.filter((p) => p.status !== "archived");
-  // useActivity() always reflects the signed-in user, not whichever
-  // profile is being viewed — there's no "someone else's activity" to
-  // fetch, which is exactly why this tab only renders for showOwnerView.
-  const { data: activityItems } = useActivity();
 
   // Profile visits: recording a visit is safe to fire on every mount
   // (it no-ops for self-visits inside the hook); the 30-day count is
@@ -169,6 +175,37 @@ export function ProfilePage() {
     if (!profile) return;
     const conversationId = await startConversation.mutateAsync(profile.id);
     navigate(`/messages/${conversationId}`);
+  }
+
+  // Same swipe pattern as Feed's tab row — bound only to the content
+  // area below the tab bar (see the wrapping div further down), so
+  // swiping over the header/bio never accidentally flips tabs.
+  const activeIndex = TABS.indexOf(activeTab);
+
+  function goToIndex(index: number) {
+    const clamped = Math.max(0, Math.min(TABS.length - 1, index));
+    setActiveTab(TABS[clamped]);
+  }
+
+  function handleTouchStart(e: ReactTouchEvent) {
+    setTouchStartX(e.touches[0].clientX);
+    setTouchStartY(e.touches[0].clientY);
+  }
+
+  function handleTouchEnd(e: ReactTouchEvent) {
+    if (touchStartX === null || touchStartY === null) return;
+    const deltaX = e.changedTouches[0].clientX - touchStartX;
+    const deltaY = e.changedTouches[0].clientY - touchStartY;
+    setTouchStartX(null);
+    setTouchStartY(null);
+
+    if (Math.abs(deltaX) < SWIPE_THRESHOLD_PX || Math.abs(deltaX) <= Math.abs(deltaY)) return;
+
+    if (deltaX < 0) {
+      goToIndex(activeIndex + 1);
+    } else {
+      goToIndex(activeIndex - 1);
+    }
   }
 
   if (isLoading || !profile) {
@@ -376,12 +413,14 @@ export function ProfilePage() {
         </div>
 
         {/* Tabs — hidden entirely for a locked private profile, since
-            there's nothing behind either tab for a visitor to switch to. */}
+            there's nothing behind either tab for a visitor to switch to.
+            Equal width now that Activity has moved out: Posts and
+            Projects split the row evenly instead of hugging the left. */}
         {!isPrivateLocked && (
-          <div className="flex items-center gap-6 mt-6 border-b border-border">
+          <div className="flex items-stretch mt-6 border-b border-border">
             <button
               onClick={() => setActiveTab("posts")}
-              className={`text-sm font-medium pb-3 border-b-2 -mb-px ${
+              className={`flex-1 text-center text-sm font-medium pb-3 border-b-2 -mb-px ${
                 activeTab === "posts" ? "text-accent border-accent" : "text-ink-muted border-transparent"
               }`}
             >
@@ -389,44 +428,33 @@ export function ProfilePage() {
             </button>
             <button
               onClick={() => setActiveTab("projects")}
-              className={`text-sm font-medium pb-3 border-b-2 -mb-px ${
+              className={`flex-1 text-center text-sm font-medium pb-3 border-b-2 -mb-px ${
                 activeTab === "projects" ? "text-accent border-accent" : "text-ink-muted border-transparent"
               }`}
             >
               Projects
             </button>
-            {/* Owner-only — this is the signed-in user's own tickets/
-                meetings/room activity, never something a visitor should
-                see on someone else's profile. */}
-            {showOwnerView && (
-              <button
-                onClick={() => setActiveTab("activity")}
-                className={`text-sm font-medium pb-3 border-b-2 -mb-px ${
-                  activeTab === "activity" ? "text-accent border-accent" : "text-ink-muted border-transparent"
-                }`}
-              >
-                Activity
-              </button>
-            )}
-            {showOwnerView && activeTab === "projects" && (
-              // "New" stays in the same trailing slot (ml-auto, rightmost)
-              // on both tabs it can appear in — only Posts never has one,
-              // since posts are composed from Feed/Compose instead.
-              <div className="ml-auto flex items-center gap-4">
-                <Link
-                  to="/projects/new"
-                  className="flex items-center gap-1 text-sm text-accent font-medium pb-3"
-                >
-                  <Plus size={16} />
-                  New
-                </Link>
-              </div>
-            )}
           </div>
         )}
 
-        {/* Tab content */}
-        <div className="mt-4">
+        {showOwnerView && !isPrivateLocked && activeTab === "projects" && (
+          <div className="flex justify-end mt-3">
+            <Link
+              to="/projects/new"
+              className="flex items-center gap-1 text-sm text-accent font-medium"
+            >
+              <Plus size={16} />
+              New
+            </Link>
+          </div>
+        )}
+
+        {/* Tab content — swipeable, same gesture as Feed's tab row */}
+        <div
+          className="mt-4"
+          onTouchStart={handleTouchStart}
+          onTouchEnd={handleTouchEnd}
+        >
           {isBlocked ? (
             <p className="text-ink-muted text-center py-10 text-sm">
               You've blocked this account. Unblock to see their content.
@@ -448,33 +476,6 @@ export function ProfilePage() {
               ))
             ) : (
               <p className="text-ink-muted text-center py-10 text-sm">No posts yet.</p>
-            )
-          ) : activeTab === "activity" ? (
-            activityItems && activityItems.length > 0 ? (
-              activityItems.map((item: ActivityItem, i: number) => (
-                <Link
-                  key={`${item.kind}-${item.projectId}-${i}`}
-                  to={
-                    item.kind === "event"
-                      ? `/projects/${item.projectId}/ticket`
-                      : item.kind === "meeting"
-                      ? `/meetings/${item.projectId}`
-                      : `/rooms/${item.projectId}`
-                  }
-                  className="flex items-center gap-3 p-3 rounded-xl border border-border bg-surface mb-2"
-                >
-                  <div className="min-w-0">
-                    <p className="text-sm text-ink truncate">{item.projectTitle}</p>
-                    <p className="text-xs text-ink-muted">
-                      {item.when ? new Date(item.when).toLocaleString() : "Date TBA"}
-                    </p>
-                  </div>
-                </Link>
-              ))
-            ) : (
-              <p className="text-ink-muted text-center py-10 text-sm">
-                Events, meetings, and rooms you've joined will show up here.
-              </p>
             )
           ) : visibleProjects && visibleProjects.length > 0 ? (
             visibleProjects.map((project) => (
