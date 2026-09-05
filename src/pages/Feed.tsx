@@ -2,17 +2,18 @@ import { useEffect, useState, type TouchEvent } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { X } from "lucide-react";
 import { useFeedPosts, useFollowingFeed, useTopDiscussionsFeed } from "../hooks/usePosts";
-import { useBookmarkedPosts } from "../hooks/useBookmarks";
 import { PostCard } from "../components/PostCard";
 import { BottomNav } from "../components/BottomNav";
 import { TopHeader } from "../components/TopHeader";
-import type { PostWithAuthor } from "../types/database";
 
+// "Saved" moved into the Activity hub (see SavedHub.tsx, reachable
+// from the Activity icon in BottomNav) — it now covers saved posts
+// AND saved projects in one place, rather than living here as a
+// posts-only feed tab.
 const TABS = [
   { key: "for-you", label: "For You" },
   { key: "following", label: "Following" },
   { key: "top", label: "Top Discussions" },
-  { key: "saved", label: "Saved" },
 ] as const;
 
 type TabKey = (typeof TABS)[number]["key"];
@@ -124,24 +125,6 @@ function TopDiscussionsTab() {
   );
 }
 
-function SavedTab() {
-  const { data: posts, isLoading, error } = useBookmarkedPosts();
-
-  if (isLoading) return <p className="text-ink-muted text-center py-10">Loading…</p>;
-  if (error) return <p className="text-danger text-center py-10">Couldn't load your saved posts. Try again.</p>;
-  if (!posts || posts.length === 0) {
-    return <EmptyState message="Nothing saved yet. Tap the save icon on a post to keep it here." />;
-  }
-
-  return (
-    <>
-      {posts.map((post: PostWithAuthor) => (
-        <PostCard key={post.id} post={post} />
-      ))}
-    </>
-  );
-}
-
 export function Feed() {
   const [searchParams, setSearchParams] = useSearchParams();
   const interestId = searchParams.get("interest") ?? undefined;
@@ -185,7 +168,7 @@ export function Feed() {
   return (
     <div className="min-h-screen bg-canvas pb-24">
       <div className="sticky top-0 z-20 bg-surface shadow-[0_2px_8px_-4px_rgba(var(--shadow-ink-rgb),0.10)]">
-        <TopHeader showTagline />
+        <TopHeader showTagline leftAction="create" />
 
         <div className="px-4 overflow-x-auto scrollbar-none">
           <div className="max-w-xl mx-auto flex items-center gap-6">
@@ -225,7 +208,6 @@ export function Feed() {
         {activeTab === "for-you" && <ForYouTab interestId={interestId} />}
         {activeTab === "following" && <FollowingTab />}
         {activeTab === "top" && <TopDiscussionsTab />}
-        {activeTab === "saved" && <SavedTab />}
       </div>
 
       <BottomNav />
