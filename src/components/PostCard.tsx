@@ -204,21 +204,21 @@ export function PostCard({
     support: {
       key: "support",
       label: "Support",
-      icon: <Handshake size={20} className="text-ink" />,
+      icon: <Handshake size={16} className="text-ink" />,
       count: post.support_count > 0 ? post.support_count : null,
       onAction: () => handleStance("support"),
     },
     disagree: {
       key: "disagree",
       label: "Disagree",
-      icon: <Frown size={20} className={STANCE_COLORS.disagree.iconClass} />,
+      icon: <Frown size={16} className={STANCE_COLORS.disagree.iconClass} />,
       count: post.disagree_count > 0 ? post.disagree_count : null,
       onAction: () => handleStance("disagree"),
     },
     pushback: {
       key: "pushback",
       label: "Pushback",
-      icon: <Hand size={20} className={STANCE_COLORS.pushback.iconClass} />,
+      icon: <Hand size={16} className={STANCE_COLORS.pushback.iconClass} />,
       count: post.pushback_count > 0 ? post.pushback_count : null,
       onAction: () => handleStance("pushback"),
     },
@@ -227,7 +227,7 @@ export function PostCard({
       label: isDisliked ? "Disliked" : "Dislike",
       icon: (
         <ThumbsDown
-          size={20}
+          size={16}
           fill={isDisliked ? "currentColor" : "none"}
         />
       ),
@@ -237,7 +237,7 @@ export function PostCard({
     gift: {
       key: "gift",
       label: "Gift",
-      icon: <GiftIcon size={20} className="text-ink" />,
+      icon: <GiftIcon size={16} className="text-ink" />,
       count: post.gift_count > 0 ? post.gift_count : null,
       onAction: handleGift,
     },
@@ -246,7 +246,7 @@ export function PostCard({
       label: isBookmarked ? "Saved" : "Save",
       icon: (
         <Bookmark
-          size={20}
+          size={16}
           fill={isBookmarked ? "currentColor" : "none"}
         />
       ),
@@ -257,27 +257,26 @@ export function PostCard({
 
   // Ranked order from the hook, falling back to the default until loaded.
   // Actions that don't make sense on your own post (see HIDDEN_FOR_OWNER
-  // above) are dropped from the tray entirely when viewing as the owner.
+  // above) are dropped entirely when viewing as the owner. "save" is
+  // excluded here — it's now a fixed right-side slot, not part of the
+  // ranked/swipable set.
   const order: SecondaryActionKey[] = (
     engagementOrder ?? ["support", "gift", "save", "disagree", "pushback", "dislike"]
-  ).filter((k) => !isOwner || !HIDDEN_FOR_OWNER.includes(k));
-
-  // ─── Tray: Like (fixed) + Reshare (fixed, hidden for owner) + ranked secondary ─
-  // ReactionTray scrolls horizontally — no slicing needed here. The CSS
-  // item width determines how many are visible vs off-screen.
+  ).filter((k) => k !== "save" && (!isOwner || !HIDDEN_FOR_OWNER.includes(k)));
 
   // Edit eligibility is always about this row (the reshare/quote/normal
   // post belonging to the viewer). A plain reshare has no content of its
   // own, so there's nothing to edit — only Archive/Delete apply to it.
   const canEdit = !plainReshare && canEditPost(post);
 
-  const trayActions: EngagementAction[] = [
+  // ─── Left (fixed): Like, then Reshare unless it's your own post ──────────
+  const leftActions: EngagementAction[] = [
     {
       key: "like",
       label: isLiked ? "Liked" : "Like",
       icon: (
         <Heart
-          size={20}
+          size={16}
           fill={isLiked ? "currentColor" : "none"}
           className="text-danger"
         />
@@ -290,12 +289,35 @@ export function PostCard({
           {
             key: "reshare",
             label: "Reshare",
-            icon: <Repeat2 size={20} />,
+            icon: <Repeat2 size={16} />,
             count: post.share_count > 0 ? post.share_count : null,
             onClick: handleReshareTap,
           } satisfies EngagementAction,
         ]
       : []),
+  ];
+
+  // ─── Right (fixed): Save, Share — always visible, never scrolled away ───
+  const rightActions: EngagementAction[] = [
+    {
+      key: "save",
+      label: secondaryDefs.save.label,
+      icon: secondaryDefs.save.icon,
+      count: null,
+      onClick: () => secondaryDefs.save.onAction(),
+    },
+    {
+      key: "share",
+      label: "Share",
+      icon: <Redo2 size={16} className="text-ink" />,
+      count: null,
+      onClick: () => void handleShare(),
+    },
+  ];
+
+  // ─── Middle (swipable, 2 slots visible): ranked secondary actions, plus
+  // own-post management folded in here instead of a separate "…" sheet.
+  const middleActions: EngagementAction[] = [
     ...order.map((k): EngagementAction => ({
       key: secondaryDefs[k].key,
       label: secondaryDefs[k].label,
@@ -303,11 +325,6 @@ export function PostCard({
       count: secondaryDefs[k].count,
       onClick: () => secondaryDefs[k].onAction(),
     })),
-    // Own-post management — moved down here instead of behind a "…" sheet
-    // since the tray already has room to spare once the actions above
-    // that don't apply to your own post (reshare/disagree/pushback/gift/
-    // dislike) are hidden. Native share moves down here too rather than
-    // staying in the header, so all of it lives in one place.
     ...(isOwner
       ? ([
           ...(canEdit
@@ -315,7 +332,7 @@ export function PostCard({
                 {
                   key: "edit",
                   label: "Edit",
-                  icon: <Pencil size={20} className="text-ink" />,
+                  icon: <Pencil size={16} className="text-ink" />,
                   count: null,
                   onClick: handleEdit,
                 } satisfies EngagementAction,
@@ -325,9 +342,9 @@ export function PostCard({
             key: "archive",
             label: post.is_archived ? "Unarchive" : "Archive",
             icon: post.is_archived ? (
-              <RotateCcw size={20} className="text-ink" />
+              <RotateCcw size={16} className="text-ink" />
             ) : (
-              <Archive size={20} className="text-ink" />
+              <Archive size={16} className="text-ink" />
             ),
             count: null,
             onClick: handleToggleArchive,
@@ -335,16 +352,9 @@ export function PostCard({
           {
             key: "delete",
             label: "Delete",
-            icon: <Trash2 size={20} className="text-danger" />,
+            icon: <Trash2 size={16} className="text-danger" />,
             count: null,
             onClick: handleDelete,
-          },
-          {
-            key: "share",
-            label: "Share",
-            icon: <Redo2 size={20} className="text-ink" />,
-            count: null,
-            onClick: () => void handleShare(),
           },
         ] satisfies EngagementAction[])
       : []),
@@ -405,9 +415,8 @@ export function PostCard({
           </p>
         </div>
 
-        {/* Comment count (+ reshare badge). Share moves down into the
-            tray for the post's own author (see trayActions above) —
-            everyone else keeps it here. */}
+        {/* Comment count (+ reshare badge). Share now lives exclusively in
+            the fixed right slot of the engagement row below, for everyone. */}
         <div className="flex flex-col items-center gap-2.5 self-start pt-0.5">
           {plainReshare && <RepostBadge source={original} />}
 
@@ -416,23 +425,13 @@ export function PostCard({
             aria-label="Comments"
             className="flex flex-col items-center gap-0.5 text-ink-muted"
           >
-            <MessageCircle size={18} />
+            <MessageCircle size={16} />
             {post.comment_count > 0 && (
               <span className="text-[11px] font-medium leading-none text-ink">
                 {post.comment_count}
               </span>
             )}
           </button>
-
-          {!isOwner && (
-            <button
-              onClick={() => void handleShare()}
-              aria-label="Share"
-              className="text-ink-muted"
-            >
-              <Redo2 size={18} />
-            </button>
-          )}
         </div>
       </div>
 
@@ -453,8 +452,8 @@ export function PostCard({
           details, regardless of whether it's still reachable. */}
       {(plainReshare || quotePost) && <RepostEmbed source={original} />}
 
-      {/* Like · Reshare (unless own post) · ranked secondary (owner-hidden ones dropped) */}
-      <ReactionTray actions={trayActions} />
+      {/* Like + Reshare fixed left · ranked secondary (+ owner management) swipable in the middle · Save + Share fixed right */}
+      <ReactionTray leftActions={leftActions} middleActions={middleActions} rightActions={rightActions} />
 
       {activeStance && (
         <StanceComposer
