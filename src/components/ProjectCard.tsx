@@ -15,6 +15,7 @@ import {
   Trash2,
   Bookmark,
   BookmarkCheck,
+  Heart,
   Ticket,
   Users,
   Video,
@@ -40,6 +41,7 @@ import {
 import { useMediaDetails } from "../hooks/useProjectTypeDetails";
 import { useIsProjectSaved, useToggleSavedProject } from "../hooks/useSavedProjects";
 import { useProjectAccessCount } from "../hooks/useProjectAccess";
+import { useMyReaction, useToggleReaction } from "../hooks/useReactions";
 
 // File and URL keep the original single-link/download "unlock"
 // pattern inline in the action row. Media gets its own block above
@@ -107,6 +109,8 @@ export function ProjectCard({
   const deleteProject = useDeleteProject();
   const isSavedQuery = useIsProjectSaved(project.id);
   const toggleSaved = useToggleSavedProject(project.id);
+  const isLikedQuery = useMyReaction(project.id, "project", "like");
+  const toggleLike = useToggleReaction(project.id, "project", "like");
   const accessCountQuery = useProjectAccessCount(project.id);
   const { data: mediaDetails } = useMediaDetails(project.project_type === "media" ? project.id : undefined);
 
@@ -118,6 +122,7 @@ export function ProjectCard({
   const hasPurchased = !!hasPurchasedQuery.data;
   const hasAccess = isOwner || isFree || hasPurchased;
   const isSaved = !!isSavedQuery.data;
+  const isLiked = !!isLikedQuery.data;
 
   // Close the kebab menu on any click/tap outside it.
   useEffect(() => {
@@ -230,6 +235,14 @@ export function ProjectCard({
       return;
     }
     toggleSaved.mutate(isSaved);
+  }
+
+  function handleToggleLike() {
+    if (!user) {
+      navigate(`/login?redirect=${encodeURIComponent(`/projects/${project.id}`)}`);
+      return;
+    }
+    toggleLike.mutate(isLiked);
   }
 
   const aspectRatio =
@@ -574,15 +587,27 @@ export function ProjectCard({
             </button>
           )}
 
-          <button
-            onClick={handleShare}
-            aria-label="Share project"
-            className={`flex items-center gap-1.5 text-sm text-ink-muted ${
-              hasAccess || isFree ? "" : "ml-auto"
-            }`}
+          <div
+            className={`flex items-center gap-3 ${hasAccess || isFree ? "" : "ml-auto"}`}
           >
-            <Redo2 size={15} />
-          </button>
+            {!isOwner && (
+              <button
+                onClick={handleToggleLike}
+                aria-label={isLiked ? "Unlike project" : "Like project"}
+                className="flex items-center gap-1 text-sm text-ink-muted"
+              >
+                <Heart
+                  size={15}
+                  fill={isLiked ? "currentColor" : "none"}
+                  className={isLiked ? "text-danger" : ""}
+                />
+                {project.like_count > 0 && <span>{project.like_count}</span>}
+              </button>
+            )}
+            <button onClick={handleShare} aria-label="Share project" className="text-ink-muted">
+              <Redo2 size={15} />
+            </button>
+          </div>
         </div>
       </div>
     </div>
