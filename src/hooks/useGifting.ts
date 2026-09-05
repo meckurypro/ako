@@ -12,6 +12,7 @@ export function useSendGift() {
   const queryClient = useQueryClient();
 
   return useMutation({
+    meta: { blocking: true },
     mutationFn: async (input: SendGiftInput) => {
       const { data, error } = await supabase.functions.invoke("process-gift", {
         body: input,
