@@ -1,4 +1,4 @@
-// src/pages/ProfilePage.ts
+// src/pages/ProfilePage.tsx
 import { useState, useEffect, useRef } from "react";
 import { useParams, Link, useNavigate } from "react-router-dom";
 import { Settings, Wallet, MessageCircle, MoreHorizontal, Plus, Eye, X, Globe, UserCheck, Lock, Redo2 } from "lucide-react";
