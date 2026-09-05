@@ -154,3 +154,50 @@ body {
   0%, 100% { opacity: 0.15; }
   50% { opacity: 1; }
 }
+
+/*
+  Tab-switch spring, shared by Feed's For You/Following/Top Discussions
+  row and ProfilePage's Posts/Projects row — both swap content on click
+  AND on horizontal swipe (see each page's handleTouchEnd), so this
+  needs to work as a plain mount-triggered animation rather than a
+  transition between two known states.
+  --tab-dir (1 or -1, set inline by whichever page triggered the
+  change) picks which side the incoming content springs in from, so a
+  swipe/click to the next tab and one to the previous tab feel like
+  opposite directions instead of the same fade every time. The 55%
+  keyframe overshoots past center (translateX goes negative before
+  settling back to 0) — that overshoot is what reads as "bouncy" rather
+  than a plain ease-out slide.
+*/
+@keyframes ako-tab-spring-in {
+  0%   { opacity: 0;   transform: translateX(calc(var(--tab-dir, 1) * 18px)) scale(0.98); }
+  55%  { opacity: 1;   transform: translateX(calc(var(--tab-dir, 1) * -5px)) scale(1.012); }
+  80%  { transform: translateX(calc(var(--tab-dir, 1) * 1.5px)) scale(0.998); }
+  100% { opacity: 1;   transform: translateX(0) scale(1); }
+}
+.animate-tab-spring {
+  animation: ako-tab-spring-in 420ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/*
+  Sliding active-tab indicator (the green underline) for the same two
+  tab rows. Replaces each tab drawing its own static border — one bar,
+  width = 100% / tab count, translated by index * 100% of that width —
+  so switching tabs moves and overshoots the bar itself instead of
+  swapping which button happens to have a border. The overshoot comes
+  from the easing curve, not a keyframe, since this animates a real
+  transform change (previous position -> new position) rather than
+  always animating in from a fixed offset like the content does.
+*/
+.ako-tab-indicator {
+  transition: transform 480ms cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-tab-spring {
+    animation: none;
+  }
+  .ako-tab-indicator {
+    transition: none;
+  }
+}
