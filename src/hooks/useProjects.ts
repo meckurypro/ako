@@ -91,6 +91,7 @@ export interface Project {
   // profile's Projects tab (to visitors), and the "similar projects"
   // rails. See useUserProjects/useSimilarProjects below.
   is_private: boolean;
+  like_count: number;
 }
 
 // --------------------------------------------------------
