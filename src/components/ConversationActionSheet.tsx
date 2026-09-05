@@ -1,5 +1,6 @@
 // src/components/ConversationActionSheet.tsx
 import { Pin, PinOff, Archive, Trash2, CheckSquare } from "lucide-react";
+import { useBackDismiss } from "../hooks/useBackDismiss";
 
 interface ConversationActionSheetProps {
   displayName: string;
@@ -29,6 +30,8 @@ export function ConversationActionSheet({
   onSelect,
   onClose,
 }: ConversationActionSheetProps) {
+  useBackDismiss(onClose);
+
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center">
       <div className="absolute inset-0 bg-ink/40" onClick={onClose} />
