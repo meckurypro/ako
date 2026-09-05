@@ -2,6 +2,7 @@
 import { Link, useNavigate } from "react-router-dom";
 import { ArrowLeft, ImageIcon, CalendarClock } from "lucide-react";
 import { useActivity, type ActivityItem } from "../hooks/useActivity";
+import { BottomNav } from "../components/BottomNav";
 
 const ROUTE_FOR: Record<ActivityItem["kind"], (item: ActivityItem) => string> = {
   event: (item) => `/projects/${item.projectId}/ticket`,
@@ -50,7 +51,7 @@ export function EventsActivity() {
   const past = (items ?? []).filter((i) => i.when && new Date(i.when).getTime() < now);
 
   return (
-    <div className="min-h-screen bg-canvas px-4 pt-6 pb-16">
+    <div className="min-h-screen bg-canvas px-4 pt-6 pb-24">
       <div className="max-w-xl mx-auto">
         <button onClick={() => navigate(-1)} className="text-ink-muted mb-4">
           <ArrowLeft size={22} />
@@ -94,6 +95,8 @@ export function EventsActivity() {
           </>
         )}
       </div>
+
+      <BottomNav />
     </div>
   );
 }
