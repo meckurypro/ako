@@ -7,10 +7,11 @@ import { useComments } from "../hooks/useComments";
 import { useMarkPostSeen } from "../hooks/useMarkPostSeen";
 import { PostCard } from "../components/PostCard";
 import { CommentThread } from "../components/CommentThread";
+import { BottomNav } from "../components/BottomNav";
 import { PROFILE_ROLES_SELECT, toProfileRoles } from "../lib/profileRoles";
 import type { PostWithAuthor } from "../types/database";
 
-const POST_SELECT = `*, author:profiles!posts_author_id_fkey(id, username, display_name, avatar_url, tier, ${PROFILE_ROLES_SELECT})`;
+const POST_SELECT = `*, author:profiles!posts_author_id_fkey(id, username, display_name, avatar_url, tier, is_private, ${PROFILE_ROLES_SELECT})`;
 
 function usePost(postId: string) {
   return useQuery({
@@ -54,7 +55,7 @@ export function PostDetail() {
           <p className="text-ink-muted">Loading…</p>
         ) : (
           <>
-            <PostCard post={post} />
+            <PostCard post={post} showStats />
 
             {/* id="discussion" + scroll-mt-4 lets PostCard's comment tray
                 button scroll here smoothly when already on the detail page. */}
@@ -73,6 +74,8 @@ export function PostDetail() {
           </>
         )}
       </div>
+
+      <BottomNav />
     </div>
   );
 }
