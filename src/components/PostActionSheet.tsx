@@ -1,5 +1,6 @@
 // src/components/PostActionSheet.tsx
 import { Pencil, Archive, RotateCcw, Trash2 } from "lucide-react";
+import { useBackDismiss } from "../hooks/useBackDismiss";
 
 interface PostActionSheetProps {
   canEdit: boolean;
@@ -22,6 +23,8 @@ export function PostActionSheet({
   onDelete,
   onClose,
 }: PostActionSheetProps) {
+  useBackDismiss(onClose);
+
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center">
       <div className="absolute inset-0 bg-ink/40" onClick={onClose} />
