@@ -30,10 +30,26 @@ function timeAgo(dateString: string): string {
   return `${Math.floor(hours / 24)}d`;
 }
 
+// Where a tap on a notification should land. Every engagement type
+// except gifts (gift_received routes through Messages, not here — see
+// TYPE_CONFIG/design notes) should take the person to the exact post or
+// comment they were engaged on, not just "a post somewhere":
+//   - post-level engagement (like/dislike/support/disagree/pushback on
+//     a POST) already has target_id === the post id, so /post/{id} is
+//     already the exact target.
+//   - comment-level engagement (a reply on your post, or on your
+//     comment) has target_id === the COMMENT id, which isn't a route on
+//     its own — useNotifications() resolves comment_post_id for these,
+//     so we route to the parent post with a `#comment-{id}` anchor that
+//     PostDetail/CommentThread scroll to and briefly highlight.
 function notificationLink(n: NotificationWithActor): string {
   if (n.type === "follow_request") return "/requests";
   if (n.target_type === "post" && n.target_id) return `/post/${n.target_id}`;
-  if (n.target_type === "comment" && n.target_id) return `/post/${n.target_id}`; // comments link back through post context
+  if (n.target_type === "comment" && n.target_id) {
+    // comment_post_id can be null if it couldn't be resolved (e.g. the
+    // comment was since deleted) — nothing sensible to link to then.
+    return n.comment_post_id ? `/post/${n.comment_post_id}#comment-${n.target_id}` : "#";
+  }
   if (n.target_type === "conversation" && n.target_id) return `/messages/${n.target_id}`;
   if (n.target_type === "profile" && n.actor) return `/profile/${n.actor.username}`;
   return "#";
@@ -75,8 +91,12 @@ export function Notifications() {
                 key={n.id}
                 to={notificationLink(n)}
                 onClick={() => !n.read_at && markRead.mutate(n.id)}
+                // Unread rows use --color-highlight — a deliberately more
+                // saturated green than the pale bg-accent-soft used
+                // elsewhere in the app, so unread items stand out at a
+                // glance instead of blending into the list.
                 className={`flex items-start gap-3 py-3.5 border-b border-border ${
-                  !n.read_at ? "bg-accent-soft/40 -mx-4 px-4" : ""
+                  !n.read_at ? "bg-highlight -mx-4 px-4" : ""
                 }`}
               >
                 {n.actor ? (
