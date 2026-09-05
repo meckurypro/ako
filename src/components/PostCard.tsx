@@ -33,7 +33,7 @@ import { useAuth } from "../hooks/useAuth";
 import { useIsBookmarked, useToggleBookmark } from "../hooks/useBookmarks";
 import { useMyReaction, useToggleReaction } from "../hooks/useReactions";
 import { useEngagementOrder, type SecondaryActionKey } from "../hooks/useEngagementOrder";
-import { useDeletePost, useSetPostArchived, canEditPost } from "../hooks/usePosts";
+import { useDeletePost, useSetPostArchived, useHasReshared, canEditPost } from "../hooks/usePosts";
 import { shortDisplayName } from "../lib/displayName";
 import { isPlainReshare, isQuote, type PostWithAuthor, type Stance } from "../types/database";
 
@@ -93,6 +93,16 @@ export function PostCard({
   const quotePost = isQuote(post);
   const original = post.reshared_post;
 
+  // Reposting a plain reshare should target the original post (matching
+  // standard retweet-of-a-retweet behavior — no reshare chains). Quotes
+  // keep their own content, so resharing a quote targets the quote
+  // itself, same as `post` normally would. Computed up here (rather than
+  // further down, where it used to live) because leftActions below needs
+  // reshareTarget.id to check hasReshared before deciding whether to show
+  // the Reshare button at all.
+  const originalGone = !original || original.is_deleted || original.is_archived;
+  const reshareTarget = plainReshare && !originalGone ? original! : post;
+
   // Own-post view: several engagement actions don't make sense directed
   // at yourself (resharing, taking a stance on, or gifting your own
   // post), so they're hidden from the tray entirely rather than just
@@ -116,6 +126,11 @@ export function PostCard({
   const setArchived = useSetPostArchived();
 
   const { data: engagementOrder } = useEngagementOrder();
+
+  // Only relevant when Reshare would otherwise show at all (non-owners) —
+  // no need to query this for your own posts.
+  const hasResharedQuery = useHasReshared(reshareTarget.id, !isOwner);
+  const hasReshared = !!hasResharedQuery.data;
 
   function handleContentTap() {
     const now = Date.now();
@@ -269,7 +284,12 @@ export function PostCard({
   // own, so there's nothing to edit — only Archive/Delete apply to it.
   const canEdit = !plainReshare && canEditPost(post);
 
-  // ─── Left (fixed): Like, then Reshare unless it's your own post ──────────
+  // ─── Left (fixed): Like, then Reshare — unless it's your own post, or you've
+  // already reshared this one (a post can only be reshared once per user).
+  // Dropping Reshare here shrinks the left group from 2 to 1, which
+  // ReactionTray's slot math automatically compensates for by giving the
+  // swipable middle group a 3rd visible slot instead of 2 — so the row
+  // still always shows 6 evenly-spaced icons, no dead gap where Reshare was.
   const leftActions: EngagementAction[] = [
     {
       key: "like",
@@ -284,7 +304,7 @@ export function PostCard({
       count: post.like_count > 0 ? post.like_count : null,
       onClick: () => toggleLike.mutate(isLiked),
     },
-    ...(!isOwner
+    ...(!isOwner && !hasReshared
       ? [
           {
             key: "reshare",
@@ -352,7 +372,7 @@ export function PostCard({
           {
             key: "delete",
             label: "Delete",
-            icon: <Trash2 size={16} className="text-danger" />,
+            icon: <Trash2 size={16} className="text-ink" />,
             count: null,
             onClick: handleDelete,
           },
@@ -360,15 +380,9 @@ export function PostCard({
       : []),
   ];
 
-  // Reposting a plain reshare should target the original post (matching
-  // standard retweet-of-a-retweet behavior — no reshare chains). Quotes
-  // keep their own content, so resharing a quote targets the quote
-  // itself, same as `post` normally would.
-  const originalGone = !original || original.is_deleted || original.is_archived;
-  const reshareTarget = plainReshare && !originalGone ? original! : post;
-
   function handleReshareTap() {
     if (plainReshare && originalGone) return; // nothing valid left to reshare
+    if (hasReshared) return; // already reshared — button should be hidden, but guard anyway
     setShowReshareSheet(true);
   }
 
