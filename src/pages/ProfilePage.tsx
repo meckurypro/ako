@@ -204,9 +204,10 @@ export function ProfilePage() {
   // most platforms), plain clipboard copy otherwise. The URL is the
   // profile's own canonical route — opened by anyone other than the
   // owner, it renders exactly as the ordinary visitor view already
-  // does, so no separate "visitor mode" flag is needed.
-  async function handleShareProfile() {
-    setOwnerMenuOpen(false);
+  // does, so no separate "visitor mode" flag is needed. Split from
+  // the menu-closing so both the owner's dropdown and the visitor's
+  // "…" menu can call it and each close their own open state first.
+  async function shareProfile() {
     if (!profile) return;
     const url = `${window.location.origin}/profile/${profile.username}`;
     if (navigator.share) {
@@ -218,6 +219,11 @@ export function ProfilePage() {
     } else {
       await navigator.clipboard.writeText(url);
     }
+  }
+
+  function handleShareProfile() {
+    setOwnerMenuOpen(false);
+    void shareProfile();
   }
 
   // Same swipe pattern as Feed's tab row — bound only to the content
@@ -379,7 +385,11 @@ export function ProfilePage() {
                 isBlocked
               }
               className={`px-5 py-2 rounded-full text-sm font-medium disabled:opacity-40 ${
-                isFollowing || hasPendingRequest ? "bg-accent-soft text-accent" : "bg-accent text-canvas"
+                isFollowing || hasPendingRequest
+                  ? "bg-accent-soft text-accent"
+                  : isFollowedByUser
+                  ? "bg-pushback/15 text-pushback"
+                  : "bg-ink/10 text-ink"
               }`}
             >
               {isFollowing
@@ -402,6 +412,16 @@ export function ProfilePage() {
 
               {menuOpen && (
                 <div className="absolute top-full right-0 mt-1 bg-canvas border border-border rounded-xl shadow-lg py-1 w-40 z-10">
+                  <button
+                    onClick={() => {
+                      setMenuOpen(false);
+                      void shareProfile();
+                    }}
+                    className="w-full flex items-center gap-2.5 text-left px-4 py-2.5 text-sm text-ink hover:bg-surface"
+                  >
+                    <Redo2 size={16} />
+                    Share profile
+                  </button>
                   <button
                     onClick={() => {
                       toggleMute.mutate(isMuted);
