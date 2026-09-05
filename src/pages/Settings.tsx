@@ -15,6 +15,8 @@ import {
   Moon,
   MonitorSmartphone,
   Check,
+  X,
+  Loader2,
   SlidersHorizontal,
   AlertTriangle,
   LogOut,
@@ -161,6 +163,7 @@ type SectionId = "profile" | "security" | "privacy" | "appearance" | "advanced";
 
 export function Settings() {
   const navigate = useNavigate();
+  const { user } = useAuth();
 
   // Accordion: exactly one section open at a time. "profile" starts open
   // since it's the one people land on and edit most; opening another
@@ -179,6 +182,7 @@ export function Settings() {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [displayName, setDisplayName] = useState("");
+  const [username, setUsername] = useState("");
   const [bio, setBio] = useState("");
   const [websiteUrl, setWebsiteUrl] = useState("");
   const [avatarUrl, setAvatarUrl] = useState("");
@@ -187,9 +191,21 @@ export function Settings() {
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [profileSaved, setProfileSaved] = useState(false);
 
+  // Same idea as SignUp's live username check — a UX nicety, not the
+  // real enforcement (profiles.username stays UNIQUE at the DB level
+  // either way) — just with two differences for the "editing your
+  // existing one" case: skip the check entirely (status stays "idle")
+  // when the typed value matches what's already saved, and exclude the
+  // user's own row from the lookup so re-saving your own username, or
+  // typing back to it, never comes back "taken".
+  type UsernameStatus = "idle" | "checking" | "available" | "taken" | "error";
+  const [usernameStatus, setUsernameStatus] = useState<UsernameStatus>("idle");
+  const usernameCheckId = useRef(0);
+
   useEffect(() => {
     if (profile) {
       setDisplayName(profile.display_name ?? "");
+      setUsername(profile.username ?? "");
       setBio(profile.bio ?? "");
       setWebsiteUrl(profile.website_url ?? "");
       setAvatarUrl(profile.avatar_url ?? "");
@@ -199,6 +215,38 @@ export function Settings() {
       setRoleIds(sorted.map((r: any) => r.role.id));
     }
   }, [profile]);
+
+  useEffect(() => {
+    if (!profile) return;
+    const normalized = username.trim().toLowerCase();
+    if (normalized === profile.username.toLowerCase() || normalized.length < 3) {
+      setUsernameStatus("idle");
+      return;
+    }
+
+    const checkId = ++usernameCheckId.current;
+    setUsernameStatus("checking");
+
+    const timeout = setTimeout(async () => {
+      const { data, error: checkError } = await supabase
+        .from("profiles")
+        .select("id")
+        .eq("username", normalized)
+        .neq("id", user!.id)
+        .maybeSingle();
+
+      // Ignore stale responses if the user kept typing.
+      if (checkId !== usernameCheckId.current) return;
+
+      if (checkError) {
+        setUsernameStatus("error");
+      } else {
+        setUsernameStatus(data ? "taken" : "available");
+      }
+    }, 400);
+
+    return () => clearTimeout(timeout);
+  }, [username, profile, user]);
 
   function toggleRole(id: string) {
     setRoleIds((prev) => {
@@ -228,6 +276,46 @@ export function Settings() {
     setProfileError(null);
     setProfileSaved(false);
 
+    const normalizedUsername = username.trim().toLowerCase();
+    const usernameChanged = !!profile && normalizedUsername !== profile.username.toLowerCase();
+
+    if (usernameChanged) {
+      if (normalizedUsername.length < 3) {
+        setProfileError("Username must be at least 3 characters.");
+        return;
+      }
+      if (usernameStatus === "taken") {
+        setProfileError("That username is already taken.");
+        return;
+      }
+      if (usernameStatus === "checking" || usernameStatus === "error") {
+        setProfileError("Still checking that username — try again in a moment.");
+        return;
+      }
+
+      // Re-check right before submitting — the live check above can go
+      // stale if someone else takes the name in the gap between typing
+      // and hitting submit. profiles.username is UNIQUE in the DB
+      // either way, so this is belt-and-suspenders, not the real
+      // enforcement (same pattern as SignUp.tsx).
+      const { data: existing, error: recheckError } = await supabase
+        .from("profiles")
+        .select("id")
+        .eq("username", normalizedUsername)
+        .neq("id", user!.id)
+        .maybeSingle();
+
+      if (recheckError) {
+        setProfileError("Couldn't verify that username right now. Please try again.");
+        return;
+      }
+      if (existing) {
+        setUsernameStatus("taken");
+        setProfileError("That username is already taken.");
+        return;
+      }
+    }
+
     try {
       await Promise.all([
         updateProfile.mutateAsync({
@@ -235,6 +323,7 @@ export function Settings() {
           bio,
           website_url: websiteUrl,
           avatar_url: avatarUrl,
+          ...(usernameChanged ? { username: normalizedUsername } : {}),
         }),
         updateProfileRoles.mutateAsync(roleIds),
       ]);
@@ -365,6 +454,76 @@ export function Settings() {
                 onChange={(e) => setDisplayName(e.target.value)}
                 required
               />
+
+              <div className="mb-4">
+                <label htmlFor="username" className="block text-sm font-medium text-ink-muted mb-1.5">
+                  Username
+                </label>
+                <div className="relative">
+                  <span className="absolute left-4 top-1/2 -translate-y-1/2 text-ink-muted pointer-events-none">
+                    @
+                  </span>
+                  <input
+                    id="username"
+                    type="text"
+                    value={username}
+                    onChange={(e) => setUsername(e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, ""))}
+                    required
+                    pattern="[a-z0-9_]+"
+                    title="Lowercase letters, numbers, and underscores only"
+                    className={`w-full pl-8 pr-10 py-3 rounded-xl border bg-canvas text-ink
+                      focus:outline-none focus:ring-2 focus:ring-accent/40 focus:border-accent
+                      transition-colors ${
+                        usernameStatus === "taken" || usernameStatus === "error"
+                          ? "border-danger"
+                          : usernameStatus === "available"
+                          ? "border-accent"
+                          : "border-border"
+                      }`}
+                  />
+                  {/* Tick/cross mirrors SignUp's text-only status with an
+                      icon at a glance — spinner while the debounced check
+                      is in flight, then green check or red X once it
+                      resolves. Hidden entirely at "idle" (unchanged from
+                      the saved username, or not typed yet). */}
+                  <span className="absolute right-3.5 top-1/2 -translate-y-1/2">
+                    {usernameStatus === "checking" && (
+                      <Loader2 size={16} className="text-ink-muted animate-spin" />
+                    )}
+                    {usernameStatus === "available" && <Check size={16} className="text-accent" />}
+                    {(usernameStatus === "taken" || usernameStatus === "error") && (
+                      <X size={16} className="text-danger" />
+                    )}
+                  </span>
+                </div>
+                {usernameStatus === "checking" && (
+                  <p className="text-xs text-ink-muted mt-1.5">Checking availability…</p>
+                )}
+                {usernameStatus === "taken" && (
+                  <p className="text-xs text-danger mt-1.5">That username is already taken.</p>
+                )}
+                {usernameStatus === "error" && (
+                  <p className="text-xs text-danger mt-1.5">Couldn't check that username. Try again.</p>
+                )}
+                {usernameStatus === "available" && (
+                  <p className="text-xs text-accent mt-1.5">Username is available.</p>
+                )}
+              </div>
+
+              <div className="mb-4">
+                <label htmlFor="email" className="block text-sm font-medium text-ink-muted mb-1.5">
+                  Email
+                </label>
+                <input
+                  id="email"
+                  type="email"
+                  value={user?.email ?? ""}
+                  readOnly
+                  disabled
+                  className="w-full px-4 py-3 rounded-xl border border-border bg-canvas text-ink-muted cursor-not-allowed"
+                />
+                <p className="text-xs text-ink-muted mt-1.5">This can't be changed here.</p>
+              </div>
 
               <div className="mb-4">
                 <label htmlFor="bio" className="block text-sm font-medium text-ink-muted mb-1.5">
