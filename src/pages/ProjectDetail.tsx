@@ -1,56 +1,64 @@
 // src/pages/ProjectDetail.tsx
-import { useParams, useNavigate, useLocation } from "react-router-dom";
-import { ArrowLeft } from "lucide-react";
-import { useQuery } from "@tanstack/react-query";
-import { supabase } from "../lib/supabase";
-import { useComments } from "../hooks/useComments";
-import { useMarkPostSeen } from "../hooks/useMarkPostSeen";
-import { PostCard } from "../components/PostCard";
-import { CommentThread } from "../components/CommentThread";
-import { PROFILE_ROLES_SELECT, toProfileRoles } from "../lib/profileRoles";
-import type { PostWithAuthor } from "../types/database";
+import { useParams, useNavigate, Link } from "react-router-dom";
+import { ArrowLeft, ImageIcon, MapPin, Video, CalendarClock } from "lucide-react";
+import { useProjectDetail, useSimilarProjects, PROJECT_TYPE_LABELS, type Project } from "../hooks/useProjects";
+import { useEventDetails, useMeetingDetails } from "../hooks/useProjectTypeDetails";
+import { useMarkProjectSeen } from "../hooks/useMarkProjectSeen";
+import { Avatar } from "../components/Avatar";
+import { TierBadge } from "../components/TierBadge";
+import { RoleTags } from "../components/RoleTags";
+import { ProjectCard } from "../components/ProjectCard";
 
-const POST_SELECT = `*, author:profiles!posts_author_id_fkey(id, username, display_name, avatar_url, tier, ${PROFILE_ROLES_SELECT})`;
+// Compact, non-interactive project tile for the "similar projects"
+// rails — just enough to identify it and tap through. The full
+// ProjectCard (buy/download/menu) is reserved for the one project
+// this page is actually about
+function ProjectMiniCard({ project }: { project: Project }) {
+  return (
+    <Link
+      to={`/projects/${project.id}`}
+      className="flex-shrink-0 w-36 bg-surface rounded-xl overflow-hidden border border-border"
+    >
+      <div className="w-full aspect-square bg-canvas flex items-center justify-center">
+        {project.thumbnail_url ? (
+          <img src={project.thumbnail_url} alt="" className="w-full h-full object-cover" />
+        ) : (
+          <ImageIcon size={24} className="text-ink-muted" />
+        )}
+      </div>
+      <div className="p-2.5">
+        <p className="text-sm text-ink truncate">{project.title}</p>
+        <p className="text-xs text-ink-muted">{PROJECT_TYPE_LABELS[project.project_type]}</p>
+      </div>
+    </Link>
+  );
+}
 
-function usePost(postId: string) {
-  return useQuery({
-    queryKey: ["post", postId],
-    queryFn: async (): Promise<PostWithAuthor> => {
-      const { data, error } = await supabase
-        .from("posts")
-        .select(POST_SELECT)
-        .eq("id", postId)
-        .single();
-      if (error) throw error;
-
-      const raw = data as any;
-      return {
-        ...raw,
-        author: raw.author
-          ? { ...raw.author, roles: toProfileRoles(raw.author.profile_roles) }
-          : raw.author,
-      } as PostWithAuthor;
-    },
-    enabled: !!postId,
-  });
+function ProjectRail({ title, projects }: { title: string; projects: Project[] }) {
+  if (projects.length === 0) return null;
+  return (
+    <div className="mt-6">
+      <h3 className="font-display text-base text-ink mb-3">{title}</h3>
+      <div className="flex gap-3 overflow-x-auto pb-1 -mx-4 px-4">
+        {projects.map((p) => (
+          <ProjectMiniCard key={p.id} project={p} />
+        ))}
+      </div>
+    </div>
+  );
 }
 
 export function ProjectDetail() {
-  const { postId } = useParams<{ postId: string }>();
+  const { projectId } = useParams<{ projectId: string }>();
   const navigate = useNavigate();
-  const location = useLocation();
-  const { data: post, isLoading: postLoading } = usePost(postId!);
-  const { data: comments, isLoading: commentsLoading } = useComments(postId!);
+  const { data: project, isLoading } = useProjectDetail(projectId);
+  const { data: similar } = useSimilarProjects(project);
+  const { data: eventDetails } = useEventDetails(project?.project_type === "event" ? projectId : undefined);
+  const { data: meetingDetails } = useMeetingDetails(project?.project_type === "meeting" ? projectId : undefined);
 
-  useMarkPostSeen(postId!, post?.author?.id);
-
-  // Notification links for comment-level engagement arrive as
-  // /post/{id}#comment-{commentId} (see notificationLink in
-  // Notifications.tsx) — pull the target comment id out of the hash so
-  // CommentThread can scroll to it and flash a highlight.
-  const highlightCommentId = location.hash.startsWith("#comment-")
-    ? location.hash.slice("#comment-".length)
-    : null;
+  // Powers the Activity hub's "History" tab (see useViewHistory) —
+  // same idea as useMarkPostSeen for posts.
+  useMarkProjectSeen(projectId!, project?.owner?.id);
 
   return (
     <div className="min-h-screen bg-canvas px-4 pt-4 pb-24">
@@ -59,30 +67,71 @@ export function ProjectDetail() {
           <ArrowLeft size={22} />
         </button>
 
-        {postLoading || !post ? (
+        {isLoading || !project ? (
           <p className="text-ink-muted">Loading…</p>
         ) : (
           <>
-            <PostCard post={post} />
+            <ProjectCard project={project} />
 
-            {/* id="discussion" + scroll-mt-4 lets PostCard's comment tray
-                button scroll here smoothly when already on the detail page. */}
-            <h3
-              id="discussion"
-              className="font-display text-lg text-ink mt-6 mb-2 scroll-mt-4"
-            >
-              Discussion
-            </h3>
-
-            {commentsLoading ? (
-              <p className="text-ink-muted text-sm">Loading responses…</p>
-            ) : (
-              <CommentThread
-                comments={comments ?? []}
-                postId={post.id}
-                highlightId={highlightCommentId}
-              />
+            {/* Event/Meeting browsing info — shown to everyone, purchase
+                is what unlocks the ticket/join page, not this block. */}
+            {project.project_type === "event" && eventDetails && (
+              <div className="flex flex-col gap-1.5 -mt-2 mb-4 text-sm text-ink-muted">
+                {eventDetails.event_date && (
+                  <span className="flex items-center gap-1.5">
+                    <CalendarClock size={14} /> {new Date(eventDetails.event_date).toLocaleString()}
+                  </span>
+                )}
+                <span className="flex items-center gap-1.5">
+                  <MapPin size={14} />
+                  {eventDetails.location_type === "physical" ? eventDetails.location_value : "Online"}
+                </span>
+              </div>
             )}
+            {project.project_type === "meeting" && meetingDetails && (
+              <div className="flex items-center gap-1.5 -mt-2 mb-4 text-sm text-ink-muted">
+                <Video size={14} /> {new Date(meetingDetails.scheduled_at).toLocaleString()}
+              </div>
+            )}
+
+            {project.topics.length > 0 && (
+              <div className="flex flex-wrap gap-2 -mt-2 mb-4">
+                {project.topics.map((topic) => (
+                  <span
+                    key={topic.id}
+                    className="text-xs font-medium px-2.5 py-1 rounded-full bg-surface border border-border text-ink-muted"
+                  >
+                    {topic.name}
+                  </span>
+                ))}
+              </div>
+            )}
+
+            {/* Creator byline — tapping any part of it opens the
+                creator's profile, per the "fanlink" behavior. */}
+            <Link
+              to={`/profile/${project.owner.username}`}
+              className="flex items-center gap-3 bg-surface rounded-2xl border border-border p-4"
+            >
+              <Avatar src={project.owner.avatar_url} name={project.owner.display_name} size="lg" />
+              <div className="min-w-0">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="font-medium text-ink">{project.owner.display_name}</span>
+                  <TierBadge tier={project.owner.tier} />
+                </div>
+                {project.owner.roles.length > 0 && (
+                  <RoleTags roles={project.owner.roles} className="text-xs text-ink-muted block mt-0.5" />
+                )}
+                <span className="text-sm text-ink-muted">@{project.owner.username}</span>
+              </div>
+            </Link>
+
+            <ProjectRail title={`More from ${project.owner.display_name}`} projects={similar?.moreFromCreator ?? []} />
+            <ProjectRail title="Similar topics" projects={similar?.moreOnTopic ?? []} />
+            <ProjectRail
+              title={`More ${PROJECT_TYPE_LABELS[project.project_type]}s`}
+              projects={similar?.moreOfType ?? []}
+            />
           </>
         )}
       </div>
