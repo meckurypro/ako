@@ -2,6 +2,7 @@
 import { Link, useNavigate } from "react-router-dom";
 import { ArrowLeft, ImageIcon, History as HistoryIcon, FileText } from "lucide-react";
 import { useViewHistory, type HistoryItem } from "../hooks/useViewHistory";
+import { BottomNav } from "../components/BottomNav";
 
 // Compact rows rather than full PostCard/ProjectCard — History reads
 // more like a browsing log (what, when) than a feed, so it's kept
@@ -44,7 +45,7 @@ export function HistoryActivity() {
   const { data: items, isLoading } = useViewHistory();
 
   return (
-    <div className="min-h-screen bg-canvas px-4 pt-6 pb-16">
+    <div className="min-h-screen bg-canvas px-4 pt-6 pb-24">
       <div className="max-w-xl mx-auto">
         <button onClick={() => navigate(-1)} className="text-ink-muted mb-4">
           <ArrowLeft size={22} />
@@ -68,6 +69,8 @@ export function HistoryActivity() {
           </div>
         )}
       </div>
+
+      <BottomNav />
     </div>
   );
 }
