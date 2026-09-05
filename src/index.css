@@ -82,6 +82,21 @@
   --accent-rgb: 76, 174, 124;
 }
 
+/*
+  iOS Safari samples <html>'s background for the bottom overscroll/
+  toolbar safe-area strip, not <body>'s — so without this rule that
+  strip stays whatever the browser's default (white) is, regardless of
+  theme-color or body's background. Matches --color-surface (not
+  --color-canvas like body) because that's what the topnav/bottomnav
+  meta[theme-color] value in index.html is keyed to, so all three
+  read as one continuous bar. .dark is applied to this same <html>
+  element (see useTheme.tsx), so the var swap here needs no extra
+  selector.
+*/
+html {
+  background-color: var(--color-surface);
+}
+
 body {
   background-color: var(--color-canvas);
   color: var(--color-ink);
