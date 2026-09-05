@@ -109,6 +109,7 @@ export function usePostToRoom(projectId: string) {
   const { user } = useAuth();
   const queryClient = useQueryClient();
   return useMutation({
+    meta: { blocking: true },
     mutationFn: async (input: { type: RoomPost["type"]; content?: string; media_url?: string }) => {
       if (!user) throw new Error("Not signed in");
       const { error } = await supabase.from("room_posts").insert({
@@ -144,6 +145,7 @@ export function useRoomMeetings(projectId: string | undefined) {
 export function useScheduleRoomMeeting(projectId: string) {
   const queryClient = useQueryClient();
   return useMutation({
+    meta: { blocking: true },
     mutationFn: async (input: { title?: string; scheduled_at: string }) => {
       const { error } = await supabase.from("room_meetings").insert({
         project_id: projectId,
@@ -177,6 +179,7 @@ export function useCreateAssignment(projectId: string) {
   const { user } = useAuth();
   const queryClient = useQueryClient();
   return useMutation({
+    meta: { blocking: true },
     mutationFn: async (input: {
       title: string;
       description?: string;
@@ -220,6 +223,7 @@ export function useSubmitAssignment(assignmentId: string) {
   const { user } = useAuth();
   const queryClient = useQueryClient();
   return useMutation({
+    meta: { blocking: true },
     mutationFn: async (input: { format: AssignmentSubmission["format"]; content?: string; media_url?: string }) => {
       if (!user) throw new Error("Not signed in");
       const { error } = await supabase.from("assignment_submissions").insert({
