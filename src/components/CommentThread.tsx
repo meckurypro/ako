@@ -94,7 +94,7 @@ function CommentItem({ comment, postId, depth = 0, highlightId }: CommentItemPro
           <div className="flex items-center gap-3 mt-1.5">
             <button
               onClick={() => toggleLike.mutate(isLiked)}
-              className={`flex items-center gap-1 text-xs ${isLiked ? "text-accent" : "text-ink-muted"}`}
+              className="flex items-center gap-1 text-xs text-danger"
             >
               <Heart size={13} fill={isLiked ? "currentColor" : "none"} />
               {comment.like_count > 0 && comment.like_count}
