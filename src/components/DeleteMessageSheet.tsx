@@ -1,5 +1,6 @@
 // src/components/DeleteMessageSheet.tsx
 import { Trash2 } from "lucide-react";
+import { useBackDismiss } from "../hooks/useBackDismiss";
 import type { DeleteScope } from "../hooks/useMessaging";
 
 interface DeleteMessageSheetProps {
@@ -25,6 +26,7 @@ interface DeleteMessageSheetProps {
  * → delete) would be one tap too many for something this common.
  */
 export function DeleteMessageSheet({ count, allowEveryone, onDelete, onClose }: DeleteMessageSheetProps) {
+  useBackDismiss(onClose);
   const plural = count > 1 ? `${count} messages` : "this message";
 
   return (
