@@ -5,7 +5,7 @@
   Akọ design tokens.
   Warm neutral palette, sage-green accent — deliberately NOT the
   generic AI-tool cream+terracotta or near-black+neon-accent looks.
-  Playfair Display (serif, high-contrast, editorial) for headlines/
+  Playfair Display (serihigh-contrast, editorial) for headlines/
   identity moments, Inter (humanist sans) for UI and body text.
 
   Dark mode is a straight token swap, not a component rewrite: every
