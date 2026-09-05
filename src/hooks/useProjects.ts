@@ -235,6 +235,7 @@ export function useCreateProject() {
   const queryClient = useQueryClient();
 
   return useMutation({
+    meta: { blocking: true },
     mutationFn: async ({
       topic_ids,
       event_details,
@@ -315,6 +316,7 @@ export function useUpdateProject() {
   const queryClient = useQueryClient();
 
   return useMutation({
+    meta: { blocking: true },
     mutationFn: async ({ id, topic_ids, ...patch }: UpdateProjectInput) => {
       const { data, error } = await supabase
         .from("projects")
@@ -383,6 +385,7 @@ export function useDeleteProject() {
   const queryClient = useQueryClient();
 
   return useMutation({
+    meta: { blocking: true },
     mutationFn: async (projectId: string) => {
       const { data, error } = await supabase.functions.invoke("delete-project", {
         body: { project_id: projectId },
@@ -419,6 +422,7 @@ export function usePurchaseProject() {
   const queryClient = useQueryClient();
 
   return useMutation({
+    meta: { blocking: true },
     mutationFn: async (projectId: string) => {
       const { data, error } = await supabase.functions.invoke("purchase-project", {
         body: { project_id: projectId },
