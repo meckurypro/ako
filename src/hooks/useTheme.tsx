@@ -21,6 +21,17 @@ function readStoredSetting(): ThemeSetting {
 
 function applyResolvedTheme(resolved: ResolvedTheme) {
   document.documentElement.classList.toggle("dark", resolved === "dark");
+  applyThemeColorMeta(resolved);
+}
+
+// Colors Safari's address-bar/toolbar chrome (and Android's status bar) to
+// match the app, via <meta name="theme-color">. Values match --color-surface
+// in src/index.css (topnav/bottomnav color) for each theme — index.html sets
+// this same tag synchronously on load so there's no flash of the wrong
+// chrome color before React mounts; this keeps it in sync afterward.
+function applyThemeColorMeta(resolved: ResolvedTheme) {
+  const meta = document.querySelector('meta[name="theme-color"]');
+  meta?.setAttribute("content", resolved === "dark" ? "#131311" : "#FDFBF6");
 }
 
 interface ThemeContextValue {
