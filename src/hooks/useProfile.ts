@@ -185,6 +185,7 @@ export function useUpdateProfile() {
   const queryClient = useQueryClient();
 
   return useMutation({
+    meta: { blocking: true },
     mutationFn: async (input: UpdateProfileInput) => {
       if (!user) throw new Error("Not signed in");
       const { error } = await supabase.from("profiles").update(input).eq("id", user.id);
@@ -206,6 +207,7 @@ export function useUpdateProfileRoles() {
   const queryClient = useQueryClient();
 
   return useMutation({
+    meta: { blocking: true },
     mutationFn: async (roleIds: string[]) => {
       if (!user) throw new Error("Not signed in");
       if (roleIds.length > 3) throw new Error("You can select up to 3 job/hobby tags.");
