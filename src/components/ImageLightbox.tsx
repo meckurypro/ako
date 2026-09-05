@@ -1,6 +1,7 @@
 // src/components/ImageLightbox.tsx
 import { useEffect } from "react";
 import { X } from "lucide-react";
+import { useBackDismiss } from "../hooks/useBackDismiss";
 
 interface ImageLightboxProps {
   src: string;
@@ -15,6 +16,8 @@ interface ImageLightboxProps {
 // fixed black scrim in both light and dark app themes, since a themed
 // canvas color behind photos would wash out contrast either way.
 export function ImageLightbox({ src, alt, onClose }: ImageLightboxProps) {
+  useBackDismiss(onClose);
+
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
       if (e.key === "Escape") onClose();
