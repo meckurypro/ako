@@ -60,6 +60,7 @@ export function useCreateComment(postId: string) {
   const queryClient = useQueryClient();
 
   return useMutation({
+    meta: { blocking: true },
     mutationFn: async (input: CreateCommentInput) => {
       const { data, error } = await supabase.functions.invoke("create-comment", {
         body: input,
