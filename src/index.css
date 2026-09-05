@@ -96,3 +96,46 @@ body {
 .no-scrollbar::-webkit-scrollbar {
   display: none;
 }
+
+/*
+  Global "saving" loading overlay (see components/LoadingOverlay.tsx).
+  Backdrop fades/blurs in quickly so it never feels like a flash on
+  fast mutations; the 8-dot ring breathes via staggered opacity —
+  deliberately not a spinning ring, which reads more generic/templated.
+  No text per product requirement; color comes from --color-accent so
+  it re-themes automatically in dark mode like everything else.
+*/
+@keyframes ako-overlay-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+.animate-ako-overlay-in {
+  animation: ako-overlay-in 180ms ease-out;
+}
+
+.ako-loader {
+  width: 34px;
+  height: 34px;
+  position: relative;
+  animation: ako-loader-breathe 1.8s cubic-bezier(0.45, 0, 0.55, 1) infinite;
+}
+@keyframes ako-loader-breathe {
+  0%, 100% { transform: scale(0.94); }
+  50% { transform: scale(1); }
+}
+
+.ako-loader-dot {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 4px;
+  height: 4px;
+  margin: -2px 0 0 -2px;
+  border-radius: 999px;
+  background: var(--color-accent);
+  animation: ako-loader-fade 1s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+@keyframes ako-loader-fade {
+  0%, 100% { opacity: 0.15; }
+  50% { opacity: 1; }
+}
