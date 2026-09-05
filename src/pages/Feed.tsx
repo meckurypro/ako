@@ -12,8 +12,8 @@ import { TopHeader } from "../components/TopHeader";
 // posts-only feed tab.
 const TABS = [
   { key: "for-you", label: "For You" },
-  { key: "following", label: "Following" },
   { key: "top", label: "Top Discussions" },
+  { key: "following", label: "Following" },
 ] as const;
 
 type TabKey = (typeof TABS)[number]["key"];
@@ -170,16 +170,19 @@ export function Feed() {
       <div className="sticky top-0 z-20 bg-surface shadow-[0_2px_8px_-4px_rgba(var(--shadow-ink-rgb),0.10)]">
         <TopHeader showTagline leftAction="create" />
 
-        <div className="px-4 overflow-x-auto scrollbar-none">
-          <div className="max-w-xl mx-auto flex items-center gap-6">
-            {/* Bolder tab labels, and a heavier active underline
-                (4px instead of 3px) so the selected tab reads with
-                more visual weight, matching the reference. */}
+        <div className="px-4">
+          <div className="max-w-xl mx-auto grid grid-cols-3">
+            {/* Equal-width columns (not intrinsic-width + fixed gap) so the
+                three tabs sit evenly spaced regardless of label length —
+                "Top Discussions" no longer crowds its neighbors. Bolder tab
+                labels, and a heavier active underline (4px instead of 3px)
+                so the selected tab reads with more visual weight, matching
+                the reference. */}
             {TABS.map((tab) => (
               <button
                 key={tab.key}
                 onClick={() => setActiveTab(tab.key)}
-                className={`whitespace-nowrap text-sm font-semibold pb-2 pt-1 border-b-[4px] -mb-px ${
+                className={`whitespace-nowrap text-sm font-semibold pb-2 pt-1 border-b-[4px] -mb-px text-center ${
                   activeTab === tab.key ? "text-accent border-accent" : "text-ink-muted border-transparent"
                 }`}
               >
