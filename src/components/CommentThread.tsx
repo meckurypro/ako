@@ -1,5 +1,5 @@
 // src/components/CommentThread.tsx
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { Heart, ThumbsDown } from "lucide-react";
 import { Avatar } from "./Avatar";
@@ -23,11 +23,19 @@ interface CommentItemProps {
   comment: CommentNode;
   postId: string;
   depth?: number;
+  // Set when arriving via a notification link like
+  // /post/{id}#comment-{highlightId} — the matching comment scrolls
+  // into view and briefly flashes so it's obvious which one engaged
+  // with the person, then fades back to normal.
+  highlightId?: string | null;
 }
 
-function CommentItem({ comment, postId, depth = 0 }: CommentItemProps) {
+function CommentItem({ comment, postId, depth = 0, highlightId }: CommentItemProps) {
   const [replyStance, setReplyStance] = useState<Stance | null>(null);
   const stanceColors = comment.stance ? STANCE_COLORS[comment.stance] : null;
+  const ref = useRef<HTMLDivElement>(null);
+  const isTarget = !!highlightId && comment.id === highlightId;
+  const [flashing, setFlashing] = useState(isTarget);
 
   const likeQuery = useMyReaction(comment.id, "comment", "like");
   const dislikeQuery = useMyReaction(comment.id, "comment", "dislike");
@@ -36,8 +44,23 @@ function CommentItem({ comment, postId, depth = 0 }: CommentItemProps) {
   const isLiked = !!likeQuery.data;
   const isDisliked = !!dislikeQuery.data;
 
+  useEffect(() => {
+    if (!isTarget || !ref.current) return;
+    ref.current.scrollIntoView({ behavior: "smooth", block: "center" });
+    setFlashing(true);
+    const timeout = setTimeout(() => setFlashing(false), 2500);
+    return () => clearTimeout(timeout);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isTarget]);
+
   return (
-    <div className={depth > 0 ? "ml-6 mt-3 border-l border-border pl-4" : "mt-4"}>
+    <div
+      id={`comment-${comment.id}`}
+      ref={ref}
+      className={`${depth > 0 ? "ml-6 mt-3 border-l border-border pl-4" : "mt-4"} rounded-lg transition-colors duration-700 ${
+        flashing ? "bg-highlight -mx-2 px-2 py-1.5" : ""
+      }`}
+    >
       <div className="flex items-start gap-2.5">
         <Link to={`/profile/${comment.author.username}`}>
           <Avatar
@@ -101,7 +124,13 @@ function CommentItem({ comment, postId, depth = 0 }: CommentItemProps) {
       {comment.replies.length > 0 && (
         <div>
           {comment.replies.map((reply) => (
-            <CommentItem key={reply.id} comment={reply} postId={postId} depth={depth + 1} />
+            <CommentItem
+              key={reply.id}
+              comment={reply}
+              postId={postId}
+              depth={depth + 1}
+              highlightId={highlightId}
+            />
           ))}
         </div>
       )}
@@ -121,9 +150,11 @@ function CommentItem({ comment, postId, depth = 0 }: CommentItemProps) {
 export function CommentThread({
   comments,
   postId,
+  highlightId,
 }: {
   comments: CommentNode[];
   postId: string;
+  highlightId?: string | null;
 }) {
   if (comments.length === 0) {
     return <p className="text-sm text-ink-muted mt-6 text-center">No responses yet.</p>;
@@ -132,7 +163,7 @@ export function CommentThread({
   return (
     <div>
       {comments.map((comment) => (
-        <CommentItem key={comment.id} comment={comment} postId={postId} />
+        <CommentItem key={comment.id} comment={comment} postId={postId} highlightId={highlightId} />
       ))}
     </div>
   );
