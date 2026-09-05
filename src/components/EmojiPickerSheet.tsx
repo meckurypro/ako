@@ -2,6 +2,7 @@
 import { X, Delete } from "lucide-react";
 import { EMOJI_CATEGORIES } from "../lib/emojiData";
 import { useRecentEmojis } from "../hooks/useMessageReactions";
+import { useBackDismiss } from "../hooks/useBackDismiss";
 
 interface EmojiPickerSheetProps {
   onSelect: (emoji: string) => void;
@@ -42,6 +43,9 @@ export function removeLastGrapheme(text: string): string {
  * tabs. No search.
  */
 export function EmojiPickerSheet({ onSelect, onClose, mode, content = "", onBackspace }: EmojiPickerSheetProps) {
+  // Only "reaction" mode is a real full-screen modal — "input" mode is
+  // inline under the compose bar and shouldn't touch browser history.
+  useBackDismiss(onClose ?? (() => {}), mode === "reaction");
   const recents = useRecentEmojis(36);
   const sections = [
     ...(recents.length
