@@ -27,17 +27,22 @@ export function Wordmark({ size = "lg", showTagline = true, asIcon = false, icon
     const lightSrc = iconTagline ? "/app_icon_light.png" : "/app_icon_light_without_tagline.png";
     const darkSrc = iconTagline ? "/app_icon_dark.png" : "/app_icon_dark_without_tagline.png";
     const alt = iconTagline ? "Akọ — A Reason to Reason" : "Akọ";
+    // The h-28/h-20 sizing further down is tuned so the baked-in
+    // tagline stays legible (see git history). The no-tagline variant
+    // has no such constraint — it's just the mark — so it gets its
+    // own, much smaller height, close to the row's avatar (32px).
+    const heightClass = iconTagline ? (size === "lg" ? "h-28" : "h-20") : "h-9";
     return (
       <div className="text-center">
         <img
           src={lightSrc}
           alt={alt}
-          className={`inline-block dark:hidden ${size === "lg" ? "h-28" : "h-20"} w-auto`}
+          className={`inline-block dark:hidden ${heightClass} w-auto`}
         />
         <img
           src={darkSrc}
           alt={alt}
-          className={`hidden dark:inline-block ${size === "lg" ? "h-28" : "h-20"} w-auto`}
+          className={`hidden dark:inline-block ${heightClass} w-auto`}
         />
       </div>
     );
