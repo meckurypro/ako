@@ -9,7 +9,7 @@ import {
   PROJECT_TYPE_LABELS,
   type ProjectStatus,
 } from "../hooks/useProjects";
-import { useEventDetails, useMeetingDetails, useMediaDetails } from "../hooks/useProjectTypeDetails";
+import { useEventDetails, useMeetingDetails, useMediaDetails, useGigDetails, useGigSamples } from "../hooks/useProjectTypeDetails";
 import { supabase } from "../lib/supabase";
 import { useUploadProjectThumbnail } from "../hooks/useUploadProjectThumbnail";
 import { FormField } from "../components/FormField";
@@ -28,6 +28,7 @@ import {
   mediaFieldsAreValid,
   type MediaFieldsValue,
 } from "../components/project-types/MediaFields";
+import { GigFields, EMPTY_GIG_FIELDS, type GigFieldsValue } from "../components/project-types/GigFields";
 
 // 'cancelled' is deliberately not offered here — it only happens
 // through the (not-yet-built) Event/Meeting cancellation flow, which
@@ -52,6 +53,8 @@ export function EditProject() {
   const { data: existingMediaDetails } = useMediaDetails(
     project?.project_type === "media" ? projectId : undefined
   );
+  const { data: existingGigDetails } = useGigDetails(project?.project_type === "gig" ? projectId : undefined);
+  const { data: existingGigSamples } = useGigSamples(project?.project_type === "gig" ? projectId : undefined);
   const updateProject = useUpdateProject();
   const uploadThumbnail = useUploadProjectThumbnail();
 
@@ -75,6 +78,7 @@ export function EditProject() {
   const [mediaFields, setMediaFields] = useState<MediaFieldsValue>(EMPTY_MEDIA_FIELDS);
   const [eventFields, setEventFields] = useState<EventFieldsValue>(EMPTY_EVENT_FIELDS);
   const [meetingFields, setMeetingFields] = useState<MeetingFieldsValue>(EMPTY_MEETING_FIELDS);
+  const [gigFields, setGigFields] = useState<GigFieldsValue>(EMPTY_GIG_FIELDS);
   const [typeDetailsHydrated, setTypeDetailsHydrated] = useState(false);
 
   const thumbnailInputRef = useRef<HTMLInputElement>(null);
@@ -160,10 +164,25 @@ export function EditProject() {
         },
       });
       setTypeDetailsHydrated(true);
-    } else if (!["event", "meeting", "media"].includes(project.project_type)) {
+    } else if (project.project_type === "gig" && existingGigDetails !== undefined && existingGigSamples) {
+      setGigFields({
+        tagline: existingGigDetails?.tagline ?? "",
+        delivery_estimate: existingGigDetails?.delivery_estimate ?? "",
+        sample_project_ids: existingGigSamples.map((p) => p.id),
+      });
+      setTypeDetailsHydrated(true);
+    } else if (!["event", "meeting", "media", "gig"].includes(project.project_type)) {
       setTypeDetailsHydrated(true);
     }
-  }, [project, existingEventDetails, existingMeetingDetails, existingMediaDetails, typeDetailsHydrated]);
+  }, [
+    project,
+    existingEventDetails,
+    existingMeetingDetails,
+    existingMediaDetails,
+    existingGigDetails,
+    existingGigSamples,
+    typeDetailsHydrated,
+  ]);
 
   async function handleThumbnailSelect(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -197,6 +216,9 @@ export function EditProject() {
     }
     if (project.project_type === "meeting" && !meetingFields.scheduled_at) {
       return "Set when this meeting happens.";
+    }
+    if (project.project_type === "gig" && !gigFields.tagline.trim()) {
+      return "Add a short tagline for this gig.";
     }
     return null;
   }
@@ -298,6 +320,31 @@ export function EditProject() {
               : null,
         });
         if (detailsError) throw detailsError;
+      }
+      if (project.project_type === "gig") {
+        const { error: detailsError } = await supabase.from("project_gig_details").upsert({
+          project_id: projectId,
+          tagline: gigFields.tagline.trim(),
+          delivery_estimate: gigFields.delivery_estimate.trim() || null,
+        });
+        if (detailsError) throw detailsError;
+
+        // Replace the full samples set, same approach as topics above.
+        const { error: deleteSamplesError } = await supabase
+          .from("project_gig_samples")
+          .delete()
+          .eq("gig_project_id", projectId);
+        if (deleteSamplesError) throw deleteSamplesError;
+
+        if (gigFields.sample_project_ids.length > 0) {
+          const rows = gigFields.sample_project_ids.map((sample_project_id, i) => ({
+            gig_project_id: projectId,
+            sample_project_id,
+            sort_order: i,
+          }));
+          const { error: insertSamplesError } = await supabase.from("project_gig_samples").insert(rows);
+          if (insertSamplesError) throw insertSamplesError;
+        }
       }
 
       navigate(-1);
@@ -435,10 +482,15 @@ export function EditProject() {
               Manage modules and lessons from the course builder.
             </p>
           )}
+          {project.project_type === "gig" && (
+            <GigFields value={gigFields} onChange={setGigFields} excludeProjectId={project.id} />
+          )}
           {/* ---- end type-specific block ---- */}
 
           <div className="mb-4">
-            <label className="block text-sm font-medium text-ink-muted mb-1.5">Price (USD)</label>
+            <label className="block text-sm font-medium text-ink-muted mb-1.5">
+              {project.project_type === "gig" ? "Booking fee (USD, optional)" : "Price (USD)"}
+            </label>
             <input
               type="number"
               value={priceUsd}
@@ -448,7 +500,11 @@ export function EditProject() {
               className="w-full px-4 py-3 rounded-xl border border-border bg-canvas text-ink
                 focus:outline-none focus:ring-2 focus:ring-accent/40 focus:border-accent"
             />
-            <p className="text-xs text-ink-muted mt-1">Set to 0 for a free project.</p>
+            <p className="text-xs text-ink-muted mt-1">
+              {project.project_type === "gig"
+                ? "Set to 0 to keep this message-only. Add an amount to also let people pay a booking fee to secure a slot."
+                : "Set to 0 for a free project."}
+            </p>
           </div>
 
           <div className="mb-6">
