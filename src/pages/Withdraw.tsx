@@ -1,5 +1,6 @@
 import { useState, useEffect, type FormEvent } from "react";
 import { useNavigate } from "react-router-dom";
+import { useSmartBack } from "../hooks/useSmartBack";
 import { ArrowLeft, Plus } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "../lib/supabase";
@@ -79,6 +80,7 @@ const STATUS_STYLES: Record<string, string> = {
 
 export function Withdraw() {
   const navigate = useNavigate();
+  const smartBack = useSmartBack();
   const { data: wallet } = useWallet();
   const { data: payoutAccounts, isLoading: accountsLoading } = usePayoutAccounts();
   const { data: withdrawals } = useWithdrawals();
@@ -162,7 +164,7 @@ export function Withdraw() {
   return (
     <div className="min-h-screen bg-canvas px-4 pt-4 pb-10">
       <div className="max-w-md mx-auto">
-        <button onClick={() => navigate(-1)} className="text-ink-muted mb-4">
+        <button onClick={smartBack} className="text-ink-muted mb-4">
           <ArrowLeft size={22} />
         </button>
 
