@@ -1,6 +1,7 @@
 // src/pages/MeetingRoom.tsx
 import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
+import { useSmartBack } from "../hooks/useSmartBack";
 import { ArrowLeft, Lock, Video } from "lucide-react";
 import { useProject, useHasPurchased, isProjectFree } from "../hooks/useProjects";
 import { useMeetingDetails } from "../hooks/useProjectTypeDetails";
@@ -37,6 +38,7 @@ function formatCountdown(ms: number) {
 export function MeetingRoom() {
   const { projectId } = useParams<{ projectId: string }>();
   const navigate = useNavigate();
+  const smartBack = useSmartBack();
   const { user } = useAuth();
   const { data: project } = useProject(projectId);
   const { data: details } = useMeetingDetails(projectId);
@@ -59,7 +61,7 @@ export function MeetingRoom() {
   return (
     <div className="min-h-screen bg-canvas px-4 pt-4 pb-10">
       <div className="max-w-md mx-auto">
-        <button onClick={() => navigate(-1)} className="text-ink-muted mb-3">
+        <button onClick={smartBack} className="text-ink-muted mb-3">
           <ArrowLeft size={22} />
         </button>
 
