@@ -14,7 +14,6 @@ import {
   Redo2,
   Trash2,
   Bookmark,
-  BookmarkCheck,
   Heart,
   Ticket,
   Users,
@@ -46,18 +45,22 @@ import { useIsProjectSaved, useToggleSavedProject } from "../hooks/useSavedProje
 import { useProjectAccessCount } from "../hooks/useProjectAccess";
 import { useMyReaction, useToggleReaction } from "../hooks/useReactions";
 import { useStartConversation } from "../hooks/useMessaging";
+import { ReactionTray, type EngagementAction } from "./ReactionTray";
 
 // File and URL keep the original single-link/download "unlock"
 // pattern inline in the action row. Media gets its own block above
 // that row (it can show up to two rows — audio and video — so it
-// doesn't fit the single-line pattern). Event/Meeting/Room/Course
-// each unlock into their own dedicated page instead — see TYPE_ROUTE.
+// doesn't fit the single-line pattern). Event/Meeting/Course each
+// unlock into their own dedicated page instead — see TYPE_ROUTE. Room
+// used to be here too, but its "enter" action now lives in the Join
+// engagement icon below (see middleActions) instead of a text link,
+// since membership is an ongoing engagement state like Like/Save
+// rather than a one-off unlock.
 const INLINE_TYPES: Project["project_type"][] = ["file", "url"];
 
 const TYPE_ROUTE: Partial<Record<Project["project_type"], (id: string) => string>> = {
   event: (id) => `/projects/${id}/ticket`,
   meeting: (id) => `/meetings/${id}`,
-  room: (id) => `/rooms/${id}`,
   course: (id) => `/courses/${id}`,
 };
 
@@ -72,7 +75,6 @@ const TYPE_ICON: Partial<Record<Project["project_type"], typeof Ticket>> = {
 const TYPE_ACTION_LABEL: Partial<Record<Project["project_type"], string>> = {
   event: "View ticket",
   meeting: "Go to meeting",
-  room: "Enter room",
   course: "Continue course",
 };
 
@@ -136,7 +138,6 @@ export function ProjectCard({
   // isFree alone, no server round-trip needed.
   const isRoom = project.project_type === "room";
   const hasAccess = isOwner || hasPurchased || (isFree && !isRoom);
-  const needsJoinAction = !hasAccess && isFree && isRoom;
   const isSaved = !!isSavedQuery.data;
   const isLiked = !!isLikedQuery.data;
 
@@ -163,6 +164,20 @@ export function ProjectCard({
     } catch (err) {
       setError(err instanceof Error ? err.message : "Purchase failed.");
     }
+  }
+
+  // Room membership is an ongoing engagement state (like Like/Save),
+  // not a one-off unlock — so Join lives as a tray icon rather than a
+  // text link. Once a member (hasAccess), the same icon acts as
+  // "Enter room" instead. Free rooms still go through handleBuy for
+  // the $0 purchase — see the isRoom comment above hasAccess — same
+  // as before, just reached from the icon now instead of a pill.
+  function handleJoinRoom() {
+    if (hasAccess) {
+      navigate(`/rooms/${project.id}`);
+      return;
+    }
+    void handleBuy();
   }
 
   // Booking a gig pays the deposit AND drops the buyer straight into a
@@ -309,6 +324,72 @@ export function ProjectCard({
     toggleLike.mutate(isLiked);
   }
 
+  // Engagement row — same ReactionTray component and left/middle/right
+  // shape as PostCard, for visual and interaction consistency across
+  // posts and projects: Like fixed left, Share fixed right, everything
+  // else (Save, and Join for rooms) in the middle. Like/Save don't make
+  // sense on your own project, same as PostCard hides its
+  // owner-irrelevant actions; Share and Join (as "Enter") stay
+  // available to the owner too.
+  const leftActions: EngagementAction[] = isOwner
+    ? []
+    : [
+        {
+          key: "like",
+          label: isLiked ? "Liked" : "Like",
+          icon: <Heart size={18} fill={isLiked ? "currentColor" : "none"} className="text-danger" />,
+          count: project.like_count > 0 ? project.like_count : null,
+          onClick: handleToggleLike,
+        },
+      ];
+
+  const rightActions: EngagementAction[] = [
+    {
+      key: "share",
+      label: "Share",
+      icon: <Redo2 size={18} className="text-ink" />,
+      count: null,
+      onClick: () => void handleShare(),
+    },
+  ];
+
+  const middleActions: EngagementAction[] = [
+    ...(!isOwner
+      ? [
+          {
+            key: "save",
+            label: isSaved ? "Saved" : "Save",
+            icon: (
+              <Bookmark
+                size={18}
+                fill={isSaved ? "currentColor" : "none"}
+                className={isSaved ? "text-accent" : "text-ink"}
+              />
+            ),
+            count: null,
+            onClick: handleToggleSaved,
+          } satisfies EngagementAction,
+        ]
+      : []),
+    ...(isRoom
+      ? [
+          {
+            key: "join",
+            label: hasAccess ? "Enter room" : "Join room",
+            icon: (
+              <Users
+                size={18}
+                fill={hasAccess ? "currentColor" : "none"}
+                className={hasAccess ? "text-accent" : "text-ink"}
+              />
+            ),
+            count: null,
+            onClick: handleJoinRoom,
+          } satisfies EngagementAction,
+        ]
+      : []),
+  ];
+
   const aspectRatio =
     project.thumbnail_width && project.thumbnail_height
       ? `${project.thumbnail_width} / ${project.thumbnail_height}`
@@ -351,18 +432,6 @@ export function ProjectCard({
             </span>
           )}
         </div>
-      )}
-
-      {/* Save toggle — sits left of the kebab for owners, alone
-          top-right for everyone else. */}
-      {!isOwner && (
-        <button
-          onClick={handleToggleSaved}
-          aria-label={isSaved ? "Unsave project" : "Save project"}
-          className="absolute top-3 right-3 p-1.5 rounded-full bg-canvas/90 text-ink-muted"
-        >
-          {isSaved ? <BookmarkCheck size={16} className="text-accent" /> : <Bookmark size={16} />}
-        </button>
       )}
 
       {isOwner && (
@@ -642,8 +711,8 @@ export function ProjectCard({
               </span>
             ))}
 
-          {/* Event/Meeting/Room/Course — once unlocked, hand off to
-              their own dedicated page rather than a link/download here. */}
+          {/* Event/Meeting/Course — once unlocked, hand off to their
+              own dedicated page rather than a link/download here. */}
           {!INLINE_TYPES.includes(project.project_type) &&
             !isMedia &&
             hasAccess &&
@@ -693,7 +762,10 @@ export function ProjectCard({
             </span>
           )}
 
-          {!hasAccess && (!isFree || needsJoinAction) && !isCourseUnpublished && (
+          {/* Buy/Book pill for everything except Room, which now joins
+              via the Join engagement icon below instead — price is
+              still visible up top in the badge next to the title. */}
+          {project.project_type !== "room" && !hasAccess && !isCourseUnpublished && (
             <button
               onClick={project.project_type === "gig" ? handleBookGig : handleBuy}
               disabled={project.project_type === "gig" ? bookGig.isPending : purchaseProject.isPending}
@@ -704,41 +776,17 @@ export function ProjectCard({
                   ? "Booking…"
                   : `Book for $${effectivePrice.toFixed(2)}`
                 : purchaseProject.isPending
-                  ? needsJoinAction
-                    ? "Joining…"
-                    : "Purchasing…"
-                  : needsJoinAction
-                    ? "Join room"
-                    : project.project_type === "event"
-                      ? `Buy ticket $${effectivePrice.toFixed(2)}`
-                      : project.project_type === "url"
-                        ? `Get access for $${effectivePrice.toFixed(2)}`
-                        : `Buy for $${effectivePrice.toFixed(2)}`}
+                  ? "Purchasing…"
+                  : project.project_type === "event"
+                    ? `Buy ticket $${effectivePrice.toFixed(2)}`
+                    : project.project_type === "url"
+                      ? `Get access for $${effectivePrice.toFixed(2)}`
+                      : `Buy for $${effectivePrice.toFixed(2)}`}
             </button>
           )}
-
-          <div
-            className={`flex items-center gap-3 ${hasAccess || isFree ? "" : "ml-auto"}`}
-          >
-            {!isOwner && (
-              <button
-                onClick={handleToggleLike}
-                aria-label={isLiked ? "Unlike project" : "Like project"}
-                className="flex items-center gap-1 text-sm text-ink-muted"
-              >
-                <Heart
-                  size={15}
-                  fill={isLiked ? "currentColor" : "none"}
-                  className={isLiked ? "text-danger" : ""}
-                />
-                {project.like_count > 0 && <span>{project.like_count}</span>}
-              </button>
-            )}
-            <button onClick={handleShare} aria-label="Share project" className="text-ink-muted">
-              <Redo2 size={15} />
-            </button>
-          </div>
         </div>
+
+        <ReactionTray leftActions={leftActions} middleActions={middleActions} rightActions={rightActions} />
       </div>
     </div>
   );
