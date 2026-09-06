@@ -1,7 +1,7 @@
 // src/pages/ProfilePage.tsx
 import { useState, useEffect, useRef } from "react";
 import { useParams, Link, useNavigate } from "react-router-dom";
-import { Settings, Wallet, MessageCircle, MoreHorizontal, Plus, Eye, X, Globe, UserCheck, Lock, Redo2, Building2, Store } from "lucide-react";
+import { Settings, Wallet, MessageCircle, MoreHorizontal, Plus, Eye, X, Globe, UserCheck, Lock, Redo2, Building2, Store, ChevronDown } from "lucide-react";
 import { useAuth } from "../hooks/useAuth";
 import { useProfileByUsername, useIsFollowing, useIsFollowedByUser, useToggleFollow } from "../hooks/useProfile";
 import { useMyPages, useSwitchActiveMode } from "../hooks/usePages";
@@ -20,6 +20,7 @@ import { useIsBlocked, useToggleBlock, useIsMuted, useToggleMute } from "../hook
 import { useUserProjects } from "../hooks/useProjects";
 import { useRecordProfileVisit, useProfileVisitCount } from "../hooks/useProfileVisits";
 import { Avatar } from "../components/Avatar";
+import { AccountSwitcher } from "../components/AccountSwitcher";
 import { ImageLightbox } from "../components/ImageLightbox";
 import { TierBadge } from "../components/TierBadge";
 import { RoleTags } from "../components/RoleTags";
@@ -64,6 +65,7 @@ export function ProfilePage() {
   // own outside-click ref.
   const [ownerMenuOpen, setOwnerMenuOpen] = useState(false);
   const ownerMenuRef = useRef<HTMLDivElement>(null);
+  const [accountSwitcherOpen, setAccountSwitcherOpen] = useState(false);
   // Account-mode: the org/brand (if any) this user runs, shown as
   // switch-into rows in the owner menu below (see handleModeMenuClick).
   const { data: myPages } = useMyPages();
@@ -497,7 +499,23 @@ export function ProfilePage() {
           )}
           <div className="flex-1 min-w-0 pt-1">
             <div className="flex items-center gap-2 flex-wrap">
-              <h1 className="font-medium text-lg text-ink">{profile.display_name}</h1>
+              {showOwnerView ? (
+                <div className="relative">
+                  <button
+                    type="button"
+                    onClick={() => setAccountSwitcherOpen((o) => !o)}
+                    className="flex items-center gap-1"
+                  >
+                    <h1 className="font-medium text-lg text-ink">{profile.display_name}</h1>
+                    <ChevronDown size={16} className="text-ink-muted" />
+                  </button>
+                  {accountSwitcherOpen && (
+                    <AccountSwitcher onClose={() => setAccountSwitcherOpen(false)} />
+                  )}
+                </div>
+              ) : (
+                <h1 className="font-medium text-lg text-ink">{profile.display_name}</h1>
+              )}
               <TierBadge tier={profile.tier} />
             </div>
 
