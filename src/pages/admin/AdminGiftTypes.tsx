@@ -1,10 +1,10 @@
 import { useState, type FormEvent } from "react";
-import { useNavigate } from "react-router-dom";
+import { useSmartBack } from "../../hooks/useSmartBack";
 import { ArrowLeft, Plus } from "lucide-react";
 import { useAdminGiftTypes, useCreateGiftType, useToggleGiftTypeActive } from "../../hooks/useAdmin";
 
 export function AdminGiftTypes() {
-  const navigate = useNavigate();
+  const smartBack = useSmartBack();
   const { data: giftTypes, isLoading } = useAdminGiftTypes();
   const createGiftType = useCreateGiftType();
   const toggleActive = useToggleGiftTypeActive();
@@ -38,7 +38,7 @@ export function AdminGiftTypes() {
     <div className="min-h-screen bg-canvas px-4 pt-4 pb-10">
       <div className="max-w-md mx-auto">
         <div className="flex items-center gap-3 mb-6">
-          <button onClick={() => navigate(-1)} className="text-ink-muted">
+          <button onClick={smartBack} className="text-ink-muted">
             <ArrowLeft size={22} />
           </button>
           <h2 className="font-display text-xl text-ink">Gift types</h2>
