@@ -28,6 +28,7 @@ import {
   mediaFieldsAreValid,
   type MediaFieldsValue,
 } from "../components/project-types/MediaFields";
+import { GigFields, EMPTY_GIG_FIELDS, type GigFieldsValue } from "../components/project-types/GigFields";
 
 export function CreateProject() {
   const navigate = useNavigate();
@@ -56,6 +57,7 @@ export function CreateProject() {
   const [mediaFields, setMediaFields] = useState<MediaFieldsValue>(EMPTY_MEDIA_FIELDS);
   const [eventFields, setEventFields] = useState<EventFieldsValue>(EMPTY_EVENT_FIELDS);
   const [meetingFields, setMeetingFields] = useState<MeetingFieldsValue>(EMPTY_MEETING_FIELDS);
+  const [gigFields, setGigFields] = useState<GigFieldsValue>(EMPTY_GIG_FIELDS);
 
   const thumbnailInputRef = useRef<HTMLInputElement>(null);
 
@@ -105,6 +107,9 @@ export function CreateProject() {
     }
     if (projectType === "meeting" && !meetingFields.scheduled_at) {
       return "Set when this meeting happens.";
+    }
+    if (projectType === "gig" && !gigFields.tagline.trim()) {
+      return "Add a short tagline for this gig.";
     }
     return null;
   }
@@ -193,6 +198,14 @@ export function CreateProject() {
                   mediaFields.video.enabled && mediaFields.video.source === "upload"
                     ? mediaFields.video.file_path ?? undefined
                     : undefined,
+              }
+            : undefined,
+        gig_details:
+          projectType === "gig"
+            ? {
+                tagline: gigFields.tagline.trim(),
+                delivery_estimate: gigFields.delivery_estimate.trim() || undefined,
+                sample_project_ids: gigFields.sample_project_ids,
               }
             : undefined,
       });
@@ -318,10 +331,13 @@ export function CreateProject() {
           {projectType === "meeting" && <MeetingFields value={meetingFields} onChange={setMeetingFields} />}
           {projectType === "room" && <RoomFields />}
           {projectType === "course" && <CourseFields />}
+          {projectType === "gig" && <GigFields value={gigFields} onChange={setGigFields} />}
           {/* ---- end type-specific block ---- */}
 
           <div className="mb-4">
-            <label className="block text-sm font-medium text-ink-muted mb-1.5">Price (USD)</label>
+            <label className="block text-sm font-medium text-ink-muted mb-1.5">
+              {projectType === "gig" ? "Booking fee (USD, optional)" : "Price (USD)"}
+            </label>
             <input
               type="number"
               value={priceUsd}
@@ -331,7 +347,11 @@ export function CreateProject() {
               className="w-full px-4 py-3 rounded-xl border border-border bg-canvas text-ink
                 focus:outline-none focus:ring-2 focus:ring-accent/40 focus:border-accent"
             />
-            <p className="text-xs text-ink-muted mt-1">Set to 0 for a free project.</p>
+            <p className="text-xs text-ink-muted mt-1">
+              {projectType === "gig"
+                ? "Set to 0 to keep this message-only — people reach out, no payment upfront. Add an amount to also let people pay a booking fee to secure a slot."
+                : "Set to 0 for a free project."}
+            </p>
           </div>
 
           {/* Promo price — optional. Leaving it off shows only the
