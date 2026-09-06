@@ -1,6 +1,7 @@
 // src/pages/EditProject.tsx
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { useNavigate, useParams } from "react-router-dom";
+import { useSmartBack } from "../hooks/useSmartBack";
 import { ArrowLeft, ImageIcon } from "lucide-react";
 import {
   useProject,
@@ -43,6 +44,7 @@ const STATUS_OPTIONS: { value: ProjectStatus; label: string; hint: string }[] = 
 export function EditProject() {
   const { projectId } = useParams<{ projectId: string }>();
   const navigate = useNavigate();
+  const smartBack = useSmartBack();
 
   const { data: project, isLoading } = useProject(projectId);
   const { data: existingTopicIds } = useProjectTopics(projectId);
@@ -381,7 +383,7 @@ export function EditProject() {
   return (
     <div className="min-h-screen bg-canvas px-4 pt-4 pb-10">
       <div className="max-w-md mx-auto">
-        <button onClick={() => navigate(-1)} className="text-ink-muted mb-4">
+        <button onClick={smartBack} className="text-ink-muted mb-4">
           <ArrowLeft size={22} />
         </button>
 
