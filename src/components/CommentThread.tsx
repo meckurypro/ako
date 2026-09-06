@@ -91,20 +91,22 @@ function CommentItem({ comment, postId, depth = 0, highlightId }: CommentItemPro
             {renderFormattedText(comment.content, "c")}
           </p>
 
-          <div className="flex items-center gap-3 mt-1.5">
+          <div className="flex items-center gap-5 mt-2.5">
             <button
               onClick={() => toggleLike.mutate(isLiked)}
-              className="flex items-center gap-1 text-xs text-danger"
+              disabled={toggleLike.isPending}
+              className="flex items-center gap-1.5 text-danger -ml-1.5 p-1.5 disabled:opacity-60"
             >
-              <Heart size={13} fill={isLiked ? "currentColor" : "none"} />
-              {comment.like_count > 0 && comment.like_count}
+              <Heart size={18} fill={isLiked ? "currentColor" : "none"} />
+              {comment.like_count > 0 && <span className="text-sm">{comment.like_count}</span>}
             </button>
             <button
               onClick={() => toggleDislike.mutate(isDisliked)}
-              className={`flex items-center gap-1 text-xs ${isDisliked ? "text-danger" : "text-ink-muted"}`}
+              disabled={toggleDislike.isPending}
+              className={`flex items-center gap-1.5 p-1.5 disabled:opacity-60 ${isDisliked ? "text-danger" : "text-ink-muted"}`}
             >
-              <ThumbsDown size={13} fill={isDisliked ? "currentColor" : "none"} />
-              {comment.dislike_count > 0 && comment.dislike_count}
+              <ThumbsDown size={18} fill={isDisliked ? "currentColor" : "none"} />
+              {comment.dislike_count > 0 && <span className="text-sm">{comment.dislike_count}</span>}
             </button>
 
             {/* Reply stance buttons — each coloured with its own stance colour */}
@@ -112,7 +114,7 @@ function CommentItem({ comment, postId, depth = 0, highlightId }: CommentItemPro
               <button
                 key={s}
                 onClick={() => setReplyStance(s)}
-                className={`text-xs font-medium hover:opacity-70 transition-opacity ${STANCE_COLORS[s].iconClass}`}
+                className={`text-sm font-medium py-1.5 hover:opacity-70 transition-opacity ${STANCE_COLORS[s].iconClass}`}
               >
                 {STANCE_COLORS[s].label}
               </button>
