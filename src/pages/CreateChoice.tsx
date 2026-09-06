@@ -1,5 +1,6 @@
 // src/pages/CreateChoice.tsx
 import { useNavigate } from "react-router-dom";
+import { useSmartBack } from "../hooks/useSmartBack";
 import { X, PenSquare, FolderPlus, ChevronRight } from "lucide-react";
 
 // The "+" on Feed's header opens this. Styled as a bottom sheet
@@ -24,11 +25,12 @@ const CHOICES = [
 
 export function CreateChoice() {
   const navigate = useNavigate();
+  const smartBack = useSmartBack();
 
   return (
     <div
       className="fixed inset-0 z-50 bg-ink/40 flex items-end justify-center"
-      onClick={() => navigate(-1)}
+      onClick={smartBack}
     >
       <div
         className="w-full max-w-xl bg-canvas rounded-t-[28px] pb-[calc(env(safe-area-inset-bottom)+1rem)]"
@@ -40,7 +42,7 @@ export function CreateChoice() {
 
         <div className="flex items-center justify-between px-5 pt-3 pb-2">
           <h2 className="font-display text-xl text-ink">Create</h2>
-          <button onClick={() => navigate(-1)} aria-label="Close" className="text-ink-muted p-1">
+          <button onClick={smartBack} aria-label="Close" className="text-ink-muted p-1">
             <X size={22} />
           </button>
         </div>
