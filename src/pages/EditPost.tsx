@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
+import { useSmartBack } from "../hooks/useSmartBack";
 import { X, Image as ImageIcon } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "../lib/supabase";
@@ -34,6 +35,7 @@ function usePostForEdit(postId: string) {
 export function EditPost() {
   const { postId } = useParams<{ postId: string }>();
   const navigate = useNavigate();
+  const smartBack = useSmartBack();
   const { user } = useAuth();
   const { data: post, isLoading } = usePostForEdit(postId!);
   const updatePost = useUpdatePost();
@@ -123,7 +125,7 @@ export function EditPost() {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-canvas px-4 text-center gap-2">
         <p className="text-ink">The 15-minute edit window for this post has passed.</p>
-        <button onClick={() => navigate(-1)} className="text-accent text-sm font-medium">
+        <button onClick={smartBack} className="text-accent text-sm font-medium">
           Go back
         </button>
       </div>
@@ -205,7 +207,7 @@ export function EditPost() {
       </div>
 
       <div className="fixed bottom-0 left-0 right-0 bg-canvas border-t border-border px-4 py-3 flex items-center justify-between z-40">
-        <button onClick={() => navigate(-1)} className="text-ink-muted p-1" aria-label="Close">
+        <button onClick={smartBack} className="text-ink-muted p-1" aria-label="Close">
           <X size={22} />
         </button>
         <button
