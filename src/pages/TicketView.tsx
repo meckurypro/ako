@@ -1,5 +1,6 @@
 // src/pages/TicketView.tsx
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams } from "react-router-dom";
+import { useSmartBack } from "../hooks/useSmartBack";
 import { ArrowLeft, Download, Clock } from "lucide-react";
 import { useProject } from "../hooks/useProjects";
 import { useEventDetails } from "../hooks/useProjectTypeDetails";
@@ -11,7 +12,7 @@ import { useMyEventTicket } from "../hooks/useEventTickets";
 // for anyone who's bought but has no ticket row.
 export function TicketView() {
   const { projectId } = useParams<{ projectId: string }>();
-  const navigate = useNavigate();
+  const smartBack = useSmartBack();
   const { data: project } = useProject(projectId);
   const { data: eventDetails } = useEventDetails(projectId);
   const { data: ticket, isLoading } = useMyEventTicket(projectId);
@@ -27,7 +28,7 @@ export function TicketView() {
   return (
     <div className="min-h-screen bg-canvas px-4 pt-4 pb-10">
       <div className="max-w-md mx-auto">
-        <button onClick={() => navigate(-1)} className="text-ink-muted mb-3">
+        <button onClick={smartBack} className="text-ink-muted mb-3">
           <ArrowLeft size={22} />
         </button>
 
