@@ -2,6 +2,17 @@
 @import "tailwindcss";
 
 /*
+  This app's dark mode is a user-controlled .dark class on <html>
+  (see useTheme.tsx), not the OS's prefers-color-scheme. Tailwind v4's
+  dark: variant defaults to prefers-color-scheme unless told otherwise,
+  so without this line every dark: class in the app — including the
+  Wordmark icon swap and the existing overrides in PostCard/
+  ReactionTray — would silently follow the OS setting instead of the
+  in-app theme toggle.
+*/
+@custom-variant dark (&:where(.dark, .dark *));
+
+/*
   Akọ design tokens.
   Warm neutral palette, sage-green accent — deliberately NOT the
   generic AI-tool cream+terracotta or near-black+neon-accent looks.
