@@ -53,22 +53,27 @@ export function useMeetingDetails(projectId: string | undefined) {
   });
 }
 
-// A 'media' project holds an audio channel, a video channel, or both.
-// Each channel is independently either a link out (Spotify/YouTube/etc.)
+// A 'media' project holds an audio channel, a video channel, an image
+// channel, or any combination of the three. Each channel is
+// independently either a link out (Spotify/YouTube/a hosted image/etc.)
 // or an uploaded file streamed from our own storage — never both at
 // once, mirroring the link-vs-upload toggle used elsewhere. Exactly
 // one of {audio_url, audio_file_path} is set when has_audio is true
-// (same for video); both null when the channel is off.
+// (same pattern for video and image); both null when a channel is off.
 export interface MediaDetails {
   project_id: string;
   has_audio: boolean;
   has_video: boolean;
+  has_image: boolean;
   audio_source: "link" | "upload" | null;
   audio_url: string | null;
   audio_file_path: string | null;
   video_source: "link" | "upload" | null;
   video_url: string | null;
   video_file_path: string | null;
+  image_source: "link" | "upload" | null;
+  image_url: string | null;
+  image_file_path: string | null;
 }
 
 // Publicly readable, same as event/meeting details above. Note that
