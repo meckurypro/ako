@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link } from "react-router-dom";
+import { useSmartBack } from "../hooks/useSmartBack";
 import { ArrowLeft, Search as SearchIcon } from "lucide-react";
 import { useSearchPosts, useSearchPeople } from "../hooks/useSearch";
 import { useTabState } from "../hooks/useTabState";
@@ -8,7 +9,7 @@ import { Avatar } from "../components/Avatar";
 import { BottomNav } from "../components/BottomNav";
 
 export function Search() {
-  const navigate = useNavigate();
+  const smartBack = useSmartBack();
   const [query, setQuery] = useState("");
   const [tab, setTab] = useTabState<"posts" | "people">(["posts", "people"], "posts");
 
@@ -19,7 +20,7 @@ export function Search() {
     <div className="min-h-screen bg-canvas pb-24">
       <header className="px-4 pt-6 pb-3 sticky top-0 bg-canvas z-30 border-b border-border">
         <div className="flex items-center gap-3 mb-3">
-          <button onClick={() => navigate(-1)} className="text-ink-muted">
+          <button onClick={smartBack} className="text-ink-muted">
             <ArrowLeft size={22} />
           </button>
           <div className="flex-1 flex items-center gap-2 bg-surface rounded-full px-4 py-2">
