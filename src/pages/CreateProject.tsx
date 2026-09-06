@@ -97,8 +97,8 @@ export function CreateProject() {
       return "Add the link you're sharing access to.";
     }
     if (projectType === "media" && !mediaFieldsAreValid(mediaFields)) {
-      if (!mediaFields.audio.enabled && !mediaFields.video.enabled) {
-        return "Turn on Audio, Video, or both.";
+      if (!mediaFields.audio.enabled && !mediaFields.video.enabled && !mediaFields.image.enabled) {
+        return "Turn on Audio, Video, Image, or any combination.";
       }
       return "Add a link or upload a file for each channel you turned on.";
     }
@@ -197,6 +197,16 @@ export function CreateProject() {
                 video_file_path:
                   mediaFields.video.enabled && mediaFields.video.source === "upload"
                     ? mediaFields.video.file_path ?? undefined
+                    : undefined,
+                has_image: mediaFields.image.enabled,
+                image_source: mediaFields.image.enabled ? mediaFields.image.source : undefined,
+                image_url:
+                  mediaFields.image.enabled && mediaFields.image.source === "link"
+                    ? mediaFields.image.url.trim()
+                    : undefined,
+                image_file_path:
+                  mediaFields.image.enabled && mediaFields.image.source === "upload"
+                    ? mediaFields.image.file_path ?? undefined
                     : undefined,
               }
             : undefined,
