@@ -2,7 +2,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useParams, Link, useNavigate } from "react-router-dom";
 import { useSmartBack } from "../hooks/useSmartBack";
-import { ArrowLeft, ArrowLeftRight, BadgeCheck, Globe, MoreHorizontal, Redo2, Users, UserCog } from "lucide-react";
+import { ArrowLeft, ArrowLeftRight, BadgeCheck, Check, ChevronDown, Globe, MoreHorizontal, Redo2, Users, UserCog } from "lucide-react";
 import { useAuth } from "../hooks/useAuth";
 import { useMyProfile } from "../hooks/useProfile";
 import { Avatar } from "../components/Avatar";
@@ -42,6 +42,13 @@ export function PagePage() {
   const smartBack = useSmartBack();
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
+  // Separate from the "…" menu above — tapping the page's own NAME
+  // opens a quick switcher scoped to pages of the SAME type (org ↔
+  // org, brand ↔ brand only), the way tapping your handle in
+  // IG/TikTok pops up "Switch accounts". Own open state + outside-tap
+  // ref, same pattern as the "…" menu just above.
+  const [nameMenuOpen, setNameMenuOpen] = useState(false);
+  const nameMenuRef = useRef<HTMLDivElement>(null);
 
   const { user } = useAuth();
   const { data: me } = useMyProfile();
@@ -66,6 +73,12 @@ export function PagePage() {
   // The other pages I run, for a quick "switch to X" shortcut without
   // having to go back through /pages first.
   const otherPages = (myPages ?? []).filter((p) => p.id !== page?.id);
+  // Same-type pages (every organisation you run, if this is one — or
+  // every brand, if this is one) — what tapping the NAME switches
+  // between. Only worth making the name tappable when there's more
+  // than one to choose from.
+  const samePlatformPages = (myPages ?? []).filter((p) => p.page_type === page?.page_type);
+  const canSwitchByName = isMember && samePlatformPages.length > 1;
 
   useEffect(() => {
     if (!menuOpen) return;
@@ -81,6 +94,21 @@ export function PagePage() {
       document.removeEventListener("touchstart", handleOutside);
     };
   }, [menuOpen]);
+
+  useEffect(() => {
+    if (!nameMenuOpen) return;
+    function handleOutside(e: MouseEvent | TouchEvent) {
+      if (nameMenuRef.current && !nameMenuRef.current.contains(e.target as Node)) {
+        setNameMenuOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleOutside);
+    document.addEventListener("touchstart", handleOutside);
+    return () => {
+      document.removeEventListener("mousedown", handleOutside);
+      document.removeEventListener("touchstart", handleOutside);
+    };
+  }, [nameMenuOpen]);
 
   async function sharePage() {
     if (!page) return;
@@ -103,6 +131,7 @@ export function PagePage() {
 
   function handleSwitchTo(pageId: string | null, destination: string) {
     setMenuOpen(false);
+    setNameMenuOpen(false);
     switchMode.mutate(pageId, { onSuccess: () => navigate(destination) });
   }
 
@@ -203,9 +232,38 @@ export function PagePage() {
           <div className="flex items-start gap-4">
             <Avatar src={page.avatar_url} name={page.name} size="xl" />
             <div className="flex-1 min-w-0 pt-1">
-              <div className="flex items-center gap-1.5">
-                <h1 className="font-display text-lg text-ink truncate">{page.name}</h1>
-                {page.is_verified && <BadgeCheck size={16} className="text-accent flex-shrink-0" />}
+              <div ref={nameMenuRef} className="relative inline-block max-w-full">
+                <button
+                  type="button"
+                  onClick={() => canSwitchByName && setNameMenuOpen((o) => !o)}
+                  disabled={!canSwitchByName}
+                  className="flex items-center gap-1.5 max-w-full"
+                >
+                  <h1 className="font-display text-lg text-ink truncate">{page.name}</h1>
+                  {page.is_verified && <BadgeCheck size={16} className="text-accent flex-shrink-0" />}
+                  {canSwitchByName && <ChevronDown size={14} className="text-ink-muted flex-shrink-0" />}
+                </button>
+
+                {/* Same-type switcher — every organisation you run if this
+                    page is one, every brand if it's one. Tapping a row
+                    switches straight into it, same as the "…" menu's
+                    per-page rows, just scoped and reached the IG/TikTok
+                    way: tap the name itself. */}
+                {nameMenuOpen && (
+                  <div className="absolute top-full left-0 mt-1 bg-canvas border border-border rounded-xl shadow-lg py-1 w-56 z-10">
+                    {samePlatformPages.map((p) => (
+                      <button
+                        key={p.id}
+                        onClick={() => handleSwitchTo(p.id, `/page/${p.username}`)}
+                        className="w-full flex items-center gap-2.5 text-left px-4 py-2.5 text-sm text-ink hover:bg-surface"
+                      >
+                        <Avatar src={p.avatar_url} name={p.name} size="sm" />
+                        <span className="flex-1 min-w-0 truncate">{p.name}</span>
+                        {p.id === page.id && <Check size={14} className="text-accent flex-shrink-0" />}
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
               <p className="text-xs text-ink-muted">
                 {pageModeLabel(page.page_type)} · @{page.username}
