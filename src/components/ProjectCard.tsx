@@ -23,12 +23,15 @@ import {
   BookOpen,
   Eye,
   Link as LinkIcon,
+  Briefcase,
+  MessageCircle,
 } from "lucide-react";
 import { useAuth } from "../hooks/useAuth";
 import { renderFormattedText } from "../lib/formatText";
 import {
   useHasPurchased,
   usePurchaseProject,
+  useBookGig,
   useGetProjectFile,
   useSetProjectStatus,
   useDeleteProject,
@@ -42,6 +45,7 @@ import { useMediaDetails } from "../hooks/useProjectTypeDetails";
 import { useIsProjectSaved, useToggleSavedProject } from "../hooks/useSavedProjects";
 import { useProjectAccessCount } from "../hooks/useProjectAccess";
 import { useMyReaction, useToggleReaction } from "../hooks/useReactions";
+import { useStartConversation } from "../hooks/useMessaging";
 
 // File and URL keep the original single-link/download "unlock"
 // pattern inline in the action row. Media gets its own block above
@@ -62,6 +66,7 @@ const TYPE_ICON: Partial<Record<Project["project_type"], typeof Ticket>> = {
   meeting: Video,
   room: Users,
   course: BookOpen,
+  gig: Briefcase,
 };
 
 const TYPE_ACTION_LABEL: Partial<Record<Project["project_type"], string>> = {
@@ -102,6 +107,7 @@ export function ProjectCard({
 
   const hasPurchasedQuery = useHasPurchased(project.id);
   const purchaseProject = usePurchaseProject();
+  const bookGig = useBookGig();
   const getFileDownload = useGetProjectFile();
   const getAudioStream = useGetProjectFile();
   const getVideoStream = useGetProjectFile();
@@ -113,6 +119,7 @@ export function ProjectCard({
   const toggleLike = useToggleReaction(project.id, "project", "like");
   const accessCountQuery = useProjectAccessCount(project.id);
   const { data: mediaDetails } = useMediaDetails(project.project_type === "media" ? project.id : undefined);
+  const startConversation = useStartConversation();
 
   const [error, setError] = useState<string | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
@@ -153,6 +160,40 @@ export function ProjectCard({
       await purchaseProject.mutateAsync(project.id);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Purchase failed.");
+    }
+  }
+
+  // Booking a gig pays the deposit AND drops the buyer straight into a
+  // conversation with the host — book-gig hands back the conversation
+  // id for exactly that, unlike handleBuy above.
+  async function handleBookGig() {
+    if (!user) {
+      navigate(`/login?redirect=${encodeURIComponent(`/projects/${project.id}`)}`);
+      return;
+    }
+    setError(null);
+    try {
+      const { conversationId } = await bookGig.mutateAsync(project.id);
+      navigate(`/messages/${conversationId}`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Booking failed.");
+    }
+  }
+
+  // Gigs are lead-gen first — Message is always available regardless
+  // of whether a booking fee has been paid, unlike the buy/unlock CTAs
+  // for every other type.
+  async function handleMessage() {
+    if (!user) {
+      navigate(`/login?redirect=${encodeURIComponent(`/projects/${project.id}`)}`);
+      return;
+    }
+    setError(null);
+    try {
+      const conversationId = await startConversation.mutateAsync(project.owner_id);
+      navigate(`/messages/${conversationId}`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Couldn't start conversation.");
     }
   }
 
@@ -413,7 +454,11 @@ export function ProjectCard({
           </div>
 
           <div className="flex-shrink-0 text-right">
-            {isFree ? (
+            {isFree && project.project_type === "gig" ? (
+              <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-accent-soft text-accent">
+                Message to inquire
+              </span>
+            ) : isFree ? (
               <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-accent-soft text-accent">
                 Free
               </span>
@@ -566,6 +611,7 @@ export function ProjectCard({
 
           {!INLINE_TYPES.includes(project.project_type) &&
             !isMedia &&
+            project.project_type !== "gig" &&
             !hasAccess &&
             !isCourseUnpublished && (
               <span className="flex items-center gap-1.5 text-sm text-ink-muted">
@@ -578,23 +624,48 @@ export function ProjectCard({
             <span className="text-sm text-ink-muted">Not published yet</span>
           )}
 
+          {/* Gig — Message is always available (lead-gen first), plus an
+              optional "Book for $X" once a booking fee is set and hasn't
+              been paid yet. Independent of hasAccess/isFree, unlike every
+              other type's CTA. */}
+          {project.project_type === "gig" && !isOwner && (
+            <button
+              onClick={handleMessage}
+              disabled={startConversation.isPending}
+              className="flex items-center gap-1.5 text-sm text-accent font-medium disabled:opacity-50"
+            >
+              <MessageCircle size={15} />
+              {startConversation.isPending ? "Opening…" : "Message"}
+            </button>
+          )}
+
+          {project.project_type === "gig" && !isOwner && !isFree && hasPurchased && (
+            <span className="flex items-center gap-1.5 text-sm text-ink-muted ml-2">
+              Booked ✓
+            </span>
+          )}
+
           {!hasAccess && (!isFree || needsJoinAction) && !isCourseUnpublished && (
             <button
-              onClick={handleBuy}
-              disabled={purchaseProject.isPending}
+              onClick={project.project_type === "gig" ? handleBookGig : handleBuy}
+              disabled={project.project_type === "gig" ? bookGig.isPending : purchaseProject.isPending}
               className="ml-auto bg-accent text-canvas px-4 py-1.5 rounded-full text-sm font-medium disabled:opacity-50"
             >
-              {purchaseProject.isPending
-                ? needsJoinAction
-                  ? "Joining…"
-                  : "Purchasing…"
-                : needsJoinAction
-                  ? "Join room"
-                  : project.project_type === "event"
-                    ? `Buy ticket $${effectivePrice.toFixed(2)}`
-                    : project.project_type === "url"
-                      ? `Get access for $${effectivePrice.toFixed(2)}`
-                      : `Buy for $${effectivePrice.toFixed(2)}`}
+              {project.project_type === "gig"
+                ? bookGig.isPending
+                  ? "Booking…"
+                  : `Book for $${effectivePrice.toFixed(2)}`
+                : purchaseProject.isPending
+                  ? needsJoinAction
+                    ? "Joining…"
+                    : "Purchasing…"
+                  : needsJoinAction
+                    ? "Join room"
+                    : project.project_type === "event"
+                      ? `Buy ticket $${effectivePrice.toFixed(2)}`
+                      : project.project_type === "url"
+                        ? `Get access for $${effectivePrice.toFixed(2)}`
+                        : `Buy for $${effectivePrice.toFixed(2)}`}
             </button>
           )}
 
