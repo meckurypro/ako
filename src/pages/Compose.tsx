@@ -1,11 +1,14 @@
 // src/pages/Compose.tsx
 
 import { useRef, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, Link } from "react-router-dom";
 import { X, Image as ImageIcon, ChevronDown, ChevronRight } from "lucide-react";
 import { useCreatePost } from "../hooks/usePosts";
 import { useCategories } from "../hooks/useCategories";
 import { useUploadPostMedia, isVideoUrl } from "../hooks/useUploadPostMedia";
+import { useActiveIdentity } from "../hooks/usePages";
+import { useMyProfile } from "../hooks/useProfile";
+import { Avatar } from "../components/Avatar";
 import { MentionTextarea } from "../components/MentionTextarea";
 import { CONTENT_LIMIT, contentCounterClass } from "../lib/textLimits";
 
@@ -24,7 +27,14 @@ export function Compose() {
   const createPost = useCreatePost();
   const uploadMedia = useUploadPostMedia();
   const { data: categories } = useCategories();
+  const { data: identity } = useActiveIdentity();
+  const { data: me } = useMyProfile();
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Who this post will be attributed to — set once, from whichever mode
+  // was active when Compose opened (switching mid-draft would be
+  // confusing, so we don't watch for that here).
+  const postingAsPage = identity?.mode === "page" ? identity.page : null;
 
   const selectedCategory = categories?.find((c) => c.id === categoryId);
   // A post can be heading-only or details-only — either is enough to post.
@@ -66,8 +76,9 @@ export function Compose() {
         content,
         category_id: categoryId ?? undefined,
         media_urls: mediaUrls,
+        posted_as_page_id: postingAsPage?.id,
       });
-      navigate("/feed");
+      navigate(postingAsPage ? `/page/${postingAsPage.username}` : "/feed");
     } catch (err) {
       // Moderation rejections and other edge-function errors surface here —
       // the message is already short and direct, no need to reword it.
@@ -79,6 +90,29 @@ export function Compose() {
     <div className="min-h-screen bg-canvas">
       {/* Bottom padding clears the fixed action bar so nothing sits behind it. */}
       <div className="max-w-xl mx-auto px-4 pt-4 pb-28">
+        {/* Who this posts as — reflects account mode (see /pages). Not
+            editable from here on purpose: switch mode first, then compose,
+            so there's no chance of posting as the wrong identity mid-draft. */}
+        <div className="flex items-center gap-2 mb-4">
+          <Avatar
+            src={postingAsPage ? postingAsPage.avatar_url : me?.avatar_url}
+            name={postingAsPage ? postingAsPage.name : me?.display_name ?? "You"}
+            size="sm"
+          />
+          <p className="text-sm text-ink-muted">
+            Posting as{" "}
+            <span className="text-ink font-medium">
+              {postingAsPage ? postingAsPage.name : me?.display_name}
+            </span>
+            {!postingAsPage && (
+              <>
+                {" "}
+                · <Link to="/pages" className="text-accent">switch</Link>
+              </>
+            )}
+          </p>
+        </div>
+
         <input
           value={heading}
           onChange={(e) => setHeading(e.target.value.slice(0, HEADING_LIMIT))}
