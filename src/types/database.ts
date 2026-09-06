@@ -37,7 +37,86 @@ export interface Profile {
   last_seen_at: string | null;
   hide_followers_list: boolean;
   hide_following_list: boolean;
+  // Null = acting as yourself. Set = you're currently acting as one of
+  // the pages you have an active role on (see /areas/account-mode).
+  active_page_id: string | null;
 }
+
+// ------------------------------------------------------------
+// Account mode: organisation/brand pages, and the role-based
+// membership that lets a personal account act as one.
+// ------------------------------------------------------------
+
+export type PageType = "organization" | "brand";
+export type PageMemberStatus = "invited" | "active" | "declined" | "removed";
+
+export interface Page {
+  id: string;
+  page_type: PageType;
+  name: string;
+  username: string;
+  tagline: string | null;
+  bio: string | null;
+  avatar_url: string | null;
+  cover_url: string | null;
+  website_url: string | null;
+  category_id: string | null;
+  parent_organization_id: string | null;
+  created_by: string;
+  is_verified: boolean;
+  is_active: boolean;
+  follower_count: number;
+  created_at: string;
+  updated_at: string;
+}
+
+// Enough of a page to render a byline/avatar anywhere a page can
+// appear as an author (post card, comment, notification) — mirrors
+// AuthorSummary's role for profiles.
+export type PageSummary = Pick<Page, "id" | "username" | "name" | "avatar_url" | "page_type" | "is_verified">;
+
+export interface PageMember {
+  id: string;
+  page_id: string;
+  user_id: string;
+  role_label: string;
+  is_admin: boolean;
+  status: PageMemberStatus;
+  invited_by: string | null;
+  invited_at: string;
+  responded_at: string | null;
+  created_at: string;
+}
+
+export interface PageMemberWithProfile extends PageMember {
+  profile: Pick<Profile, "id" | "username" | "display_name" | "avatar_url">;
+}
+
+// A page in the "pages I can switch into" list — the page plus my own
+// membership row on it.
+export interface PageWithMyMembership extends Page {
+  my_role_label: string;
+  my_is_admin: boolean;
+}
+
+// A pending invite, joined with enough of the page to render it.
+export interface PendingPageInvite extends PageMember {
+  page: PageSummary;
+}
+
+// One line under a personal profile's name, e.g. "Graphics Designer at
+// PromptIQ" — computed from an active page_members row, not stored.
+export interface PageAffiliation {
+  page_id: string;
+  page_username: string;
+  page_name: string;
+  role_label: string;
+}
+
+// What "who am I posting/browsing as right now" resolves to.
+export type ActiveIdentity =
+  | { mode: "personal" }
+  | { mode: "page"; page: Page; role_label: string; is_admin: boolean };
 
 export interface ProfileWithRoles extends Profile {
   roles: ProfileRole[]; // 0-3, ordered by position
@@ -93,12 +172,19 @@ export interface Post {
   // reshared_post_id set + content !== "" → quote (own post, original
   // embedded as a card underneath the caption).
   reshared_post_id: string | null;
+  // Set when this post was published in Page mode — author_id is still
+  // the human who posted it, but display/attribution should prefer the
+  // page (see posted_as_page below) whenever this is non-null.
+  posted_as_page_id: string | null;
 }
 
 // Joined shape used when rendering a feed card — the post plus
 // enough author info to render without a separate fetch per post.
 export interface PostWithAuthor extends Post {
   author: AuthorSummary;
+  // Present (non-null) when posted_as_page_id is set — the byline
+  // should show this page's name/avatar instead of `author`'s.
+  posted_as_page?: PageSummary | null;
   // Embedded original when this post is a reshare/quote. Absent (undefined)
   // when not fetched; null when reshared_post_id points at nothing fetchable
   // (shouldn't happen); RepostSource itself carries is_deleted/is_archived
