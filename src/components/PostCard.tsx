@@ -122,6 +122,16 @@ export function PostCard({
   const isOwner = isOwnerView || user?.id === post.author.id;
   const HIDDEN_FOR_OWNER: SecondaryActionKey[] = ["disagree", "pushback", "gift", "dislike"];
 
+  // Page-mode post: byline shows the organisation/brand instead of the
+  // human who clicked post — same idea as a LinkedIn/Facebook Page post.
+  // author_id/isOwner above are deliberately left keyed on the real
+  // person (accountability, edit/delete rights), only the *display*
+  // identity swaps here.
+  const postedAsPage = post.posted_as_page ?? null;
+  const identityHref = postedAsPage ? `/page/${postedAsPage.username}` : `/profile/${post.author.username}`;
+  const identityName = postedAsPage ? postedAsPage.name : post.author.display_name;
+  const identityAvatar = postedAsPage ? postedAsPage.avatar_url : post.author.avatar_url;
+
   const isBookmarkedQuery = useIsBookmarked(post.id);
   const toggleBookmark = useToggleBookmark(post.id);
   const isBookmarked = !!isBookmarkedQuery.data;
@@ -401,26 +411,35 @@ export function PostCard({
       className="bg-surface dark:bg-[#121114] rounded-2xl p-4 mb-4 relative shadow-[0_0_0_1px_rgba(var(--shadow-ink-rgb),0.07),0_10px_24px_-6px_rgba(var(--shadow-ink-rgb),0.16)]"
     >
       <div className="flex items-start gap-3">
-        <Link to={`/profile/${post.author.username}`}>
-          <Avatar src={post.author.avatar_url} name={post.author.display_name} size="md" />
+        <Link to={identityHref}>
+          <Avatar src={identityAvatar} name={identityName} size="md" />
         </Link>
 
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-1.5 flex-wrap">
             <Link
-              to={`/profile/${post.author.username}`}
+              to={identityHref}
               className="font-display font-semibold text-[17px] leading-5 text-ink hover:underline"
             >
-              {shortDisplayName(post.author.display_name)}
+              {postedAsPage ? identityName : shortDisplayName(identityName)}
             </Link>
-            <TierBadge tier={post.author.tier} />
+            {!postedAsPage && <TierBadge tier={post.author.tier} />}
           </div>
 
-          {post.author.roles.length > 0 && (
-            <RoleTags
-              roles={post.author.roles}
-              className="text-[13px] font-normal leading-[18px] text-ink-muted block"
-            />
+          {postedAsPage ? (
+            // Page posts show the poster's role at the page instead of the
+            // personal job/hobby tags — e.g. "Graphics Designer at PromptIQ".
+            <p className="text-[13px] font-normal leading-[18px] text-ink-muted">
+              {shortDisplayName(post.author.display_name)}
+              {post.author.roles[0] ? ` · ${post.author.roles[0].label} at ${postedAsPage.name}` : ` posted this`}
+            </p>
+          ) : (
+            post.author.roles.length > 0 && (
+              <RoleTags
+                roles={post.author.roles}
+                className="text-[13px] font-normal leading-[18px] text-ink-muted block"
+              />
+            )
           )}
 
           <p className="text-xs leading-[18px] text-ink-muted flex items-center gap-1">
@@ -446,8 +465,12 @@ export function PostCard({
               label pushed to the end instead of the middle. Frees the name
               row to use the card's full width. bg-surface (+ dark variant,
               matching the card's own background below) lets the badge "cut"
-              into the line instead of drawing on top of it. */}
-          {!isOwner && (
+              into the line instead of drawing on top of it.
+
+              Page posts skip this — following a page happens on its own
+              PagePage (a follow-the-human FollowButton would be wrong here
+              since the byline above is the page, not post.author). */}
+          {!isOwner && !postedAsPage && (
             <div className="relative mt-2 border-t border-border">
               <span className="absolute right-0 top-1/2 -translate-y-1/2 pl-2 bg-surface dark:bg-[#121114]">
                 <FollowButton authorId={post.author.id} isPrivate={post.author.is_private} />
