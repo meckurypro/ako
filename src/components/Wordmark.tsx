@@ -23,12 +23,12 @@ export function Wordmark({ size = "lg", showTagline = true, asIcon = false }: Wo
         <img
           src="/app_icon_light.png"
           alt="Akọ — A Reason to Reason"
-          className={`inline-block dark:hidden ${size === "lg" ? "h-16" : "h-9"} w-auto`}
+          className={`inline-block dark:hidden ${size === "lg" ? "h-28" : "h-20"} w-auto`}
         />
         <img
           src="/app_icon_dark.png"
           alt="Akọ — A Reason to Reason"
-          className={`hidden dark:inline-block ${size === "lg" ? "h-16" : "h-9"} w-auto`}
+          className={`hidden dark:inline-block ${size === "lg" ? "h-28" : "h-20"} w-auto`}
         />
       </div>
     );
