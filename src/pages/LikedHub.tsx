@@ -1,6 +1,6 @@
 // src/pages/LikedHub.tsx
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useSmartBack } from "../hooks/useSmartBack";
 import { ArrowLeft } from "lucide-react";
 import { useTabState } from "../hooks/useTabState";
 import { useLikedPosts, useLikedProjects } from "../hooks/useReactions";
@@ -17,7 +17,7 @@ type Tab = (typeof TABS)[number];
 // mechanics (URL-backed state, sliding underline, real drag-tracking
 // carousel — see SwipeableTabs.tsx).
 export function LikedHub() {
-  const navigate = useNavigate();
+  const smartBack = useSmartBack();
   const [tab, setTab] = useTabState<Tab>(TABS, "posts");
   const activeIndex = TABS.indexOf(tab);
   // Continuous tab position fed by SwipeableTabs' onProgress, so the
@@ -37,7 +37,7 @@ export function LikedHub() {
   return (
     <div className="min-h-screen bg-canvas pb-24">
       <header className="px-4 pt-6 pb-3 sticky top-0 bg-canvas z-30 border-b border-border flex items-center gap-3">
-        <button onClick={() => navigate(-1)} className="text-ink-muted">
+        <button onClick={smartBack} className="text-ink-muted">
           <ArrowLeft size={22} />
         </button>
         <h2 className="font-display text-2xl text-ink">Liked</h2>
