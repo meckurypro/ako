@@ -1,6 +1,7 @@
 // src/pages/PagePage.tsx
 import { useEffect, useRef, useState } from "react";
 import { useParams, Link, useNavigate } from "react-router-dom";
+import { useSmartBack } from "../hooks/useSmartBack";
 import { ArrowLeft, ArrowLeftRight, BadgeCheck, Globe, MoreHorizontal, Redo2, Users, UserCog } from "lucide-react";
 import { useAuth } from "../hooks/useAuth";
 import { useMyProfile } from "../hooks/useProfile";
@@ -38,6 +39,7 @@ function getWebsiteDomain(url: string): string {
 export function PagePage() {
   const { username } = useParams<{ username: string }>();
   const navigate = useNavigate();
+  const smartBack = useSmartBack();
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
@@ -124,7 +126,7 @@ export function PagePage() {
     <div className="min-h-screen bg-canvas pb-24">
       <div className="max-w-md mx-auto">
         <div className="flex items-center justify-between px-4 pt-4">
-          <button onClick={() => navigate(-1)} className="text-ink-muted">
+          <button onClick={smartBack} className="text-ink-muted">
             <ArrowLeft size={22} />
           </button>
 
