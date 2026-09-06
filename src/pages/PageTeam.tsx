@@ -1,6 +1,7 @@
 // src/pages/PageTeam.tsx
 import { useState } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams } from "react-router-dom";
+import { useSmartBack } from "../hooks/useSmartBack";
 import { ArrowLeft, ShieldCheck, X } from "lucide-react";
 import { supabase } from "../lib/supabase";
 import { useAuth } from "../hooks/useAuth";
@@ -18,7 +19,7 @@ import {
 // same admin-only rules server-side regardless of what this page shows.
 export function PageTeam() {
   const { username } = useParams<{ username: string }>();
-  const navigate = useNavigate();
+  const smartBack = useSmartBack();
   const { user } = useAuth();
 
   const { data: page } = usePageByUsername(username!);
@@ -92,7 +93,7 @@ export function PageTeam() {
     <div className="min-h-screen bg-canvas px-4 pt-4 pb-10">
       <div className="max-w-md mx-auto">
         <div className="flex items-center gap-3 mb-6">
-          <button onClick={() => navigate(-1)} className="text-ink-muted">
+          <button onClick={smartBack} className="text-ink-muted">
             <ArrowLeft size={22} />
           </button>
           <h2 className="font-display text-xl text-ink">{page.name} team</h2>
