@@ -1,6 +1,7 @@
 // src/pages/Room.tsx
 import { useState, type FormEvent } from "react";
 import { useParams, useNavigate } from "react-router-dom";
+import { useSmartBack } from "../hooks/useSmartBack";
 import { ArrowLeft, Send, Calendar, ClipboardList, Users, Lock } from "lucide-react";
 import { useAuth } from "../hooks/useAuth";
 import { useProject } from "../hooks/useProjects";
@@ -29,6 +30,7 @@ import {
 export function Room() {
   const { projectId } = useParams<{ projectId: string }>();
   const navigate = useNavigate();
+  const smartBack = useSmartBack();
   const { user } = useAuth();
   const { data: project } = useProject(projectId);
   const isOwner = !!user && project?.owner_id === user.id;
@@ -89,7 +91,7 @@ export function Room() {
     return (
       <div className="min-h-screen bg-canvas px-4 pt-4 pb-10">
         <div className="max-w-md mx-auto">
-          <button onClick={() => navigate(-1)} className="text-ink-muted mb-4">
+          <button onClick={smartBack} className="text-ink-muted mb-4">
             <ArrowLeft size={22} />
           </button>
           <div className="flex flex-col items-center text-center gap-3 mt-16">
@@ -113,7 +115,7 @@ export function Room() {
   return (
     <div className="min-h-screen bg-canvas px-4 pt-4 pb-10">
       <div className="max-w-md mx-auto">
-        <button onClick={() => navigate(-1)} className="text-ink-muted mb-3">
+        <button onClick={smartBack} className="text-ink-muted mb-3">
           <ArrowLeft size={22} />
         </button>
 
