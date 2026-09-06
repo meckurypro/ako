@@ -1,5 +1,6 @@
 // src/pages/EventsActivity.tsx
-import { Link, useNavigate } from "react-router-dom";
+import { Link } from "react-router-dom";
+import { useSmartBack } from "../hooks/useSmartBack";
 import { ArrowLeft, ImageIcon, CalendarClock } from "lucide-react";
 import { useActivity, type ActivityItem } from "../hooks/useActivity";
 import { BottomNav } from "../components/BottomNav";
@@ -44,7 +45,7 @@ function ActivityRow({ item }: { item: ActivityItem }) {
 // data (useActivity), same routing per kind, now living in the
 // Activity hub instead of a profile tab (see Activity.tsx).
 export function EventsActivity() {
-  const navigate = useNavigate();
+  const smartBack = useSmartBack();
   const { data: items, isLoading } = useActivity();
   const now = Date.now();
   const upcoming = (items ?? []).filter((i) => !i.when || new Date(i.when).getTime() >= now);
@@ -53,7 +54,7 @@ export function EventsActivity() {
   return (
     <div className="min-h-screen bg-canvas px-4 pt-6 pb-24">
       <div className="max-w-xl mx-auto">
-        <button onClick={() => navigate(-1)} className="text-ink-muted mb-4">
+        <button onClick={smartBack} className="text-ink-muted mb-4">
           <ArrowLeft size={22} />
         </button>
 
