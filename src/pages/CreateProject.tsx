@@ -1,6 +1,7 @@
 // src/pages/CreateProject.tsx
 import { useRef, useState, type FormEvent } from "react";
 import { useNavigate } from "react-router-dom";
+import { useSmartBack } from "../hooks/useSmartBack";
 import { ArrowLeft, ImageIcon } from "lucide-react";
 import {
   useCreateProject,
@@ -32,6 +33,7 @@ import { GigFields, EMPTY_GIG_FIELDS, type GigFieldsValue } from "../components/
 
 export function CreateProject() {
   const navigate = useNavigate();
+  const smartBack = useSmartBack();
   const createProject = useCreateProject();
   const uploadThumbnail = useUploadProjectThumbnail();
 
@@ -228,7 +230,7 @@ export function CreateProject() {
   return (
     <div className="min-h-screen bg-canvas px-4 pt-4 pb-10">
       <div className="max-w-md mx-auto">
-        <button onClick={() => navigate(-1)} className="text-ink-muted mb-4">
+        <button onClick={smartBack} className="text-ink-muted mb-4">
           <ArrowLeft size={22} />
         </button>
 
