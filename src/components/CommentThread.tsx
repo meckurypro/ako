@@ -1,10 +1,14 @@
 // src/components/CommentThread.tsx
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { Heart, ThumbsDown } from "lucide-react";
 import { Avatar } from "./Avatar";
 import { StanceComposer, STANCE_COLORS } from "./StanceComposer";
-import { useMyReaction, useToggleReaction } from "../hooks/useReactions";
+import {
+  useMyCommentReactions,
+  useToggleCommentReaction,
+  type CommentReactionState,
+} from "../hooks/useReactions";
 import type { CommentNode } from "../hooks/useComments";
 import type { Stance } from "../types/database";
 import { renderFormattedText } from "../lib/formatText";
@@ -19,6 +23,28 @@ function timeAgo(dateString: string): string {
   return `${Math.floor(hours / 24)}d`;
 }
 
+// Every comment id in the tree, root and replies alike — used to fetch
+// the current user's reactions for the whole thread in one request.
+// See useMyCommentReactions in hooks/useReactions.ts for why this
+// replaced a per-comment query.
+function flattenCommentIds(comments: CommentNode[]): string[] {
+  const ids: string[] = [];
+  const walk = (nodes: CommentNode[]) => {
+    for (const node of nodes) {
+      ids.push(node.id);
+      if (node.replies.length > 0) walk(node.replies);
+    }
+  };
+  walk(comments);
+  return ids;
+}
+
+type ToggleReaction = (input: {
+  commentId: string;
+  type: "like" | "dislike";
+  currentlyActive: boolean;
+}) => void;
+
 interface CommentItemProps {
   comment: CommentNode;
   postId: string;
@@ -28,21 +54,31 @@ interface CommentItemProps {
   // into view and briefly flashes so it's obvious which one engaged
   // with the person, then fades back to normal.
   highlightId?: string | null;
+  // Reaction state and the toggle callback are computed once in
+  // CommentThread (one batched query, one shared mutation) and
+  // threaded down through props instead of each comment fetching and
+  // mutating independently.
+  reactions: Map<string, CommentReactionState> | undefined;
+  onToggleReaction: ToggleReaction;
 }
 
-function CommentItem({ comment, postId, depth = 0, highlightId }: CommentItemProps) {
+function CommentItem({
+  comment,
+  postId,
+  depth = 0,
+  highlightId,
+  reactions,
+  onToggleReaction,
+}: CommentItemProps) {
   const [replyStance, setReplyStance] = useState<Stance | null>(null);
   const stanceColors = comment.stance ? STANCE_COLORS[comment.stance] : null;
   const ref = useRef<HTMLDivElement>(null);
   const isTarget = !!highlightId && comment.id === highlightId;
   const [flashing, setFlashing] = useState(isTarget);
 
-  const likeQuery = useMyReaction(comment.id, "comment", "like");
-  const dislikeQuery = useMyReaction(comment.id, "comment", "dislike");
-  const toggleLike = useToggleReaction(comment.id, "comment", "like");
-  const toggleDislike = useToggleReaction(comment.id, "comment", "dislike");
-  const isLiked = !!likeQuery.data;
-  const isDisliked = !!dislikeQuery.data;
+  const reactionState = reactions?.get(comment.id);
+  const isLiked = !!reactionState?.liked;
+  const isDisliked = !!reactionState?.disliked;
 
   useEffect(() => {
     if (!isTarget || !ref.current) return;
@@ -93,17 +129,23 @@ function CommentItem({ comment, postId, depth = 0, highlightId }: CommentItemPro
 
           <div className="flex items-center gap-5 mt-2.5">
             <button
-              onClick={() => toggleLike.mutate(isLiked)}
-              disabled={toggleLike.isPending}
-              className="flex items-center gap-1.5 text-danger -ml-1.5 p-1.5 disabled:opacity-60"
+              onClick={() =>
+                onToggleReaction({ commentId: comment.id, type: "like", currentlyActive: isLiked })
+              }
+              className="flex items-center gap-1.5 text-danger -ml-1.5 p-1.5"
             >
               <Heart size={18} fill={isLiked ? "currentColor" : "none"} />
               {comment.like_count > 0 && <span className="text-sm">{comment.like_count}</span>}
             </button>
             <button
-              onClick={() => toggleDislike.mutate(isDisliked)}
-              disabled={toggleDislike.isPending}
-              className={`flex items-center gap-1.5 p-1.5 disabled:opacity-60 ${isDisliked ? "text-danger" : "text-ink-muted"}`}
+              onClick={() =>
+                onToggleReaction({
+                  commentId: comment.id,
+                  type: "dislike",
+                  currentlyActive: isDisliked,
+                })
+              }
+              className={`flex items-center gap-1.5 p-1.5 ${isDisliked ? "text-danger" : "text-ink-muted"}`}
             >
               <ThumbsDown size={18} fill={isDisliked ? "currentColor" : "none"} />
               {comment.dislike_count > 0 && <span className="text-sm">{comment.dislike_count}</span>}
@@ -132,6 +174,8 @@ function CommentItem({ comment, postId, depth = 0, highlightId }: CommentItemPro
               postId={postId}
               depth={depth + 1}
               highlightId={highlightId}
+              reactions={reactions}
+              onToggleReaction={onToggleReaction}
             />
           ))}
         </div>
@@ -158,6 +202,15 @@ export function CommentThread({
   postId: string;
   highlightId?: string | null;
 }) {
+  // One request for every reaction the current user has anywhere in
+  // this thread, and one shared mutation for toggling any of them —
+  // see useReactions.ts for why this replaced a per-comment,
+  // per-reaction-type query (the likely cause of like/dislike feeling
+  // unreliable on longer threads).
+  const commentIds = useMemo(() => flattenCommentIds(comments), [comments]);
+  const { data: reactions } = useMyCommentReactions(postId, commentIds);
+  const toggleReaction = useToggleCommentReaction(postId);
+
   if (comments.length === 0) {
     return <p className="text-sm text-ink-muted mt-6 text-center">No responses yet.</p>;
   }
@@ -165,7 +218,14 @@ export function CommentThread({
   return (
     <div>
       {comments.map((comment) => (
-        <CommentItem key={comment.id} comment={comment} postId={postId} highlightId={highlightId} />
+        <CommentItem
+          key={comment.id}
+          comment={comment}
+          postId={postId}
+          highlightId={highlightId}
+          reactions={reactions}
+          onToggleReaction={toggleReaction.mutate}
+        />
       ))}
     </div>
   );
