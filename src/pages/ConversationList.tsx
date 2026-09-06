@@ -1,6 +1,7 @@
 // src/pages/ConversationList.tsx
 import { useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { useSmartBack } from "../hooks/useSmartBack";
 import { ArrowLeft, Search, X, Pin, Archive, ChevronRight, Trash2, CheckSquare } from "lucide-react";
 import {
   useConversations,
@@ -32,6 +33,7 @@ function timeAgo(dateString: string): string {
 
 export function ConversationList() {
   const navigate = useNavigate();
+  const smartBack = useSmartBack();
   const { user } = useAuth();
   const { data: conversations, isLoading } = useConversations();
   const authorIds = conversations?.map((c) => c.other_participant.id) ?? [];
@@ -300,7 +302,7 @@ export function ConversationList() {
           </div>
         ) : (
           <div className="px-4 pt-6 pb-3 flex items-center gap-3">
-            <button onClick={() => navigate(-1)} className="text-ink-muted">
+            <button onClick={smartBack} className="text-ink-muted">
               <ArrowLeft size={22} />
             </button>
             <h2 className="font-display text-2xl text-ink flex-1">Messages</h2>
