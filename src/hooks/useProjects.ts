@@ -202,18 +202,22 @@ interface MeetingDetailsInput {
   scheduled_at: string; // ISO
 }
 
-// A 'media' project's audio/video channels — see MediaDetails in
-// useProjectTypeDetails.ts for the full shape/invariants. Channel
+// A 'media' project's audio/video/image channels — see MediaDetails
+// in useProjectTypeDetails.ts for the full shape/invariants. Channel
 // fields are only meaningful when the matching has_* flag is true.
 interface MediaDetailsInput {
   has_audio: boolean;
   has_video: boolean;
+  has_image: boolean;
   audio_source?: "link" | "upload";
   audio_url?: string;
   audio_file_path?: string;
   video_source?: "link" | "upload";
   video_url?: string;
   video_file_path?: string;
+  image_source?: "link" | "upload";
+  image_url?: string;
+  image_file_path?: string;
 }
 
 // A 'gig' is a portfolio/service listing rather than a pre-made
@@ -510,6 +514,7 @@ export function useBookGig() {
  *  - "file"  → projects.file_path            (File-type projects)
  *  - "audio" → project_media_details.audio_file_path
  *  - "video" → project_media_details.video_file_path
+ *  - "image" → project_media_details.image_file_path
  * Defaults to "file" for existing call sites. NOTE: the deployed
  * get-project-file function needs to be updated to branch on this —
  * see the note in project-types/MediaFields.tsx / README.
@@ -521,7 +526,7 @@ export function useGetProjectFile() {
       kind = "file",
     }: {
       projectId: string;
-      kind?: "file" | "audio" | "video";
+      kind?: "file" | "audio" | "video" | "image";
     }): Promise<string> => {
       const { data, error } = await supabase.functions.invoke("get-project-file", {
         body: { project_id: projectId, kind },
