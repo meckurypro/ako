@@ -1,5 +1,6 @@
 // src/pages/Pages.tsx
-import { useNavigate, Link } from "react-router-dom";
+import { Link } from "react-router-dom";
+import { useSmartBack } from "../hooks/useSmartBack";
 import { ArrowLeft, Check, X } from "lucide-react";
 import { Avatar } from "../components/Avatar";
 import { AccountModeSwitcher } from "../components/AccountModeSwitcher";
@@ -9,7 +10,7 @@ import { pageModeLabel } from "../lib/pageRoles";
 // /pages — the account-mode hub: switch between personal and any page
 // you manage, respond to pending role invites, or start a new page.
 export function Pages() {
-  const navigate = useNavigate();
+  const smartBack = useSmartBack();
   const { data: invites } = useMyPendingPageInvites();
   const respond = useRespondToPageInvite();
 
@@ -17,7 +18,7 @@ export function Pages() {
     <div className="min-h-screen bg-canvas px-4 pt-4 pb-10">
       <div className="max-w-md mx-auto">
         <div className="flex items-center gap-3 mb-6">
-          <button onClick={() => navigate(-1)} className="text-ink-muted">
+          <button onClick={smartBack} className="text-ink-muted">
             <ArrowLeft size={22} />
           </button>
           <h2 className="font-display text-xl text-ink">Account mode</h2>
