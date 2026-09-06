@@ -2,8 +2,9 @@
 import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { ArrowLeft, Lock, Video } from "lucide-react";
-import { useProject, useHasPurchased } from "../hooks/useProjects";
+import { useProject, useHasPurchased, isProjectFree } from "../hooks/useProjects";
 import { useMeetingDetails } from "../hooks/useProjectTypeDetails";
+import { useAuth } from "../hooks/useAuth";
 
 function useCountdown(target: string | null | undefined) {
   const [remainingMs, setRemainingMs] = useState<number | null>(null);
@@ -36,10 +37,13 @@ function formatCountdown(ms: number) {
 export function MeetingRoom() {
   const { projectId } = useParams<{ projectId: string }>();
   const navigate = useNavigate();
+  const { user } = useAuth();
   const { data: project } = useProject(projectId);
   const { data: details } = useMeetingDetails(projectId);
   const hasPurchasedQuery = useHasPurchased(projectId ?? "");
-  const hasAccess = !!hasPurchasedQuery.data;
+  const isOwner = !!user && project?.owner_id === user.id;
+  const isFree = !!project && isProjectFree(project);
+  const hasAccess = isOwner || isFree || !!hasPurchasedQuery.data;
 
   const remainingMs = useCountdown(details?.scheduled_at);
   const isLive = remainingMs !== null && remainingMs <= 0;
