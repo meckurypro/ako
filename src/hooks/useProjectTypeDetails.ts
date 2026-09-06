@@ -1,6 +1,7 @@
 // src/hooks/useProjectTypeDetails.ts
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "../lib/supabase";
+import type { Project } from "./useProjects";
 
 export interface EventDetails {
   project_id: string;
@@ -89,5 +90,60 @@ export function useMediaDetails(projectId: string | undefined) {
       return data;
     },
     enabled: !!projectId,
+  });
+}
+
+export interface GigDetails {
+  project_id: string;
+  tagline: string | null;
+  delivery_estimate: string | null;
+}
+
+// Publicly readable, same as event/meeting/media above.
+export function useGigDetails(projectId: string | undefined) {
+  return useQuery({
+    queryKey: ["project-gig-details", projectId],
+    queryFn: async (): Promise<GigDetails | null> => {
+      const { data, error } = await supabase
+        .from("project_gig_details")
+        .select("*")
+        .eq("project_id", projectId)
+        .maybeSingle();
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!projectId,
+  });
+}
+
+// A gig's proof-of-work samples, in display order. Two-step fetch
+// (sample ids, then the projects themselves) rather than a
+// PostgREST embed — keeps this independent of the exact FK
+// constraint name in the DB.
+export function useGigSamples(gigProjectId: string | undefined) {
+  return useQuery({
+    queryKey: ["project-gig-samples", gigProjectId],
+    queryFn: async (): Promise<Project[]> => {
+      const { data: links, error: linksError } = await supabase
+        .from("project_gig_samples")
+        .select("sample_project_id, sort_order")
+        .eq("gig_project_id", gigProjectId)
+        .order("sort_order");
+      if (linksError) throw linksError;
+      if (!links || links.length === 0) return [];
+
+      const ids = links.map((l) => l.sample_project_id);
+      const { data: projects, error: projectsError } = await supabase
+        .from("projects")
+        .select("*")
+        .in("id", ids);
+      if (projectsError) throw projectsError;
+
+      // Preserve the sort_order from project_gig_samples — the .in()
+      // query above doesn't guarantee row order.
+      const byId = new Map((projects ?? []).map((p) => [p.id, p as Project]));
+      return links.map((l) => byId.get(l.sample_project_id)).filter((p): p is Project => !!p);
+    },
+    enabled: !!gigProjectId,
   });
 }
