@@ -3,6 +3,7 @@ import { useState } from "react";
 import { useLocation, Navigate } from "react-router-dom";
 import { supabase } from "../../lib/supabase";
 import { Wordmark } from "../../components/Wordmark";
+import { AuthPattern } from "../../components/AuthPattern";
 
 interface LocationState {
   email: string;
@@ -49,8 +50,9 @@ export function VerifyEmail() {
   }
 
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center px-6 bg-canvas">
-      <div className="w-full max-w-sm text-center">
+    <div className="relative min-h-screen flex flex-col items-center justify-center px-6 bg-canvas overflow-hidden">
+      <AuthPattern />
+      <div className="relative z-10 w-full max-w-sm text-center">
         <div className="mb-8">
           <Wordmark size="sm" showTagline={false} />
         </div>
