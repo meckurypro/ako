@@ -1,6 +1,7 @@
 // src/pages/auth/Login.tsx
 import { useState, type FormEvent } from "react";
-import { Link, useNavigate, useSearchParams } from "react-router-dom";
+import { Link, Navigate, useNavigate, useSearchParams } from "react-router-dom";
+import { useAuth } from "../../hooks/useAuth";
 import { supabase } from "../../lib/supabase";
 import { Wordmark } from "../../components/Wordmark";
 import { AuthPattern } from "../../components/AuthPattern";
@@ -10,6 +11,7 @@ import { Button } from "../../components/Button";
 
 export function Login() {
   const navigate = useNavigate();
+  const { user, loading: authLoading } = useAuth();
   const [searchParams] = useSearchParams();
   const redirectParam = searchParams.get("redirect");
   const redirectTo =
@@ -23,6 +25,16 @@ export function Login() {
   const [loading, setLoading] = useState(false);
   const [resending, setResending] = useState(false);
   const [resent, setResent] = useState(false);
+
+  // Already signed in — most commonly hit via the browser's back
+  // button: /login sits behind a primary page in history once the
+  // user has logged in, so back-navigation can land here even though
+  // the session is still valid. Bounce straight past the form instead
+  // of showing it again. `replace: true` here too, so back/forward
+  // doesn't just bounce the user between this redirect and /login.
+  if (!authLoading && user) {
+    return <Navigate to={redirectTo} replace />;
+  }
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
@@ -54,7 +66,12 @@ export function Login() {
       return;
     }
 
-    navigate(redirectTo);
+    // replace: true — a login shouldn't leave /login sitting in browser
+    // history behind the page it lands on. Without this, clicking the
+    // browser back button from a primary page takes the user straight
+    // back to the login form (even though they're still authenticated),
+    // since this route has no other guard against direct visits.
+    navigate(redirectTo, { replace: true });
   }
 
   async function handleResend() {
