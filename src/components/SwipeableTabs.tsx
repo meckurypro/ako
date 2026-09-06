@@ -66,6 +66,56 @@ export function SwipeableTabs({ index, onIndexChange, onProgress, children, clas
   const containerRef = useRef<HTMLDivElement>(null);
   const paneRefs = useRef<(HTMLDivElement | null)[]>([]);
 
+  // Panes render lazily: a pane's real content only mounts once it's
+  // the active tab or immediately next to it, instead of every pane
+  // mounting up front. "All tabs are mounted at once" (see the class
+  // doc above) is still true for the tabs that matter for a
+  // mid-gesture slide — the active one plus its immediate neighbors —
+  // it just no longer means literally every tab on a 3+-tab row like
+  // Feed's. Panes carrying a real list (Feed's tabs, LikedHub's/
+  // SavedHub's Posts and Projects) each mount a PostCard/ProjectCard
+  // per item, and every card fires its own handful of Supabase
+  // queries (bookmark state, like, dislike, has-reshared — see
+  // useReactions.ts/useBookmarks.ts). With every pane mounted
+  // regardless of which one you're looking at, a page with a long
+  // list (an active account's full like history, a busy feed) was
+  // firing all of those requests — and re-rendering all of those
+  // cards — at once, on mount, including during whatever swipe
+  // brought you there. That's main-thread contention fighting the
+  // same touch handler that's supposed to be tracking your finger,
+  // which is what reads as the carousel "resisting" the drag. It
+  // isn't a deliberate setting — Saved and Profile just don't happen
+  // to show a long enough list, for most accounts, to hit it.
+  //
+  // This only fixes the part of that cost that comes from mounting
+  // *distant* tabs (relevant once there are 3+, e.g. Feed) — a
+  // 2-tab row like LikedHub's still mounts both, since each is
+  // always the other's immediate neighbor. The rest of the fix is
+  // cutting each pane's own per-card query count the way
+  // useMyCommentReactions already does for comment threads; batching
+  // post reactions/bookmarks/reshares the same way is the natural
+  // follow-up.
+  const [visited, setVisited] = useState<Set<number>>(() => {
+    const initial = new Set<number>([index]);
+    if (index > 0) initial.add(index - 1);
+    if (index < count - 1) initial.add(index + 1);
+    return initial;
+  });
+
+  useEffect(() => {
+    setVisited((prev) => {
+      const alreadyHasNeighbors =
+        prev.has(index) && (index === 0 || prev.has(index - 1)) && (index === count - 1 || prev.has(index + 1));
+      if (alreadyHasNeighbors) return prev;
+
+      const next = new Set(prev);
+      next.add(index);
+      if (index > 0) next.add(index - 1);
+      if (index < count - 1) next.add(index + 1);
+      return next;
+    });
+  }, [index, count]);
+
   const [containerWidth, setContainerWidth] = useState(0);
   const [heights, setHeights] = useState<number[]>(() => Array(count).fill(0));
   const [dragPx, setDragPx] = useState(0);
@@ -277,7 +327,7 @@ export function SwipeableTabs({ index, onIndexChange, onProgress, children, clas
             className="shrink-0"
             style={{ width: `${100 / count}%` }}
           >
-            {child}
+            {visited.has(i) ? child : null}
           </div>
         ))}
       </div>
