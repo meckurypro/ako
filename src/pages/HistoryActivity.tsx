@@ -1,5 +1,6 @@
 // src/pages/HistoryActivity.tsx
-import { Link, useNavigate } from "react-router-dom";
+import { Link } from "react-router-dom";
+import { useSmartBack } from "../hooks/useSmartBack";
 import { ArrowLeft, ImageIcon, History as HistoryIcon, FileText } from "lucide-react";
 import { useViewHistory, type HistoryItem } from "../hooks/useViewHistory";
 import { BottomNav } from "../components/BottomNav";
@@ -41,13 +42,13 @@ function HistoryRow({ item }: { item: HistoryItem }) {
 }
 
 export function HistoryActivity() {
-  const navigate = useNavigate();
+  const smartBack = useSmartBack();
   const { data: items, isLoading } = useViewHistory();
 
   return (
     <div className="min-h-screen bg-canvas px-4 pt-6 pb-24">
       <div className="max-w-xl mx-auto">
-        <button onClick={() => navigate(-1)} className="text-ink-muted mb-4">
+        <button onClick={smartBack} className="text-ink-muted mb-4">
           <ArrowLeft size={22} />
         </button>
         <h2 className="font-display text-2xl text-ink mb-6">History</h2>
