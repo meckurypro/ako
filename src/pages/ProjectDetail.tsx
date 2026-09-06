@@ -1,8 +1,8 @@
 // src/pages/ProjectDetail.tsx
 import { useParams, useNavigate, Link } from "react-router-dom";
-import { ArrowLeft, ImageIcon, MapPin, Video, CalendarClock } from "lucide-react";
+import { ArrowLeft, ImageIcon, MapPin, Video, CalendarClock, Clock } from "lucide-react";
 import { useProjectDetail, useSimilarProjects, PROJECT_TYPE_LABELS, type Project } from "../hooks/useProjects";
-import { useEventDetails, useMeetingDetails } from "../hooks/useProjectTypeDetails";
+import { useEventDetails, useMeetingDetails, useGigDetails, useGigSamples } from "../hooks/useProjectTypeDetails";
 import { useMarkProjectSeen } from "../hooks/useMarkProjectSeen";
 import { Avatar } from "../components/Avatar";
 import { TierBadge } from "../components/TierBadge";
@@ -56,6 +56,8 @@ export function ProjectDetail() {
   const { data: similar } = useSimilarProjects(project);
   const { data: eventDetails } = useEventDetails(project?.project_type === "event" ? projectId : undefined);
   const { data: meetingDetails } = useMeetingDetails(project?.project_type === "meeting" ? projectId : undefined);
+  const { data: gigDetails } = useGigDetails(project?.project_type === "gig" ? projectId : undefined);
+  const { data: gigSamples } = useGigSamples(project?.project_type === "gig" ? projectId : undefined);
 
   // Powers the Activity hub's "History" tab (see useViewHistory) —
   // same idea as useMarkPostSeen for posts.
@@ -92,6 +94,28 @@ export function ProjectDetail() {
             {project.project_type === "meeting" && meetingDetails && (
               <div className="flex items-center gap-1.5 -mt-2 mb-4 text-sm text-ink-muted">
                 <Video size={14} /> {new Date(meetingDetails.scheduled_at).toLocaleString()}
+              </div>
+            )}
+
+            {/* Gig browsing info — tagline/delivery estimate up top,
+                proof-of-work samples as a rail below. Message/Book
+                CTAs live on the ProjectCard above, not here. */}
+            {project.project_type === "gig" && gigDetails?.tagline && (
+              <p className="-mt-2 mb-2 text-sm font-medium text-ink">{gigDetails.tagline}</p>
+            )}
+            {project.project_type === "gig" && gigDetails?.delivery_estimate && (
+              <div className="flex items-center gap-1.5 mb-4 text-sm text-ink-muted">
+                <Clock size={14} /> {gigDetails.delivery_estimate}
+              </div>
+            )}
+            {project.project_type === "gig" && gigSamples && gigSamples.length > 0 && (
+              <div className="mb-4">
+                <h3 className="font-display text-base text-ink mb-3">Work samples</h3>
+                <div className="flex gap-3 overflow-x-auto pb-1 -mx-4 px-4">
+                  {gigSamples.map((sample) => (
+                    <ProjectMiniCard key={sample.id} project={sample} />
+                  ))}
+                </div>
               </div>
             )}
 
