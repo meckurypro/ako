@@ -111,6 +111,7 @@ export function ProjectCard({
   const getFileDownload = useGetProjectFile();
   const getAudioStream = useGetProjectFile();
   const getVideoStream = useGetProjectFile();
+  const getImageStream = useGetProjectFile();
   const setStatus = useSetProjectStatus();
   const deleteProject = useDeleteProject();
   const isSavedQuery = useIsProjectSaved(project.id);
@@ -126,6 +127,7 @@ export function ProjectCard({
   const menuRef = useRef<HTMLDivElement>(null);
   const [audioSrc, setAudioSrc] = useState<string | null>(null);
   const [videoSrc, setVideoSrc] = useState<string | null>(null);
+  const [imageSrc, setImageSrc] = useState<string | null>(null);
   const hasPurchased = !!hasPurchasedQuery.data;
   // Rooms are the one project type where "free" isn't self-granting:
   // membership lives in room_members, and that row only gets created
@@ -257,6 +259,20 @@ export function ProjectCard({
       setVideoSrc(url);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Couldn't load video.");
+    }
+  }
+
+  async function handleViewImage() {
+    if (!user) {
+      navigate(`/login?redirect=${encodeURIComponent(`/projects/${project.id}`)}`);
+      return;
+    }
+    setError(null);
+    try {
+      const url = await getImageStream.mutateAsync({ projectId: project.id, kind: "image" });
+      setImageSrc(url);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Couldn't load image.");
     }
   }
 
@@ -549,6 +565,38 @@ export function ProjectCard({
                   >
                     <Video size={15} />
                     {getVideoStream.isPending ? "Loading…" : "Play video"}
+                  </button>
+                )}
+              </div>
+            )}
+
+            {mediaDetails.has_image && (
+              <div>
+                {!hasAccess ? (
+                  <span className="flex items-center gap-1.5 text-sm text-ink-muted">
+                    <Lock size={15} />
+                    Image locked
+                  </span>
+                ) : mediaDetails.image_source === "link" ? (
+                  <a
+                    href={mediaDetails.image_url ?? undefined}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-1.5 text-sm text-accent font-medium"
+                  >
+                    <ImageIcon size={15} />
+                    Open image link
+                  </a>
+                ) : imageSrc ? (
+                  <img src={imageSrc} alt="" className="w-full rounded-lg max-h-72 object-contain" />
+                ) : (
+                  <button
+                    onClick={handleViewImage}
+                    disabled={getImageStream.isPending}
+                    className="flex items-center gap-1.5 text-sm text-accent font-medium disabled:opacity-50"
+                  >
+                    <ImageIcon size={15} />
+                    {getImageStream.isPending ? "Loading…" : "View image"}
                   </button>
                 )}
               </div>
