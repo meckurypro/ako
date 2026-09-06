@@ -200,52 +200,33 @@ interface ReshareInput {
  * Creates a reshare or quote (same row shape, distinguished by whether
  * `caption` is empty — see isPlainReshare/isQuote in types/database.ts).
  *
- * TODO(moderation): quote captions are new user-authored text and should
- * ideally pass through the same Claude-moderation edge function that
- * create-post uses, the way create-post itself does. That function's
- * source isn't in this repo, so this goes straight to the table for now —
- * same as useDeletePost/useSetPostArchived below. Route this through an
- * edge function instead once that source is available to extend.
+ * Routed through the create-reshare edge function — NOT a direct
+ * `.from("posts").insert(...)` like this used to be. That was the one
+ * spot in the whole app that wrote to `posts` straight from the client:
+ * every other post-creation path (create-post, create-page-post,
+ * create-comment) goes through an edge function, and it's what actually
+ * broke Repost/Quote — RLS on `posts` only allows inserts via those
+ * service-role functions (which also run moderation on the content),
+ * so the direct client insert was rejected outright. See
+ * supabase/functions/create-reshare for the function itself; it also
+ * now owns the double-reshare guard and the moderation pass on the
+ * caption, matching create-post's shape instead of skipping both.
  *
  * Personal-mode only for now — resharing/quoting as a page isn't wired
  * up (create-page-post only handles fresh posts, not reshared_post_id).
  */
 export function useCreateReshare() {
-  const { user } = useAuth();
   const queryClient = useQueryClient();
 
   return useMutation({
     meta: { blocking: true },
     mutationFn: async ({ originalPostId, caption }: ReshareInput) => {
-      if (!user) throw new Error("Not signed in");
-
-      // Guard against double-resharing the same post — the UI already hides
-      // the Reshare button once you've reshared, but this is a second line
-      // of defense against races (two taps before the query cache updates,
-      // stale UI, etc.) rather than relying on the client alone.
-      const { data: existing } = await supabase
-        .from("posts")
-        .select("id")
-        .eq("author_id", user.id)
-        .eq("reshared_post_id", originalPostId)
-        .eq("is_deleted", false)
-        .maybeSingle();
-      if (existing) throw new Error("You've already reshared this post.");
-
-      const { data, error } = await supabase
-        .from("posts")
-        .insert({
-          author_id: user.id,
-          content: caption?.trim() ?? "",
-          reshared_post_id: originalPostId,
-        })
-        .select(FEED_SELECT)
-        .single();
-      if (error) {
-        console.error("[useCreateReshare] Supabase error:", error);
-        throw error;
-      }
-      return normalizePost(data);
+      const { data, error } = await supabase.functions.invoke("create-reshare", {
+        body: { originalPostId, caption: caption?.trim() ?? "" },
+      });
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+      return normalizePost(data.post);
     },
     onSuccess: (_data, variables) => {
       queryClient.invalidateQueries({ queryKey: ["feed-posts"] });
