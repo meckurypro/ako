@@ -11,11 +11,16 @@ export const POST_EDIT_WINDOW_MS = 15 * 60 * 1000;
 const TOP_DISCUSSIONS_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
 
 const AUTHOR_SELECT = `id, username, display_name, avatar_url, tier, is_private, ${PROFILE_ROLES_SELECT}`;
+// Joined alongside author on every post select — null on the vast
+// majority of rows (personal posts), populated only when the post was
+// published in Page mode. PostCard should prefer this over `author`
+// for byline/avatar whenever it's non-null.
+const PAGE_SELECT = `posted_as_page:pages(id, username, name, avatar_url, page_type, is_verified)`;
 
 // One level deep: the embedded reshared_post carries its own author but
 // not a further-nested reshared_post, so repost-of-a-repost links to the
 // immediate parent rather than recursing indefinitely.
-const FEED_SELECT = `*, author:profiles!posts_author_id_fkey(${AUTHOR_SELECT}), reshared_post(*, author:profiles!posts_author_id_fkey(${AUTHOR_SELECT}))`;
+const FEED_SELECT = `*, author:profiles!posts_author_id_fkey(${AUTHOR_SELECT}), ${PAGE_SELECT}, reshared_post(*, author:profiles!posts_author_id_fkey(${AUTHOR_SELECT}))`;
 
 export function canEditPost(post: Pick<PostWithAuthor, "created_at">): boolean {
   return Date.now() - new Date(post.created_at).getTime() <= POST_EDIT_WINDOW_MS;
@@ -44,6 +49,10 @@ interface CreatePostInput {
   category_id?: string;
   interest_ids?: string[];
   media_urls?: string[];
+  // Present when posting in Page mode — routes through create-page-post
+  // instead of create-post, and attributes the post to the page. See
+  // useActiveIdentity in hooks/usePages.ts for where this comes from.
+  posted_as_page_id?: string;
 }
 
 export function useFeedPosts(interestId?: string, page = 0) {
@@ -128,21 +137,55 @@ export function useTopDiscussionsFeed(page = 0) {
   });
 }
 
+/**
+ * A page's own visitor feed — "cumulative activity of everyone
+ * managing it" is just every post posted_as_page_id = this page,
+ * regardless of which admin actually posted it.
+ */
+export function usePagePosts(pageId: string, page = 0) {
+  return useQuery({
+    queryKey: ["page-posts", pageId, page],
+    queryFn: async (): Promise<PostWithAuthor[]> => {
+      const { data, error } = await supabase
+        .from("posts")
+        .select(FEED_SELECT)
+        .eq("posted_as_page_id", pageId)
+        .eq("is_deleted", false)
+        .eq("is_archived", false)
+        .order("created_at", { ascending: false })
+        .range(page * PAGE_SIZE, page * PAGE_SIZE + PAGE_SIZE - 1);
+      if (error) throw error;
+      return (data as any[]).map(normalizePost);
+    },
+    enabled: !!pageId,
+  });
+}
+
 export function useCreatePost() {
   const queryClient = useQueryClient();
 
   return useMutation({
     meta: { blocking: true },
     mutationFn: async (input: CreatePostInput) => {
-      const { data, error } = await supabase.functions.invoke("create-post", {
-        body: input,
-      });
+      const { posted_as_page_id, ...rest } = input;
+
+      // Page-mode posts go through a separate function (different
+      // author-vs-page attribution + admin check) — see create-page-post.
+      const { data, error } = posted_as_page_id
+        ? await supabase.functions.invoke("create-page-post", {
+            body: { ...rest, page_id: posted_as_page_id },
+          })
+        : await supabase.functions.invoke("create-post", { body: rest });
+
       if (error) throw error;
       if (data?.error) throw new Error(data.error);
       return data.post;
     },
-    onSuccess: () => {
+    onSuccess: (_post, variables) => {
       queryClient.invalidateQueries({ queryKey: ["feed-posts"] });
+      if (variables.posted_as_page_id) {
+        queryClient.invalidateQueries({ queryKey: ["page-posts", variables.posted_as_page_id] });
+      }
     },
   });
 }
@@ -163,6 +206,9 @@ interface ReshareInput {
  * source isn't in this repo, so this goes straight to the table for now —
  * same as useDeletePost/useSetPostArchived below. Route this through an
  * edge function instead once that source is available to extend.
+ *
+ * Personal-mode only for now — resharing/quoting as a page isn't wired
+ * up (create-page-post only handles fresh posts, not reshared_post_id).
  */
 export function useCreateReshare() {
   const { user } = useAuth();
@@ -295,6 +341,7 @@ export function useDeletePost() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["feed-posts"] });
       queryClient.invalidateQueries({ queryKey: ["user-posts"] });
+      queryClient.invalidateQueries({ queryKey: ["page-posts"] });
     },
   });
 }
@@ -313,6 +360,7 @@ export function useSetPostArchived() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["feed-posts"] });
       queryClient.invalidateQueries({ queryKey: ["user-posts"] });
+      queryClient.invalidateQueries({ queryKey: ["page-posts"] });
     },
   });
 }
