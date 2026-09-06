@@ -319,15 +319,7 @@ export function CreateProject() {
             </p>
           </div>
 
-          <div className="mb-4">
-            <label className="block text-sm font-medium text-ink-muted mb-1.5">
-              Topics <span className="font-normal text-ink-muted">(optional)</span>
-            </label>
-            <TopicPicker selected={topicIds} onToggle={toggleTopic} />
-            <p className="text-xs text-ink-muted mt-1.5">
-              Helps people browsing find this project, and powers "similar projects" for it.
-            </p>
-          </div>
+          <TopicPicker selected={topicIds} onToggle={toggleTopic} />
 
           {/* ---- Type-specific block ---- */}
           {projectType === "media" && (
