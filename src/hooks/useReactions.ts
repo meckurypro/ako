@@ -14,12 +14,13 @@ const COLUMN_FOR: Record<TargetType, "post_id" | "comment_id" | "project_id"> = 
 };
 
 /**
- * Checks whether the current user has already reacted to a post,
- * comment, or project with a given type. Generalized across posts and
- * comments since comments carry like_count/dislike_count columns too
- * (see 02_posts_reactions_comments.sql) that had no corresponding UI
- * until this was caught in review — and now projects, which carry a
- * like_count column of their own (see the project-reactions migration).
+ * Checks whether the current user has already reacted to a post or
+ * project with a given type. Comments no longer go through this hook
+ * — see useMyCommentReactions below — because a thread with N
+ * comments was mounting 2N of these (like + dislike, per comment),
+ * which is what made reacting to comments feel unreliable: on a slow
+ * connection that many concurrent requests queue, get rate-limited,
+ * or lose the race with a fast second tap.
  *
  * `.limit(1)` before `.maybeSingle()` is deliberate, not redundant:
  * if a race ever produces more than one reaction row for the same
@@ -30,7 +31,7 @@ const COLUMN_FOR: Record<TargetType, "post_id" | "comment_id" | "project_id"> = 
  * the like/dislike button stuck, even before that migration is applied
  * or if a duplicate ever slips through some other way.
  */
-export function useMyReaction(targetId: string, targetType: TargetType, type: ReactionType) {
+export function useMyReaction(targetId: string, targetType: "post" | "project", type: ReactionType) {
   const { user } = useAuth();
   const column = COLUMN_FOR[targetType];
 
@@ -57,11 +58,11 @@ export function useMyReaction(targetId: string, targetType: TargetType, type: Re
 const UNIQUE_VIOLATION = "23505";
 
 /**
- * Toggles a reaction on/off for a post, comment, or project. Reactions
- * go straight through RLS (no edge function needed) since they carry
- * no text and therefore don't need moderation.
+ * Toggles a reaction on/off for a post or project. Reactions go
+ * straight through RLS (no edge function needed) since they carry no
+ * text and therefore don't need moderation.
  */
-export function useToggleReaction(targetId: string, targetType: TargetType, type: ReactionType) {
+export function useToggleReaction(targetId: string, targetType: "post" | "project", type: ReactionType) {
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const column = COLUMN_FOR[targetType];
@@ -97,8 +98,6 @@ export function useToggleReaction(targetId: string, targetType: TargetType, type
       queryClient.invalidateQueries({ queryKey: ["my-reaction", targetType, targetId, type] });
       if (targetType === "post") {
         queryClient.invalidateQueries({ queryKey: ["feed-posts"] });
-      } else if (targetType === "comment") {
-        queryClient.invalidateQueries({ queryKey: ["comments"] });
       } else {
         // Project like_count is read off several different queries
         // depending on where the card is rendered — profile tab,
@@ -111,6 +110,159 @@ export function useToggleReaction(targetId: string, targetType: TargetType, type
         queryClient.invalidateQueries({ queryKey: ["saved-projects"] });
         queryClient.invalidateQueries({ queryKey: ["liked-projects"] });
       }
+    },
+  });
+}
+
+// --- Comment reactions -----------------------------------------------
+//
+// Comments get their own pair of hooks instead of reusing
+// useMyReaction/useToggleReaction above. A comment thread can hold
+// dozens of comments, and the old approach mounted one useMyReaction
+// query per comment per reaction type (like + dislike), i.e. 2N
+// requests just to paint the thread's reaction state. That's the
+// likely cause of "liking/disliking a comment doesn't work" — on
+// anything but a fast connection, some of those N+1 requests queue,
+// time out, or get rate-limited, so the button's active state either
+// never loads or loads inconsistently between comments. See the
+// Supabase N+1 write-up: https://axonbuild.com/blog/n-plus-1-query-problem
+//
+// The fix: one batched query per post for all of the current user's
+// comment reactions, plus an optimistic update on toggle so the
+// button responds instantly instead of waiting on a round trip.
+
+export interface CommentReactionState {
+  liked: boolean;
+  disliked: boolean;
+}
+
+type CommentReactionMap = Map<string, CommentReactionState>;
+
+function commentReactionsQueryKey(postId: string, userId: string | undefined) {
+  return ["my-comment-reactions", postId, userId] as const;
+}
+
+// Fetches every comment reaction the current user has anywhere in one
+// post's thread, in a single request, instead of one request per
+// comment per reaction type.
+export function useMyCommentReactions(postId: string, commentIds: string[]) {
+  const { user } = useAuth();
+  const hasComments = commentIds.length > 0;
+
+  return useQuery({
+    queryKey: commentReactionsQueryKey(postId, user?.id),
+    queryFn: async (): Promise<CommentReactionMap> => {
+      const map: CommentReactionMap = new Map();
+      if (!user || !hasComments) return map;
+
+      const { data, error } = await supabase
+        .from("reactions")
+        .select("comment_id, type")
+        .eq("user_id", user.id)
+        .eq("target_type", "comment")
+        .in("comment_id", commentIds);
+      if (error) throw error;
+
+      for (const row of data ?? []) {
+        const entry = map.get(row.comment_id) ?? { liked: false, disliked: false };
+        if (row.type === "like") entry.liked = true;
+        if (row.type === "dislike") entry.disliked = true;
+        map.set(row.comment_id, entry);
+      }
+      return map;
+    },
+    enabled: !!user && hasComments,
+  });
+}
+
+interface ToggleCommentReactionInput {
+  commentId: string;
+  type: Extract<ReactionType, "like" | "dislike">;
+  currentlyActive: boolean;
+}
+
+// Toggles a like or dislike on one comment. Shared across every
+// comment in the thread (CommentThread creates one instance and
+// passes it down), so a tap on any comment's button hits the same
+// optimistic-update path.
+export function useToggleCommentReaction(postId: string) {
+  const { user } = useAuth();
+  const queryClient = useQueryClient();
+  const queryKey = commentReactionsQueryKey(postId, user?.id);
+
+  return useMutation({
+    mutationFn: async ({ commentId, type, currentlyActive }: ToggleCommentReactionInput) => {
+      if (!user) throw new Error("Not signed in");
+
+      if (currentlyActive) {
+        const { error } = await supabase
+          .from("reactions")
+          .delete()
+          .eq("comment_id", commentId)
+          .eq("user_id", user.id)
+          .eq("type", type);
+        if (error) throw error;
+        return;
+      }
+
+      // Mutual exclusion: a like and a dislike from the same person on
+      // the same comment shouldn't coexist. Clear the opposite type
+      // first so switching from one to the other is one consistent
+      // action rather than leaving both rows behind.
+      const opposite = type === "like" ? "dislike" : "like";
+      await supabase
+        .from("reactions")
+        .delete()
+        .eq("comment_id", commentId)
+        .eq("user_id", user.id)
+        .eq("type", opposite);
+
+      const { error } = await supabase.from("reactions").insert({
+        comment_id: commentId,
+        user_id: user.id,
+        type,
+        target_type: "comment",
+      });
+      // Same race as the post/project version above — a second tap
+      // landing before the first settles hits the unique index rather
+      // than creating a duplicate. Treat it as a no-op success.
+      if (error && error.code !== UNIQUE_VIOLATION) throw error;
+    },
+    // Flip the button immediately rather than waiting on the round
+    // trip — this is the other half of the reliability fix, since a
+    // tap that visibly does nothing for a second or more reads as
+    // "doesn't work" even when the request eventually succeeds.
+    onMutate: async ({ commentId, type, currentlyActive }) => {
+      await queryClient.cancelQueries({ queryKey });
+      const previous = queryClient.getQueryData<CommentReactionMap>(queryKey);
+
+      const next: CommentReactionMap = new Map(previous ?? []);
+      const entry = { ...(next.get(commentId) ?? { liked: false, disliked: false }) };
+      const nowActive = !currentlyActive;
+      if (type === "like") {
+        entry.liked = nowActive;
+        if (nowActive) entry.disliked = false;
+      } else {
+        entry.disliked = nowActive;
+        if (nowActive) entry.liked = false;
+      }
+      next.set(commentId, entry);
+      queryClient.setQueryData(queryKey, next);
+
+      return { previous };
+    },
+    onError: (_err, _vars, context) => {
+      // Roll back to whatever the cache held before the optimistic
+      // update so a failed request doesn't leave a button stuck
+      // showing a reaction that was never actually saved.
+      if (context?.previous) queryClient.setQueryData(queryKey, context.previous);
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey });
+      // like_count/dislike_count on the comment row itself come from
+      // this query, so it needs a refetch too for the visible number
+      // to move.
+      queryClient.invalidateQueries({ queryKey: ["comments", postId] });
     },
   });
 }
