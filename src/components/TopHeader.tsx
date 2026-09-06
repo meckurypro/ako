@@ -14,6 +14,9 @@ interface TopHeaderProps {
   // Feed passes this to render the app icon (theme-swapped) in place
   // of the "Akọ" text + tagline. See Wordmark.tsx.
   asIcon?: boolean;
+  // Feed passes false to use the no-tagline icon variant in this
+  // tight header slot. See Wordmark.tsx.
+  iconTagline?: boolean;
 }
 
 // Matches the mockup: your own avatar on the left (in place of the
@@ -25,7 +28,7 @@ interface TopHeaderProps {
 // No shadow here — this sits inside Feed's sticky bg-surface wrapper
 // together with the tabs row below it, and the shadow for that whole
 // combined block lives on the wrapper, not here.
-export function TopHeader({ showTagline = false, leftAction = "avatar", asIcon = false }: TopHeaderProps) {
+export function TopHeader({ showTagline = false, leftAction = "avatar", asIcon = false, iconTagline = true }: TopHeaderProps) {
   const unreadCount = useUnreadCount();
   const { data: me } = useMyProfile();
 
@@ -45,7 +48,7 @@ export function TopHeader({ showTagline = false, leftAction = "avatar", asIcon =
         </Link>
       )}
 
-      <Wordmark size="sm" showTagline={showTagline} asIcon={asIcon} />
+      <Wordmark size="sm" showTagline={showTagline} asIcon={asIcon} iconTagline={iconTagline} />
 
       <Link to="/notifications" className="relative text-ink-muted">
         <Bell size={22} />
