@@ -1,3 +1,4 @@
+// src/hooks/useReactions.ts
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "../lib/supabase";
 import { useAuth } from "./useAuth";
@@ -19,6 +20,15 @@ const COLUMN_FOR: Record<TargetType, "post_id" | "comment_id" | "project_id"> = 
  * (see 02_posts_reactions_comments.sql) that had no corresponding UI
  * until this was caught in review — and now projects, which carry a
  * like_count column of their own (see the project-reactions migration).
+ *
+ * `.limit(1)` before `.maybeSingle()` is deliberate, not redundant:
+ * if a race ever produces more than one reaction row for the same
+ * (user, target, type) — see 25_fix_reaction_duplicates.sql — PostgREST
+ * throws on `.maybeSingle()` when the *query itself* would return more
+ * than one row. Limiting to 1 first means this query degrades to "the
+ * reaction still shows as active" instead of erroring out and getting
+ * the like/dislike button stuck, even before that migration is applied
+ * or if a duplicate ever slips through some other way.
  */
 export function useMyReaction(targetId: string, targetType: TargetType, type: ReactionType) {
   const { user } = useAuth();
@@ -34,12 +44,17 @@ export function useMyReaction(targetId: string, targetType: TargetType, type: Re
         .eq(column, targetId)
         .eq("user_id", user.id)
         .eq("type", type)
+        .limit(1)
         .maybeSingle();
       return data;
     },
     enabled: !!user,
   });
 }
+
+// Postgres unique_violation — see the partial unique indexes added in
+// 25_fix_reaction_duplicates.sql.
+const UNIQUE_VIOLATION = "23505";
 
 /**
  * Toggles a reaction on/off for a post, comment, or project. Reactions
@@ -70,7 +85,12 @@ export function useToggleReaction(targetId: string, targetType: TargetType, type
           type,
           target_type: targetType,
         });
-        if (error) throw error;
+        // A second tap that landed before the first one's optimistic
+        // state settled hits the unique index instead of creating a
+        // duplicate — the end state (reacted) is already what this
+        // call wanted, so treat it as a success rather than an error
+        // toast the user didn't do anything to deserve.
+        if (error && error.code !== UNIQUE_VIOLATION) throw error;
       }
     },
     onSuccess: () => {
