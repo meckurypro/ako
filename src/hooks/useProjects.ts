@@ -26,7 +26,8 @@ export type ProjectType =
   | "url"
   | "course"
   | "room"
-  | "meeting";
+  | "meeting"
+  | "gig";
 
 export const PROJECT_TYPE_LABELS: Record<ProjectType, string> = {
   event: "Event",
@@ -36,10 +37,12 @@ export const PROJECT_TYPE_LABELS: Record<ProjectType, string> = {
   course: "Course",
   room: "Room",
   meeting: "Meeting",
+  gig: "Gig",
 };
 
 // Order to show in the type picker.
 export const PROJECT_TYPE_OPTIONS: ProjectType[] = [
+  "gig",
   "event",
   "meeting",
   "room",
@@ -59,6 +62,7 @@ export const PROJECT_TYPE_HINTS: Record<ProjectType, string> = {
   media: "Audio, video, or both. Link out (Spotify, YouTube) or upload to stream here.",
   file: "A file you upload and host here — visitors download it with one click.",
   url: "A link you're selling access to — a WhatsApp group, a page, anything.",
+  gig: "A skill or service you offer. Show proof of work, get messaged or booked.",
 };
 
 export interface Project {
@@ -212,6 +216,18 @@ interface MediaDetailsInput {
   video_file_path?: string;
 }
 
+// A 'gig' is a portfolio/service listing rather than a pre-made
+// asset — sample_project_ids points at the owner's own other
+// projects (any type) as proof-of-work, shown as a samples strip on
+// the gig's detail page. price_usd = 0 means "Message to inquire"
+// only; > 0 additionally offers a payable deposit/booking fee via
+// the existing purchase flow (see PROJECT_TYPE_HINTS.gig).
+interface GigDetailsInput {
+  tagline?: string;
+  delivery_estimate?: string;
+  sample_project_ids?: string[];
+}
+
 interface CreateProjectInput {
   title: string;
   description?: string;
@@ -229,6 +245,7 @@ interface CreateProjectInput {
   event_details?: EventDetailsInput;
   meeting_details?: MeetingDetailsInput;
   media_details?: MediaDetailsInput;
+  gig_details?: GigDetailsInput;
 }
 
 export function useCreateProject() {
@@ -242,6 +259,7 @@ export function useCreateProject() {
       event_details,
       meeting_details,
       media_details,
+      gig_details,
       ...input
     }: CreateProjectInput) => {
       if (!user) throw new Error("Not signed in");
@@ -281,6 +299,23 @@ export function useCreateProject() {
           .from("project_media_details")
           .insert({ project_id: data.id, ...media_details });
         if (detailsError) throw detailsError;
+      }
+      if (input.project_type === "gig" && gig_details) {
+        const { sample_project_ids, ...gigRow } = gig_details;
+        const { error: detailsError } = await supabase
+          .from("project_gig_details")
+          .insert({ project_id: data.id, ...gigRow });
+        if (detailsError) throw detailsError;
+
+        if (sample_project_ids && sample_project_ids.length > 0) {
+          const rows = sample_project_ids.map((sample_project_id, i) => ({
+            gig_project_id: data.id,
+            sample_project_id,
+            sort_order: i,
+          }));
+          const { error: samplesError } = await supabase.from("project_gig_samples").insert(rows);
+          if (samplesError) throw samplesError;
+        }
       }
 
       return data;
@@ -435,6 +470,33 @@ export function usePurchaseProject() {
     onSuccess: (_data, projectId) => {
       queryClient.invalidateQueries({ queryKey: ["has-purchased", projectId] });
       queryClient.invalidateQueries({ queryKey: ["wallet"] });
+    },
+  });
+}
+
+// Gigs go through their own edge function rather than purchase-project
+// directly — a gig "purchase" is a booking-fee deposit that also needs
+// to drop the buyer straight into a conversation with the host, which
+// none of the other project types need. book-gig calls purchase-project
+// internally for the actual money movement, then creates/reuses the
+// direct conversation and seeds an opening message. See book-gig/index.ts.
+export function useBookGig() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    meta: { blocking: true },
+    mutationFn: async (projectId: string): Promise<{ conversationId: string }> => {
+      const { data, error } = await supabase.functions.invoke("book-gig", {
+        body: { project_id: projectId },
+      });
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+      return { conversationId: data.conversation_id };
+    },
+    onSuccess: (_data, projectId) => {
+      queryClient.invalidateQueries({ queryKey: ["has-purchased", projectId] });
+      queryClient.invalidateQueries({ queryKey: ["wallet"] });
+      queryClient.invalidateQueries({ queryKey: ["conversations"] });
     },
   });
 }
