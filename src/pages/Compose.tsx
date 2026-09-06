@@ -2,6 +2,7 @@
 
 import { useRef, useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
+import { useSmartBack } from "../hooks/useSmartBack";
 import { X, Image as ImageIcon, ChevronDown, ChevronRight } from "lucide-react";
 import { useCreatePost } from "../hooks/usePosts";
 import { useCategories } from "../hooks/useCategories";
@@ -17,6 +18,7 @@ const MAX_MEDIA_FILES = 4;
 
 export function Compose() {
   const navigate = useNavigate();
+  const smartBack = useSmartBack();
   const [heading, setHeading] = useState("");
   const [content, setContent] = useState("");
   const [categoryId, setCategoryId] = useState<string | null>(null);
@@ -225,7 +227,7 @@ export function Compose() {
       {/* Sticky action bar — stays put at the bottom regardless of scroll
           position or whether categories are expanded above it. */}
       <div className="fixed bottom-0 left-0 right-0 bg-canvas border-t border-border px-4 py-3 flex items-center justify-between z-40">
-        <button onClick={() => navigate(-1)} className="text-ink-muted p-1" aria-label="Close">
+        <button onClick={smartBack} className="text-ink-muted p-1" aria-label="Close">
           <X size={22} />
         </button>
         <button
