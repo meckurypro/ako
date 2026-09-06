@@ -3,6 +3,7 @@ import { useState, useEffect, useRef, type FormEvent } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { supabase } from "../../lib/supabase";
 import { Wordmark } from "../../components/Wordmark";
+import { AuthPattern } from "../../components/AuthPattern";
 import { FormField } from "../../components/FormField";
 import { PasswordField } from "../../components/PasswordField";
 import { Button } from "../../components/Button";
@@ -150,8 +151,9 @@ export function SignUp() {
   }
 
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center px-6 bg-canvas">
-      <div className="w-full max-w-sm">
+    <div className="relative min-h-screen flex flex-col items-center justify-center px-6 bg-canvas overflow-hidden">
+      <AuthPattern />
+      <div className="relative z-10 w-full max-w-sm">
         <div className="mb-10">
           <Wordmark asIcon />
         </div>
