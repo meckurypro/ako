@@ -20,6 +20,7 @@ import {
 } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "../lib/supabase";
+import { Wallpaper } from "../components/Wallpaper";
 import { useAuth } from "../hooks/useAuth";
 import {
   useMessages,
@@ -135,17 +136,10 @@ function ReactionsBar({
   );
 }
 
-// Subtle diamond-lattice texture in the brand accent, ~5% opacity —
-// sits behind the message list only (header/input stay solid `canvas`
-// for legibility). Deliberately abstract/geometric rather than a
-// literal cultural-textile reproduction.
-const CHAT_PATTERN = encodeURIComponent(
-  `<svg xmlns="http://www.w3.org/2000/svg" width="40" height="40"><path d="M20 0 L40 20 L20 40 L0 20 Z" fill="none" stroke="#3D5A45" stroke-width="1" opacity="0.06"/></svg>`
-);
-const chatBackgroundStyle = {
-  backgroundImage: `url("data:image/svg+xml,${CHAT_PATTERN}")`,
-  backgroundSize: "40px 40px",
-};
+// Chat wallpaper: shared <Wallpaper /> component (African motifs, same
+// pattern used on auth screens) — sits fixed behind the message list only
+// (header/composer stay solid `bg-canvas` for legibility), non-scrolling
+// so it reads like a wallpaper rather than content.
 
 // Swipe-to-reply tuning — mirrors WhatsApp's feel: the bubble tracks
 // the finger 1:1 up to SWIPE_MAX, then resists further drag, and the
@@ -649,7 +643,9 @@ export function MessageThread() {
         </div>
       )}
 
-      <div className="flex-1 min-h-0 overflow-y-auto px-4 py-4 max-w-xl mx-auto w-full" style={chatBackgroundStyle}>
+      <div className="relative flex-1 min-h-0 overflow-hidden">
+        <Wallpaper />
+        <div className="relative z-10 h-full overflow-y-auto px-4 py-4 max-w-xl mx-auto w-full">
         {isLoading ? (
           <p className="text-ink-muted text-center py-10">Loading…</p>
         ) : !visibleMessages || visibleMessages.length === 0 ? (
@@ -776,6 +772,7 @@ export function MessageThread() {
           })
         )}
         <div ref={bottomRef} />
+        </div>
       </div>
 
       <div className="sticky bottom-0 bg-canvas border-t border-border max-w-xl mx-auto w-full">
