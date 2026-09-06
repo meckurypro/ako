@@ -25,6 +25,11 @@ import { ProfilePage } from "./pages/ProfilePage";
 import { FollowListPage } from "./pages/FollowListPage";
 import { MyProfileRedirect } from "./pages/MyProfileRedirect";
 
+import { Pages } from "./pages/Pages";
+import { CreatePage } from "./pages/CreatePage";
+import { PagePage } from "./pages/PagePage";
+import { PageTeam } from "./pages/PageTeam";
+
 import { WalletPage } from "./pages/Wallet";
 import { FundWallet } from "./pages/FundWallet";
 import { Withdraw } from "./pages/Withdraw";
@@ -191,6 +196,35 @@ export default function App() {
               element={
                 <RequireAuth>
                   <Settings />
+                </RequireAuth>
+              }
+            />
+
+            {/* Account mode: organisation/brand pages */}
+            <Route
+              path="/pages"
+              element={
+                <RequireAuth>
+                  <Pages />
+                </RequireAuth>
+              }
+            />
+            <Route
+              path="/pages/new"
+              element={
+                <RequireAuth>
+                  <CreatePage />
+                </RequireAuth>
+              }
+            />
+            {/* Public — a shared page link should load for a logged-out
+                visitor, same reasoning as ProjectDetail/Course below. */}
+            <Route path="/page/:username" element={<PagePage />} />
+            <Route
+              path="/page/:username/team"
+              element={
+                <RequireAuth>
+                  <PageTeam />
                 </RequireAuth>
               }
             />
