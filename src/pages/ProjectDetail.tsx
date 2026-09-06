@@ -1,5 +1,6 @@
 // src/pages/ProjectDetail.tsx
-import { useParams, useNavigate, Link } from "react-router-dom";
+import { useParams, Link } from "react-router-dom";
+import { useSmartBack } from "../hooks/useSmartBack";
 import { ArrowLeft, ImageIcon, MapPin, Video, CalendarClock, Clock } from "lucide-react";
 import { useProjectDetail, useSimilarProjects, PROJECT_TYPE_LABELS, type Project } from "../hooks/useProjects";
 import { useEventDetails, useMeetingDetails, useGigDetails, useGigSamples } from "../hooks/useProjectTypeDetails";
@@ -51,7 +52,7 @@ function ProjectRail({ title, projects }: { title: string; projects: Project[] }
 
 export function ProjectDetail() {
   const { projectId } = useParams<{ projectId: string }>();
-  const navigate = useNavigate();
+  const smartBack = useSmartBack();
   const { data: project, isLoading } = useProjectDetail(projectId);
   const { data: similar } = useSimilarProjects(project);
   const { data: eventDetails } = useEventDetails(project?.project_type === "event" ? projectId : undefined);
@@ -66,7 +67,7 @@ export function ProjectDetail() {
   return (
     <div className="min-h-screen bg-canvas px-4 pt-4 pb-24">
       <div className="max-w-xl mx-auto">
-        <button onClick={() => navigate(-1)} className="text-ink-muted mb-3">
+        <button onClick={smartBack} className="text-ink-muted mb-3">
           <ArrowLeft size={22} />
         </button>
 
