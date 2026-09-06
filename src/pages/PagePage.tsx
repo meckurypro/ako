@@ -1,11 +1,21 @@
 // src/pages/PagePage.tsx
+import { useEffect, useRef, useState } from "react";
 import { useParams, Link, useNavigate } from "react-router-dom";
-import { ArrowLeft, BadgeCheck, Globe, Settings as SettingsIcon, Users } from "lucide-react";
+import { ArrowLeft, ArrowLeftRight, BadgeCheck, Globe, MoreHorizontal, Redo2, Users, UserCog } from "lucide-react";
 import { useAuth } from "../hooks/useAuth";
+import { useMyProfile } from "../hooks/useProfile";
 import { Avatar } from "../components/Avatar";
 import { PostCard } from "../components/PostCard";
 import { BottomNav } from "../components/BottomNav";
-import { usePageByUsername, useIsFollowingPage, useTogglePageFollow, usePageMembers } from "../hooks/usePages";
+import {
+  usePageByUsername,
+  useIsFollowingPage,
+  useTogglePageFollow,
+  usePageMembers,
+  useMyPages,
+  useActiveIdentity,
+  useSwitchActiveMode,
+} from "../hooks/usePages";
 import { usePagePosts } from "../hooks/usePosts";
 import { pageModeLabel } from "../lib/pageRoles";
 
@@ -28,17 +38,71 @@ function getWebsiteDomain(url: string): string {
 export function PagePage() {
   const { username } = useParams<{ username: string }>();
   const navigate = useNavigate();
+  const [menuOpen, setMenuOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
 
   const { user } = useAuth();
+  const { data: me } = useMyProfile();
   const { data: page, isLoading } = usePageByUsername(username!);
   const { data: members } = usePageMembers(page?.id ?? "");
   const { data: posts } = usePagePosts(page?.id ?? "");
+  const { data: myPages } = useMyPages();
+  const { data: identity } = useActiveIdentity();
+  const switchMode = useSwitchActiveMode();
   const isFollowingQuery = useIsFollowingPage(page?.id ?? "");
   const toggleFollow = useTogglePageFollow(page?.id ?? "");
 
   const isFollowing = !!isFollowingQuery.data;
-  const isAdmin = !!members?.some((m) => m.user_id === user?.id && m.is_admin && m.status === "active");
+  const myMembership = members?.find((m) => m.user_id === user?.id && m.status === "active");
+  const isMember = !!myMembership;
+  const isAdmin = !!myMembership?.is_admin;
   const activeMembers = (members ?? []).filter((m) => m.status === "active");
+
+  // Am I currently acting AS this page? Drives whether the menu offers
+  // "switch to it" or "switch back to personal/elsewhere".
+  const isActiveHere = identity?.mode === "page" && identity.page.id === page?.id;
+  // The other pages I run, for a quick "switch to X" shortcut without
+  // having to go back through /pages first.
+  const otherPages = (myPages ?? []).filter((p) => p.id !== page?.id);
+
+  useEffect(() => {
+    if (!menuOpen) return;
+    function handleOutside(e: MouseEvent | TouchEvent) {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        setMenuOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleOutside);
+    document.addEventListener("touchstart", handleOutside);
+    return () => {
+      document.removeEventListener("mousedown", handleOutside);
+      document.removeEventListener("touchstart", handleOutside);
+    };
+  }, [menuOpen]);
+
+  async function sharePage() {
+    if (!page) return;
+    const url = `${window.location.origin}/page/${page.username}`;
+    if (navigator.share) {
+      try {
+        await navigator.share({ title: page.name, url });
+      } catch {
+        // cancelled native share sheet
+      }
+    } else {
+      await navigator.clipboard.writeText(url);
+    }
+  }
+
+  function handleShare() {
+    setMenuOpen(false);
+    void sharePage();
+  }
+
+  function handleSwitchTo(pageId: string | null, destination: string) {
+    setMenuOpen(false);
+    switchMode.mutate(pageId, { onSuccess: () => navigate(destination) });
+  }
 
   if (isLoading) {
     return (
@@ -63,11 +127,74 @@ export function PagePage() {
           <button onClick={() => navigate(-1)} className="text-ink-muted">
             <ArrowLeft size={22} />
           </button>
-          {isAdmin && (
-            <Link to={`/page/${page.username}/team`} className="text-ink-muted" aria-label="Manage team">
-              <SettingsIcon size={20} />
-            </Link>
-          )}
+
+          {/* Mode-aware "…" — content depends on the viewer's relationship
+              to this specific page (visitor / member / currently acting as
+              it), not a fixed set of options. */}
+          <div ref={menuRef} className="relative">
+            <button
+              onClick={() => setMenuOpen((o) => !o)}
+              className="p-2 text-ink-muted"
+              aria-label="Page options"
+            >
+              <MoreHorizontal size={20} />
+            </button>
+
+            {menuOpen && (
+              <div className="absolute top-full right-0 mt-1 bg-canvas border border-border rounded-xl shadow-lg py-1 w-60 z-10">
+                <button
+                  onClick={handleShare}
+                  className="w-full flex items-center gap-2.5 text-left px-4 py-2.5 text-sm text-ink hover:bg-surface"
+                >
+                  <Redo2 size={16} />
+                  Share {pageModeLabel(page.page_type).toLowerCase()}
+                </button>
+
+                {isMember && isActiveHere && (
+                  <button
+                    onClick={() => handleSwitchTo(null, me ? `/profile/${me.username}` : "/feed")}
+                    className="w-full flex items-center gap-2.5 text-left px-4 py-2.5 text-sm text-ink hover:bg-surface"
+                  >
+                    <ArrowLeftRight size={16} />
+                    Switch to personal
+                  </button>
+                )}
+
+                {isMember && !isActiveHere && (
+                  <button
+                    onClick={() => handleSwitchTo(page.id, `/page/${page.username}`)}
+                    className="w-full flex items-center gap-2.5 text-left px-4 py-2.5 text-sm text-ink hover:bg-surface"
+                  >
+                    <ArrowLeftRight size={16} />
+                    Switch to {page.name}
+                  </button>
+                )}
+
+                {isMember &&
+                  otherPages.map((p) => (
+                    <button
+                      key={p.id}
+                      onClick={() => handleSwitchTo(p.id, `/page/${p.username}`)}
+                      className="w-full flex items-center gap-2.5 text-left px-4 py-2.5 text-sm text-ink hover:bg-surface"
+                    >
+                      <Avatar src={p.avatar_url} name={p.name} size="sm" />
+                      <span className="truncate">Switch to {p.name}</span>
+                    </button>
+                  ))}
+
+                {isAdmin && (
+                  <Link
+                    to={`/page/${page.username}/team`}
+                    onClick={() => setMenuOpen(false)}
+                    className="flex items-center gap-2.5 px-4 py-2.5 text-sm text-ink hover:bg-surface"
+                  >
+                    <UserCog size={16} />
+                    Manage team
+                  </Link>
+                )}
+              </div>
+            )}
+          </div>
         </div>
 
         <div className="px-4 pt-3 pb-4">
