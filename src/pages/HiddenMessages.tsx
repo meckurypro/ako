@@ -1,5 +1,6 @@
 // src/pages/HiddenMessages.tsx
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams } from "react-router-dom";
+import { useSmartBack } from "../hooks/useSmartBack";
 import { ArrowLeft, Undo2 } from "lucide-react";
 import { useAuth } from "../hooks/useAuth";
 import { useHiddenMessages, useUnhideMessage } from "../hooks/useMessageReactions";
@@ -22,7 +23,7 @@ function formatTime(dateString: string): string {
  */
 export function HiddenMessages() {
   const { conversationId } = useParams<{ conversationId: string }>();
-  const navigate = useNavigate();
+  const smartBack = useSmartBack();
   const { user } = useAuth();
   const { data: hidden, isLoading } = useHiddenMessages(conversationId!);
   const unhide = useUnhideMessage(conversationId!);
@@ -30,7 +31,7 @@ export function HiddenMessages() {
   return (
     <div className="min-h-screen bg-canvas pb-24">
       <header className="px-4 pt-6 pb-3 sticky top-0 bg-canvas z-30 border-b border-border flex items-center gap-3">
-        <button onClick={() => navigate(-1)} className="text-ink-muted" aria-label="Back">
+        <button onClick={smartBack} className="text-ink-muted" aria-label="Back">
           <ArrowLeft size={22} />
         </button>
         <h2 className="font-display text-2xl text-ink">Hidden messages</h2>
