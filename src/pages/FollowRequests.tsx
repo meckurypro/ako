@@ -1,4 +1,5 @@
-import { useNavigate, Link } from "react-router-dom";
+import { Link } from "react-router-dom";
+import { useSmartBack } from "../hooks/useSmartBack";
 import { ArrowLeft } from "lucide-react";
 import {
   useIncomingFollowRequests,
@@ -19,7 +20,7 @@ function timeAgo(dateString: string): string {
 }
 
 export function FollowRequests() {
-  const navigate = useNavigate();
+  const smartBack = useSmartBack();
   const { data: requests, isLoading } = useIncomingFollowRequests();
   const accept = useAcceptFollowRequest();
   const decline = useDeclineFollowRequest();
@@ -27,7 +28,7 @@ export function FollowRequests() {
   return (
     <div className="min-h-screen bg-canvas pb-24">
       <header className="px-4 pt-6 pb-3 sticky top-0 bg-canvas z-30 border-b border-border flex items-center gap-3">
-        <button onClick={() => navigate(-1)} className="text-ink-muted">
+        <button onClick={smartBack} className="text-ink-muted">
           <ArrowLeft size={22} />
         </button>
         <h2 className="font-display text-xl text-ink">Follow requests</h2>
