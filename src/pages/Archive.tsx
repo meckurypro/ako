@@ -1,6 +1,7 @@
 // src/pages/Archive.tsx
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { useSmartBack } from "../hooks/useSmartBack";
 import { ArrowLeft, ArchiveRestore, Trash2, X, CheckSquare, ChevronDown, Repeat2 } from "lucide-react";
 import {
   useArchivedConversations,
@@ -72,6 +73,7 @@ function AccordionBody({ isOpen, children }: { isOpen: boolean; children: React.
 
 export function Archive() {
   const navigate = useNavigate();
+  const smartBack = useSmartBack();
   const { user } = useAuth();
 
   const { data: archived, isLoading } = useArchivedConversations();
@@ -302,7 +304,7 @@ export function Archive() {
           </>
         ) : (
           <>
-            <button onClick={() => navigate(-1)} className="text-ink-muted">
+            <button onClick={smartBack} className="text-ink-muted">
               <ArrowLeft size={22} />
             </button>
             <h2 className="font-display text-2xl text-ink flex-1">Archive</h2>
