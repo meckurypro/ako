@@ -1,5 +1,6 @@
 // src/pages/PostDetail.tsx
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams } from "react-router-dom";
+import { useSmartBack } from "../hooks/useSmartBack";
 import { ArrowLeft } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "../lib/supabase";
@@ -38,7 +39,7 @@ function usePost(postId: string) {
 
 export function PostDetail() {
   const { postId } = useParams<{ postId: string }>();
-  const navigate = useNavigate();
+  const smartBack = useSmartBack();
   const { data: post, isLoading: postLoading } = usePost(postId!);
   const { data: comments, isLoading: commentsLoading } = useComments(postId!);
 
@@ -47,7 +48,7 @@ export function PostDetail() {
   return (
     <div className="min-h-screen bg-canvas px-4 pt-4 pb-24">
       <div className="max-w-xl mx-auto">
-        <button onClick={() => navigate(-1)} className="text-ink-muted mb-3">
+        <button onClick={smartBack} className="text-ink-muted mb-3">
           <ArrowLeft size={22} />
         </button>
 
