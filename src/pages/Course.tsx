@@ -3,7 +3,7 @@ import { useState, type FormEvent } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { ArrowLeft, Plus, Lock, CheckCircle2 } from "lucide-react";
 import { useAuth } from "../hooks/useAuth";
-import { useProject, useHasPurchased } from "../hooks/useProjects";
+import { useProject, useHasPurchased, isProjectFree } from "../hooks/useProjects";
 import {
   useCourseModules,
   useAddModule,
@@ -23,8 +23,9 @@ export function Course() {
   const { user } = useAuth();
   const { data: project } = useProject(projectId);
   const isOwner = !!user && project?.owner_id === user.id;
+  const isFree = !!project && isProjectFree(project);
   const hasPurchasedQuery = useHasPurchased(projectId ?? "");
-  const hasAccess = isOwner || !!hasPurchasedQuery.data;
+  const hasAccess = isOwner || isFree || !!hasPurchasedQuery.data;
 
   const { data: modules } = useCourseModules(projectId);
   const addModule = useAddModule(projectId ?? "");
