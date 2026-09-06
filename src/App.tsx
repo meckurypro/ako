@@ -4,6 +4,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { AuthProvider } from "./hooks/useAuth";
 import { RequireAuth } from "./components/RequireAuth";
 import { ScrollToTop } from "./components/ScrollToTop";
+import { PathHistoryTracker } from "./components/PathHistoryTracker";
 import { LoadingOverlay } from "./components/LoadingOverlay";
 
 import { SignUp } from "./pages/auth/SignUp";
@@ -80,6 +81,7 @@ export default function App() {
       <AuthProvider>
         <BrowserRouter>
           <ScrollToTop />
+          <PathHistoryTracker />
           <Routes>
             <Route path="/" element={<Navigate to="/feed" replace />} />
 
