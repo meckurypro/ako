@@ -1,6 +1,6 @@
 // src/components/project-types/MediaFields.tsx
 import { useRef, useState } from "react";
-import { FileUp, Link as LinkIcon, Music, Video as VideoIcon } from "lucide-react";
+import { FileUp, Link as LinkIcon, Music, Video as VideoIcon, Image as ImageIcon } from "lucide-react";
 import { FormField } from "../FormField";
 import { useUploadProjectFile } from "../../hooks/useUploadProjectFile";
 
@@ -23,32 +23,35 @@ const EMPTY_CHANNEL: MediaChannelValue = {
 export interface MediaFieldsValue {
   audio: MediaChannelValue;
   video: MediaChannelValue;
+  image: MediaChannelValue;
 }
 
 export const EMPTY_MEDIA_FIELDS: MediaFieldsValue = {
   audio: { ...EMPTY_CHANNEL },
   video: { ...EMPTY_CHANNEL },
+  image: { ...EMPTY_CHANNEL },
 };
 
-// A Media project can hold a song's audio and its music video side by
-// side — each channel is independent, but within a channel it's link
-// XOR upload, same rule as before: a link takes you elsewhere
-// (Spotify, YouTube), an upload streams straight from Ako with no
-// redirect or download option at all.
+// A Media project can hold a song's audio, its music video, and cover
+// art side by side — each channel is independent, but within a
+// channel it's link XOR upload, same rule as before: a link takes you
+// elsewhere (Spotify, YouTube, a hosted image), an upload streams or
+// displays straight from Ako with no redirect or download option at all.
 export function mediaFieldsAreValid(value: MediaFieldsValue): boolean {
-  if (!value.audio.enabled && !value.video.enabled) return false;
+  if (!value.audio.enabled && !value.video.enabled && !value.image.enabled) return false;
   const channelValid = (c: MediaChannelValue) =>
     !c.enabled || (c.source === "link" ? c.url.trim() !== "" : !!c.file_path);
-  return channelValid(value.audio) && channelValid(value.video);
+  return channelValid(value.audio) && channelValid(value.video) && channelValid(value.image);
 }
 
 interface ChannelConfig {
-  key: "audio" | "video";
+  key: "audio" | "video" | "image";
   label: string;
   icon: typeof Music;
   linkLabel: string;
   linkPlaceholder: string;
   uploadLabel: string;
+  uploadNote: string;
   accept: string;
 }
 
@@ -60,6 +63,7 @@ const CHANNELS: ChannelConfig[] = [
     linkLabel: "Link to stream (Spotify, Apple Music, etc.)",
     linkPlaceholder: "https://open.spotify.com/...",
     uploadLabel: "Upload the audio file to stream here",
+    uploadNote: "Streams right here on Ako — no download or redirect, just playback.",
     accept: "audio/*",
   },
   {
@@ -69,7 +73,18 @@ const CHANNELS: ChannelConfig[] = [
     linkLabel: "Link to stream (YouTube, Vimeo, etc.)",
     linkPlaceholder: "https://youtube.com/...",
     uploadLabel: "Upload the video file to stream here",
+    uploadNote: "Streams right here on Ako — no download or redirect, just playback.",
     accept: "video/*",
+  },
+  {
+    key: "image",
+    label: "Image",
+    icon: ImageIcon,
+    linkLabel: "Link to the image",
+    linkPlaceholder: "https://...",
+    uploadLabel: "Upload the image to display here",
+    uploadNote: "Displays right here on Ako — no download or redirect.",
+    accept: "image/*",
   },
 ];
 
@@ -83,7 +98,7 @@ export function MediaFields({ value, onChange, onError }: MediaFieldsProps) {
   return (
     <div className="mb-4">
       <label className="block text-sm font-medium text-ink-muted mb-1.5">
-        What's included <span className="font-normal">(pick one or both)</span>
+        What's included <span className="font-normal">(pick one or more)</span>
       </label>
       <div className="flex gap-2 mb-3">
         {CHANNELS.map(({ key, label, icon: Icon }) => {
@@ -115,8 +130,8 @@ export function MediaFields({ value, onChange, onError }: MediaFieldsProps) {
         />
       ))}
 
-      {!value.audio.enabled && !value.video.enabled && (
-        <p className="text-xs text-ink-muted">Turn on Audio, Video, or both to continue.</p>
+      {!value.audio.enabled && !value.video.enabled && !value.image.enabled && (
+        <p className="text-xs text-ink-muted">Turn on Audio, Video, Image, or any combination to continue.</p>
       )}
     </div>
   );
@@ -220,7 +235,7 @@ function MediaChannelFields({
             className="hidden"
           />
           <p className="text-xs text-ink-muted mt-1">
-            Streams right here on Ako — no download or redirect, just playback.
+            {config.uploadNote}
           </p>
         </div>
       )}
