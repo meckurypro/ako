@@ -120,7 +120,14 @@ export function ProjectCard({
   const [audioSrc, setAudioSrc] = useState<string | null>(null);
   const [videoSrc, setVideoSrc] = useState<string | null>(null);
   const hasPurchased = !!hasPurchasedQuery.data;
-  const hasAccess = isOwner || isFree || hasPurchased;
+  // Rooms are the one project type where "free" isn't self-granting:
+  // membership lives in room_members, and that row only gets created
+  // by actually calling process_project_purchase() (see purchase-project
+  // edge function) — even at $0. Every other type is fully unlocked by
+  // isFree alone, no server round-trip needed.
+  const isRoom = project.project_type === "room";
+  const hasAccess = isOwner || hasPurchased || (isFree && !isRoom);
+  const needsJoinAction = !hasAccess && isFree && isRoom;
   const isSaved = !!isSavedQuery.data;
   const isLiked = !!isLikedQuery.data;
 
@@ -571,19 +578,23 @@ export function ProjectCard({
             <span className="text-sm text-ink-muted">Not published yet</span>
           )}
 
-          {!hasAccess && !isFree && !isCourseUnpublished && (
+          {!hasAccess && (!isFree || needsJoinAction) && !isCourseUnpublished && (
             <button
               onClick={handleBuy}
               disabled={purchaseProject.isPending}
               className="ml-auto bg-accent text-canvas px-4 py-1.5 rounded-full text-sm font-medium disabled:opacity-50"
             >
               {purchaseProject.isPending
-                ? "Purchasing…"
-                : project.project_type === "event"
-                  ? `Buy ticket $${effectivePrice.toFixed(2)}`
-                  : project.project_type === "url"
-                    ? `Get access for $${effectivePrice.toFixed(2)}`
-                    : `Buy for $${effectivePrice.toFixed(2)}`}
+                ? needsJoinAction
+                  ? "Joining…"
+                  : "Purchasing…"
+                : needsJoinAction
+                  ? "Join room"
+                  : project.project_type === "event"
+                    ? `Buy ticket $${effectivePrice.toFixed(2)}`
+                    : project.project_type === "url"
+                      ? `Get access for $${effectivePrice.toFixed(2)}`
+                      : `Buy for $${effectivePrice.toFixed(2)}`}
             </button>
           )}
 
