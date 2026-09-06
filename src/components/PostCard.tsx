@@ -515,7 +515,7 @@ export function PostCard({
           <span>{formatPostDate(post.created_at)}</span>
           <span aria-hidden="true">·</span>
           <span className="font-semibold text-ink">{formatCompactCount(viewCount)}</span>
-          <span>Views</span>
+          <span>{viewCount < 2 ? "View" : "Views"}</span>
         </div>
       )}
 
