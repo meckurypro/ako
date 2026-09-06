@@ -1,6 +1,6 @@
 // src/pages/CreatePage.tsx
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { ArrowLeft } from "lucide-react";
 import { useCreatePage } from "../hooks/usePages";
 import { useCategories } from "../hooks/useCategories";
@@ -18,11 +18,16 @@ const TYPES: { value: PageType; label: string; hint: string }[] = [
 // into managing it.
 export function CreatePage() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const createPage = useCreatePage();
   const { data: categories } = useCategories();
   const { data: myPages } = useMyPages();
 
-  const [pageType, setPageType] = useState<PageType>("brand");
+  // Arriving from the profile owner menu's "Organisation"/"Brand" row
+  // (see ProfilePage.tsx) passes ?type=... to preselect it — someone
+  // starting from a blank /pages/new just gets the default below.
+  const requestedType = searchParams.get("type");
+  const [pageType, setPageType] = useState<PageType>(requestedType === "organization" ? "organization" : "brand");
   const [name, setName] = useState("");
   const [username, setUsername] = useState("");
   const [roleLabel, setRoleLabel] = useState("");
