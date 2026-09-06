@@ -10,24 +10,33 @@ interface WordmarkProps {
   // (which relies on showTagline defaulting to true) keeps its
   // original text + tagline, unaffected by this.
   asIcon?: boolean;
+  // Feed passes false: its header uses the app_icon_*_without_tagline
+  // assets (mark only, no baked-in tagline) since the header slot is
+  // too tight for the tagline to read well. Login/SignUp keep the
+  // default (true) and get the tagline-included assets. Only read
+  // when asIcon is true.
+  iconTagline?: boolean;
 }
 
 /**
  * The Akọ wordmark + tagline, matching the brand mockup:
  * serif display face, sage-green tagline beneath.
  */
-export function Wordmark({ size = "lg", showTagline = true, asIcon = false }: WordmarkProps) {
+export function Wordmark({ size = "lg", showTagline = true, asIcon = false, iconTagline = true }: WordmarkProps) {
   if (asIcon) {
+    const lightSrc = iconTagline ? "/app_icon_light.png" : "/app_icon_light_without_tagline.png";
+    const darkSrc = iconTagline ? "/app_icon_dark.png" : "/app_icon_dark_without_tagline.png";
+    const alt = iconTagline ? "Akọ — A Reason to Reason" : "Akọ";
     return (
       <div className="text-center">
         <img
-          src="/app_icon_light.png"
-          alt="Akọ — A Reason to Reason"
+          src={lightSrc}
+          alt={alt}
           className={`inline-block dark:hidden ${size === "lg" ? "h-28" : "h-20"} w-auto`}
         />
         <img
-          src="/app_icon_dark.png"
-          alt="Akọ — A Reason to Reason"
+          src={darkSrc}
+          alt={alt}
           className={`hidden dark:inline-block ${size === "lg" ? "h-28" : "h-20"} w-auto`}
         />
       </div>
