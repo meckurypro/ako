@@ -162,6 +162,13 @@ export function EditProject() {
           file_path: existingMediaDetails.video_file_path,
           file_name: null,
         },
+        image: {
+          enabled: existingMediaDetails.has_image,
+          source: existingMediaDetails.image_source ?? "link",
+          url: existingMediaDetails.image_url ?? "",
+          file_path: existingMediaDetails.image_file_path,
+          file_name: null,
+        },
       });
       setTypeDetailsHydrated(true);
     } else if (project.project_type === "gig" && existingGigDetails !== undefined && existingGigSamples) {
@@ -206,8 +213,8 @@ export function EditProject() {
       return "Add the link you're sharing access to.";
     }
     if (project.project_type === "media" && !mediaFieldsAreValid(mediaFields)) {
-      if (!mediaFields.audio.enabled && !mediaFields.video.enabled) {
-        return "Turn on Audio, Video, or both.";
+      if (!mediaFields.audio.enabled && !mediaFields.video.enabled && !mediaFields.image.enabled) {
+        return "Turn on Audio, Video, Image, or any combination.";
       }
       return "Add a link or upload a file for each channel you turned on.";
     }
@@ -317,6 +324,16 @@ export function EditProject() {
           video_file_path:
             mediaFields.video.enabled && mediaFields.video.source === "upload"
               ? mediaFields.video.file_path
+              : null,
+          has_image: mediaFields.image.enabled,
+          image_source: mediaFields.image.enabled ? mediaFields.image.source : null,
+          image_url:
+            mediaFields.image.enabled && mediaFields.image.source === "link"
+              ? mediaFields.image.url.trim()
+              : null,
+          image_file_path:
+            mediaFields.image.enabled && mediaFields.image.source === "upload"
+              ? mediaFields.image.file_path
               : null,
         });
         if (detailsError) throw detailsError;
@@ -453,12 +470,7 @@ export function EditProject() {
             </p>
           </div>
 
-          <div className="mb-4">
-            <label className="block text-sm font-medium text-ink-muted mb-1.5">
-              Topics <span className="font-normal text-ink-muted">(optional)</span>
-            </label>
-            <TopicPicker selected={topicIds} onToggle={toggleTopic} />
-          </div>
+          <TopicPicker selected={topicIds} onToggle={toggleTopic} />
 
           {/* ---- Type-specific block ---- */}
           {project.project_type === "media" && (
