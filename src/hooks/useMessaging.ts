@@ -224,9 +224,10 @@ export interface MessageWithSender {
   // this list entirely client-side (see MessageThread's use of
   // useMessageUserStates' hidden_at/deleted_for_me_at).
   is_deleted: boolean;
-  // Embedded snippet of the message being replied to, if any —
-  // Supabase returns the self-join as an array even for a single FK,
-  // so callers should read reply_to?.[0].
+  // Snippet of the message being replied to, if any. Kept as an array
+  // (read via reply_to?.[0]) for backward compatibility with how
+  // Supabase used to return the embedded self-join — now populated by
+  // a separate lookup instead (see useMessages below).
   reply_to: { id: string; content: string; sender_id: string; is_deleted: boolean }[] | null;
 }
 
@@ -248,16 +249,42 @@ export function useMessages(conversationId: string) {
   const query = useQuery({
     queryKey: ["messages", conversationId],
     queryFn: async (): Promise<MessageWithSender[]> => {
+      // Deliberately a plain select with NO embedded reply_to join here.
+      // An embedded self-join (`messages!<fkey-name>(...)`) depends on
+      // that exact FK constraint name existing in the DB — if it's ever
+      // renamed/auto-suffixed (e.g. by a dashboard migration), PostgREST
+      // rejects the whole query and the thread silently renders empty
+      // ("Say hello.") even though the messages exist (this happened).
+      // Fetching the base rows and reply snippets as two independent
+      // queries means a reply-preview issue can never blank the thread.
       const { data, error } = await supabase
         .from("messages")
         .select(
-          `id, conversation_id, sender_id, content, created_at, delivered_at, read_at, reply_to_message_id, is_deleted,
-           reply_to:messages!messages_reply_to_message_id_fkey(id, content, sender_id, is_deleted)`
+          "id, conversation_id, sender_id, content, created_at, delivered_at, read_at, reply_to_message_id, is_deleted"
         )
         .eq("conversation_id", conversationId)
         .order("created_at", { ascending: true });
       if (error) throw error;
-      return data as unknown as MessageWithSender[];
+
+      const rows = data ?? [];
+      const replyIds = [...new Set(rows.map((m) => m.reply_to_message_id).filter((id): id is string => !!id))];
+
+      let replyMap = new Map<string, { id: string; content: string; sender_id: string; is_deleted: boolean }>();
+      if (replyIds.length) {
+        const { data: replies, error: replyError } = await supabase
+          .from("messages")
+          .select("id, content, sender_id, is_deleted")
+          .in("id", replyIds);
+        // A failure here shouldn't blank the thread either — replies
+        // just render without their quoted snippet.
+        if (replyError) console.error("Failed to load reply snippets:", replyError);
+        replyMap = new Map((replies ?? []).map((r) => [r.id, r]));
+      }
+
+      return rows.map((m) => ({
+        ...m,
+        reply_to: m.reply_to_message_id && replyMap.has(m.reply_to_message_id) ? [replyMap.get(m.reply_to_message_id)!] : null,
+      })) as unknown as MessageWithSender[];
     },
     enabled: !!conversationId,
   });
