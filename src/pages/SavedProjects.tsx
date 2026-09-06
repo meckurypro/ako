@@ -1,17 +1,17 @@
 // src/pages/SavedProjects.tsx
-import { useNavigate } from "react-router-dom";
+import { useSmartBack } from "../hooks/useSmartBack";
 import { ArrowLeft, Bookmark } from "lucide-react";
 import { useSavedProjects } from "../hooks/useSavedProjects";
 import { ProjectCard } from "../components/ProjectCard";
 
 export function SavedProjects() {
-  const navigate = useNavigate();
+  const smartBack = useSmartBack();
   const { data: projects, isLoading } = useSavedProjects();
 
   return (
     <div className="min-h-screen bg-canvas px-4 pt-4 pb-10">
       <div className="max-w-xl mx-auto">
-        <button onClick={() => navigate(-1)} className="text-ink-muted mb-4">
+        <button onClick={smartBack} className="text-ink-muted mb-4">
           <ArrowLeft size={22} />
         </button>
 
