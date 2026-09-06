@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useSmartBack } from "../../hooks/useSmartBack";
 import { ArrowLeft } from "lucide-react";
 import { usePendingReports, useResolveReport, useDismissReport } from "../../hooks/useAdmin";
 
@@ -12,7 +12,7 @@ const ACTIONS = [
 ] as const;
 
 export function AdminReports() {
-  const navigate = useNavigate();
+  const smartBack = useSmartBack();
   const { data: reports, isLoading } = usePendingReports();
   const resolveReport = useResolveReport();
   const dismissReport = useDismissReport();
@@ -37,7 +37,7 @@ export function AdminReports() {
     <div className="min-h-screen bg-canvas px-4 pt-4 pb-10">
       <div className="max-w-lg mx-auto">
         <div className="flex items-center gap-3 mb-6">
-          <button onClick={() => navigate(-1)} className="text-ink-muted">
+          <button onClick={smartBack} className="text-ink-muted">
             <ArrowLeft size={22} />
           </button>
           <h2 className="font-display text-xl text-ink">Moderation queue</h2>
