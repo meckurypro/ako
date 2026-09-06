@@ -1,6 +1,7 @@
 // src/pages/CreatePage.tsx
 import { useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
+import { useSmartBack } from "../hooks/useSmartBack";
 import { ArrowLeft } from "lucide-react";
 import { useCreatePage } from "../hooks/usePages";
 import { useCategories } from "../hooks/useCategories";
@@ -18,6 +19,7 @@ const TYPES: { value: PageType; label: string; hint: string }[] = [
 // into managing it.
 export function CreatePage() {
   const navigate = useNavigate();
+  const smartBack = useSmartBack();
   const [searchParams] = useSearchParams();
   const createPage = useCreatePage();
   const { data: categories } = useCategories();
@@ -69,7 +71,7 @@ export function CreatePage() {
     <div className="min-h-screen bg-canvas px-4 pt-4 pb-10">
       <div className="max-w-md mx-auto">
         <div className="flex items-center gap-3 mb-6">
-          <button onClick={() => navigate(-1)} className="text-ink-muted">
+          <button onClick={smartBack} className="text-ink-muted">
             <ArrowLeft size={22} />
           </button>
           <h2 className="font-display text-xl text-ink">Create a page</h2>
