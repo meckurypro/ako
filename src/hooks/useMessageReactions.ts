@@ -175,10 +175,53 @@ export interface MessageUserState {
   deleted_for_me_at: string | null;
 }
 
+type UserStatePatch = Partial<Pick<MessageUserState, "starred_at" | "pinned_at" | "hidden_at" | "deleted_for_me_at">>;
+
+/**
+ * Writes one message_user_state row for (messageId, userId) — used by
+ * every star/pin/hide/delete-for-me action in this file and in
+ * useMessaging.ts. Deliberately a manual select-then-update-or-insert
+ * instead of `.upsert(patch, { onConflict: "message_id,user_id" })`:
+ * the onConflict target has to name an actual unique constraint/index
+ * in the database, and if that constraint's name (or existence) ever
+ * drifts from what the client assumes — same class of issue as the
+ * embedded-FK bug in useMessages — the upsert fails outright and the
+ * action silently does nothing. This version only relies on being
+ * able to select/insert/update the table, which is far harder to break.
+ */
+export async function upsertMessageUserState(userId: string, messageId: string, patch: UserStatePatch) {
+  const { data: existing, error: selectError } = await supabase
+    .from("message_user_state")
+    .select("message_id")
+    .eq("message_id", messageId)
+    .eq("user_id", userId)
+    .maybeSingle();
+  if (selectError) throw selectError;
+
+  if (existing) {
+    const { error } = await supabase
+      .from("message_user_state")
+      .update(patch)
+      .eq("message_id", messageId)
+      .eq("user_id", userId);
+    if (error) throw error;
+  } else {
+    const { error } = await supabase
+      .from("message_user_state")
+      .insert({ message_id: messageId, user_id: userId, ...patch });
+    if (error) throw error;
+  }
+}
+
 export function useMessageUserStates(conversationId: string, messageIds: string[]) {
   const { user } = useAuth();
 
   return useQuery({
+    // messageIds is intentionally not part of the key — this query is
+    // re-run (not just re-rendered) whenever the underlying set of
+    // fetched messages changes, because useMessages' realtime
+    // subscription already invalidates ["messages", conversationId]
+    // and callers re-derive messageIds from that on every render.
     queryKey: ["message-user-state", conversationId, user?.id],
     queryFn: async (): Promise<Record<string, MessageUserState>> => {
       if (!messageIds.length || !user) return {};
@@ -203,13 +246,7 @@ export function useToggleMessageState(conversationId: string, field: "starred_at
   return useMutation({
     mutationFn: async ({ messageId, active }: { messageId: string; active: boolean }) => {
       if (!user) throw new Error("Not signed in");
-      const { error } = await supabase
-        .from("message_user_state")
-        .upsert(
-          { message_id: messageId, user_id: user.id, [field]: active ? new Date().toISOString() : null },
-          { onConflict: "message_id,user_id" }
-        );
-      if (error) throw error;
+      await upsertMessageUserState(user.id, messageId, { [field]: active ? new Date().toISOString() : null });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["message-user-state", conversationId] });
@@ -218,10 +255,12 @@ export function useToggleMessageState(conversationId: string, field: "starred_at
 }
 
 /**
- * Same as useToggleMessageState but for N messages in one round trip —
- * backs the "Hide" bulk action in MessageSelectionBar. Always sets
- * (never bulk-clears) since bulk-hide is the only bulk entry point;
- * restoring happens one at a time from the Hidden screen.
+ * Same as useToggleMessageState but for N messages — backs the "Hide"
+ * bulk action in MessageSelectionBar. Always sets (never bulk-clears)
+ * since bulk-hide is the only bulk entry point; restoring happens one
+ * at a time from the Hidden screen. Runs one write per message rather
+ * than a single batched upsert, for the same reason as
+ * upsertMessageUserState above.
  */
 export function useBulkSetMessagesHidden(conversationId: string) {
   const { user } = useAuth();
@@ -231,13 +270,9 @@ export function useBulkSetMessagesHidden(conversationId: string) {
     mutationFn: async (messageIds: string[]) => {
       if (!user) throw new Error("Not signed in");
       const now = new Date().toISOString();
-      const { error } = await supabase
-        .from("message_user_state")
-        .upsert(
-          messageIds.map((message_id) => ({ message_id, user_id: user.id, hidden_at: now })),
-          { onConflict: "message_id,user_id" }
-        );
-      if (error) throw error;
+      for (const messageId of messageIds) {
+        await upsertMessageUserState(user.id, messageId, { hidden_at: now });
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["message-user-state", conversationId] });
