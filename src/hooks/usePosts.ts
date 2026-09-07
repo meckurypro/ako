@@ -4,6 +4,7 @@ import { supabase } from "../lib/supabase";
 import { useAuth } from "./useAuth";
 import { PROFILE_ROLES_SELECT, toProfileRoles } from "../lib/profileRoles";
 import type { PostWithAuthor, RepostSource } from "../types/database";
+import { DEBUG_DISABLE_PER_CARD_QUERIES } from "../lib/debugFlags";
 
 const PAGE_SIZE = 15;
 export const POST_EDIT_WINDOW_MS = 15 * 60 * 1000;
@@ -254,7 +255,7 @@ export function useHasReshared(postId: string, enabled: boolean = true) {
         .maybeSingle();
       return !!data;
     },
-    enabled: !!user && enabled,
+    enabled: !!user && enabled && !DEBUG_DISABLE_PER_CARD_QUERIES,
   });
 }
 
