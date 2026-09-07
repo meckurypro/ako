@@ -3,6 +3,8 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useEffect } from "react";
 import { supabase } from "../lib/supabase";
 import { useAuth } from "./useAuth";
+import { encodeVoiceNote } from "../lib/voiceNotes";
+import { upsertMessageUserState } from "./useMessageReactions";
 
 export interface ConversationSummary {
   id: string;
@@ -363,6 +365,70 @@ export function useSendMessage(conversationId: string) {
   });
 }
 
+/**
+ * Records + uploads a voice note and sends it as a message. Rides the
+ * existing text-only `messages.content` column via encodeVoiceNote
+ * (see lib/voiceNotes.ts) rather than needing a schema change, and
+ * reuses the "post-media" storage bucket (already used for post/avatar
+ * images elsewhere in this app) under its own path prefix rather than
+ * assuming a dedicated bucket exists. If you'd rather keep voice notes
+ * out of that bucket, create a new public-read bucket and swap the
+ * name below — this is the one piece that can't be inferred from the
+ * client alone.
+ */
+export function useSendVoiceNote(conversationId: string) {
+  const { user } = useAuth();
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({
+      blob,
+      durationSec,
+      replyToMessageId,
+    }: {
+      blob: Blob;
+      durationSec: number;
+      replyToMessageId?: string | null;
+    }) => {
+      if (!user) throw new Error("Not signed in");
+
+      const ext = blob.type.includes("mp4") ? "m4a" : "webm";
+      const path = `voice-notes/${conversationId}/${user.id}-${Date.now()}.${ext}`;
+      const { error: uploadError } = await supabase.storage
+        .from("post-media")
+        .upload(path, blob, { contentType: blob.type || "audio/webm" });
+      if (uploadError) throw uploadError;
+      const { data: publicUrl } = supabase.storage.from("post-media").getPublicUrl(path);
+
+      const content = encodeVoiceNote({ url: publicUrl.publicUrl, durationSec });
+
+      const { error } = await supabase.from("messages").insert({
+        conversation_id: conversationId,
+        sender_id: user.id,
+        content,
+        reply_to_message_id: replyToMessageId ?? null,
+      });
+      if (error) throw error;
+
+      // Mirrors useSendMessage's request-accept side effect — a voice
+      // note reply should move a pending request out of Archive too.
+      const { error: acceptError } = await supabase
+        .from("conversation_participants")
+        .update({ is_request: false, archived_at: null })
+        .eq("conversation_id", conversationId)
+        .eq("user_id", user.id)
+        .eq("is_request", true);
+      if (acceptError) console.error("Failed to accept message request:", acceptError);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["messages", conversationId] });
+      queryClient.invalidateQueries({ queryKey: ["conversations"] });
+      queryClient.invalidateQueries({ queryKey: ["archived-conversations"] });
+      queryClient.invalidateQueries({ queryKey: ["my-participant-state", conversationId] });
+    },
+  });
+}
+
 export type DeleteScope = "me" | "everyone";
 
 /**
@@ -390,13 +456,7 @@ export function useDeleteMessage(conversationId: string) {
         return;
       }
       if (!user) throw new Error("Not signed in");
-      const { error } = await supabase
-        .from("message_user_state")
-        .upsert(
-          { message_id: messageId, user_id: user.id, deleted_for_me_at: new Date().toISOString() },
-          { onConflict: "message_id,user_id" }
-        );
-      if (error) throw error;
+      await upsertMessageUserState(user.id, messageId, { deleted_for_me_at: new Date().toISOString() });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["messages", conversationId] });
@@ -421,13 +481,9 @@ export function useBulkDeleteMessages(conversationId: string) {
       }
       if (!user) throw new Error("Not signed in");
       const now = new Date().toISOString();
-      const { error } = await supabase
-        .from("message_user_state")
-        .upsert(
-          messageIds.map((message_id) => ({ message_id, user_id: user.id, deleted_for_me_at: now })),
-          { onConflict: "message_id,user_id" }
-        );
-      if (error) throw error;
+      for (const messageId of messageIds) {
+        await upsertMessageUserState(user.id, messageId, { deleted_for_me_at: now });
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["messages", conversationId] });
