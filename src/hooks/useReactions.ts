@@ -252,11 +252,17 @@ export function useToggleCommentReaction(postId: string) {
 
       return { previous };
     },
-    onError: (_err, _vars, context) => {
+    onError: (err, _vars, context) => {
       // Roll back to whatever the cache held before the optimistic
       // update so a failed request doesn't leave a button stuck
       // showing a reaction that was never actually saved.
       if (context?.previous) queryClient.setQueryData(queryKey, context.previous);
+      // A reaction that reliably reverts the instant it's tapped means
+      // the insert/delete itself is being rejected server-side (a
+      // trigger error or constraint), not a flaky network blip — this
+      // log is what distinguishes the two. See trg_notify_on_reaction /
+      // notifications.type constraint as the current leading suspect.
+      console.error("Comment reaction failed:", err);
     },
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey });
