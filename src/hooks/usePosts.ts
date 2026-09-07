@@ -1,5 +1,6 @@
 // src/hooks/usePosts.ts
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { FunctionsHttpError } from "@supabase/supabase-js";
 import { supabase } from "../lib/supabase";
 import { useAuth } from "./useAuth";
 import { PROFILE_ROLES_SELECT, toProfileRoles } from "../lib/profileRoles";
@@ -33,6 +34,7 @@ function normalizeAuthor(raw: any) {
 
 /** Normalises the raw Supabase shape → PostWithAuthor (flattens profile_roles → roles). */
 function normalizePost(raw: any): PostWithAuthor {
+  if (!raw) throw new Error("No post data to normalize.");
   const reshared_post: RepostSource | null | undefined = raw.reshared_post
     ? { ...raw.reshared_post, author: normalizeAuthor(raw.reshared_post.author) }
     : raw.reshared_post;
@@ -225,8 +227,31 @@ export function useCreateReshare() {
       const { data, error } = await supabase.functions.invoke("create-reshare", {
         body: { originalPostId, caption: caption?.trim() ?? "" },
       });
-      if (error) throw error;
-      if (data?.error) throw new Error(data.error);
+      if (error) {
+        // supabase-js only gives a generic "Edge Function returned a
+        // non-2xx status code" for FunctionsHttpError by default — the
+        // function's actual error body (what create-post's equivalent
+        // failures normally show the user) is on error.context, the
+        // raw Response. Falling back to error.message keeps this safe
+        // if the body isn't JSON or doesn't have the shape we expect.
+        if (error instanceof FunctionsHttpError) {
+          try {
+            const body = await error.context.json();
+            throw new Error(typeof body?.error === "string" ? body.error : error.message);
+          } catch (parseError) {
+            if (parseError instanceof Error && parseError.message !== error.message) throw parseError;
+            throw error;
+          }
+        }
+        throw error;
+      }
+      if (data?.error) throw new Error(typeof data.error === "string" ? data.error : "Couldn't repost this.");
+      // A 2xx response with no post body means something upstream of
+      // this function's own error handling went wrong (e.g. the insert
+      // silently returned nothing) — surface that plainly instead of
+      // letting normalizePost below throw a raw "Cannot read properties
+      // of undefined" at the caller.
+      if (!data?.post) throw new Error("Couldn't repost this — the server didn't return the new post.");
       return normalizePost(data.post);
     },
     onSuccess: (_data, variables) => {
