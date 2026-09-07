@@ -26,6 +26,7 @@ export function ForwardMessageSheet({ messages, onClose, onSent }: ForwardMessag
   const forwardMessages = useForwardMessages();
   const [query, setQuery] = useState("");
   const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [error, setError] = useState<string | null>(null);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -47,11 +48,16 @@ export function ForwardMessageSheet({ messages, onClose, onSent }: ForwardMessag
 
   async function handleSend() {
     if (!selected.size) return;
-    await forwardMessages.mutateAsync({
-      messages,
-      targetConversationIds: [...selected],
-    });
-    onSent();
+    setError(null);
+    try {
+      await forwardMessages.mutateAsync({
+        messages,
+        targetConversationIds: [...selected],
+      });
+      onSent();
+    } catch {
+      setError("Couldn't forward that. Check your connection and try again.");
+    }
   }
 
   return (
@@ -110,6 +116,7 @@ export function ForwardMessageSheet({ messages, onClose, onSent }: ForwardMessag
         </div>
 
         <div className="px-4 pt-2 pb-4">
+          {error && <p className="text-xs text-danger text-center pb-2">{error}</p>}
           <button
             onClick={handleSend}
             disabled={!selected.size || forwardMessages.isPending}
