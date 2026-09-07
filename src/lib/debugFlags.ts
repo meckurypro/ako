@@ -1,3 +1,4 @@
+// src/lib/debugFlags.ts
 // TEMP DIAGNOSTIC FILE — not meant to ship long-term.
 //
 // Single place to flip isolated test switches while debugging the
@@ -10,4 +11,4 @@
 // whether the query fan-out + re-render churn from many PostCards
 // mounting at once is what's competing with touchmove for main-thread
 // time during a swipe.
-export const DEBUG_DISABLE_PER_CARD_QUERIES = true;
+export const DEBUG_DISABLE_PER_CARD_QUERIES = false;
