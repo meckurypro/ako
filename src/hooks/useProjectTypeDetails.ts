@@ -54,12 +54,18 @@ export function useMeetingDetails(projectId: string | undefined) {
 }
 
 // A 'media' project holds an audio channel, a video channel, an image
-// channel, or any combination of the three. Each channel is
-// independently either a link out (Spotify/YouTube/a hosted image/etc.)
-// or an uploaded file streamed from our own storage — never both at
-// once, mirroring the link-vs-upload toggle used elsewhere. Exactly
-// one of {audio_url, audio_file_path} is set when has_audio is true
-// (same pattern for video and image); both null when a channel is off.
+// channel, or any combination of the three. Audio/video are hybrid:
+// *_url (a redirect to the full thing elsewhere — Spotify, YouTube)
+// and *_file_path (an uploaded clip played in-app as a capped ~20s
+// preview, see ProjectCard's MediaPreviewPlayer) are independent —
+// either, both, or neither can be set per channel, not one-or-the-
+// other. audio_source/video_source are vestigial (kept for backward
+// compatibility with older rows) and no longer drive display logic —
+// what's actually shown is derived straight from which of {url,
+// file_path} are non-null. Image is upload-only: image_file_path is
+// the full image shown in-app, and image_url/image_source are no
+// longer written by the app (may still hold values on old rows).
+// All fields null when the matching has_* flag is false.
 export interface MediaDetails {
   project_id: string;
   has_audio: boolean;
