@@ -4,6 +4,8 @@ import { useAuth } from "./useAuth";
 import { PROFILE_ROLES_SELECT, toProfileRoles } from "../lib/profileRoles";
 import type { PostWithAuthor } from "../types/database";
 
+import { DEBUG_DISABLE_PER_CARD_QUERIES } from "../lib/debugFlags";
+
 export function useIsBookmarked(postId: string) {
   const { user } = useAuth();
 
@@ -19,7 +21,7 @@ export function useIsBookmarked(postId: string) {
         .maybeSingle();
       return !!data;
     },
-    enabled: !!user,
+    enabled: !!user && !DEBUG_DISABLE_PER_CARD_QUERIES,
   });
 }
 
