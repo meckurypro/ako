@@ -24,6 +24,8 @@ import {
   Link as LinkIcon,
   Briefcase,
   MessageCircle,
+  Copy,
+  Check,
 } from "lucide-react";
 import { useAuth } from "../hooks/useAuth";
 import { renderFormattedText } from "../lib/formatText";
@@ -42,7 +44,7 @@ import {
 } from "../hooks/useProjects";
 import { useMediaDetails } from "../hooks/useProjectTypeDetails";
 import { useIsProjectSaved, useToggleSavedProject } from "../hooks/useSavedProjects";
-import { useProjectAccessCount } from "../hooks/useProjectAccess";
+import { useProjectAccessCount, useLogFreeProjectAccess } from "../hooks/useProjectAccess";
 import { useMyReaction, useToggleReaction } from "../hooks/useReactions";
 import { useStartConversation } from "../hooks/useMessaging";
 import { ReactionTray, type EngagementAction } from "./ReactionTray";
@@ -121,6 +123,7 @@ export function ProjectCard({
   const isLikedQuery = useMyReaction(project.id, "project", "like");
   const toggleLike = useToggleReaction(project.id, "project", "like");
   const accessCountQuery = useProjectAccessCount(project.id);
+  const logFreeAccess = useLogFreeProjectAccess();
   const { data: mediaDetails } = useMediaDetails(project.project_type === "media" ? project.id : undefined);
   const startConversation = useStartConversation();
 
@@ -130,6 +133,7 @@ export function ProjectCard({
   const [audioSrc, setAudioSrc] = useState<string | null>(null);
   const [videoSrc, setVideoSrc] = useState<string | null>(null);
   const [imageSrc, setImageSrc] = useState<string | null>(null);
+  const [linkCopied, setLinkCopied] = useState(false);
   const hasPurchased = !!hasPurchasedQuery.data;
   // Rooms are the one project type where "free" isn't self-granting:
   // membership lives in room_members, and that row only gets created
@@ -232,6 +236,17 @@ export function ProjectCard({
     }
   }
 
+  // Paid access is already logged server-side by the purchase-project
+  // edge function (via the service role) at purchase time — logging it
+  // again here on every open/play would double-count it. Only a FREE,
+  // non-owner unlock needs this client-side log at all, since that's
+  // the one path nothing else records.
+  function logFreeAccessIfNeeded(accessType: "download" | "stream" | "link_click") {
+    if (isFree && !isOwner) {
+      logFreeAccess.mutate({ projectId: project.id, accessType });
+    }
+  }
+
   async function handleOpenFile() {
     if (!user) {
       navigate(`/login?redirect=${encodeURIComponent(`/projects/${project.id}`)}`);
@@ -241,8 +256,28 @@ export function ProjectCard({
     try {
       const url = await getFileDownload.mutateAsync({ projectId: project.id, kind: "file" });
       window.open(url, "_blank");
+      logFreeAccessIfNeeded("download");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Couldn't access file.");
+    }
+  }
+
+  // URL projects skip the edge function entirely (the link itself is
+  // already sitting on the project row, not behind a signed fetch), so
+  // this is the only place a free open ever gets recorded for them.
+  function handleOpenUrlLink() {
+    logFreeAccessIfNeeded("link_click");
+  }
+
+  async function handleCopyLink() {
+    if (!project.external_url) return;
+    setError(null);
+    try {
+      await navigator.clipboard.writeText(project.external_url);
+      setLinkCopied(true);
+      window.setTimeout(() => setLinkCopied(false), 2000);
+    } catch {
+      setError("Couldn't copy link.");
     }
   }
 
@@ -258,6 +293,7 @@ export function ProjectCard({
     try {
       const url = await getAudioStream.mutateAsync({ projectId: project.id, kind: "audio" });
       setAudioSrc(url);
+      logFreeAccessIfNeeded("stream");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Couldn't load audio.");
     }
@@ -272,6 +308,7 @@ export function ProjectCard({
     try {
       const url = await getVideoStream.mutateAsync({ projectId: project.id, kind: "video" });
       setVideoSrc(url);
+      logFreeAccessIfNeeded("stream");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Couldn't load video.");
     }
@@ -286,6 +323,7 @@ export function ProjectCard({
     try {
       const url = await getImageStream.mutateAsync({ projectId: project.id, kind: "image" });
       setImageSrc(url);
+      logFreeAccessIfNeeded("stream");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Couldn't load image.");
     }
@@ -692,18 +730,42 @@ export function ProjectCard({
               </span>
             ))}
 
-          {/* URL — a single link the host is selling/gating access to. */}
+          {/* URL — a single link the host is selling/gating access to.
+              "Open link" navigates there directly; "Copy" hands the
+              visitor the raw URL instead, for pasting into another app
+              (e.g. the WhatsApp invite this often is) rather than
+              opening it inside the in-app browser. */}
           {project.project_type === "url" &&
             (hasAccess ? (
-              <a
-                href={project.external_url ?? undefined}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex items-center gap-1.5 text-sm text-accent font-medium"
-              >
-                <LinkIcon size={15} />
-                Open link
-              </a>
+              <div className="flex items-center gap-3">
+                <a
+                  href={project.external_url ?? undefined}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  onClick={handleOpenUrlLink}
+                  className="flex items-center gap-1.5 text-sm text-accent font-medium"
+                >
+                  <LinkIcon size={15} />
+                  Open link
+                </a>
+                <button
+                  type="button"
+                  onClick={handleCopyLink}
+                  className="flex items-center gap-1.5 text-sm text-ink-muted font-medium"
+                >
+                  {linkCopied ? (
+                    <>
+                      <Check size={15} className="text-accent" />
+                      Copied
+                    </>
+                  ) : (
+                    <>
+                      <Copy size={15} />
+                      Copy
+                    </>
+                  )}
+                </button>
+              </div>
             ) : (
               <span className="flex items-center gap-1.5 text-sm text-ink-muted">
                 <Lock size={15} />
