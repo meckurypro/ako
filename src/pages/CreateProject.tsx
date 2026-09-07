@@ -177,39 +177,34 @@ export function CreateProject() {
             : undefined,
         meeting_details:
           projectType === "meeting" ? { scheduled_at: meetingFields.scheduled_at } : undefined,
+        // Audio/video: upload and link are independent now — a channel
+        // can carry either, or both, so both fields are sent whenever
+        // they're filled rather than picking one via a "source". Image
+        // never gets a link (see MediaFields' allowLink) — image_source
+        // is still sent as "upload" for backward compatibility with the
+        // column, but image_url never is.
         media_details:
           projectType === "media"
             ? {
                 has_audio: mediaFields.audio.enabled,
                 has_video: mediaFields.video.enabled,
-                audio_source: mediaFields.audio.enabled ? mediaFields.audio.source : undefined,
-                audio_url:
-                  mediaFields.audio.enabled && mediaFields.audio.source === "link"
-                    ? mediaFields.audio.url.trim()
-                    : undefined,
-                audio_file_path:
-                  mediaFields.audio.enabled && mediaFields.audio.source === "upload"
-                    ? mediaFields.audio.file_path ?? undefined
-                    : undefined,
-                video_source: mediaFields.video.enabled ? mediaFields.video.source : undefined,
-                video_url:
-                  mediaFields.video.enabled && mediaFields.video.source === "link"
-                    ? mediaFields.video.url.trim()
-                    : undefined,
-                video_file_path:
-                  mediaFields.video.enabled && mediaFields.video.source === "upload"
-                    ? mediaFields.video.file_path ?? undefined
-                    : undefined,
                 has_image: mediaFields.image.enabled,
-                image_source: mediaFields.image.enabled ? mediaFields.image.source : undefined,
-                image_url:
-                  mediaFields.image.enabled && mediaFields.image.source === "link"
-                    ? mediaFields.image.url.trim()
-                    : undefined,
-                image_file_path:
-                  mediaFields.image.enabled && mediaFields.image.source === "upload"
-                    ? mediaFields.image.file_path ?? undefined
-                    : undefined,
+                audio_source: mediaFields.audio.enabled
+                  ? mediaFields.audio.file_path
+                    ? "upload"
+                    : "link"
+                  : undefined,
+                audio_url: mediaFields.audio.enabled ? mediaFields.audio.url.trim() || undefined : undefined,
+                audio_file_path: mediaFields.audio.enabled ? mediaFields.audio.file_path ?? undefined : undefined,
+                video_source: mediaFields.video.enabled
+                  ? mediaFields.video.file_path
+                    ? "upload"
+                    : "link"
+                  : undefined,
+                video_url: mediaFields.video.enabled ? mediaFields.video.url.trim() || undefined : undefined,
+                video_file_path: mediaFields.video.enabled ? mediaFields.video.file_path ?? undefined : undefined,
+                image_source: mediaFields.image.enabled ? "upload" : undefined,
+                image_file_path: mediaFields.image.enabled ? mediaFields.image.file_path ?? undefined : undefined,
               }
             : undefined,
         gig_details:
