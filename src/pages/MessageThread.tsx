@@ -17,6 +17,10 @@ import {
   Forward,
   EyeOff,
   Star,
+  Mic,
+  Play,
+  Pause,
+  Square,
 } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "../lib/supabase";
@@ -25,6 +29,7 @@ import { useAuth } from "../hooks/useAuth";
 import {
   useMessages,
   useSendMessage,
+  useSendVoiceNote,
   useMarkConversationRead,
   useMarkMessagesRead,
   useDeleteMessage,
@@ -51,8 +56,11 @@ import { PresenceDot } from "../components/PresenceDot";
 import { MessageActionMenu } from "../components/MessageActionMenu";
 import { DeleteMessageSheet } from "../components/DeleteMessageSheet";
 import { ForwardMessageSheet } from "../components/ForwardMessageSheet";
+import { ConfirmDialog } from "../components/ConfirmDialog";
+import { VoiceMessageBubble } from "../components/VoiceMessageBubble";
 import { EmojiPickerSheet, removeLastGrapheme } from "../components/EmojiPickerSheet";
 import { formatLastSeen } from "../lib/presence";
+import { decodeVoiceNote, VOICE_NOTE_LABEL, formatVoiceDuration } from "../lib/voiceNotes";
 
 // Fetches the other participant's profile for the header — a small
 // dedicated query since useConversations' list-summary shape isn't
@@ -93,7 +101,7 @@ function highlightMatches(text: string, query: string, isMine: boolean) {
   const parts = text.split(new RegExp(`(${escapeRegExp(q)})`, "gi"));
   return parts.map((part, i) =>
     part.toLowerCase() === q.toLowerCase() ? (
-      <mark key={i} className={`rounded-sm ${isMine ? "bg-canvas/25 text-canvas" : "bg-accent-soft text-ink"}`}>
+      <mark key={i} className={`rounded-sm ${isMine ? "bg-white/25 text-white" : "bg-accent-soft text-ink"}`}>
         {part}
       </mark>
     ) : (
@@ -102,36 +110,50 @@ function highlightMatches(text: string, query: string, isMine: boolean) {
   );
 }
 
-/** Grouped reaction badges under a bubble — tap toggles the current user's own reaction. */
+/**
+ * Grouped reaction badges under a bubble — tap toggles the current
+ * user's own reaction. Background is always the "other bubble" tone
+ * (bg-surface) with a darker neutral outline, regardless of which side
+ * the message is on — reactions never render in the green accent
+ * color, so they stay legible sitting on top of either bubble color.
+ * The user's own reaction is marked with a bold border instead of a
+ * color change, and tapping it again routes through a confirmation
+ * (onRequestRemove) rather than removing immediately.
+ */
 function ReactionsBar({
   reactions,
   myReaction,
   isMine,
-  onToggle,
+  onAdd,
+  onRequestRemove,
 }: {
   reactions: MessageReaction[];
   myReaction: string | null;
   isMine: boolean;
-  onToggle: (emoji: string) => void;
+  onAdd: (emoji: string) => void;
+  onRequestRemove: () => void;
 }) {
   if (!reactions.length) return null;
   const counts = new Map<string, number>();
   for (const r of reactions) counts.set(r.emoji, (counts.get(r.emoji) ?? 0) + 1);
 
   return (
-    <div className={`flex flex-wrap gap-1 mt-1 ${isMine ? "justify-end" : "justify-start"}`}>
-      {[...counts.entries()].map(([emoji, count]) => (
-        <button
-          key={emoji}
-          onClick={() => onToggle(emoji)}
-          className={`text-xs px-1.5 py-0.5 rounded-full border flex items-center gap-1 ${
-            myReaction === emoji ? "bg-accent-soft border-accent" : "bg-surface border-border"
-          }`}
-        >
-          <span>{emoji}</span>
-          {count > 1 && <span className="text-ink-muted">{count}</span>}
-        </button>
-      ))}
+    <div className={`flex flex-wrap gap-1.5 mt-1 ${isMine ? "justify-end" : "justify-start"}`}>
+      {[...counts.entries()].map(([emoji, count]) => {
+        const isMineReaction = myReaction === emoji;
+        return (
+          <button
+            key={emoji}
+            onClick={() => (isMineReaction ? onRequestRemove() : onAdd(emoji))}
+            className={`text-sm pl-1 pr-2 py-1 rounded-full bg-surface flex items-center gap-1.5 ${
+              isMineReaction ? "border-2 border-ink-muted/60" : "border border-ink-muted/25"
+            }`}
+          >
+            <span className="text-lg leading-none">{emoji}</span>
+            {count > 1 && <span className="text-ink-muted text-xs">{count}</span>}
+          </button>
+        );
+      })}
     </div>
   );
 }
@@ -162,6 +184,12 @@ interface DeleteTarget {
 
 type EmojiPickerTarget = { mode: "input" } | { mode: "reaction"; messageId: string } | null;
 
+/** Voice-note recorder state machine backing the compose bar. */
+type RecorderState =
+  | { phase: "idle" }
+  | { phase: "recording"; elapsedMs: number; paused: boolean }
+  | { phase: "preview"; blob: Blob; url: string; durationSec: number };
+
 export function MessageThread() {
   const { conversationId } = useParams<{ conversationId: string }>();
   const navigate = useNavigate();
@@ -175,6 +203,7 @@ export function MessageThread() {
   const { data: unseenPosts } = useUnseenPosts(otherParticipant ? [otherParticipant.id] : []);
   const unseenPostId = otherParticipant ? unseenPosts?.[otherParticipant.id] : undefined;
   const sendMessage = useSendMessage(conversationId!);
+  const sendVoiceNote = useSendVoiceNote(conversationId!);
   const deleteMessage = useDeleteMessage(conversationId!);
   const bulkDeleteMessages = useBulkDeleteMessages(conversationId!);
   const bulkSetHidden = useBulkSetMessagesHidden(conversationId!);
@@ -191,6 +220,20 @@ export function MessageThread() {
   const topEmojis = useUserTopEmojis();
   const trackEmojiUsage = useTrackEmojiUsage();
   const inputRef = useRef<HTMLInputElement>(null);
+
+  // Brief inline banner for async failures (delete/star/pin/react/…)
+  // that would otherwise fail silently — see flashError below.
+  const [errorBanner, setErrorBanner] = useState<string | null>(null);
+  const errorBannerTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  function flashError(message: string) {
+    setErrorBanner(message);
+    if (errorBannerTimer.current) clearTimeout(errorBannerTimer.current);
+    errorBannerTimer.current = setTimeout(() => setErrorBanner(null), 3500);
+  }
+  useEffect(() => () => {
+    if (errorBannerTimer.current) clearTimeout(errorBannerTimer.current);
+  }, []);
+  const onMutationError = () => flashError("Something went wrong. Please try again.");
 
   // Per-message read_at stamping (drives ticks) — separate mechanism
   // from markConversationRead above, which drives the conversation-list
@@ -226,6 +269,10 @@ export function MessageThread() {
 
   const [activeMessage, setActiveMessage] = useState<ActiveMessage | null>(null);
   const [emojiPickerTarget, setEmojiPickerTarget] = useState<EmojiPickerTarget>(null);
+  // Which message's reaction is pending a remove-confirmation — set by
+  // either the reaction bar under a bubble or the long-press quick-react
+  // strip; resolved by the ConfirmDialog rendered near the bottom.
+  const [pendingReactionRemoval, setPendingReactionRemoval] = useState<string | null>(null);
 
   // --- Multi-select mode: reached via MessageActionMenu's "Select", or
   // by long-pressing straight past it in a future iteration. While
@@ -267,14 +314,14 @@ export function MessageThread() {
     setDeleteTarget({ messageIds: [...selectedIds], allowEveryone: selectionAllowsDeleteEveryone });
   }
   function handleBulkHide() {
-    bulkSetHidden.mutate([...selectedIds], { onSuccess: exitSelectMode });
+    bulkSetHidden.mutate([...selectedIds], { onSuccess: exitSelectMode, onError: onMutationError });
   }
   function handleBulkStar() {
     // Bulk star always turns ON (mixed starred/unstarred selections
     // would make a single bulk "toggle" ambiguous) — unstarring stays a
     // per-message action from the long-press menu.
     for (const id of selectedIds) {
-      toggleStar.mutate({ messageId: id, active: true });
+      toggleStar.mutate({ messageId: id, active: true }, { onError: onMutationError });
     }
     exitSelectMode();
   }
@@ -287,9 +334,9 @@ export function MessageThread() {
   function handleDeleteConfirm(scope: DeleteScope) {
     if (!deleteTarget) return;
     if (deleteTarget.messageIds.length === 1) {
-      deleteMessage.mutate({ messageId: deleteTarget.messageIds[0], scope });
+      deleteMessage.mutate({ messageId: deleteTarget.messageIds[0], scope }, { onError: onMutationError });
     } else {
-      bulkDeleteMessages.mutate({ messageIds: deleteTarget.messageIds, scope });
+      bulkDeleteMessages.mutate({ messageIds: deleteTarget.messageIds, scope }, { onError: onMutationError });
     }
     setDeleteTarget(null);
     exitSelectMode();
@@ -365,10 +412,12 @@ export function MessageThread() {
   const matches = useMemo((): MessageWithSender[] => {
     const q = searchQuery.trim().toLowerCase();
     if (!q || !visibleMessages) return [];
-    // Tombstones render as "This message was deleted" — searching their
-    // original content would surface matches the user can no longer
-    // actually see, so they're excluded here.
-    return visibleMessages.filter((m) => !m.is_deleted && m.content.toLowerCase().includes(q));
+    // Tombstones render as "This message was deleted", and voice notes
+    // have no text content to match — both are excluded here so a
+    // "match" always corresponds to something actually visible/searchable.
+    return visibleMessages.filter(
+      (m) => !m.is_deleted && !decodeVoiceNote(m.content) && m.content.toLowerCase().includes(q)
+    );
   }, [visibleMessages, searchQuery]);
 
   useEffect(() => {
@@ -408,12 +457,17 @@ export function MessageThread() {
     } catch {
       setContent(text); // restore on failure so the user doesn't lose what they typed
       setReplyTarget(replyingTo);
+      flashError("Couldn't send that message. Please try again.");
     }
   }
 
   // --- Long press + swipe-to-reply (no gesture library — hand-rolled pointer timers) ---
   function handlePointerDown(m: MessageWithSender, e: React.PointerEvent) {
     if (selectMode) return; // tap-to-toggle takes over entirely in select mode
+    // Pointer capture keeps move/up events targeted at this element even
+    // if the finger drifts off it mid-gesture — without this, a fast
+    // swipe can lose the pointer and the gesture silently cancels.
+    e.currentTarget.setPointerCapture(e.pointerId);
     longPressStart.current[m.id] = { x: e.clientX, y: e.clientY };
     swipeTriggered.current[m.id] = false;
     longPressTimers.current[m.id] = setTimeout(() => {
@@ -446,6 +500,7 @@ export function MessageThread() {
     // Rightward, predominantly-horizontal drag = swipe-to-reply.
     // Doesn't apply to a tombstone — there's no content left to reply to.
     if (dx > 8 && adx > ady && !m.is_deleted) {
+      e.preventDefault(); // stop the page from also trying to scroll/select text during the drag
       const display = dx <= SWIPE_MAX ? dx : SWIPE_MAX + (dx - SWIPE_MAX) * SWIPE_RESISTANCE;
       setActiveDragId(m.id);
       setDragOffsets((prev) => ({ ...prev, [m.id]: display }));
@@ -480,6 +535,119 @@ export function MessageThread() {
     ? activeReactions.find((r) => r.user_id === user?.id)?.emoji ?? null
     : null;
   const activeState = activeMessage ? userStates?.[activeMessage.message.id] : undefined;
+
+  // --- Voice note recording (compose bar) ---
+  const [recorder, setRecorder] = useState<RecorderState>({ phase: "idle" });
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const recordedChunksRef = useRef<Blob[]>([]);
+  const micStreamRef = useRef<MediaStream | null>(null);
+  const recordingTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const segmentStartRef = useRef(0);
+  const accumulatedMsRef = useRef(0);
+
+  useEffect(
+    () => () => {
+      // Release the mic and stop the ticking timer if the thread unmounts
+      // mid-recording (navigating away, etc.) — never leave the mic hot.
+      if (recordingTimerRef.current) clearInterval(recordingTimerRef.current);
+      micStreamRef.current?.getTracks().forEach((t) => t.stop());
+    },
+    []
+  );
+
+  async function startRecording() {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      micStreamRef.current = stream;
+      recordedChunksRef.current = [];
+      const mimeType = MediaRecorder.isTypeSupported("audio/webm;codecs=opus")
+        ? "audio/webm;codecs=opus"
+        : undefined;
+      const mr = new MediaRecorder(stream, mimeType ? { mimeType } : undefined);
+      mediaRecorderRef.current = mr;
+      mr.ondataavailable = (e) => {
+        if (e.data.size > 0) recordedChunksRef.current.push(e.data);
+      };
+      mr.start();
+      accumulatedMsRef.current = 0;
+      segmentStartRef.current = Date.now();
+      setRecorder({ phase: "recording", elapsedMs: 0, paused: false });
+      recordingTimerRef.current = setInterval(() => {
+        setRecorder((prev) =>
+          prev.phase === "recording" && !prev.paused
+            ? { ...prev, elapsedMs: accumulatedMsRef.current + (Date.now() - segmentStartRef.current) }
+            : prev
+        );
+      }, 200);
+    } catch {
+      flashError("Couldn't access the microphone. Check your browser/site permissions.");
+    }
+  }
+
+  function togglePauseResume() {
+    const mr = mediaRecorderRef.current;
+    if (!mr) return;
+    setRecorder((prev) => {
+      if (prev.phase !== "recording") return prev;
+      if (prev.paused) {
+        mr.resume();
+        segmentStartRef.current = Date.now();
+        return { ...prev, paused: false };
+      }
+      mr.pause();
+      accumulatedMsRef.current += Date.now() - segmentStartRef.current;
+      return { ...prev, paused: true, elapsedMs: accumulatedMsRef.current };
+    });
+  }
+
+  function stopToPreview() {
+    const mr = mediaRecorderRef.current;
+    if (!mr || recorder.phase !== "recording") return;
+    const finalElapsedMs = recorder.paused
+      ? recorder.elapsedMs
+      : accumulatedMsRef.current + (Date.now() - segmentStartRef.current);
+    mr.onstop = () => {
+      const blob = new Blob(recordedChunksRef.current, { type: mr.mimeType || "audio/webm" });
+      const url = URL.createObjectURL(blob);
+      setRecorder({ phase: "preview", blob, url, durationSec: Math.max(1, Math.round(finalElapsedMs / 1000)) });
+      micStreamRef.current?.getTracks().forEach((t) => t.stop());
+      micStreamRef.current = null;
+    };
+    if (recordingTimerRef.current) clearInterval(recordingTimerRef.current);
+    mr.stop();
+  }
+
+  function cancelRecording() {
+    const mr = mediaRecorderRef.current;
+    if (mr && mr.state !== "inactive") {
+      mr.onstop = null;
+      mr.stop();
+    }
+    if (recordingTimerRef.current) clearInterval(recordingTimerRef.current);
+    micStreamRef.current?.getTracks().forEach((t) => t.stop());
+    micStreamRef.current = null;
+    recordedChunksRef.current = [];
+    setRecorder({ phase: "idle" });
+  }
+
+  function discardPreview() {
+    if (recorder.phase === "preview") URL.revokeObjectURL(recorder.url);
+    setRecorder({ phase: "idle" });
+  }
+
+  async function sendVoicePreview() {
+    if (recorder.phase !== "preview") return;
+    const { blob, durationSec, url } = recorder;
+    const replyingTo = replyTarget;
+    try {
+      await sendVoiceNote.mutateAsync({ blob, durationSec, replyToMessageId: replyingTo?.id ?? null });
+      URL.revokeObjectURL(url);
+      setRecorder({ phase: "idle" });
+      setReplyTarget(null);
+    } catch {
+      flashError("Couldn't send the voice message. Please try again.");
+    }
+  }
 
   return (
     <div className="h-screen bg-canvas flex flex-col overflow-hidden">
@@ -636,6 +804,12 @@ export function MessageThread() {
         )}
       </header>
 
+      {errorBanner && (
+        <div className="px-4 py-2 max-w-xl mx-auto w-full text-xs text-danger bg-danger/10 border-b border-border text-center">
+          {errorBanner}
+        </div>
+      )}
+
       {myParticipantState?.is_request && (
         <div className="flex items-center gap-2 px-4 py-2.5 max-w-xl mx-auto w-full text-sm text-ink-muted bg-accent-soft/60 border-b border-border">
           <Inbox size={15} className="text-accent flex-shrink-0" />
@@ -656,17 +830,21 @@ export function MessageThread() {
             const isCurrentMatch = m.id === currentMatchId;
             const reactions = m.is_deleted ? [] : reactionsByMessage?.[m.id] ?? [];
             const myReaction = reactions.find((r) => r.user_id === user?.id)?.emoji ?? null;
+            const voiceNote = !m.is_deleted ? decodeVoiceNote(m.content) : null;
 
             const offset = dragOffsets[m.id] ?? 0;
             const isDraggingThis = activeDragId === m.id;
             const isFlashed = flashMessageId === m.id;
             const repliedTo = m.reply_to?.[0];
+            const repliedToVoiceNote = repliedTo && !repliedTo.is_deleted ? decodeVoiceNote(repliedTo.content) : null;
             const isSelected = selectedIds.has(m.id);
 
             return (
               <div
                 key={m.id}
-                className={`flex items-center gap-2 mb-2 ${isMine ? "flex-row-reverse" : "flex-row"}`}
+                className={`flex items-center gap-2 mb-2 -mx-2 px-2 py-0.5 rounded-lg transition-colors ${
+                  isSelected ? "bg-highlight/60" : ""
+                }`}
                 onClick={() => {
                   if (selectMode) toggleSelected(m.id);
                 }}
@@ -681,91 +859,101 @@ export function MessageThread() {
                   </span>
                 )}
 
-                <div className={`relative flex flex-col min-w-0 ${isMine ? "items-end" : "items-start"}`}>
-                  {/* Reply icon revealed in the gap uncovered by the swipe —
-                      fades/scales in with drag progress, "locks" past threshold. */}
-                  <div
-                    className="absolute left-0 top-1/2 -translate-y-1/2 flex items-center justify-center w-8 h-8 rounded-full bg-accent-soft text-accent pointer-events-none"
-                    style={{
-                      opacity: Math.min(offset / SWIPE_THRESHOLD, 1),
-                      transform: `translateY(-50%) scale(${offset >= SWIPE_THRESHOLD ? 1 : 0.7})`,
-                      transition: isDraggingThis ? "none" : "opacity 150ms, transform 150ms",
-                    }}
-                  >
-                    <Reply size={16} />
-                  </div>
-
-                  <div
-                    ref={(el) => {
-                      messageRefs.current[m.id] = el;
-                    }}
-                    onPointerDown={(e) => handlePointerDown(m, e)}
-                    onPointerMove={(e) => handlePointerMove(m, e)}
-                    onPointerUp={() => endGesture(m.id)}
-                    onPointerLeave={() => endGesture(m.id)}
-                    onPointerCancel={() => endGesture(m.id)}
-                    onContextMenu={(e) => e.preventDefault()}
-                    className={`max-w-[75%] rounded-2xl px-4 py-2.5 text-sm whitespace-pre-wrap break-words select-none ${
-                      isMine ? "bg-accent text-canvas" : "bg-surface text-ink"
-                    } ${m.is_deleted ? "italic opacity-70" : ""} ${
-                      isCurrentMatch || isFlashed ? "ring-2 ring-accent ring-offset-2 ring-offset-canvas" : ""
-                    }`}
-                    style={{
-                      WebkitTouchCallout: "none",
-                      transform: `translateX(${offset}px)`,
-                      transition: isDraggingThis
-                        ? "none"
-                        : "transform 200ms ease-out, box-shadow 300ms, background-color 300ms",
-                    }}
-                  >
-                    {repliedTo && !m.is_deleted && (
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          scrollToMessage(repliedTo.id);
-                        }}
-                        className={`block w-full text-left mb-1.5 pl-2 border-l-2 rounded-sm text-xs ${
-                          isMine
-                            ? "border-canvas/50 text-canvas/80"
-                            : "border-accent/50 text-ink-muted"
-                        }`}
-                      >
-                        <span className="block font-medium">
-                          {repliedTo.sender_id === user?.id ? "You" : otherParticipant?.display_name ?? "Them"}
-                        </span>
-                        <span className="block truncate">
-                          {repliedTo.is_deleted ? "Original message deleted" : repliedTo.content}
-                        </span>
-                      </button>
-                    )}
-                    <span>
-                      {m.is_deleted
-                        ? "This message was deleted"
-                        : searchQuery
-                          ? highlightMatches(m.content, searchQuery, isMine)
-                          : m.content}
-                    </span>
-                    {isMine && (
-                      <span className="flex justify-end mt-1">
-                        <MessageStatusTicks deliveredAt={m.delivered_at} readAt={m.read_at} />
-                      </span>
-                    )}
-                  </div>
-                  {!m.is_deleted && (
-                    <ReactionsBar
-                      reactions={reactions}
-                      myReaction={myReaction}
-                      isMine={isMine}
-                      onToggle={(emoji) => {
-                        if (myReaction === emoji) {
-                          removeReaction.mutate(m.id);
-                        } else {
-                          setReaction.mutate({ messageId: m.id, emoji });
-                        }
+                {/* This wrapper is what makes the bubble's max-w-[78%]
+                    resolve sanely — it's a flex-1 item inside a row with
+                    a definite width, so it gets a real, definite width
+                    of its own for the percentage below to be measured
+                    against. Without flex-1 here, this wrapper's width
+                    would itself be shrink-to-fit (sized off its own
+                    content), and a percentage max-width measured
+                    against a shrink-to-fit container is circular —
+                    which is what was collapsing short messages down to
+                    one character per line. */}
+                <div className={`flex min-w-0 flex-1 ${isMine ? "justify-end" : "justify-start"}`}>
+                  <div className={`relative flex flex-col max-w-[78%] ${isMine ? "items-end" : "items-start"}`}>
+                    {/* Reply icon revealed in the gap uncovered by the swipe —
+                        fades/scales in with drag progress, "locks" past threshold. */}
+                    <div
+                      className="absolute left-0 top-1/2 -translate-y-1/2 flex items-center justify-center w-8 h-8 rounded-full bg-accent-soft text-accent pointer-events-none"
+                      style={{
+                        opacity: Math.min(offset / SWIPE_THRESHOLD, 1),
+                        transform: `translateY(-50%) scale(${offset >= SWIPE_THRESHOLD ? 1 : 0.7})`,
+                        transition: isDraggingThis ? "none" : "opacity 150ms, transform 150ms",
                       }}
-                    />
-                  )}
+                    >
+                      <Reply size={16} />
+                    </div>
+
+                    <div
+                      ref={(el) => {
+                        messageRefs.current[m.id] = el;
+                      }}
+                      onPointerDown={(e) => handlePointerDown(m, e)}
+                      onPointerMove={(e) => handlePointerMove(m, e)}
+                      onPointerUp={() => endGesture(m.id)}
+                      onPointerLeave={() => endGesture(m.id)}
+                      onPointerCancel={() => endGesture(m.id)}
+                      onContextMenu={(e) => e.preventDefault()}
+                      className={`w-fit max-w-full rounded-2xl px-4 py-2.5 text-sm whitespace-pre-wrap break-words select-none ${
+                        isMine ? "bg-accent text-white" : "bg-surface text-ink"
+                      } ${m.is_deleted ? "italic opacity-70" : ""} ${
+                        isCurrentMatch || isFlashed ? "ring-2 ring-accent ring-offset-2 ring-offset-canvas" : ""
+                      }`}
+                      style={{
+                        WebkitTouchCallout: "none",
+                        touchAction: "pan-y",
+                        transform: `translateX(${offset}px)`,
+                        transition: isDraggingThis
+                          ? "none"
+                          : "transform 200ms ease-out, box-shadow 300ms, background-color 300ms",
+                      }}
+                    >
+                      {repliedTo && !m.is_deleted && (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            scrollToMessage(repliedTo.id);
+                          }}
+                          className={`block w-full text-left mb-1.5 pl-2 border-l-2 rounded-sm text-xs ${
+                            isMine ? "border-white/50 text-white/80" : "border-accent/50 text-ink-muted"
+                          }`}
+                        >
+                          <span className="block font-medium">
+                            {repliedTo.sender_id === user?.id ? "You" : otherParticipant?.display_name ?? "Them"}
+                          </span>
+                          <span className="block truncate">
+                            {repliedTo.is_deleted
+                              ? "Original message deleted"
+                              : repliedToVoiceNote
+                                ? VOICE_NOTE_LABEL
+                                : repliedTo.content}
+                          </span>
+                        </button>
+                      )}
+                      {m.is_deleted ? (
+                        <span>This message was deleted</span>
+                      ) : voiceNote ? (
+                        <VoiceMessageBubble url={voiceNote.url} durationSec={voiceNote.durationSec} isMine={isMine} />
+                      ) : (
+                        <span>{searchQuery ? highlightMatches(m.content, searchQuery, isMine) : m.content}</span>
+                      )}
+                      {isMine && (
+                        <span className="flex justify-end mt-1">
+                          <MessageStatusTicks deliveredAt={m.delivered_at} readAt={m.read_at} />
+                        </span>
+                      )}
+                    </div>
+                    {!m.is_deleted && (
+                      <ReactionsBar
+                        reactions={reactions}
+                        myReaction={myReaction}
+                        isMine={isMine}
+                        onAdd={(emoji) => setReaction.mutate({ messageId: m.id, emoji }, { onError: onMutationError })}
+                        onRequestRemove={() => setPendingReactionRemoval(m.id)}
+                      />
+                    )}
+                  </div>
                 </div>
               </div>
             );
@@ -776,13 +964,15 @@ export function MessageThread() {
       </div>
 
       <div className="sticky bottom-0 bg-canvas border-t border-border max-w-xl mx-auto w-full">
-        {replyTarget && (
+        {replyTarget && recorder.phase === "idle" && (
           <div className="flex items-start gap-2 px-4 pt-2.5">
             <div className="flex-1 min-w-0 border-l-2 border-accent pl-2 py-0.5">
               <p className="text-xs font-medium text-accent">
                 Replying to {replyTarget.sender_id === user?.id ? "yourself" : otherParticipant?.display_name ?? "them"}
               </p>
-              <p className="text-xs text-ink-muted truncate">{replyTarget.content}</p>
+              <p className="text-xs text-ink-muted truncate">
+                {decodeVoiceNote(replyTarget.content) ? VOICE_NOTE_LABEL : replyTarget.content}
+              </p>
             </div>
             <button
               type="button"
@@ -794,44 +984,114 @@ export function MessageThread() {
             </button>
           </div>
         )}
-        <form onSubmit={handleSubmit} className="px-4 py-3 flex items-center gap-2">
-          <button
-            type="button"
-            onClick={() => {
-              const switchingToKeyboard = emojiPickerTarget?.mode === "input";
-              setEmojiPickerTarget(switchingToKeyboard ? null : { mode: "input" });
-              if (switchingToKeyboard) {
-                // Bring the real software keyboard straight back up —
-                // matches the feel of a native app's emoji/keyboard
-                // toggle instead of dropping the user with no keyboard
-                // and no focus.
-                requestAnimationFrame(() => inputRef.current?.focus());
-              } else {
-                inputRef.current?.blur(); // stop the OS keyboard from fighting our panel for space
-              }
-            }}
-            className="text-ink-muted flex-shrink-0"
-            aria-label={emojiPickerTarget?.mode === "input" ? "Switch to keyboard" : "Add emoji"}
-          >
-            {emojiPickerTarget?.mode === "input" ? <Keyboard size={22} /> : <Smile size={22} />}
-          </button>
-          <input
-            ref={inputRef}
-            value={content}
-            onChange={(e) => setContent(e.target.value)}
-            maxLength={2000}
-            placeholder="Message…"
-            className="flex-1 px-4 py-2.5 rounded-full border border-border bg-surface text-ink
-              focus:outline-none focus:ring-2 focus:ring-accent/40 focus:border-accent"
-          />
-          <button
-            type="submit"
-            disabled={!content.trim() || sendMessage.isPending}
-            className="bg-accent text-canvas rounded-full p-2.5 transition-colors hover:bg-accent-hover active:scale-95 disabled:opacity-50 disabled:active:scale-100"
-          >
-            <Send size={18} />
-          </button>
-        </form>
+
+        {recorder.phase === "recording" ? (
+          <div className="px-4 py-3 flex items-center gap-3">
+            <button
+              type="button"
+              onClick={cancelRecording}
+              className="text-danger flex-shrink-0 p-1"
+              aria-label="Cancel recording"
+            >
+              <Trash2 size={20} />
+            </button>
+            <div className="flex-1 flex items-center gap-2 text-sm text-ink min-w-0">
+              <span className={`w-2.5 h-2.5 rounded-full bg-danger flex-shrink-0 ${recorder.paused ? "" : "animate-pulse"}`} />
+              <span className="tabular-nums">{formatVoiceDuration(recorder.elapsedMs / 1000)}</span>
+              {recorder.paused && <span className="text-ink-muted text-xs">Paused</span>}
+            </div>
+            <button
+              type="button"
+              onClick={togglePauseResume}
+              className="text-ink flex-shrink-0 p-2"
+              aria-label={recorder.paused ? "Resume recording" : "Pause recording"}
+            >
+              {recorder.paused ? <Play size={20} /> : <Pause size={20} />}
+            </button>
+            <button
+              type="button"
+              onClick={stopToPreview}
+              className="bg-accent text-white rounded-full p-2.5 flex-shrink-0"
+              aria-label="Stop recording"
+            >
+              <Square size={16} fill="currentColor" />
+            </button>
+          </div>
+        ) : recorder.phase === "preview" ? (
+          <div className="px-4 py-3 flex items-center gap-3">
+            <button
+              type="button"
+              onClick={discardPreview}
+              className="text-danger flex-shrink-0 p-1"
+              aria-label="Discard recording"
+            >
+              <Trash2 size={20} />
+            </button>
+            <div className="flex-1 min-w-0 bg-surface rounded-full px-3 py-1.5">
+              <VoiceMessageBubble url={recorder.url} durationSec={recorder.durationSec} isMine={false} />
+            </div>
+            <button
+              type="button"
+              onClick={sendVoicePreview}
+              disabled={sendVoiceNote.isPending}
+              className="bg-accent text-white rounded-full p-2.5 flex-shrink-0 disabled:opacity-50"
+              aria-label="Send voice message"
+            >
+              <Send size={18} />
+            </button>
+          </div>
+        ) : (
+          <form onSubmit={handleSubmit} className="px-4 py-3 flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => {
+                const switchingToKeyboard = emojiPickerTarget?.mode === "input";
+                setEmojiPickerTarget(switchingToKeyboard ? null : { mode: "input" });
+                if (switchingToKeyboard) {
+                  // Bring the real software keyboard straight back up —
+                  // matches the feel of a native app's emoji/keyboard
+                  // toggle instead of dropping the user with no keyboard
+                  // and no focus.
+                  requestAnimationFrame(() => inputRef.current?.focus());
+                } else {
+                  inputRef.current?.blur(); // stop the OS keyboard from fighting our panel for space
+                }
+              }}
+              className="text-ink-muted flex-shrink-0"
+              aria-label={emojiPickerTarget?.mode === "input" ? "Switch to keyboard" : "Add emoji"}
+            >
+              {emojiPickerTarget?.mode === "input" ? <Keyboard size={22} /> : <Smile size={22} />}
+            </button>
+            <input
+              ref={inputRef}
+              value={content}
+              onChange={(e) => setContent(e.target.value)}
+              maxLength={2000}
+              placeholder="Message…"
+              className="flex-1 px-4 py-2.5 rounded-full border border-border bg-surface text-ink
+                focus:outline-none focus:ring-2 focus:ring-accent/40 focus:border-accent"
+            />
+            {content.trim() ? (
+              <button
+                type="submit"
+                disabled={sendMessage.isPending}
+                className="bg-accent text-white rounded-full p-2.5 transition-colors hover:bg-accent-hover active:scale-95 disabled:opacity-50 disabled:active:scale-100 flex-shrink-0"
+                aria-label="Send"
+              >
+                <Send size={18} />
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={startRecording}
+                className="bg-accent text-white rounded-full p-2.5 transition-colors hover:bg-accent-hover active:scale-95 flex-shrink-0"
+                aria-label="Record voice message"
+              >
+                <Mic size={18} />
+              </button>
+            )}
+          </form>
+        )}
 
         {emojiPickerTarget?.mode === "input" && (
           <EmojiPickerSheet
@@ -856,8 +1116,8 @@ export function MessageThread() {
           isPinned={!!activeState?.pinned_at}
           emojis={topEmojis}
           myReaction={activeMyReaction}
-          onReact={(emoji) => setReaction.mutate({ messageId: activeMessage.message.id, emoji })}
-          onRemoveReaction={() => removeReaction.mutate(activeMessage.message.id)}
+          onReact={(emoji) => setReaction.mutate({ messageId: activeMessage.message.id, emoji }, { onError: onMutationError })}
+          onRequestRemoveReaction={() => setPendingReactionRemoval(activeMessage.message.id)}
           onOpenFullPicker={() => setEmojiPickerTarget({ mode: "reaction", messageId: activeMessage.message.id })}
           onCopy={() => navigator.clipboard.writeText(activeMessage.message.content)}
           onDeletePress={() =>
@@ -876,12 +1136,20 @@ export function MessageThread() {
           onForward={() => setForwardMessages([{ content: activeMessage.message.content }])}
           onReply={() => startReply(activeMessage.message)}
           onToggleStar={() =>
-            toggleStar.mutate({ messageId: activeMessage.message.id, active: !activeState?.starred_at })
+            toggleStar.mutate(
+              { messageId: activeMessage.message.id, active: !activeState?.starred_at },
+              { onError: onMutationError }
+            )
           }
           onTogglePin={() =>
-            togglePin.mutate({ messageId: activeMessage.message.id, active: !activeState?.pinned_at })
+            togglePin.mutate(
+              { messageId: activeMessage.message.id, active: !activeState?.pinned_at },
+              { onError: onMutationError }
+            )
           }
-          onHide={() => toggleHidden.mutate({ messageId: activeMessage.message.id, active: true })}
+          onHide={() =>
+            toggleHidden.mutate({ messageId: activeMessage.message.id, active: true }, { onError: onMutationError })
+          }
           onSelect={() => enterSelectMode(activeMessage.message.id)}
           onClose={() => setActiveMessage(null)}
         />
@@ -892,7 +1160,7 @@ export function MessageThread() {
           mode="reaction"
           onClose={() => setEmojiPickerTarget(null)}
           onSelect={(emoji) => {
-            setReaction.mutate({ messageId: emojiPickerTarget.messageId, emoji });
+            setReaction.mutate({ messageId: emojiPickerTarget.messageId, emoji }, { onError: onMutationError });
             setEmojiPickerTarget(null);
           }}
         />
@@ -904,6 +1172,19 @@ export function MessageThread() {
           allowEveryone={deleteTarget.allowEveryone}
           onDelete={handleDeleteConfirm}
           onClose={() => setDeleteTarget(null)}
+        />
+      )}
+
+      {pendingReactionRemoval && (
+        <ConfirmDialog
+          title="Remove your reaction?"
+          description="This only removes your own reaction — anyone else's reactions stay."
+          confirmLabel="Remove"
+          danger
+          onConfirm={() => {
+            removeReaction.mutate(pendingReactionRemoval, { onError: onMutationError });
+          }}
+          onCancel={() => setPendingReactionRemoval(null)}
         />
       )}
 
