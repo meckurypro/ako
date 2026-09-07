@@ -43,6 +43,7 @@ import {
   type Project,
 } from "../hooks/useProjects";
 import { useMediaDetails } from "../hooks/useProjectTypeDetails";
+import { MediaPreviewPlayer } from "./MediaPreviewPlayer";
 import { useIsProjectSaved, useToggleSavedProject } from "../hooks/useSavedProjects";
 import { useProjectAccessCount, useLogFreeProjectAccess } from "../hooks/useProjectAccess";
 import { useMyReaction, useToggleReaction } from "../hooks/useReactions";
@@ -90,6 +91,66 @@ const TYPE_ACTION_LABEL: Partial<Record<Project["project_type"], string>> = {
 // returns a friendly message pointing the owner at Archive instead.
 // --------------------------------------------------------
 
+// One Media audio/video channel's unlocked state — a preview player
+// (if an upload exists), a "go to the full thing" link (if a redirect
+// URL exists), both, or neither's sibling never renders this at all
+// (mediaFieldsAreValid requires at least one). Not exported; the
+// image channel is different enough (no link, plus its own
+// download/copy actions) that it stays inline in ProjectCard below.
+function MediaChannelBlock({
+  icon: Icon,
+  label,
+  hasPreview,
+  hasLink,
+  linkUrl,
+  linkLabel,
+  previewSrc,
+  previewKind,
+  onLoadPreview,
+  isLoadingPreview,
+}: {
+  icon: typeof Music;
+  label: string;
+  hasPreview: boolean;
+  hasLink: boolean;
+  linkUrl: string | null;
+  linkLabel: string;
+  previewSrc: string | null;
+  previewKind: "audio" | "video";
+  onLoadPreview: () => void;
+  isLoadingPreview: boolean;
+}) {
+  return (
+    <div className="flex flex-col gap-2">
+      {hasPreview &&
+        (previewSrc ? (
+          <MediaPreviewPlayer kind={previewKind} src={previewSrc} />
+        ) : (
+          <button
+            type="button"
+            onClick={onLoadPreview}
+            disabled={isLoadingPreview}
+            className="flex items-center gap-1.5 text-sm text-accent font-medium disabled:opacity-50"
+          >
+            <Icon size={15} />
+            {isLoadingPreview ? "Loading…" : `Play ${label.toLowerCase()} preview`}
+          </button>
+        ))}
+      {hasLink && (
+        <a
+          href={linkUrl ?? undefined}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="flex items-center gap-1.5 text-sm text-accent font-medium"
+        >
+          <Icon size={15} />
+          {linkLabel}
+        </a>
+      )}
+    </div>
+  );
+}
+
 export function ProjectCard({
   project,
   isOwnerView,
@@ -134,6 +195,7 @@ export function ProjectCard({
   const [videoSrc, setVideoSrc] = useState<string | null>(null);
   const [imageSrc, setImageSrc] = useState<string | null>(null);
   const [linkCopied, setLinkCopied] = useState(false);
+  const [imageLinkCopied, setImageLinkCopied] = useState(false);
   const hasPurchased = !!hasPurchasedQuery.data;
   // Rooms are the one project type where "free" isn't self-granting:
   // membership lives in room_members, and that row only gets created
@@ -291,6 +353,22 @@ export function ProjectCard({
       await navigator.clipboard.writeText(project.external_url);
       setLinkCopied(true);
       window.setTimeout(() => setLinkCopied(false), 2000);
+    } catch {
+      setError("Couldn't copy link.");
+    }
+  }
+
+  // Copies the signed URL currently loaded for the Media image
+  // channel. Note this is a time-limited link (get-project-file mints
+  // it with an expiry) rather than a permanent embed URL — fine for
+  // "grab it now and paste it somewhere," not for a durable embed.
+  async function handleCopyImageLink() {
+    if (!imageSrc) return;
+    setError(null);
+    try {
+      await navigator.clipboard.writeText(imageSrc);
+      setImageLinkCopied(true);
+      window.setTimeout(() => setImageLinkCopied(false), 2000);
     } catch {
       setError("Couldn't copy link.");
     }
@@ -627,7 +705,12 @@ export function ProjectCard({
             show up to two channel rows (audio, video), so it doesn't
             fit the single-line pattern the other inline types use. */}
         {isMedia && mediaDetails && (
-          <div className="flex flex-col gap-2 mt-3">
+          <div className="flex flex-col gap-3 mt-3">
+            {/* Audio/video — a preview player (if an upload exists), a
+                "go to the full thing" link (if a redirect URL exists),
+                or both at once. Which of the two show up is driven
+                entirely by which of {*_file_path, *_url} are set —
+                see the hybrid-model comment on MediaDetails. */}
             {mediaDetails.has_audio && (
               <div>
                 {!hasAccess ? (
@@ -635,27 +718,19 @@ export function ProjectCard({
                     <Lock size={15} />
                     Audio locked
                   </span>
-                ) : mediaDetails.audio_source === "link" ? (
-                  <a
-                    href={mediaDetails.audio_url ?? undefined}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex items-center gap-1.5 text-sm text-accent font-medium"
-                  >
-                    <Music size={15} />
-                    Open audio link
-                  </a>
-                ) : audioSrc ? (
-                  <audio controls autoPlay src={audioSrc} className="w-full h-9" />
                 ) : (
-                  <button
-                    onClick={handlePlayAudio}
-                    disabled={getAudioStream.isPending}
-                    className="flex items-center gap-1.5 text-sm text-accent font-medium disabled:opacity-50"
-                  >
-                    <Music size={15} />
-                    {getAudioStream.isPending ? "Loading…" : "Play audio"}
-                  </button>
+                  <MediaChannelBlock
+                    icon={Music}
+                    label="Audio"
+                    hasPreview={!!mediaDetails.audio_file_path}
+                    hasLink={!!mediaDetails.audio_url}
+                    linkUrl={mediaDetails.audio_url}
+                    linkLabel="Go to full track"
+                    previewSrc={audioSrc}
+                    previewKind="audio"
+                    onLoadPreview={handlePlayAudio}
+                    isLoadingPreview={getAudioStream.isPending}
+                  />
                 )}
               </div>
             )}
@@ -667,31 +742,28 @@ export function ProjectCard({
                     <Lock size={15} />
                     Video locked
                   </span>
-                ) : mediaDetails.video_source === "link" ? (
-                  <a
-                    href={mediaDetails.video_url ?? undefined}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex items-center gap-1.5 text-sm text-accent font-medium"
-                  >
-                    <Video size={15} />
-                    Open video link
-                  </a>
-                ) : videoSrc ? (
-                  <video controls autoPlay src={videoSrc} className="w-full rounded-lg max-h-72" />
                 ) : (
-                  <button
-                    onClick={handlePlayVideo}
-                    disabled={getVideoStream.isPending}
-                    className="flex items-center gap-1.5 text-sm text-accent font-medium disabled:opacity-50"
-                  >
-                    <Video size={15} />
-                    {getVideoStream.isPending ? "Loading…" : "Play video"}
-                  </button>
+                  <MediaChannelBlock
+                    icon={Video}
+                    label="Video"
+                    hasPreview={!!mediaDetails.video_file_path}
+                    hasLink={!!mediaDetails.video_url}
+                    linkUrl={mediaDetails.video_url}
+                    linkLabel="Go to full video"
+                    previewSrc={videoSrc}
+                    previewKind="video"
+                    onLoadPreview={handlePlayVideo}
+                    isLoadingPreview={getVideoStream.isPending}
+                  />
                 )}
               </div>
             )}
 
+            {/* Image — always upload-only, never a redirect (see
+                MediaFields). Shown in full once loaded, plus an
+                explicit Download and Copy link, same pattern as
+                File/URL — on top of, not instead of, the ordinary
+                right-click-to-save every <img> already supports. */}
             {mediaDetails.has_image && (
               <div>
                 {!hasAccess ? (
@@ -699,18 +771,40 @@ export function ProjectCard({
                     <Lock size={15} />
                     Image locked
                   </span>
-                ) : mediaDetails.image_source === "link" ? (
-                  <a
-                    href={mediaDetails.image_url ?? undefined}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex items-center gap-1.5 text-sm text-accent font-medium"
-                  >
-                    <ImageIcon size={15} />
-                    Open image link
-                  </a>
                 ) : imageSrc ? (
-                  <img src={imageSrc} alt="" className="w-full rounded-lg max-h-72 object-contain" />
+                  <div className="flex flex-col gap-2">
+                    <img src={imageSrc} alt="" className="w-full rounded-lg max-h-72 object-contain" />
+                    <div className="flex items-center gap-3">
+                      <a
+                        href={imageSrc}
+                        download
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex items-center gap-1.5 text-sm text-accent font-medium"
+                      >
+                        <Download size={15} />
+                        Download
+                      </a>
+                      <button
+                        type="button"
+                        onClick={handleCopyImageLink}
+                        className="flex items-center gap-1.5 text-sm text-ink-muted font-medium"
+                      >
+                        {imageLinkCopied ? (
+                          <>
+                            <Check size={15} className="text-accent" />
+                            Copied
+                          </>
+                        ) : (
+                          <>
+                            <Copy size={15} />
+                            Copy link
+                          </>
+                        )}
+                      </button>
+                    </div>
+                    <p className="text-xs text-ink-muted">Link expires after a while — copy again if it stops working.</p>
+                  </div>
                 ) : (
                   <button
                     onClick={handleViewImage}
