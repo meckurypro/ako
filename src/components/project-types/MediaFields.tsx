@@ -1,12 +1,17 @@
 // src/components/project-types/MediaFields.tsx
 import { useRef, useState } from "react";
-import { FileUp, Link as LinkIcon, Music, Video as VideoIcon, Image as ImageIcon } from "lucide-react";
+import { FileUp, Music, Video as VideoIcon, Image as ImageIcon } from "lucide-react";
 import { FormField } from "../FormField";
 import { useUploadProjectFile } from "../../hooks/useUploadProjectFile";
 
+// A channel no longer picks link XOR upload — it's a hybrid: an
+// uploaded file (played as a capped ~20s preview for audio/video, or
+// shown in full for image) and/or a redirect URL to the full
+// stream/download elsewhere, independently of each other. Image never
+// gets a redirect URL at all (see ChannelConfig.allowLink below), so
+// its `url` field is simply never rendered or read.
 export interface MediaChannelValue {
   enabled: boolean;
-  source: "link" | "upload";
   url: string;
   file_path: string | null;
   file_name: string | null; // display-only, not sent to the server
@@ -14,7 +19,6 @@ export interface MediaChannelValue {
 
 const EMPTY_CHANNEL: MediaChannelValue = {
   enabled: false,
-  source: "link",
   url: "",
   file_path: null,
   file_name: null,
@@ -33,21 +37,25 @@ export const EMPTY_MEDIA_FIELDS: MediaFieldsValue = {
 };
 
 // A Media project can hold a song's audio, its music video, and cover
-// art side by side — each channel is independent, but within a
-// channel it's link XOR upload, same rule as before: a link takes you
-// elsewhere (Spotify, YouTube, a hosted image), an upload streams or
-// displays straight from Ako with no redirect or download option at all.
+// art side by side — each channel is independent. Within an
+// audio/video channel, the upload and the link are no longer mutually
+// exclusive: a host can set either one, or both (upload becomes the
+// in-app ~20s preview, the link is where the full thing lives).
+// Image only ever takes an upload — there's no "redirect to the full
+// image elsewhere" case that makes sense the way it does for a track
+// or a video, so image skips the link option entirely.
 export function mediaFieldsAreValid(value: MediaFieldsValue): boolean {
   if (!value.audio.enabled && !value.video.enabled && !value.image.enabled) return false;
-  const channelValid = (c: MediaChannelValue) =>
-    !c.enabled || (c.source === "link" ? c.url.trim() !== "" : !!c.file_path);
-  return channelValid(value.audio) && channelValid(value.video) && channelValid(value.image);
+  const avChannelValid = (c: MediaChannelValue) => !c.enabled || c.url.trim() !== "" || !!c.file_path;
+  const imageValid = !value.image.enabled || !!value.image.file_path;
+  return avChannelValid(value.audio) && avChannelValid(value.video) && imageValid;
 }
 
 interface ChannelConfig {
   key: "audio" | "video" | "image";
   label: string;
   icon: typeof Music;
+  allowLink: boolean;
   linkLabel: string;
   linkPlaceholder: string;
   uploadLabel: string;
@@ -60,30 +68,33 @@ const CHANNELS: ChannelConfig[] = [
     key: "audio",
     label: "Audio",
     icon: Music,
-    linkLabel: "Link to stream (Spotify, Apple Music, etc.)",
+    allowLink: true,
+    linkLabel: "Link to the full track (Spotify, Apple Music, etc.)",
     linkPlaceholder: "https://open.spotify.com/...",
-    uploadLabel: "Upload the audio file to stream here",
-    uploadNote: "Streams right here on Ako — no download or redirect, just playback.",
+    uploadLabel: "Upload a preview clip",
+    uploadNote: "Plays right here as a ~20-second preview — not the full track.",
     accept: "audio/*",
   },
   {
     key: "video",
     label: "Video",
     icon: VideoIcon,
-    linkLabel: "Link to stream (YouTube, Vimeo, etc.)",
+    allowLink: true,
+    linkLabel: "Link to the full video (YouTube, Vimeo, etc.)",
     linkPlaceholder: "https://youtube.com/...",
-    uploadLabel: "Upload the video file to stream here",
-    uploadNote: "Streams right here on Ako — no download or redirect, just playback.",
+    uploadLabel: "Upload a preview clip",
+    uploadNote: "Plays right here as a ~20-second preview — not the full video.",
     accept: "video/*",
   },
   {
     key: "image",
     label: "Image",
     icon: ImageIcon,
-    linkLabel: "Link to the image",
-    linkPlaceholder: "https://...",
-    uploadLabel: "Upload the image to display here",
-    uploadNote: "Displays right here on Ako — no download or redirect.",
+    allowLink: false,
+    linkLabel: "",
+    linkPlaceholder: "",
+    uploadLabel: "Upload the image",
+    uploadNote: "Displayed in full here — visitors with access can download it or copy a link to it.",
     accept: "image/*",
   },
 ];
@@ -137,9 +148,9 @@ export function MediaFields({ value, onChange, onError }: MediaFieldsProps) {
   );
 }
 
-// One channel's own link-or-upload sub-form — same toggle pattern the
-// old DeliverableFields used, scoped to a single channel now that a
-// Media project can carry two of these independently.
+// One channel's own fields. Audio/video show an upload block AND a
+// link block stacked together — a host can fill either or both.
+// Image shows the upload block only (config.allowLink is false).
 function MediaChannelFields({
   config,
   value,
@@ -155,15 +166,6 @@ function MediaChannelFields({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [, setTick] = useState(0);
 
-  function switchSource(next: "link" | "upload") {
-    if (next === value.source) return;
-    onChange(
-      next === "link"
-        ? { ...value, source: next, file_path: null, file_name: null }
-        : { ...value, source: next, url: "" }
-    );
-  }
-
   async function handleFileSelect(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     e.target.value = "";
@@ -171,42 +173,60 @@ function MediaChannelFields({
     try {
       setTick((t) => t + 1);
       const path = await uploadFile.mutateAsync(file);
-      onChange({ ...value, source: "upload", url: "", file_path: path, file_name: file.name });
+      onChange({ ...value, file_path: path, file_name: file.name });
     } catch (err) {
       onError(err instanceof Error ? err.message : "File upload failed.");
     }
   }
 
+  function handleRemoveFile() {
+    onChange({ ...value, file_path: null, file_name: null });
+  }
+
   return (
     <div className="mb-3 pl-3 border-l-2 border-border">
-      <div className="flex gap-2 mb-2.5" role="tablist" aria-label={`${config.label} delivery method`}>
+      <div className="mb-4">
+        <label className="block text-sm font-medium text-ink-muted mb-1.5">{config.uploadLabel}</label>
         <button
           type="button"
-          role="tab"
-          aria-selected={value.source === "link"}
-          onClick={() => switchSource("link")}
-          className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl text-sm font-medium border transition-colors ${
-            value.source === "link" ? "bg-accent text-canvas border-accent" : "bg-surface text-ink-muted border-border"
-          }`}
+          onClick={() => fileInputRef.current?.click()}
+          disabled={uploadFile.isPending}
+          className="w-full flex items-center gap-2 px-4 py-3 rounded-xl border border-border bg-surface text-sm text-ink-muted disabled:opacity-50"
         >
-          <LinkIcon size={14} />
-          Link
+          <FileUp size={16} />
+          {uploadFile.isPending
+            ? "Uploading…"
+            : value.file_name
+              ? value.file_name
+              : // Editing an existing channel: file_path came from the
+                // project row, but the original filename was never
+                // stored, so there's no file_name to show. Say so
+                // rather than falling back to "Choose file", which
+                // would wrongly read as nothing being uploaded yet.
+                value.file_path
+                ? "File uploaded — tap to replace"
+                : "Choose file"}
         </button>
-        <button
-          type="button"
-          role="tab"
-          aria-selected={value.source === "upload"}
-          onClick={() => switchSource("upload")}
-          className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl text-sm font-medium border transition-colors ${
-            value.source === "upload" ? "bg-accent text-canvas border-accent" : "bg-surface text-ink-muted border-border"
-          }`}
-        >
-          <FileUp size={14} />
-          Upload
-        </button>
+        {value.file_path && !uploadFile.isPending && (
+          <button
+            type="button"
+            onClick={handleRemoveFile}
+            className="text-xs text-danger mt-1.5"
+          >
+            Remove upload
+          </button>
+        )}
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept={config.accept}
+          onChange={handleFileSelect}
+          className="hidden"
+        />
+        <p className="text-xs text-ink-muted mt-1">{config.uploadNote}</p>
       </div>
 
-      {value.source === "link" ? (
+      {config.allowLink && (
         <FormField
           id={`${config.key}_url`}
           label={config.linkLabel}
@@ -215,29 +235,6 @@ function MediaChannelFields({
           onChange={(e) => onChange({ ...value, url: e.target.value })}
           placeholder={config.linkPlaceholder}
         />
-      ) : (
-        <div className="mb-4">
-          <label className="block text-sm font-medium text-ink-muted mb-1.5">{config.uploadLabel}</label>
-          <button
-            type="button"
-            onClick={() => fileInputRef.current?.click()}
-            disabled={uploadFile.isPending}
-            className="w-full flex items-center gap-2 px-4 py-3 rounded-xl border border-border bg-surface text-sm text-ink-muted disabled:opacity-50"
-          >
-            <FileUp size={16} />
-            {uploadFile.isPending ? "Uploading…" : value.file_name ?? "Choose file"}
-          </button>
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept={config.accept}
-            onChange={handleFileSelect}
-            className="hidden"
-          />
-          <p className="text-xs text-ink-muted mt-1">
-            {config.uploadNote}
-          </p>
-        </div>
       )}
     </div>
   );
