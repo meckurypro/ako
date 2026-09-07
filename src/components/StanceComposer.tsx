@@ -2,6 +2,7 @@
 import { useRef, useState } from "react";
 import { useCreateComment } from "../hooks/useComments";
 import { useBackDismiss } from "../hooks/useBackDismiss";
+import { Portal } from "./Portal";
 import type { Stance } from "../types/database";
 import { FormatToolbar } from "./FormatToolbar";
 import { CONTENT_LIMIT, contentCounterClass } from "../lib/textLimits";
@@ -117,6 +118,7 @@ export function StanceComposer({
   }
 
   return (
+    <Portal>
     <div className="fixed inset-0 bg-ink/40 flex items-end sm:items-center justify-center z-50 px-4">
       {/* Top border colour changes with the active stance */}
       <div className={`bg-canvas rounded-2xl w-full max-w-md mb-safe overflow-hidden ${colors.topBorderClass}`}>
@@ -196,5 +198,6 @@ export function StanceComposer({
         </div>
       </div>
     </div>
+    </Portal>
   );
 }
