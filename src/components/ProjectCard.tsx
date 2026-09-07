@@ -1,4 +1,4 @@
-// src/componens/ProjectCard.tsx
+// src/components/ProjectCard.tsx
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
