@@ -1,4 +1,4 @@
-import { Link } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 import { Bell, Plus } from "lucide-react";
 import { Wordmark } from "./Wordmark";
 import { Avatar } from "./Avatar";
@@ -31,12 +31,14 @@ interface TopHeaderProps {
 export function TopHeader({ showTagline = false, leftAction = "avatar", asIcon = false, iconTagline = true }: TopHeaderProps) {
   const unreadCount = useUnreadCount();
   const { data: me } = useMyProfile();
+  const location = useLocation();
 
   return (
     <header className="px-4 pt-5 pb-2 bg-surface flex items-center justify-between">
       {leftAction === "create" ? (
         <Link
           to="/create"
+          state={{ background: location }}
           aria-label="Create"
           className="flex items-center justify-center w-9 h-9 -ml-1.5 rounded-full text-ink-muted"
         >
