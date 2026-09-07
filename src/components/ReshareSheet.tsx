@@ -3,6 +3,7 @@ import { useState } from "react";
 import { Repeat2, PenSquare } from "lucide-react";
 import { useCreateReshare } from "../hooks/usePosts";
 import { useBackDismiss } from "../hooks/useBackDismiss";
+import { Portal } from "./Portal";
 import { RepostEmbed } from "./RepostEmbed";
 import type { RepostSource } from "../types/database";
 
@@ -54,6 +55,7 @@ export function ReshareSheet({ postId, source, onClose }: ReshareSheetProps) {
 
   if (mode === "choose") {
     return (
+      <Portal>
       <div className="fixed inset-0 z-50 flex items-end justify-center">
         <div className="absolute inset-0 bg-ink/40" onClick={onClose} />
         <div className="relative w-full max-w-xl bg-surface rounded-t-2xl border-t border-border pb-[env(safe-area-inset-bottom)]">
@@ -81,10 +83,12 @@ export function ReshareSheet({ postId, source, onClose }: ReshareSheetProps) {
           </button>
         </div>
       </div>
+      </Portal>
     );
   }
 
   return (
+    <Portal>
     <div className="fixed inset-0 bg-ink/40 flex items-end sm:items-center justify-center z-50 px-4">
       <div className="bg-canvas rounded-2xl w-full max-w-md mb-safe overflow-hidden border-t-4 border-accent">
         <div className="p-5">
@@ -127,5 +131,6 @@ export function ReshareSheet({ postId, source, onClose }: ReshareSheetProps) {
         </div>
       </div>
     </div>
+    </Portal>
   );
 }
