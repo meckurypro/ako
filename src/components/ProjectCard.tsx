@@ -253,11 +253,26 @@ export function ProjectCard({
       return;
     }
     setError(null);
+    // Open the tab synchronously, inside the click's own user-activation
+    // window. Safari (and most mobile browsers) silently block
+    // window.open() once it happens after an awaited network call — by
+    // then it's no longer considered user-initiated — so waiting for the
+    // signed URL before opening anything would make downloads randomly
+    // fail with no error at all. Open a blank tab now, point it at the
+    // real URL once we have it.
+    const tab = window.open("", "_blank");
     try {
       const url = await getFileDownload.mutateAsync({ projectId: project.id, kind: "file" });
-      window.open(url, "_blank");
+      if (tab) {
+        tab.location.href = url;
+      } else {
+        // The blank-tab open itself got blocked — fall back to
+        // navigating the current tab so the download still goes through.
+        window.location.href = url;
+      }
       logFreeAccessIfNeeded("download");
     } catch (err) {
+      tab?.close();
       setError(err instanceof Error ? err.message : "Couldn't access file.");
     }
   }
