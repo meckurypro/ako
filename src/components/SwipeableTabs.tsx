@@ -50,7 +50,7 @@ const IGNORE_SELECTOR = "[data-swipeable-ignore]";
 // container falls back to natural/auto height (no animated grow-shrink
 // between panes of different height). Revert to false once tested —
 // this is not meant to ship either way, just to isolate the variable.
-const DEBUG_DISABLE_HEIGHT_TRACKING = true;
+const DEBUG_DISABLE_HEIGHT_TRACKING = false;
 
 interface SwipeableTabsProps {
   /** Index of the currently active tab (owned by the parent, e.g. via useTabState). */
