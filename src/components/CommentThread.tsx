@@ -217,6 +217,11 @@ export function CommentThread({
 
   return (
     <div>
+      {toggleReaction.isError && (
+        <p className="text-xs text-danger text-center pb-2">
+          Couldn't save that reaction — check console for details.
+        </p>
+      )}
       {comments.map((comment) => (
         <CommentItem
           key={comment.id}
