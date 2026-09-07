@@ -152,22 +152,22 @@ export function EditProject() {
       setMediaFields({
         audio: {
           enabled: existingMediaDetails.has_audio,
-          source: existingMediaDetails.audio_source ?? "link",
           url: existingMediaDetails.audio_url ?? "",
           file_path: existingMediaDetails.audio_file_path,
           file_name: null,
         },
         video: {
           enabled: existingMediaDetails.has_video,
-          source: existingMediaDetails.video_source ?? "link",
           url: existingMediaDetails.video_url ?? "",
           file_path: existingMediaDetails.video_file_path,
           file_name: null,
         },
         image: {
           enabled: existingMediaDetails.has_image,
-          source: existingMediaDetails.image_source ?? "link",
-          url: existingMediaDetails.image_url ?? "",
+          // Image never has a link (see MediaFields) — any legacy
+          // image_url from before that rule existed is intentionally
+          // not loaded here, so re-saving the form can't resurrect it.
+          url: "",
           file_path: existingMediaDetails.image_file_path,
           file_name: null,
         },
@@ -305,38 +305,24 @@ export function EditProject() {
         // existed (migrated from the old audio/video types) already
         // has one from the migration script, but upsert covers both
         // that case and any future edge case cleanly either way.
+        // Same hybrid rule as CreateProject: audio/video send whichever
+        // of {url, file_path} are actually filled, independently — no
+        // more "source" picking one over the other. Image is
+        // upload-only; image_url is always cleared.
         const { error: detailsError } = await supabase.from("project_media_details").upsert({
           project_id: projectId,
           has_audio: mediaFields.audio.enabled,
           has_video: mediaFields.video.enabled,
-          audio_source: mediaFields.audio.enabled ? mediaFields.audio.source : null,
-          audio_url:
-            mediaFields.audio.enabled && mediaFields.audio.source === "link"
-              ? mediaFields.audio.url.trim()
-              : null,
-          audio_file_path:
-            mediaFields.audio.enabled && mediaFields.audio.source === "upload"
-              ? mediaFields.audio.file_path
-              : null,
-          video_source: mediaFields.video.enabled ? mediaFields.video.source : null,
-          video_url:
-            mediaFields.video.enabled && mediaFields.video.source === "link"
-              ? mediaFields.video.url.trim()
-              : null,
-          video_file_path:
-            mediaFields.video.enabled && mediaFields.video.source === "upload"
-              ? mediaFields.video.file_path
-              : null,
           has_image: mediaFields.image.enabled,
-          image_source: mediaFields.image.enabled ? mediaFields.image.source : null,
-          image_url:
-            mediaFields.image.enabled && mediaFields.image.source === "link"
-              ? mediaFields.image.url.trim()
-              : null,
-          image_file_path:
-            mediaFields.image.enabled && mediaFields.image.source === "upload"
-              ? mediaFields.image.file_path
-              : null,
+          audio_source: mediaFields.audio.enabled ? (mediaFields.audio.file_path ? "upload" : "link") : null,
+          audio_url: mediaFields.audio.enabled ? mediaFields.audio.url.trim() || null : null,
+          audio_file_path: mediaFields.audio.enabled ? mediaFields.audio.file_path : null,
+          video_source: mediaFields.video.enabled ? (mediaFields.video.file_path ? "upload" : "link") : null,
+          video_url: mediaFields.video.enabled ? mediaFields.video.url.trim() || null : null,
+          video_file_path: mediaFields.video.enabled ? mediaFields.video.file_path : null,
+          image_source: mediaFields.image.enabled ? "upload" : null,
+          image_url: null,
+          image_file_path: mediaFields.image.enabled ? mediaFields.image.file_path : null,
         });
         if (detailsError) throw detailsError;
       }
