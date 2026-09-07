@@ -44,6 +44,14 @@ const AXIS_LOCK_PX = 6; // movement needed before we decide horizontal vs. verti
 // gestures apart now.
 const IGNORE_SELECTOR = "[data-swipeable-ignore]";
 
+// TEMP DIAGNOSTIC — set to true to test whether the per-pane height
+// ResizeObserver (setHeights below) is what's causing the swipe "bounce"
+// on Liked/Feed. When true, the observer is skipped entirely and the
+// container falls back to natural/auto height (no animated grow-shrink
+// between panes of different height). Revert to false once tested —
+// this is not meant to ship either way, just to isolate the variable.
+const DEBUG_DISABLE_HEIGHT_TRACKING = true;
+
 interface SwipeableTabsProps {
   /** Index of the currently active tab (owned by the parent, e.g. via useTabState). */
   index: number;
@@ -136,6 +144,7 @@ export function SwipeableTabs({ index, onIndexChange, onProgress, children, clas
   // match whichever tab is (becoming) active instead of either clipping a
   // taller tab or leaving blank space under a shorter one.
   useEffect(() => {
+    if (DEBUG_DISABLE_HEIGHT_TRACKING) return;
     const observers = paneRefs.current.slice(0, count).map((node, i) => {
       if (!node) return null;
       const ro = new ResizeObserver((entries) => {
