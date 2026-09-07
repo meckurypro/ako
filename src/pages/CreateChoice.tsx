@@ -29,7 +29,7 @@ export function CreateChoice() {
 
   return (
     <div
-      className="fixed inset-0 z-50 bg-ink/40 flex items-end justify-center"
+      className="fixed inset-0 z-50 bg-ink/60 backdrop-blur-md flex items-end justify-center"
       onClick={smartBack}
     >
       <div
