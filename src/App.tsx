@@ -1,5 +1,5 @@
 // src/App.tsx
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate, useLocation, type Location } from "react-router-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { AuthProvider } from "./hooks/useAuth";
 import { RequireAuth } from "./components/RequireAuth";
@@ -82,7 +82,34 @@ export default function App() {
         <BrowserRouter>
           <ScrollToTop />
           <PathHistoryTracker />
-          <Routes>
+          <AppRoutes />
+        </BrowserRouter>
+      </AuthProvider>
+    </QueryClientProvider>
+  );
+}
+
+/**
+ * Split out from App() so it can call useLocation() (needs to be
+ * inside <BrowserRouter>) to implement React Router's "modal route"
+ * pattern: /create is meant to render as a sheet over whatever page
+ * it was opened from (Feed, ProfilePage, ...), not as its own blank
+ * screen. TopHeader/ProfilePage's "+" link now passes
+ * `state={{ background: location }}` when navigating to /create —
+ * when that's present, the MAIN Routes below renders the ORIGINAL
+ * page (using that remembered location) so it stays mounted
+ * underneath, and a second, modal-only Routes renders /create on top
+ * of it. Visiting /create directly (no background state — e.g. a
+ * fresh page load or shared link) still falls through to the normal
+ * entry in the main Routes below and renders full-screen, unchanged.
+ */
+function AppRoutes() {
+  const location = useLocation();
+  const backgroundLocation = (location.state as { background?: Location } | null)?.background;
+
+  return (
+    <>
+      <Routes location={backgroundLocation ?? location}>
             <Route path="/" element={<Navigate to="/feed" replace />} />
 
             {/* Auth */}
@@ -477,9 +504,20 @@ export default function App() {
             {/* Folded into the Activity hub's Saved tab now — kept as a
                 redirect so any stale links still land somewhere valid. */}
             <Route path="/saved-projects" element={<Navigate to="/activity/saved" replace />} />
-          </Routes>
-        </BrowserRouter>
-      </AuthProvider>
-    </QueryClientProvider>
+      </Routes>
+
+      {backgroundLocation && (
+        <Routes>
+          <Route
+            path="/create"
+            element={
+              <RequireAuth>
+                <CreateChoice />
+              </RequireAuth>
+            }
+          />
+        </Routes>
+      )}
+    </>
   );
 }
