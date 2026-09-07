@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "../lib/supabase";
 import { useAuth } from "./useAuth";
 import { PROFILE_ROLES_SELECT, toProfileRoles } from "../lib/profileRoles";
+import { DEBUG_DISABLE_PER_CARD_QUERIES } from "../lib/debugFlags";
 import type { ReactionType } from "../types/database";
 
 type TargetType = "post" | "comment" | "project";
@@ -49,7 +50,7 @@ export function useMyReaction(targetId: string, targetType: "post" | "project", 
         .maybeSingle();
       return data;
     },
-    enabled: !!user,
+    enabled: !!user && !DEBUG_DISABLE_PER_CARD_QUERIES,
   });
 }
 
