@@ -1,6 +1,6 @@
 // src/pages/ProfilePage.tsx
 import { useState, useEffect, useRef } from "react";
-import { useParams, Link, useNavigate } from "react-router-dom";
+import { useParams, Link, useNavigate, useLocation } from "react-router-dom";
 import { Settings, Wallet, MessageCircle, MoreHorizontal, Plus, Eye, X, Globe, UserCheck, Lock, Redo2, Building2, Store, ChevronDown } from "lucide-react";
 import { useAuth } from "../hooks/useAuth";
 import { useProfileByUsername, useIsFollowing, useIsFollowedByUser, useToggleFollow } from "../hooks/useProfile";
@@ -56,6 +56,7 @@ export function ProfilePage() {
   const { username } = useParams<{ username: string }>();
   const { user } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
   const startConversation = useStartConversation();
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -294,7 +295,7 @@ export function ProfilePage() {
         {/* Action toolbar */}
         {showOwnerView ? (
           <div className="flex items-center justify-end gap-1">
-            <Link to="/create" aria-label="Create" className="p-2 text-ink-muted">
+            <Link to="/create" state={{ background: location }} aria-label="Create" className="p-2 text-ink-muted">
               <Plus size={22} />
             </Link>
 
