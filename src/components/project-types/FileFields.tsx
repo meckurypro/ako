@@ -50,7 +50,18 @@ export function FileFields({ value, onChange, onError }: FileFieldsProps) {
         className="w-full flex items-center gap-2 px-4 py-3 rounded-xl border border-border bg-surface text-sm text-ink-muted disabled:opacity-50"
       >
         <FileUp size={16} />
-        {uploadFile.isPending ? "Uploading…" : value.file_name ?? "Choose file"}
+        {uploadFile.isPending
+          ? "Uploading…"
+          : value.file_name
+            ? value.file_name
+            : // Editing an existing File project: file_path is already set
+              // from the project row, but its original filename was never
+              // stored anywhere, so there's no value.file_name to show. Say
+              // so explicitly rather than falling back to "Choose file",
+              // which would wrongly read as "nothing uploaded yet."
+              value.file_path
+              ? "File uploaded — tap to replace"
+              : "Choose file"}
       </button>
       <input ref={fileInputRef} type="file" onChange={handleFileSelect} className="hidden" />
       <p className="text-xs text-ink-muted mt-1">
