@@ -44,11 +44,20 @@ function useEngagementGraph() {
 
       const [myPostsRes, myReactedRes] = await Promise.all([
         supabase.from("posts").select("id").eq("author_id", user.id).limit(50),
-        supabase.from("reactions").select("post_id").eq("user_id", user.id).limit(50),
+        // target_type scoped to "post" — the reactions table also holds
+        // likes on projects/comments, which have post_id: null. Without
+        // this filter those nulls end up in reactedPostIds below and get
+        // passed into .in("id", reactedPostIds), which Postgrest rejects
+        // with a 400 (it tries to parse "null" as a UUID).
+        supabase.from("reactions").select("post_id").eq("user_id", user.id).eq("target_type", "post").limit(50),
       ]);
 
       const myPostIds = (myPostsRes.data ?? []).map((p) => p.id);
-      const reactedPostIds = (myReactedRes.data ?? []).map((r) => r.post_id);
+      // Defensive filter — belt-and-suspenders in case a row still slips
+      // through without a post_id despite the target_type scoping above.
+      const reactedPostIds = (myReactedRes.data ?? [])
+        .map((r) => r.post_id)
+        .filter((id): id is string => id != null);
 
       const [reactorsRes, authorRes] = await Promise.all([
         myPostIds.length > 0
