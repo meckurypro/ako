@@ -65,7 +65,7 @@ export function EmojiPickerSheet({ onSelect, onClose, mode, content = "", onBack
                 key={`${section.key}-${entry.char}-${i}`}
                 type="button"
                 onClick={() => onSelect(entry.char)}
-                className="text-2xl leading-none aspect-square flex items-center justify-center rounded-lg hover:bg-accent-soft active:scale-90 transition-transform"
+                className="text-3xl leading-none aspect-square flex items-center justify-center rounded-lg active:scale-90 transition-transform"
                 aria-label={entry.name}
               >
                 {entry.char}
