@@ -39,6 +39,7 @@
   --color-tick-read: #FF6A00;     /* neon orange — read-receipt double-ticks ONLY, deliberately loud so it snaps against both the accent bubble and the plain canvas list background. Reused for the "recently online" presence dot. */
   --color-presence-online: #39FF6A; /* neon green — online-now presence dot */
   --color-highlight: #BFE6C6;     /* saturated sage — deliberately more vivid than accent-soft, used for the few spots that need to visually pop against a list (unread notification rows, jump-to-comment flash) rather than sit quietly like an accent-soft badge */
+  --color-brand-orange: #FC5100;  /* the wordmark's actual orange — sampled directly off public/app_icon_light_without_tagline.png's 'ó' glyph, not a guess. Distinct from --color-tick-read (that one's reserved for read receipts and is more yellow/neon; this is the true, slightly redder brand mark hue). Not overridden in .dark — it's the literal mark color, constant across themes, not a themed surface tone. */
 
   --font-display: "Playfair Display", Georgia, serif;
   --font-body: "Inter", -apple-system, BlinkMacSystemFont, sans-serif;
