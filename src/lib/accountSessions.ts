@@ -54,3 +54,36 @@ export function removeSavedAccount(userId: string): void {
 export function getSavedAccount(userId: string): SavedAccount | undefined {
   return listSavedAccounts().find((a) => a.user_id === userId);
 }
+
+// ------------------------------------------------------------
+// Pending "add account via sign-up" handoff.
+//
+// Signing up doesn't establish a session until the confirmation link
+// is clicked (see SignUp.tsx), so unlike the login path there's no
+// single call where "the account that was active before this" can be
+// captured and saved in one go — the confirmation click that finally
+// creates the new session might even land in a different tab. This
+// stashes the outgoing account in localStorage right before the
+// sign-up call so AuthCallback can find it again once the new
+// account's SIGNED_IN event actually fires, and finish the same
+// save-both-accounts-and-link flow the login path does inline.
+// ------------------------------------------------------------
+
+const PENDING_ADD_KEY = "ako.pending_add_account.v1";
+
+export function setPendingAddAccount(account: SavedAccount): void {
+  localStorage.setItem(PENDING_ADD_KEY, JSON.stringify(account));
+}
+
+// Reads and clears in one step — this is only ever meant to be
+// consumed once, by the next SIGNED_IN event after it's set.
+export function takePendingAddAccount(): SavedAccount | null {
+  try {
+    const raw = localStorage.getItem(PENDING_ADD_KEY);
+    localStorage.removeItem(PENDING_ADD_KEY);
+    if (!raw) return null;
+    return JSON.parse(raw) as SavedAccount;
+  } catch {
+    return null;
+  }
+}
