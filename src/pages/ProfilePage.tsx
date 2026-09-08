@@ -672,7 +672,7 @@ export function ProfilePage() {
 
       {showUnfollowConfirm && (
         <div
-          className="fixed inset-0 bg-ink/40 flex items-center justify-center z-50 px-6"
+          className="fixed inset-0 bg-canvas/70 backdrop-blur-sm flex items-center justify-center z-50 px-6"
           onClick={() => setShowUnfollowConfirm(false)}
         >
           <div
