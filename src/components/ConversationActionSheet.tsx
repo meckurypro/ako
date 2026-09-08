@@ -34,7 +34,7 @@ export function ConversationActionSheet({
 
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center">
-      <div className="absolute inset-0 bg-ink/40" onClick={onClose} />
+      <div className="absolute inset-0 bg-canvas/70 backdrop-blur-sm" onClick={onClose} />
       <div className="relative w-full max-w-xl bg-surface rounded-t-2xl border-t border-border pb-[env(safe-area-inset-bottom)]">
         <p className="px-4 pt-4 pb-2 text-xs text-ink-muted truncate">{displayName}</p>
 
