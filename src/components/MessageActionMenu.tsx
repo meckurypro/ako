@@ -1,7 +1,8 @@
 // src/components/MessageActionMenu.tsx
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Copy, Trash2, Redo2, MoreHorizontal, Star, Pin, Plus, X, Reply, Forward, EyeOff, CheckSquare } from "lucide-react";
 import { useBackDismiss } from "../hooks/useBackDismiss";
+import { DropdownMenu, type DropdownMenuItem } from "./DropdownMenu";
 
 interface MessageActionMenuProps {
   content: string;
@@ -70,6 +71,7 @@ export function MessageActionMenu({
 }: MessageActionMenuProps) {
   useBackDismiss(onClose);
   const [moreOpen, setMoreOpen] = useState(false);
+  const moreButtonRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
     document.body.style.overflow = "hidden";
@@ -165,59 +167,60 @@ export function MessageActionMenu({
         )}
 
         <div className="relative">
-          <button onClick={() => setMoreOpen((v) => !v)} className="p-2 text-ink" aria-label="More options">
+          <button ref={moreButtonRef} onClick={() => setMoreOpen((v) => !v)} className="p-2 text-ink" aria-label="More options">
             <MoreHorizontal size={19} />
           </button>
           {moreOpen && (
-            <>
-              <div className="fixed inset-0 z-10" onClick={() => setMoreOpen(false)} />
-              <div className="absolute right-0 top-full mt-1 bg-surface border border-border rounded-xl shadow-lg py-1 w-44 z-20">
-                <button
-                  onClick={() => {
-                    onSelect();
-                    onClose();
-                  }}
-                  className="flex items-center gap-2 w-full px-3 py-2 text-sm text-ink hover:bg-accent-soft"
-                >
-                  <CheckSquare size={16} />
-                  Select
-                </button>
-                {!isDeleted && (
-                  <>
-                    <button
-                      onClick={() => {
+            <DropdownMenu
+              anchorRef={moreButtonRef}
+              onClose={() => setMoreOpen(false)}
+              widthClass="w-52"
+              items={(() => {
+                const menuItems: (DropdownMenuItem | "divider")[] = [
+                  {
+                    key: "select",
+                    label: "Select",
+                    icon: <CheckSquare />,
+                    onSelect: () => {
+                      onSelect();
+                      onClose();
+                    },
+                  },
+                ];
+                if (!isDeleted) {
+                  menuItems.push(
+                    {
+                      key: "pin",
+                      label: isPinned ? "Unpin" : "Pin",
+                      icon: <Pin className={isPinned ? "fill-accent text-accent" : ""} />,
+                      onSelect: () => {
                         onTogglePin();
                         onClose();
-                      }}
-                      className="flex items-center gap-2 w-full px-3 py-2 text-sm text-ink hover:bg-accent-soft"
-                    >
-                      <Pin size={16} className={isPinned ? "fill-accent text-accent" : ""} />
-                      {isPinned ? "Unpin" : "Pin"}
-                    </button>
-                    <button
-                      onClick={() => {
+                      },
+                    },
+                    {
+                      key: "hide",
+                      label: "Hide for me",
+                      icon: <EyeOff />,
+                      onSelect: () => {
                         onHide();
                         onClose();
-                      }}
-                      className="flex items-center gap-2 w-full px-3 py-2 text-sm text-ink hover:bg-accent-soft"
-                    >
-                      <EyeOff size={16} />
-                      Hide for me
-                    </button>
-                    <button
-                      onClick={() => {
+                      },
+                    },
+                    {
+                      key: "share",
+                      label: "Share outside app",
+                      icon: <Redo2 />,
+                      onSelect: () => {
                         onShare();
                         onClose();
-                      }}
-                      className="flex items-center gap-2 w-full px-3 py-2 text-sm text-ink hover:bg-accent-soft"
-                    >
-                      <Redo2 size={16} />
-                      Share outside app
-                    </button>
-                  </>
-                )}
-              </div>
-            </>
+                      },
+                    }
+                  );
+                }
+                return menuItems;
+              })()}
+            />
           )}
         </div>
       </div>
