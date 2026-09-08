@@ -28,7 +28,7 @@ export function LoadingOverlay() {
     >
       {/* backdrop-filter blurs whatever is rendered behind this element —
           i.e. the live app — no separate wrapper around #root needed */}
-      <div className="absolute inset-0 bg-canvas/35 backdrop-blur-md animate-ako-overlay-in" />
+      <div className="absolute inset-0 bg-canvas/35 backdrop-blur-sm animate-ako-overlay-in" />
       <div className="relative ako-loader" aria-hidden="true">
         {Array.from({ length: 8 }).map((_, i) => (
           <span
