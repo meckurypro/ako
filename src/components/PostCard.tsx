@@ -27,6 +27,7 @@ import { PostMedia } from "./PostMedia";
 import { PostContent } from "./PostContent";
 import { StanceComposer, STANCE_COLORS } from "./StanceComposer";
 import { ReshareSheet } from "./ReshareSheet";
+import { GiftPicker } from "./GiftPicker";
 import { RepostEmbed } from "./RepostEmbed";
 import { RepostBadge } from "./RepostBadge";
 import { ConfirmDialog } from "./ConfirmDialog";
@@ -86,6 +87,7 @@ export function PostCard({
   const location = useLocation();
   const [activeStance, setActiveStance] = useState<Stance | null>(null);
   const [showReshareSheet, setShowReshareSheet] = useState(false);
+  const [showGiftPicker, setShowGiftPicker] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [showArchiveConfirm, setShowArchiveConfirm] = useState(false);
   const [showMoreActions, setShowMoreActions] = useState(false);
@@ -194,9 +196,8 @@ export function PostCard({
     setActiveStance(stance);
   }
 
-  // TODO: replace with GiftPicker modal once that component exists.
   function handleGift() {
-    navigate(`/post/${post.id}?gift=1`);
+    setShowGiftPicker(true);
   }
 
   // Owner actions always operate on this row (the reshare/quote/normal
@@ -560,6 +561,16 @@ export function PostCard({
         />
       )}
 
+      {showGiftPicker && (
+        <GiftPicker
+          recipientId={post.author.id}
+          recipientName={post.author.display_name}
+          recipientAvatar={post.author.avatar_url}
+          postId={post.id}
+          onClose={() => setShowGiftPicker(false)}
+        />
+      )}
+
       {showArchiveConfirm && (
         <ConfirmDialog
           title="Archive this post?"
@@ -582,4 +593,4 @@ export function PostCard({
       )}
     </article>
   );
-}
+      }
