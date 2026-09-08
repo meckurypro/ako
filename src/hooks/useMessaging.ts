@@ -1,6 +1,6 @@
 // src/hooks/useMessaging.ts
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { useEffect } from "react";
+import { useQuery, useMutation, useQueryClient, keepPreviousData } from "@tanstack/react-query";
+import { useCallback, useEffect, useState } from "react";
 import { supabase } from "../lib/supabase";
 import { useAuth } from "./useAuth";
 import { encodeVoiceNote } from "../lib/voiceNotes";
@@ -35,23 +35,54 @@ export interface ConversationSummary {
   unreadCount: number;
 }
 
+/** Shape shared by the per-conversation "last message" preview, how-
+ *  ever it's fetched. */
+interface LastMessagePreview {
+  id: string;
+  content: string;
+  sender_id: string;
+  created_at: string;
+  delivered_at: string | null;
+  read_at: string | null;
+  is_deleted: boolean;
+}
+
 /**
- * Finds the most recent message in a conversation that's actually
- * visible to `userId` — skipping any message they've hidden or deleted
- * for themselves (message_user_state), but NOT skipping a tombstone
- * ("deleted for everyone"): that still shows as the preview, same as
- * it still occupies a slot in the open thread. Looks back up to 10
- * messages before giving up, which comfortably covers a user hiding/
- * deleting a small run of recent messages without a full table scan.
+ * Batched replacement for what used to be a per-conversation
+ * getVisibleLastMessage() call — that version did 2 round trips PER
+ * conversation (1 sequential `await` in a `for` loop each), so a user
+ * with 30 conversations cost 60 sequential network round trips just to
+ * render the list. This does the same job — most recent message per
+ * conversation, skipping anything the user has hidden/deleted for
+ * themselves, but keeping tombstones ("deleted for everyone") since
+ * those still occupy a slot — in exactly 2 round trips TOTAL,
+ * regardless of how many conversations are passed in.
+ *
+ * Trade-off: it pulls one shared window of the most recent messages
+ * across ALL the given conversations (capped, sized to roughly 8 per
+ * conversation) rather than looking back individually per
+ * conversation. If one conversation in the batch is extremely chatty
+ * it could — in theory — push a quiet conversation's true last message
+ * outside that window, showing a slightly stale preview for it. That
+ * only matters for a handful of edge-case rows out of what's normally
+ * dozens of conversations, and is a trade worth making for turning N
+ * sequential round trips into a fixed 2.
  */
-async function getVisibleLastMessage(conversationId: string, userId: string) {
+async function batchGetVisibleLastMessages(
+  conversationIds: string[],
+  userId: string
+): Promise<Map<string, LastMessagePreview>> {
+  const result = new Map<string, LastMessagePreview>();
+  if (!conversationIds.length) return result;
+
+  const windowLimit = Math.min(Math.max(conversationIds.length * 8, 50), 1000);
   const { data: recent, error } = await supabase
     .from("messages")
-    .select("id, content, sender_id, created_at, delivered_at, read_at, is_deleted")
-    .eq("conversation_id", conversationId)
+    .select("id, conversation_id, content, sender_id, created_at, delivered_at, read_at, is_deleted")
+    .in("conversation_id", conversationIds)
     .order("created_at", { ascending: false })
-    .limit(10);
-  if (error || !recent?.length) return null;
+    .limit(windowLimit);
+  if (error || !recent?.length) return result;
 
   const { data: states } = await supabase
     .from("message_user_state")
@@ -63,7 +94,14 @@ async function getVisibleLastMessage(conversationId: string, userId: string) {
     );
   const excluded = new Set((states ?? []).filter((s) => s.hidden_at || s.deleted_for_me_at).map((s) => s.message_id));
 
-  return recent.find((m) => !excluded.has(m.id)) ?? null;
+  // `recent` is already ordered newest-first, so the first non-excluded
+  // hit per conversation_id is that conversation's most recent visible
+  // message.
+  for (const m of recent) {
+    if (excluded.has(m.id)) continue;
+    if (!result.has(m.conversation_id)) result.set(m.conversation_id, m);
+  }
+  return result;
 }
 
 /**
@@ -90,24 +128,69 @@ async function backfillDelivered(messageIds: string[]) {
 }
 
 /**
- * Counts messages from the other participant that arrived after
- * `lastReadAt`, for the numeric badge in the chat list. Unlike
- * getVisibleLastMessage above, this doesn't subtract messages the user
- * has individually hidden/deleted for themselves (message_user_state)
- * — an occasional off-by-one on that rarely-used combination isn't
- * worth a second per-row query.
+ * Batched replacement for what used to be a per-conversation
+ * getUnreadCount() `SELECT COUNT` — another sequential round trip per
+ * conversation. Each conversation has its own "unread since" cutoff
+ * (last_read_at), so this can't be a single grouped SQL count via
+ * PostgREST; instead it pulls incoming (not-mine) messages across every
+ * conversation in ONE query and counts client-side against each
+ * conversation's own cutoff from `readMap`.
+ *
+ * Trade-off: capped like the function above. An unread backlog deeper
+ * than the cap (thousands of messages since last read in one thread)
+ * would undercount — an acceptable trade for 1 round trip instead of N.
  */
-async function getUnreadCount(conversationId: string, userId: string, lastReadAt: string | null) {
-  let query = supabase
-    .from("messages")
-    .select("id", { count: "exact", head: true })
-    .eq("conversation_id", conversationId)
-    .neq("sender_id", userId);
-  if (lastReadAt) query = query.gt("created_at", lastReadAt);
+async function batchGetUnreadCounts(
+  conversationIds: string[],
+  userId: string,
+  readMap: Map<string, string | null>
+): Promise<Map<string, number>> {
+  const counts = new Map<string, number>();
+  if (!conversationIds.length) return counts;
 
-  const { count, error } = await query;
-  if (error) return 0;
-  return count ?? 0;
+  const { data, error } = await supabase
+    .from("messages")
+    .select("conversation_id, sender_id, created_at")
+    .in("conversation_id", conversationIds)
+    .neq("sender_id", userId)
+    .order("created_at", { ascending: false })
+    .limit(Math.min(Math.max(conversationIds.length * 20, 100), 5000));
+  if (error || !data) return counts;
+
+  for (const row of data) {
+    const lastReadAt = readMap.get(row.conversation_id);
+    if (lastReadAt && row.created_at <= lastReadAt) continue;
+    counts.set(row.conversation_id, (counts.get(row.conversation_id) ?? 0) + 1);
+  }
+  return counts;
+}
+
+/**
+ * Batched replacement for what used to be a per-conversation
+ * "other participant" lookup — 1 more sequential round trip per
+ * conversation. Fetches every conversation's other-participant profile
+ * in a single query instead.
+ */
+async function batchGetOtherParticipants(
+  conversationIds: string[],
+  userId: string
+): Promise<Map<string, ConversationSummary["other_participant"]>> {
+  const map = new Map<string, ConversationSummary["other_participant"]>();
+  if (!conversationIds.length) return map;
+
+  const { data, error } = await supabase
+    .from("conversation_participants")
+    .select(
+      "conversation_id, profile:profiles!conversation_participants_user_id_fkey(id, username, display_name, avatar_url, last_seen_at)"
+    )
+    .in("conversation_id", conversationIds)
+    .neq("user_id", userId);
+  if (error || !data) return map;
+
+  for (const row of data) {
+    if (row.profile) map.set(row.conversation_id, row.profile as unknown as ConversationSummary["other_participant"]);
+  }
+  return map;
 }
 
 /**
@@ -147,40 +230,41 @@ export function useConversations() {
         .order("last_message_at", { ascending: false });
 
       if (convError) throw convError;
+      if (!conversations?.length) return [];
+
+      // These three used to be up to 4 sequential round trips PER
+      // conversation (other-participant lookup, last-message lookup,
+      // unread count). Now it's a fixed 4 round trips TOTAL, run in
+      // parallel, regardless of how many conversations the user has.
+      const [otherParticipants, lastMessages, unreadCounts] = await Promise.all([
+        batchGetOtherParticipants(conversationIds, user!.id),
+        batchGetVisibleLastMessages(conversationIds, user!.id),
+        batchGetUnreadCounts(conversationIds, user!.id, readMap),
+      ]);
 
       const results: ConversationSummary[] = [];
       const undeliveredIds: string[] = [];
 
-      for (const conv of conversations ?? []) {
-        const { data: otherParticipant } = await supabase
-          .from("conversation_participants")
-          .select(
-            "profile:profiles!conversation_participants_user_id_fkey(id, username, display_name, avatar_url, last_seen_at)"
-          )
-          .eq("conversation_id", conv.id)
-          .neq("user_id", user!.id)
-          .maybeSingle();
+      for (const conv of conversations) {
+        const otherParticipant = otherParticipants.get(conv.id);
+        if (!otherParticipant) continue;
 
-        const lastMessage = await getVisibleLastMessage(conv.id, user!.id);
-
-        if (!otherParticipant?.profile) continue;
-
+        const lastMessage = lastMessages.get(conv.id) ?? null;
         if (lastMessage && lastMessage.sender_id !== user!.id && !lastMessage.delivered_at) {
           undeliveredIds.push(lastMessage.id);
         }
 
-        const lastReadAt = readMap.get(conv.id);
         // Our own sent messages must never flip a conversation back to
-        // unread — getUnreadCount already only counts the OTHER
+        // unread — batchGetUnreadCounts already only counts the OTHER
         // participant's messages, so "unread" falls straight out of it.
-        const unreadCount = await getUnreadCount(conv.id, user!.id, lastReadAt ?? null);
+        const unreadCount = unreadCounts.get(conv.id) ?? 0;
 
         results.push({
           id: conv.id,
           last_message_at: conv.last_message_at,
           pinned_at: pinMap.get(conv.id) ?? null,
           archived_at: null, // archived ones are already filtered out above
-          other_participant: otherParticipant.profile as any,
+          other_participant: otherParticipant,
           last_message: lastMessage
             ? {
                 content: lastMessage.content,
@@ -233,6 +317,10 @@ export interface MessageWithSender {
   reply_to: { id: string; content: string; sender_id: string; is_deleted: boolean }[] | null;
 }
 
+/** How many messages a single "page" covers, both for the initial load
+ *  and each subsequent loadOlder() call. */
+const MESSAGES_PAGE_SIZE = 30;
+
 /**
  * Fetches message history and subscribes to new messages via
  * Supabase Realtime, so an open conversation updates live without
@@ -244,12 +332,33 @@ export interface MessageWithSender {
  * tombstone for both participants (see MessageWithSender.is_deleted).
  * Messages hidden or deleted-for-me are per-user and filtered out by
  * the caller (MessageThread) using useMessageUserStates, not here.
+ *
+ * PAGINATED: only fetches the most recent `pageCount * MESSAGES_PAGE_SIZE`
+ * messages, not the entire thread. This used to be a plain unbounded
+ * `.select()` with no `.limit()` at all — meaning EVERY realtime event
+ * and every mutation's cache invalidation re-fetched the whole
+ * conversation history from scratch, which only got slower the longer
+ * a conversation ran. Call the returned `loadOlder()` (e.g. on scroll
+ * near the top of the list) to widen the window one page at a time;
+ * `placeholderData: keepPreviousData` keeps the already-loaded messages
+ * on screen while a wider page loads, so widening never flashes an
+ * empty/loading state.
  */
 export function useMessages(conversationId: string) {
   const queryClient = useQueryClient();
+  const [pageCount, setPageCount] = useState(1);
+
+  // A different conversation should start back at the most recent
+  // page, not carry over how far a previous, longer-scrolled thread
+  // had paged back.
+  useEffect(() => {
+    setPageCount(1);
+  }, [conversationId]);
+
+  const limit = MESSAGES_PAGE_SIZE * pageCount;
 
   const query = useQuery({
-    queryKey: ["messages", conversationId],
+    queryKey: ["messages", conversationId, limit],
     queryFn: async (): Promise<MessageWithSender[]> => {
       // Deliberately a plain select with NO embedded reply_to join here.
       // An embedded self-join (`messages!<fkey-name>(...)`) depends on
@@ -265,10 +374,11 @@ export function useMessages(conversationId: string) {
           "id, conversation_id, sender_id, content, created_at, delivered_at, read_at, reply_to_message_id, is_deleted"
         )
         .eq("conversation_id", conversationId)
-        .order("created_at", { ascending: true });
+        .order("created_at", { ascending: false })
+        .limit(limit);
       if (error) throw error;
 
-      const rows = data ?? [];
+      const rows = (data ?? []).slice().reverse(); // back to ascending for render
       const replyIds = [...new Set(rows.map((m) => m.reply_to_message_id).filter((id): id is string => !!id))];
 
       let replyMap = new Map<string, { id: string; content: string; sender_id: string; is_deleted: boolean }>();
@@ -289,6 +399,7 @@ export function useMessages(conversationId: string) {
       })) as unknown as MessageWithSender[];
     },
     enabled: !!conversationId,
+    placeholderData: keepPreviousData,
   });
 
   useEffect(() => {
@@ -300,7 +411,10 @@ export function useMessages(conversationId: string) {
         "postgres_changes",
         { event: "INSERT", schema: "public", table: "messages", filter: `conversation_id=eq.${conversationId}` },
         () => {
-          queryClient.invalidateQueries({ queryKey: ["messages", conversationId] });
+          // exact: false invalidates every paged variant of this
+          // conversation's messages query (all `limit` values), not
+          // just whichever page happens to be mounted right now.
+          queryClient.invalidateQueries({ queryKey: ["messages", conversationId], exact: false });
           queryClient.invalidateQueries({ queryKey: ["conversations"] });
         }
       )
@@ -312,7 +426,7 @@ export function useMessages(conversationId: string) {
         "postgres_changes",
         { event: "UPDATE", schema: "public", table: "messages", filter: `conversation_id=eq.${conversationId}` },
         () => {
-          queryClient.invalidateQueries({ queryKey: ["messages", conversationId] });
+          queryClient.invalidateQueries({ queryKey: ["messages", conversationId], exact: false });
         }
       )
       .subscribe();
@@ -322,7 +436,46 @@ export function useMessages(conversationId: string) {
     };
   }, [conversationId, queryClient]);
 
-  return query;
+  const hasMore = (query.data?.length ?? 0) >= limit;
+  const loadOlder = useCallback(() => {
+    setPageCount((p) => p + 1);
+  }, []);
+
+  return {
+    ...query,
+    hasMore,
+    loadOlder,
+    // True only while widening the window for older messages — NOT
+    // true on the very first load (that's plain `isLoading`), so the
+    // caller can show a small inline spinner up top instead of
+    // replacing the whole thread with a loading state.
+    isLoadingOlder: query.isFetching && pageCount > 1,
+  };
+}
+
+/** Minimal reply-target shape the caller already has in hand (the full
+ *  MessageWithSender they're replying to) — passed through so the
+ *  optimistic bubble can render its reply-quote immediately instead of
+ *  waiting on a round trip to look the snippet back up. */
+interface ReplySnippetInput {
+  id: string;
+  content: string;
+  sender_id: string;
+  is_deleted: boolean;
+}
+
+interface SendMessageInput {
+  content: string;
+  replyToMessageId?: string | null;
+  replyToSnippet?: ReplySnippetInput | null;
+}
+
+/** Every cached page of a conversation's messages, across every
+ *  loaded `limit` variant — used by the optimistic-update helpers
+ *  below so a sent message shows up regardless of which page window
+ *  is currently mounted. */
+function getMessagesQueries(queryClient: ReturnType<typeof useQueryClient>, conversationId: string) {
+  return queryClient.getQueriesData<MessageWithSender[]>({ queryKey: ["messages", conversationId], exact: false });
 }
 
 export function useSendMessage(conversationId: string) {
@@ -330,18 +483,21 @@ export function useSendMessage(conversationId: string) {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async (input: string | { content: string; replyToMessageId?: string | null }) => {
+    mutationFn: async (input: string | SendMessageInput) => {
       if (!user) throw new Error("Not signed in");
       const content = typeof input === "string" ? input : input.content;
       const replyToMessageId = typeof input === "string" ? null : input.replyToMessageId ?? null;
-      const { error } = await supabase
+
+      const { data, error } = await supabase
         .from("messages")
         .insert({
           conversation_id: conversationId,
           sender_id: user.id,
           content,
           reply_to_message_id: replyToMessageId,
-        });
+        })
+        .select("id, conversation_id, sender_id, content, created_at, delivered_at, read_at, reply_to_message_id, is_deleted")
+        .single();
       if (error) throw error;
 
       // Replying accepts a pending message request — moves this
@@ -355,9 +511,66 @@ export function useSendMessage(conversationId: string) {
         .eq("user_id", user.id)
         .eq("is_request", true);
       if (acceptError) console.error("Failed to accept message request:", acceptError);
+
+      return data;
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["messages", conversationId] });
+    // Optimistic send: the bubble appears the instant you hit send,
+    // not after a full round trip + a full thread refetch. This used
+    // to be the single biggest source of "sending feels slow" — the
+    // old version had NO optimistic update at all, just an insert
+    // followed by invalidating (and thus fully re-fetching) the whole
+    // messages query, AND the realtime INSERT subscription in
+    // useMessages independently invalidated the same query again —
+    // two full refetches, in sequence, before your own message ever
+    // showed up.
+    onMutate: async (input) => {
+      const content = typeof input === "string" ? input : input.content;
+      const replyToMessageId = typeof input === "string" ? null : input.replyToMessageId ?? null;
+      const replyToSnippet = typeof input === "string" ? null : input.replyToSnippet ?? null;
+
+      await queryClient.cancelQueries({ queryKey: ["messages", conversationId], exact: false });
+
+      const previousQueries = getMessagesQueries(queryClient, conversationId);
+      const tempId = crypto.randomUUID();
+      const optimisticMessage: MessageWithSender = {
+        id: tempId,
+        conversation_id: conversationId,
+        sender_id: user!.id,
+        content,
+        created_at: new Date().toISOString(),
+        delivered_at: null,
+        read_at: null,
+        reply_to_message_id: replyToMessageId,
+        is_deleted: false,
+        reply_to: replyToSnippet ? [replyToSnippet] : null,
+      };
+
+      for (const [key, existing] of previousQueries) {
+        queryClient.setQueryData(key, [...(existing ?? []), optimisticMessage]);
+      }
+
+      return { previousQueries, tempId };
+    },
+    onError: (_err, _input, context) => {
+      if (!context) return;
+      for (const [key, data] of context.previousQueries) {
+        queryClient.setQueryData(key, data);
+      }
+    },
+    onSuccess: (data, _input, context) => {
+      // Swap the optimistic temp-id message for the real row now that
+      // we have it — no need to wait for the realtime INSERT event
+      // (which will also arrive and no-op against an already-correct
+      // cache) or to invalidate/re-fetch the whole page again.
+      if (context) {
+        for (const [key, existing] of getMessagesQueries(queryClient, conversationId)) {
+          if (!existing) continue;
+          queryClient.setQueryData(
+            key,
+            existing.map((m) => (m.id === context.tempId ? { ...(data as MessageWithSender), reply_to: m.reply_to } : m))
+          );
+        }
+      }
       queryClient.invalidateQueries({ queryKey: ["conversations"] });
       queryClient.invalidateQueries({ queryKey: ["archived-conversations"] });
       queryClient.invalidateQueries({ queryKey: ["my-participant-state", conversationId] });
@@ -376,22 +589,26 @@ export function useSendMessage(conversationId: string) {
  * name below — this is the one piece that can't be inferred from the
  * client alone.
  */
+interface SendVoiceNoteInput {
+  blob: Blob;
+  durationSec: number;
+  peaks?: number[];
+  replyToMessageId?: string | null;
+  replyToSnippet?: ReplySnippetInput | null;
+  /** The recorder's own local blob-URL preview (still valid at send
+   *  time — see useVoiceRecorder.sendPreview, which only revokes it
+   *  after this mutation resolves). Lets the bubble appear and be
+   *  playable INSTANTLY, before the upload to storage has even
+   *  finished, instead of waiting on the upload + insert round trip. */
+  localUrl?: string;
+}
+
 export function useSendVoiceNote(conversationId: string) {
   const { user } = useAuth();
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async ({
-      blob,
-      durationSec,
-      peaks,
-      replyToMessageId,
-    }: {
-      blob: Blob;
-      durationSec: number;
-      peaks?: number[];
-      replyToMessageId?: string | null;
-    }) => {
+    mutationFn: async ({ blob, durationSec, peaks, replyToMessageId }: SendVoiceNoteInput) => {
       if (!user) throw new Error("Not signed in");
 
       const ext = blob.type.includes("mp4") ? "m4a" : "webm";
@@ -404,12 +621,16 @@ export function useSendVoiceNote(conversationId: string) {
 
       const content = encodeVoiceNote({ url: publicUrl.publicUrl, durationSec, peaks });
 
-      const { error } = await supabase.from("messages").insert({
-        conversation_id: conversationId,
-        sender_id: user.id,
-        content,
-        reply_to_message_id: replyToMessageId ?? null,
-      });
+      const { data, error } = await supabase
+        .from("messages")
+        .insert({
+          conversation_id: conversationId,
+          sender_id: user.id,
+          content,
+          reply_to_message_id: replyToMessageId ?? null,
+        })
+        .select("id, conversation_id, sender_id, content, created_at, delivered_at, read_at, reply_to_message_id, is_deleted")
+        .single();
       if (error) throw error;
 
       // Mirrors useSendMessage's request-accept side effect — a voice
@@ -421,9 +642,63 @@ export function useSendVoiceNote(conversationId: string) {
         .eq("user_id", user.id)
         .eq("is_request", true);
       if (acceptError) console.error("Failed to accept message request:", acceptError);
+
+      return data;
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["messages", conversationId] });
+    // Same optimistic-insert approach as useSendMessage above — see
+    // that hook's comment for the full reasoning. Here the optimistic
+    // bubble's audio URL is the recorder's own local blob URL
+    // (`localUrl`), so voice playback works immediately even though
+    // the real storage upload is still in flight in the background.
+    onMutate: async ({ durationSec, peaks, replyToMessageId, replyToSnippet, localUrl }) => {
+      await queryClient.cancelQueries({ queryKey: ["messages", conversationId], exact: false });
+
+      const previousQueries = getMessagesQueries(queryClient, conversationId);
+      const tempId = crypto.randomUUID();
+
+      // No local preview URL to show yet (shouldn't normally happen —
+      // see useVoiceRecorder) — skip the optimistic bubble rather than
+      // show one with no playable audio; the real message still
+      // arrives normally once the upload finishes.
+      if (!localUrl) return { previousQueries, tempId: null };
+
+      const optimisticMessage: MessageWithSender = {
+        id: tempId,
+        conversation_id: conversationId,
+        sender_id: user!.id,
+        content: encodeVoiceNote({ url: localUrl, durationSec, peaks }),
+        created_at: new Date().toISOString(),
+        delivered_at: null,
+        read_at: null,
+        reply_to_message_id: replyToMessageId ?? null,
+        is_deleted: false,
+        reply_to: replyToSnippet ? [replyToSnippet] : null,
+      };
+
+      for (const [key, existing] of previousQueries) {
+        queryClient.setQueryData(key, [...(existing ?? []), optimisticMessage]);
+      }
+
+      return { previousQueries, tempId };
+    },
+    onError: (_err, _input, context) => {
+      if (!context) return;
+      for (const [key, data] of context.previousQueries) {
+        queryClient.setQueryData(key, data);
+      }
+    },
+    onSuccess: (data, _input, context) => {
+      if (context?.tempId) {
+        for (const [key, existing] of getMessagesQueries(queryClient, conversationId)) {
+          if (!existing) continue;
+          queryClient.setQueryData(
+            key,
+            existing.map((m) => (m.id === context.tempId ? { ...(data as MessageWithSender), reply_to: m.reply_to } : m))
+          );
+        }
+      } else {
+        queryClient.invalidateQueries({ queryKey: ["messages", conversationId], exact: false });
+      }
       queryClient.invalidateQueries({ queryKey: ["conversations"] });
       queryClient.invalidateQueries({ queryKey: ["archived-conversations"] });
       queryClient.invalidateQueries({ queryKey: ["my-participant-state", conversationId] });
@@ -803,30 +1078,30 @@ export function useArchivedConversations() {
         .order("last_message_at", { ascending: false });
 
       if (convError) throw convError;
+      if (!conversations?.length) return [];
+
+      // Same fixed-round-trip batching as useConversations above —
+      // see batchGetOtherParticipants/batchGetVisibleLastMessages/
+      // batchGetUnreadCounts for the reasoning and trade-offs.
+      const [otherParticipants, lastMessages, unreadCounts] = await Promise.all([
+        batchGetOtherParticipants(conversationIds, user!.id),
+        batchGetVisibleLastMessages(conversationIds, user!.id),
+        batchGetUnreadCounts(conversationIds, user!.id, readMap),
+      ]);
 
       const results: ArchivedConversationSummary[] = [];
       const undeliveredIds: string[] = [];
 
-      for (const conv of conversations ?? []) {
-        const { data: otherParticipant } = await supabase
-          .from("conversation_participants")
-          .select(
-            "profile:profiles!conversation_participants_user_id_fkey(id, username, display_name, avatar_url, last_seen_at)"
-          )
-          .eq("conversation_id", conv.id)
-          .neq("user_id", user!.id)
-          .maybeSingle();
+      for (const conv of conversations) {
+        const otherParticipant = otherParticipants.get(conv.id);
+        if (!otherParticipant) continue;
 
-        const lastMessage = await getVisibleLastMessage(conv.id, user!.id);
-
-        if (!otherParticipant?.profile) continue;
-
+        const lastMessage = lastMessages.get(conv.id) ?? null;
         if (lastMessage && lastMessage.sender_id !== user!.id && !lastMessage.delivered_at) {
           undeliveredIds.push(lastMessage.id);
         }
 
-        const lastReadAt = readMap.get(conv.id);
-        const unreadCount = await getUnreadCount(conv.id, user!.id, lastReadAt ?? null);
+        const unreadCount = unreadCounts.get(conv.id) ?? 0;
 
         results.push({
           id: conv.id,
@@ -834,7 +1109,7 @@ export function useArchivedConversations() {
           pinned_at: null,
           archived_at: conv.last_message_at, // presence in this list already implies archived; exact value isn't read by the UI
           is_request: requestMap.get(conv.id) ?? false,
-          other_participant: otherParticipant.profile as any,
+          other_participant: otherParticipant,
           last_message: lastMessage
             ? {
                 content: lastMessage.content,
