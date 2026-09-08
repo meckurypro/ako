@@ -50,7 +50,7 @@ export function AddAccountModal({ onClose, onAdded }: AddAccountModalProps) {
 
   return (
     <div
-      className="fixed inset-0 bg-ink/40 z-50 overflow-y-auto px-4 py-10"
+      className="fixed inset-0 bg-canvas/70 backdrop-blur-sm z-50 overflow-y-auto px-4 py-10"
       onClick={onClose}
       role="dialog"
       aria-modal="true"
