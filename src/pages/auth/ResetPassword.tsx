@@ -78,7 +78,7 @@ export function ResetPassword() {
       <AuthPattern />
       <div className="relative z-10 w-full max-w-sm">
         <div className="mb-10">
-          <Wordmark size="sm" showTagline={false} />
+          <Wordmark asIcon iconTagline={false} />
         </div>
 
         {step === "email" && (
