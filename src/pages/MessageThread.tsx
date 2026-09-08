@@ -18,9 +18,6 @@ import {
   EyeOff,
   Star,
   Mic,
-  Play,
-  Pause,
-  Square,
   Share2,
 } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
@@ -58,12 +55,17 @@ import { MessageActionMenu } from "../components/MessageActionMenu";
 import { DeleteMessageSheet } from "../components/DeleteMessageSheet";
 import { ForwardMessageSheet } from "../components/ForwardMessageSheet";
 import { VoiceMessageBubble } from "../components/VoiceMessageBubble";
+import { VoiceRecordingBar } from "../components/VoiceRecordingBar";
+import { VoicePreviewBar } from "../components/VoicePreviewBar";
 import { EmojiPickerSheet, removeLastGrapheme } from "../components/EmojiPickerSheet";
 import { formatLastSeen } from "../lib/presence";
-import { decodeVoiceNote, VOICE_NOTE_LABEL, formatVoiceDuration } from "../lib/voiceNotes";
+import { decodeVoiceNote, VOICE_NOTE_LABEL } from "../lib/voiceNotes";
 import { getEmojiOnlyInfo, jumboEmojiSizeClass } from "../lib/emoji";
 import { formatMessageTime } from "../lib/messageTime";
 import { ReactionOptionsPopover, type ReactionPopoverTarget } from "../components/ReactionOptionsPopover";
+import { useBackDismiss } from "../hooks/useBackDismiss";
+import { useKeyboardInset } from "../hooks/useKeyboardInset";
+import { useVoiceRecorder } from "../hooks/useVoiceRecorder";
 
 // Fetches the other participant's profile for the header — a small
 // dedicated query since useConversations' list-summary shape isn't
@@ -199,12 +201,6 @@ interface DeleteTarget {
 
 type EmojiPickerTarget = { mode: "input" } | { mode: "reaction"; messageId: string } | null;
 
-/** Voice-note recorder state machine backing the compose bar. */
-type RecorderState =
-  | { phase: "idle" }
-  | { phase: "recording"; elapsedMs: number; paused: boolean }
-  | { phase: "preview"; blob: Blob; url: string; durationSec: number };
-
 export function MessageThread() {
   const { conversationId } = useParams<{ conversationId: string }>();
   const navigate = useNavigate();
@@ -236,6 +232,7 @@ export function MessageThread() {
   const topEmojis = useUserTopEmojis();
   const trackEmojiUsage = useTrackEmojiUsage();
   const inputRef = useRef<HTMLInputElement>(null);
+  const { viewportHeight, lastKnownHeight } = useKeyboardInset();
 
   // Brief inline banner for async failures (delete/star/pin/react/…)
   // that would otherwise fail silently — see flashError below.
@@ -394,26 +391,18 @@ export function MessageThread() {
     exitSelectMode();
   }
 
-  // The emoji sheet is an in-page overlay, not a route — without this,
-  // the hardware/browser back button falls through to React Router's
-  // history and leaves the thread entirely instead of just closing the
-  // sheet. Pushing a dummy entry while it's open means "back" consumes
-  // that entry first.
-  useEffect(() => {
-    if (!emojiPickerTarget) return;
-    window.history.pushState({ modal: "emoji" }, "");
-    const handlePopState = () => setEmojiPickerTarget(null);
-    window.addEventListener("popstate", handlePopState);
-    return () => {
-      window.removeEventListener("popstate", handlePopState);
-      // Only pop our own dummy entry if it's still there — if the user
-      // closed this via the back button, popstate already consumed it,
-      // and calling history.back() again here would eat a real entry.
-      if (window.history.state?.modal === "emoji") {
-        window.history.back();
-      }
-    };
-  }, [emojiPickerTarget]);
+  // The emoji tray (input mode) is an in-page overlay, not a route —
+  // hardware/browser back should close it instead of falling through
+  // to React Router and leaving the thread entirely. Uses the same
+  // guarded push-one-entry-per-instance pattern as every other overlay
+  // in the app (see useBackDismiss) instead of the bespoke version
+  // this used to have: a bare "any popstate closes it" listener races
+  // with fast emoji↔keyboard toggling — closing the tray fires an
+  // async history.back() whose popstate can still be in flight when
+  // the user reopens the tray a moment later, so it arrives late and
+  // is wrongly attributed to the new, already-reopened instance,
+  // slamming it shut again and forcing a second tap.
+  useBackDismiss(() => setEmojiPickerTarget(null), emojiPickerTarget?.mode === "input");
 
   const longPressTimers = useRef<Record<string, ReturnType<typeof setTimeout> | null>>({});
   const longPressStart = useRef<Record<string, { x: number; y: number }>>({});
@@ -460,6 +449,20 @@ export function MessageThread() {
     // state from the previous thread.
     hasScrolledToBottomOnce.current = false;
   }, [conversationId]);
+
+  // Land ready-to-type, like opening a native chat app — focus the
+  // composer immediately so the OS keyboard is already up rather than
+  // making the first tap be "dismiss nothing, then focus". This only
+  // succeeds in bringing up the real keyboard because it runs right
+  // off the tap that navigated here (mobile browsers still count that
+  // as "user activation" for a few ticks); a focus() fired later,
+  // detached from any tap, would just place the caret without
+  // triggering the keyboard. Skipped whenever the composer itself
+  // isn't the thing on screen, so it never steals focus from search.
+  useEffect(() => {
+    if (searchOpen || selectMode) return;
+    inputRef.current?.focus();
+  }, [conversationId, searchOpen, selectMode]);
 
   useEffect(() => {
     if (searchOpen) return; // don't fight the search-match scroll below
@@ -621,120 +624,29 @@ export function MessageThread() {
   const activeState = activeMessage ? userStates?.[activeMessage.message.id] : undefined;
 
   // --- Voice note recording (compose bar) ---
-  const [recorder, setRecorder] = useState<RecorderState>({ phase: "idle" });
-  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
-  const recordedChunksRef = useRef<Blob[]>([]);
-  const micStreamRef = useRef<MediaStream | null>(null);
-  const recordingTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const segmentStartRef = useRef(0);
-  const accumulatedMsRef = useRef(0);
-
-  useEffect(
-    () => () => {
-      // Release the mic and stop the ticking timer if the thread unmounts
-      // mid-recording (navigating away, etc.) — never leave the mic hot.
-      if (recordingTimerRef.current) clearInterval(recordingTimerRef.current);
-      micStreamRef.current?.getTracks().forEach((t) => t.stop());
-    },
-    []
-  );
-
-  async function startRecording() {
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      micStreamRef.current = stream;
-      recordedChunksRef.current = [];
-      const mimeType = MediaRecorder.isTypeSupported("audio/webm;codecs=opus")
-        ? "audio/webm;codecs=opus"
-        : undefined;
-      const mr = new MediaRecorder(stream, mimeType ? { mimeType } : undefined);
-      mediaRecorderRef.current = mr;
-      mr.ondataavailable = (e) => {
-        if (e.data.size > 0) recordedChunksRef.current.push(e.data);
-      };
-      mr.start();
-      accumulatedMsRef.current = 0;
-      segmentStartRef.current = Date.now();
-      setRecorder({ phase: "recording", elapsedMs: 0, paused: false });
-      recordingTimerRef.current = setInterval(() => {
-        setRecorder((prev) =>
-          prev.phase === "recording" && !prev.paused
-            ? { ...prev, elapsedMs: accumulatedMsRef.current + (Date.now() - segmentStartRef.current) }
-            : prev
-        );
-      }, 200);
-    } catch {
-      flashError("Couldn't access the microphone. Check your browser/site permissions.");
-    }
-  }
-
-  function togglePauseResume() {
-    const mr = mediaRecorderRef.current;
-    if (!mr) return;
-    setRecorder((prev) => {
-      if (prev.phase !== "recording") return prev;
-      if (prev.paused) {
-        mr.resume();
-        segmentStartRef.current = Date.now();
-        return { ...prev, paused: false };
-      }
-      mr.pause();
-      accumulatedMsRef.current += Date.now() - segmentStartRef.current;
-      return { ...prev, paused: true, elapsedMs: accumulatedMsRef.current };
-    });
-  }
-
-  function stopToPreview() {
-    const mr = mediaRecorderRef.current;
-    if (!mr || recorder.phase !== "recording") return;
-    const finalElapsedMs = recorder.paused
-      ? recorder.elapsedMs
-      : accumulatedMsRef.current + (Date.now() - segmentStartRef.current);
-    mr.onstop = () => {
-      const blob = new Blob(recordedChunksRef.current, { type: mr.mimeType || "audio/webm" });
-      const url = URL.createObjectURL(blob);
-      setRecorder({ phase: "preview", blob, url, durationSec: Math.max(1, Math.round(finalElapsedMs / 1000)) });
-      micStreamRef.current?.getTracks().forEach((t) => t.stop());
-      micStreamRef.current = null;
-    };
-    if (recordingTimerRef.current) clearInterval(recordingTimerRef.current);
-    mr.stop();
-  }
-
-  function cancelRecording() {
-    const mr = mediaRecorderRef.current;
-    if (mr && mr.state !== "inactive") {
-      mr.onstop = null;
-      mr.stop();
-    }
-    if (recordingTimerRef.current) clearInterval(recordingTimerRef.current);
-    micStreamRef.current?.getTracks().forEach((t) => t.stop());
-    micStreamRef.current = null;
-    recordedChunksRef.current = [];
-    setRecorder({ phase: "idle" });
-  }
-
-  function discardPreview() {
-    if (recorder.phase === "preview") URL.revokeObjectURL(recorder.url);
-    setRecorder({ phase: "idle" });
-  }
-
-  async function sendVoicePreview() {
-    if (recorder.phase !== "preview") return;
-    const { blob, durationSec, url } = recorder;
+  // Full press-hold-record / slide-to-cancel / slide-up-to-lock /
+  // preview-before-send lifecycle lives in this hook — see
+  // useVoiceRecorder.ts for the gesture and MediaRecorder details.
+  const voiceRecorder = useVoiceRecorder(async (blob, durationSec, peaks) => {
     const replyingTo = replyTarget;
     try {
-      await sendVoiceNote.mutateAsync({ blob, durationSec, replyToMessageId: replyingTo?.id ?? null });
-      URL.revokeObjectURL(url);
-      setRecorder({ phase: "idle" });
+      await sendVoiceNote.mutateAsync({ blob, durationSec, peaks, replyToMessageId: replyingTo?.id ?? null });
       setReplyTarget(null);
     } catch {
       flashError("Couldn't send the voice message. Please try again.");
+      throw new Error("send failed"); // keeps the hook from clearing the preview it couldn't send
     }
-  }
+  });
 
   return (
-    <div className="h-dvh bg-canvas flex flex-col overflow-hidden">
+    <div
+      className="h-dvh bg-canvas flex flex-col overflow-hidden"
+      // h-dvh is the fallback for browsers without visualViewport;
+      // this inline height is what actually keeps the layout glued to
+      // the true visible area — see useKeyboardInset for why dvh alone
+      // isn't enough once the keyboard is involved.
+      style={{ height: viewportHeight }}
+    >
       <header className="px-4 pt-6 pb-3 sticky top-0 bg-canvas z-30 border-b border-border flex items-center gap-3">
         {selectMode ? (
           <>
@@ -1074,7 +986,12 @@ export function MessageThread() {
                         </span>
                       ) : voiceNote ? (
                         <span className="relative block">
-                          <VoiceMessageBubble url={voiceNote.url} durationSec={voiceNote.durationSec} isMine={isMine} />
+                          <VoiceMessageBubble
+                            url={voiceNote.url}
+                            durationSec={voiceNote.durationSec}
+                            peaks={voiceNote.peaks}
+                            isMine={isMine}
+                          />
                           <span
                             className={`flex items-center gap-1 justify-end mt-1 text-[11px] ${isMine ? "text-white/70" : "text-ink-muted"}`}
                           >
@@ -1135,7 +1052,7 @@ export function MessageThread() {
       </div>
 
       <div className="sticky bottom-0 bg-canvas border-t border-border max-w-xl mx-auto w-full">
-        {replyTarget && recorder.phase === "idle" && (
+        {replyTarget && voiceRecorder.phase === "idle" && (
           <div className="flex items-start gap-2 px-4 pt-2.5">
             <div className="flex-1 min-w-0 border-l-2 border-accent pl-2 py-0.5">
               <p className="text-xs font-medium text-accent">
@@ -1156,61 +1073,28 @@ export function MessageThread() {
           </div>
         )}
 
-        {recorder.phase === "recording" ? (
-          <div className="px-4 py-3 flex items-center gap-3">
-            <button
-              type="button"
-              onClick={cancelRecording}
-              className="text-danger flex-shrink-0 p-1"
-              aria-label="Cancel recording"
-            >
-              <Trash2 size={20} />
-            </button>
-            <div className="flex-1 flex items-center gap-2 text-sm text-ink min-w-0">
-              <span className={`w-2.5 h-2.5 rounded-full bg-danger flex-shrink-0 ${recorder.paused ? "" : "animate-pulse"}`} />
-              <span className="tabular-nums">{formatVoiceDuration(recorder.elapsedMs / 1000)}</span>
-              {recorder.paused && <span className="text-ink-muted text-xs">Paused</span>}
-            </div>
-            <button
-              type="button"
-              onClick={togglePauseResume}
-              className="text-ink flex-shrink-0 p-2"
-              aria-label={recorder.paused ? "Resume recording" : "Pause recording"}
-            >
-              {recorder.paused ? <Play size={20} /> : <Pause size={20} />}
-            </button>
-            <button
-              type="button"
-              onClick={stopToPreview}
-              className="bg-accent text-white rounded-full p-2.5 flex-shrink-0"
-              aria-label="Stop recording"
-            >
-              <Square size={16} fill="currentColor" />
-            </button>
-          </div>
-        ) : recorder.phase === "preview" ? (
-          <div className="px-4 py-3 flex items-center gap-3">
-            <button
-              type="button"
-              onClick={discardPreview}
-              className="text-danger flex-shrink-0 p-1"
-              aria-label="Discard recording"
-            >
-              <Trash2 size={20} />
-            </button>
-            <div className="flex-1 min-w-0 bg-surface rounded-full px-3 py-1.5">
-              <VoiceMessageBubble url={recorder.url} durationSec={recorder.durationSec} isMine={false} />
-            </div>
-            <button
-              type="button"
-              onClick={sendVoicePreview}
-              disabled={sendVoiceNote.isPending}
-              className="bg-accent text-white rounded-full p-2.5 flex-shrink-0 disabled:opacity-50"
-              aria-label="Send voice message"
-            >
-              <Send size={18} />
-            </button>
-          </div>
+        {voiceRecorder.phase === "recording" ? (
+          <VoiceRecordingBar
+            locked={voiceRecorder.locked}
+            paused={voiceRecorder.paused}
+            elapsedMs={voiceRecorder.elapsedMs}
+            drag={voiceRecorder.drag}
+            cancelThresholdPx={voiceRecorder.cancelThresholdPx}
+            lockThresholdPx={voiceRecorder.lockThresholdPx}
+            liveLevels={voiceRecorder.liveLevels}
+            onCancel={voiceRecorder.cancelRecording}
+            onTogglePause={voiceRecorder.togglePauseResume}
+            onStop={voiceRecorder.stopToPreview}
+          />
+        ) : voiceRecorder.phase === "preview" && voiceRecorder.preview ? (
+          <VoicePreviewBar
+            url={voiceRecorder.preview.url}
+            durationSec={voiceRecorder.preview.durationSec}
+            peaks={voiceRecorder.preview.peaks}
+            sending={voiceRecorder.sending}
+            onDiscard={voiceRecorder.discardPreview}
+            onSend={voiceRecorder.sendPreview}
+          />
         ) : (
           <form onSubmit={handleSubmit} className="px-4 py-3 flex items-center gap-2">
             <button
@@ -1254,9 +1138,10 @@ export function MessageThread() {
             ) : (
               <button
                 type="button"
-                onClick={startRecording}
+                onPointerDown={voiceRecorder.micHandlers.onPointerDown}
                 className="bg-accent text-white rounded-full p-2.5 transition-colors hover:bg-accent-hover active:scale-95 flex-shrink-0"
-                aria-label="Record voice message"
+                style={{ touchAction: "none" }}
+                aria-label="Hold to record a voice message"
               >
                 <Mic size={18} />
               </button>
@@ -1268,6 +1153,7 @@ export function MessageThread() {
           <EmojiPickerSheet
             mode="input"
             content={content}
+            heightPx={lastKnownHeight}
             onBackspace={() => setContent((c) => removeLastGrapheme(c))}
             onSelect={(emoji) => {
               setContent((c) => c + emoji);
