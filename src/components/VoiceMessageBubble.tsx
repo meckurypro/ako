@@ -2,26 +2,53 @@
 import { useEffect, useRef, useState } from "react";
 import { Play, Pause } from "lucide-react";
 import { formatVoiceDuration } from "../lib/voiceNotes";
+import { computeWaveformPeaks } from "../lib/waveform";
+import { VoiceWaveform } from "./VoiceWaveform";
+
+const FLAT_PEAKS = Array(40).fill(0.12);
 
 interface VoiceMessageBubbleProps {
   url: string;
   durationSec: number;
+  /** Waveform bar heights (0..1). Voice notes sent going forward
+   *  always have this; omit it (older messages) and the bubble fetches
+   *  and decodes the audio itself to draw the same waveform. */
+  peaks?: number[];
   /** Controls color: white-on-accent for the sender's own bubble,
-   *  accent-on-surface for the other participant's (and for the
-   *  compose-bar preview, which passes false). */
+   *  accent-on-surface for the other participant's. */
   isMine: boolean;
 }
 
 /**
- * WhatsApp-style voice note: a round play/pause button, a thin
- * progress bar, and elapsed/total time — backed by a plain, hidden
- * <audio> element rather than the browser's native controls.
+ * WhatsApp-style voice note bubble: a round play/pause button, a real
+ * amplitude waveform (tap anywhere on it to seek), and elapsed/total
+ * time — backed by a plain, hidden <audio> element rather than the
+ * browser's native controls.
  */
-export function VoiceMessageBubble({ url, durationSec, isMine }: VoiceMessageBubbleProps) {
+export function VoiceMessageBubble({ url, durationSec, peaks, isMine }: VoiceMessageBubbleProps) {
   const audioRef = useRef<HTMLAudioElement>(null);
   const [playing, setPlaying] = useState(false);
-  const [progress, setProgress] = useState(0); // 0..1
+  const [progress, setProgress] = useState(0);
   const [elapsed, setElapsed] = useState(0);
+  const [fetchedPeaks, setFetchedPeaks] = useState<number[] | null>(null);
+
+  // Older voice notes sent before waveform peaks were stored don't
+  // have `peaks` — fetch and decode the audio once, client-side, so
+  // they still get the same look instead of a flat/plain bar.
+  useEffect(() => {
+    if (peaks?.length) return;
+    let cancelled = false;
+    fetch(url)
+      .then((r) => r.blob())
+      .then((blob) => computeWaveformPeaks(blob))
+      .then((computed) => {
+        if (!cancelled) setFetchedPeaks(computed);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [url, peaks]);
 
   useEffect(() => {
     const audio = audioRef.current;
@@ -55,12 +82,21 @@ export function VoiceMessageBubble({ url, durationSec, isMine }: VoiceMessageBub
     }
   }
 
-  const trackColor = isMine ? "bg-white/35" : "bg-ink-muted/25";
-  const fillColor = isMine ? "bg-white" : "bg-accent";
+  function seek(ratio: number) {
+    const audio = audioRef.current;
+    if (!audio || !audio.duration) return;
+    audio.currentTime = ratio * audio.duration;
+    setProgress(ratio);
+    setElapsed(audio.currentTime);
+  }
+
+  const barLevels = peaks?.length ? peaks : fetchedPeaks ?? FLAT_PEAKS;
+  const mutedColor = isMine ? "bg-white/35" : "bg-ink-muted/25";
+  const filledColor = isMine ? "bg-white" : "bg-accent";
   const buttonClass = isMine ? "bg-white text-accent" : "bg-accent text-white";
 
   return (
-    <div className="flex items-center gap-2.5 min-w-[172px] py-0.5">
+    <div className="flex items-center gap-2.5 min-w-[200px] py-0.5">
       {/* eslint-disable-next-line jsx-a11y/media-has-caption */}
       <audio ref={audioRef} src={url} preload="metadata" className="hidden" />
       <button
@@ -75,11 +111,7 @@ export function VoiceMessageBubble({ url, durationSec, isMine }: VoiceMessageBub
           <Play size={15} fill="currentColor" className="ml-0.5" />
         )}
       </button>
-      <div className="flex-1 min-w-0">
-        <div className={`h-1 rounded-full overflow-hidden ${trackColor}`}>
-          <div className={`h-full rounded-full ${fillColor}`} style={{ width: `${Math.min(progress * 100, 100)}%` }} />
-        </div>
-      </div>
+      <VoiceWaveform levels={barLevels} progress={progress} filledColor={filledColor} mutedColor={mutedColor} onSeek={seek} />
       <span className="text-[11px] tabular-nums flex-shrink-0 opacity-80">
         {formatVoiceDuration(playing || elapsed > 0 ? elapsed : durationSec)}
       </span>
