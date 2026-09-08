@@ -1,5 +1,5 @@
 // src/components/ProjectCard.tsx
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   Lock,
@@ -50,6 +50,10 @@ import { useMyReaction, useToggleReaction } from "../hooks/useReactions";
 import { useStartConversation } from "../hooks/useMessaging";
 import { ReactionTray, type EngagementAction } from "./ReactionTray";
 import { ReactionMoreSheet } from "./ReactionMoreSheet";
+import { DropdownMenu, type DropdownMenuItem } from "./DropdownMenu";
+import { ManageAccessSheet } from "./ManageAccessSheet";
+import { PrivateProjectNotice } from "./PrivateProjectNotice";
+import { useIsProjectMember } from "../hooks/useProjectMembers";
 
 // File and URL keep the original single-link/download "unlock"
 // pattern inline in the action row. Media gets its own block above
@@ -192,7 +196,8 @@ export function ProjectCard({
   const [error, setError] = useState<string | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
   const [showMoreActions, setShowMoreActions] = useState(false);
-  const menuRef = useRef<HTMLDivElement>(null);
+  const menuButtonRef = useRef<HTMLButtonElement>(null);
+  const [manageAccessOpen, setManageAccessOpen] = useState(false);
   const [audioSrc, setAudioSrc] = useState<string | null>(null);
   const [videoSrc, setVideoSrc] = useState<string | null>(null);
   const [imageSrc, setImageSrc] = useState<string | null>(null);
@@ -205,21 +210,22 @@ export function ProjectCard({
   // edge function) — even at $0. Every other type is fully unlocked by
   // isFree alone, no server round-trip needed.
   const isRoom = project.project_type === "room";
-  const hasAccess = isOwner || hasPurchased || (isFree && !isRoom);
+  const isMemberQuery = useIsProjectMember(project.id, project.is_private);
+  const isMember = isMemberQuery.data === true;
+  // Privacy is a separate gate from payment: a private project's
+  // content/actions are hidden from anyone who isn't the owner or an
+  // explicitly-added member, regardless of price — a free private
+  // project still isn't accessible off the strength of its link alone
+  // (see ako_projects_v4_private_membership.sql). Folding it into
+  // hasAccess itself means every existing hasAccess check below
+  // automatically respects it without touching each one individually.
+  const privacyBlocked = project.is_private && !isOwner && !isMember;
+  const hasAccess = !privacyBlocked && (isOwner || hasPurchased || (isFree && !isRoom));
   const isSaved = !!isSavedQuery.data;
   const isLiked = !!isLikedQuery.data;
 
-  // Close the kebab menu on any click/tap outside it.
-  useEffect(() => {
-    if (!menuOpen) return;
-    function handleClickOutside(e: MouseEvent) {
-      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
-        setMenuOpen(false);
-      }
-    }
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, [menuOpen]);
+  // Outside-click / back-dismiss for the kebab menu is handled
+  // internally by <DropdownMenu> now.
 
   async function handleBuy() {
     if (!user) {
@@ -277,6 +283,27 @@ export function ProjectCard({
     try {
       const conversationId = await startConversation.mutateAsync(project.owner_id);
       navigate(`/messages/${conversationId}`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Couldn't start conversation.");
+    }
+  }
+
+  // The only way into a private project — opens (or resumes) a
+  // conversation with the owner, with an editable draft message
+  // prefilled rather than sent automatically, so it's genuinely the
+  // visitor's own customised ask rather than a canned auto-message.
+  // See MessageThread's draftMessage nav-state handling.
+  async function handleRequestAccess() {
+    if (!user) {
+      navigate(`/login?redirect=${encodeURIComponent(`/projects/${project.id}`)}`);
+      return;
+    }
+    setError(null);
+    try {
+      const conversationId = await startConversation.mutateAsync(project.owner_id);
+      navigate(`/messages/${conversationId}`, {
+        state: { draftMessage: `Hi! I'd like access to "${project.title}".` },
+      });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Couldn't start conversation.");
     }
@@ -568,8 +595,9 @@ export function ProjectCard({
       )}
 
       {isOwner && (
-        <div className="absolute top-3 right-3 flex items-center gap-1.5" ref={menuRef}>
+        <div className="absolute top-3 right-3 flex items-center gap-1.5">
           <button
+            ref={menuButtonRef}
             onClick={() => setMenuOpen((o) => !o)}
             className="p-1.5 rounded-full bg-canvas/90 text-ink-muted"
             aria-label="Project options"
@@ -578,77 +606,75 @@ export function ProjectCard({
           </button>
 
           {menuOpen && (
-            <div className="absolute top-full right-0 mt-1 bg-canvas border border-border rounded-xl shadow-lg py-1 w-44 z-10">
-              <button
-                onClick={() => {
-                  setMenuOpen(false);
-                  navigate(`/projects/${project.id}/edit`);
-                }}
-                className="w-full flex items-center gap-2 text-left px-4 py-2.5 text-sm text-ink hover:bg-surface"
-              >
-                <Pencil size={14} />
-                Edit
-              </button>
-
-              <button
-                onClick={handleShare}
-                className="w-full flex items-center gap-2 text-left px-4 py-2.5 text-sm text-ink hover:bg-surface"
-              >
-                <Redo2 size={14} />
-                Share
-              </button>
-
-              {project.status !== "active" && project.status !== "cancelled" && (
-                <button
-                  onClick={() => handleStatusChange("active")}
-                  className="w-full flex items-center gap-2 text-left px-4 py-2.5 text-sm text-ink hover:bg-surface"
-                >
-                  <Send size={14} />
-                  Publish
-                </button>
-              )}
-
-              {project.status === "active" && (
-                <button
-                  onClick={() => handleStatusChange("draft")}
-                  className="w-full flex items-center gap-2 text-left px-4 py-2.5 text-sm text-ink hover:bg-surface"
-                >
-                  <EyeOff size={14} />
-                  Unpublish
-                </button>
-              )}
-
-              {project.status !== "archived" && (
-                <button
-                  onClick={() => handleStatusChange("archived")}
-                  className="w-full flex items-center gap-2 text-left px-4 py-2.5 text-sm text-danger hover:bg-surface"
-                >
-                  <Archive size={14} />
-                  Archive
-                </button>
-              )}
-
-              {project.status === "archived" && (
-                <button
-                  onClick={() => handleStatusChange("draft")}
-                  className="w-full flex items-center gap-2 text-left px-4 py-2.5 text-sm text-ink hover:bg-surface"
-                >
-                  <RotateCcw size={14} />
-                  Restore
-                </button>
-              )}
-
-              <div className="h-px bg-border my-1" />
-
-              <button
-                onClick={handleDelete}
-                disabled={deleteProject.isPending}
-                className="w-full flex items-center gap-2 text-left px-4 py-2.5 text-sm text-danger hover:bg-surface disabled:opacity-50"
-              >
-                <Trash2 size={14} />
-                {deleteProject.isPending ? "Deleting…" : "Delete"}
-              </button>
-            </div>
+            <DropdownMenu
+              anchorRef={menuButtonRef}
+              onClose={() => setMenuOpen(false)}
+              widthClass="w-56"
+              items={(() => {
+                const menuItems: (DropdownMenuItem | "divider")[] = [
+                  {
+                    key: "edit",
+                    label: "Edit",
+                    icon: <Pencil />,
+                    onSelect: () => navigate(`/projects/${project.id}/edit`),
+                  },
+                  { key: "share", label: "Share", icon: <Redo2 />, onSelect: handleShare },
+                ];
+                if (project.is_private) {
+                  menuItems.push({
+                    key: "manage-access",
+                    label: "Manage access",
+                    icon: <Users />,
+                    onSelect: () => setManageAccessOpen(true),
+                  });
+                }
+                if (project.status !== "active" && project.status !== "cancelled") {
+                  menuItems.push({
+                    key: "publish",
+                    label: "Publish",
+                    icon: <Send />,
+                    onSelect: () => handleStatusChange("active"),
+                  });
+                }
+                if (project.status === "active") {
+                  menuItems.push({
+                    key: "unpublish",
+                    label: "Unpublish",
+                    icon: <EyeOff />,
+                    onSelect: () => handleStatusChange("draft"),
+                  });
+                }
+                if (project.status !== "archived") {
+                  menuItems.push({
+                    key: "archive",
+                    label: "Archive",
+                    icon: <Archive />,
+                    variant: "danger",
+                    onSelect: () => handleStatusChange("archived"),
+                  });
+                }
+                if (project.status === "archived") {
+                  menuItems.push({
+                    key: "restore",
+                    label: "Restore",
+                    icon: <RotateCcw />,
+                    onSelect: () => handleStatusChange("draft"),
+                  });
+                }
+                menuItems.push(
+                  "divider",
+                  {
+                    key: "delete",
+                    label: deleteProject.isPending ? "Deleting…" : "Delete",
+                    icon: <Trash2 />,
+                    variant: "danger",
+                    disabled: deleteProject.isPending,
+                    onSelect: handleDelete,
+                  }
+                );
+                return menuItems;
+              })()}
+            />
           )}
         </div>
       )}
@@ -695,6 +721,10 @@ export function ProjectCard({
           </div>
         </div>
 
+        {privacyBlocked ? (
+          <PrivateProjectNotice onMessage={() => void handleRequestAccess()} messagePending={startConversation.isPending} />
+        ) : (
+          <>
         {project.description && (
           <p className="text-sm text-ink-muted mt-1 whitespace-pre-wrap break-words">
             {renderFormattedText(project.description, "d")}
@@ -969,7 +999,17 @@ export function ProjectCard({
         {showMoreActions && (
           <ReactionMoreSheet actions={middleActions} onClose={() => setShowMoreActions(false)} />
         )}
+          </>
+        )}
       </div>
+
+      {manageAccessOpen && (
+        <ManageAccessSheet
+          projectId={project.id}
+          projectTitle={project.title}
+          onClose={() => setManageAccessOpen(false)}
+        />
+      )}
     </div>
   );
 }
