@@ -1,7 +1,8 @@
 // src/pages/auth/SignUp.tsx
 import { useState, useEffect, useRef, type FormEvent } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { supabase } from "../../lib/supabase";
+import { setPendingAddAccount } from "../../lib/accountSessions";
 import { Wordmark } from "../../components/Wordmark";
 import { AuthPattern } from "../../components/AuthPattern";
 import { FormField } from "../../components/FormField";
@@ -26,6 +27,11 @@ function friendlySignUpError(message: string): string {
 
 export function SignUp() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  // ?add=1 — arrived here from Login's "New to Akọ? Create an
+  // account" link while adding a second account (see AccountSwitcher),
+  // rather than as a fresh, signed-out sign-up.
+  const addMode = searchParams.get("add") === "1";
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [username, setUsername] = useState("");
@@ -109,6 +115,33 @@ export function SignUp() {
       return;
     }
 
+    // In add-account mode, the account signing up isn't the only one
+    // in play — snapshot whoever is currently active BEFORE signUp()
+    // touches anything, same as the login path's useAddAccount, so
+    // AuthCallback can save it alongside the new account once the
+    // confirmation link is clicked instead of silently losing it.
+    if (addMode) {
+      const { data: currentSessionData } = await supabase.auth.getSession();
+      const previousSession = currentSessionData.session;
+      if (previousSession) {
+        const { data: previousProfile } = await supabase
+          .from("profiles")
+          .select("id, username, display_name, avatar_url")
+          .eq("id", previousSession.user.id)
+          .single();
+        if (previousProfile) {
+          setPendingAddAccount({
+            user_id: previousProfile.id,
+            username: previousProfile.username,
+            display_name: previousProfile.display_name,
+            avatar_url: previousProfile.avatar_url,
+            access_token: previousSession.access_token,
+            refresh_token: previousSession.refresh_token,
+          });
+        }
+      }
+    }
+
     // The handle_new_user() trigger (see 00_foundation.sql) automatically
     // creates the profile + wallet rows once this succeeds — we just
     // pass along username/display_name as user metadata for it to use.
@@ -157,6 +190,13 @@ export function SignUp() {
         <div className="mb-10">
           <Wordmark asIcon />
         </div>
+
+        {addMode && (
+          <p className="text-center text-sm text-ink-muted mb-6">
+            Create another personal account. Your current account stays saved on this
+            device — switch back to it anytime.
+          </p>
+        )}
 
         <form onSubmit={handleSubmit}>
           <FormField
@@ -220,7 +260,7 @@ export function SignUp() {
 
         <p className="text-center text-sm text-ink-muted mt-6">
           Already have an account?{" "}
-          <Link to="/login" className="text-accent font-medium hover:underline">
+          <Link to={addMode ? "/login?add=1" : "/login"} className="text-accent font-medium hover:underline">
             Log in
           </Link>
         </p>
