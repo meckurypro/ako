@@ -105,8 +105,16 @@ export function DropdownMenu({ anchorRef, items, onClose, widthClass = "w-56" }:
               key={item.key}
               onClick={() => {
                 if (item.disabled) return;
-                item.onSelect();
+                // Close FIRST, and defer onSelect a tick. useBackDismiss
+                // pops a dummy history entry when this menu unmounts; if
+                // onSelect runs first and itself navigates (e.g. Edit,
+                // Settings), that push lands on top of the dummy entry,
+                // so the pop that follows removes the page just navigated
+                // to instead — the option flashes and silently reverts.
+                // Closing first lets that pop resolve before onSelect's
+                // own navigation ever pushes anything.
                 onClose();
+                setTimeout(() => item.onSelect(), 0);
               }}
               disabled={item.disabled}
               className={`w-full flex items-center gap-4 text-left px-5 py-3.5 text-base leading-snug hover:bg-surface active:bg-surface disabled:opacity-40 ${
