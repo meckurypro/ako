@@ -40,7 +40,7 @@ export function GiftPicker({ recipientId, postId, commentId, onClose }: GiftPick
 
   return (
     <Portal>
-    <div className="fixed inset-0 bg-ink/40 flex items-end sm:items-center justify-center z-50 px-4">
+    <div className="fixed inset-0 bg-canvas/70 backdrop-blur-sm flex items-end sm:items-center justify-center z-50 px-4">
       <div className="bg-canvas rounded-2xl w-full max-w-md p-5 mb-safe">
         <div className="flex items-center justify-between mb-4">
           <h3 className="font-display text-lg text-ink">Send a gift</h3>
