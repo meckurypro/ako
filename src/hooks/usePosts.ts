@@ -58,34 +58,99 @@ interface CreatePostInput {
   posted_as_page_id?: string;
 }
 
-export function useFeedPosts(interestId?: string, page = 0) {
+/**
+ * The personalized "For You" ranking — calls get_ranked_feed (see
+ * feed_algorithm_ranking_function.sql) which blends following,
+ * topic relevance, social relevance, and Prioritize/gift-token
+ * substitution into a single scored order, then fetches the full
+ * rows for the returned ids (RPC only returns post_id + score,
+ * .in() doesn't preserve order so it's re-sorted client-side to
+ * match). Once the page renders, fulfill_gift_tokens is fired to
+ * consume any gift tokens whose prioritized post was just served —
+ * a separate call, not baked into the (read-only/STABLE) ranking
+ * function itself.
+ */
+function useRankedFeed(page: number, enabled: boolean) {
+  const { user } = useAuth();
+
   return useQuery({
-    queryKey: ["feed-posts", interestId ?? "all", page],
+    queryKey: ["feed-posts", "ranked", user?.id, page],
     queryFn: async (): Promise<PostWithAuthor[]> => {
-      let query = supabase
+      if (!user) return [];
+
+      const { data: ranked, error: rankError } = await supabase.rpc("get_ranked_feed", {
+        p_viewer_id: user.id,
+        p_limit: PAGE_SIZE,
+        p_offset: page * PAGE_SIZE,
+      });
+      if (rankError) throw rankError;
+
+      const orderedIds = (ranked ?? []).map((r: { post_id: string }) => r.post_id);
+      if (orderedIds.length === 0) return [];
+
+      const { data, error } = await supabase
+        .from("posts")
+        .select(FEED_SELECT)
+        .in("id", orderedIds);
+      if (error) throw error;
+
+      const byId = new Map((data as any[]).map((raw) => [raw.id, normalizePost(raw)]));
+      const posts = orderedIds.map((id) => byId.get(id)).filter((p): p is PostWithAuthor => !!p);
+
+      // Fire-and-forget — a failed token fulfillment shouldn't block
+      // the feed from rendering, just means a token stays unconsumed
+      // until the next page load that includes the same prioritized post.
+      supabase.rpc("fulfill_gift_tokens", {
+        p_viewer_id: user.id,
+        p_served_post_ids: orderedIds,
+      }).then(({ error: fulfillError }) => {
+        if (fulfillError) console.error("fulfill_gift_tokens failed:", fulfillError);
+      });
+
+      return posts;
+    },
+    enabled: enabled && !!user,
+  });
+}
+
+/**
+ * Explicit topic browsing (tapping a topic pill in Discover) stays
+ * plain reverse-chronological within that topic — a deliberate "show
+ * me everything tagged X" mode, distinct from the personalized ranked
+ * feed used when no topic filter is active.
+ */
+function useTopicFeed(interestId: string, page: number, enabled: boolean) {
+  return useQuery({
+    queryKey: ["feed-posts", "topic", interestId, page],
+    queryFn: async (): Promise<PostWithAuthor[]> => {
+      const { data: postIds } = await supabase
+        .from("post_topics")
+        .select("post_id")
+        .eq("interest_id", interestId);
+
+      const ids = (postIds ?? []).map((p) => p.post_id);
+      if (ids.length === 0) return [];
+
+      const { data, error } = await supabase
         .from("posts")
         .select(FEED_SELECT)
         .eq("is_deleted", false)
         .eq("is_archived", false)
+        .in("id", ids)
         .order("created_at", { ascending: false })
         .range(page * PAGE_SIZE, page * PAGE_SIZE + PAGE_SIZE - 1);
 
-      if (interestId) {
-        const { data: postIds } = await supabase
-          .from("post_topics")
-          .select("post_id")
-          .eq("interest_id", interestId);
-
-        const ids = (postIds ?? []).map((p) => p.post_id);
-        if (ids.length === 0) return [];
-        query = query.in("id", ids);
-      }
-
-      const { data, error } = await query;
       if (error) throw error;
       return (data as any[]).map(normalizePost);
     },
+    enabled,
   });
+}
+
+export function useFeedPosts(interestId?: string, page = 0) {
+  const ranked = useRankedFeed(page, !interestId);
+  const topic = useTopicFeed(interestId ?? "", page, !!interestId);
+  return interestId ? topic : ranked;
 }
 
 export function useFollowingFeed(page = 0) {
@@ -392,4 +457,4 @@ export function useUserPostsWithArchived(userId: string, includeArchived: boolea
     },
     enabled: !!userId,
   });
-}
+                                                          }
