@@ -1,9 +1,9 @@
 // src/components/ReactionTray.tsx
-import { useEffect, useLayoutEffect, useRef, type ReactNode, type MouseEvent, type TouchEvent } from "react";
+import { useRef, type ReactNode, type MouseEvent, type PointerEvent } from "react";
 
 export interface EngagementAction {
   key: string;
-  label: string;       // aria-label only — not shown visually
+  label: string;       // aria-label on the tray icon; also the visible label in the long-press sheet
   icon: ReactNode;
   /** null → no count shown (space still reserved for height consistency) */
   count: number | null;
@@ -11,287 +11,146 @@ export interface EngagementAction {
 }
 
 interface ReactionTrayProps {
-  /** Like — always visible, never scrolled. */
+  /** Like — always visible, fixed left. */
   leftActions: EngagementAction[];
-  /** Ranked secondary actions (+ owner management), swipable for overflow. */
+  /** Top-ranked (most-used) secondary actions — exactly enough to fill
+   *  out the row to 4 total with left/right. Ranking comes from
+   *  useEngagementOrder; see PostCard. */
   middleActions: EngagementAction[];
-  /** Share — always visible, never scrolled. */
+  /** Share — always visible, fixed right. */
   rightActions: EngagementAction[];
   /** Small text row rendered directly under the left fixed group — used
    *  for the "Comments: N" label. Sits in the same column as Like, so it
-   *  shares that slot's width. Its click is routed through the same
-   *  drag-vs-tap guard as the fixed icons, so a drag that happens to start
-   *  on it still scrolls the middle strip instead of firing the click. */
+   *  shares that slot's width. */
   belowLeftLabel?: { text: string; onClick: (e: MouseEvent) => void };
+  /** Long-pressing any of the visible icons calls this, if provided —
+   *  PostCard/ProjectCard open a sheet listing every action in
+   *  response. Long-press does nothing if omitted. */
+  onOpenMore?: () => void;
 }
 
-// The row always shows exactly 5 icon slots, evenly spaced (each 1/5 of the
-// row's width): Like fixed on the left, Share fixed on the right, and 3
-// swipable slots in between for everything else (Reshare, Save, Support,
-// Disagree, Pushback, Dislike, Gift — ranked by usage — plus owner-only
-// Edit/Archive/Delete). Left and right are always exactly 1 icon each now,
-// so the middle group's visible window is a constant 3 — it never needs to
-// grow or shrink to compensate the way it used to when Reshare/Save could
-// still appear as fixed slots.
-const VISIBLE_SLOTS = 5;
+// Exactly 4 equal-width slots now: Like (left) + 2 ranked-by-usage
+// middle + Share (right). No swiping, no overflow window to manage —
+// long-pressing ANY of the 4 opens a sheet listing every action
+// instead (see onOpenMore below), which is what replaced the old
+// horizontally-scrollable middle strip.
+const VISIBLE_SLOTS = 4;
 
-// A drag that hasn't moved at least this many px is still treated as a tap,
-// so a slightly-wobbly finger on Like/Share/Comments doesn't get eaten as a
-// scroll.
-const DRAG_THRESHOLD_PX = 6;
-
-// How many real copies of middleActions to render back-to-back when the
-// strip loops (see "Looping" below). 3 is the minimum that always works
-// regardless of scroll speed: one to scroll into on either side of the
-// "real" copy the user starts on, with a full copy's worth of travel
-// available before a correction is needed.
-const LOOP_COPIES = 3;
+// How long a press has to be held before it counts as "long" rather
+// than a tap — matches the feel of the message-bubble long-press menu
+// elsewhere in the app.
+const LONG_PRESS_MS = 450;
 
 function ActionButton({
   action,
   widthPercent,
-  wrapClick,
+  onOpenMore,
 }: {
   action: EngagementAction;
   widthPercent: number;
-  /** Only supplied for fixed (left/right) buttons — see drag handling below. */
-  wrapClick?: (onClick: (e: MouseEvent) => void) => (e: MouseEvent) => void;
+  onOpenMore?: () => void;
 }) {
+  const pressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const longPressed = useRef(false);
+
+  function startPress() {
+    if (!onOpenMore) return;
+    longPressed.current = false;
+    pressTimer.current = setTimeout(() => {
+      longPressed.current = true;
+      if (navigator.vibrate) navigator.vibrate(15);
+      onOpenMore();
+    }, LONG_PRESS_MS);
+  }
+
+  function cancelPress() {
+    if (pressTimer.current) clearTimeout(pressTimer.current);
+    pressTimer.current = null;
+  }
+
+  function handleClick(e: MouseEvent) {
+    // The long-press timer already fired onOpenMore — don't also fire
+    // the tap action once the finger lifts.
+    if (longPressed.current) {
+      longPressed.current = false;
+      return;
+    }
+    action.onClick(e);
+  }
+
   return (
     <button
-      onClick={wrapClick ? wrapClick(action.onClick) : action.onClick}
+      onClick={handleClick}
+      onPointerDown={(e: PointerEvent) => {
+        e.currentTarget.setPointerCapture(e.pointerId);
+        startPress();
+      }}
+      onPointerUp={cancelPress}
+      onPointerLeave={cancelPress}
+      onPointerCancel={cancelPress}
+      onContextMenu={(e) => e.preventDefault()}
       aria-label={action.label}
-      className="flex flex-row items-center justify-center gap-1.5 py-1.5 flex-shrink-0 text-ink"
-      style={{ width: `${widthPercent}%` }}
+      className="flex flex-row items-center justify-center gap-2 py-1.5 flex-shrink-0 text-ink select-none"
+      style={{ width: `${widthPercent}%`, touchAction: "manipulation", WebkitTouchCallout: "none" }}
     >
       {action.icon}
       {action.count !== null && (
-        <span className="text-xs font-semibold leading-none">{action.count}</span>
+        <span className="text-sm font-semibold leading-none">{action.count}</span>
       )}
     </button>
   );
 }
 
-// Purely presentational. PostCard passes three action groups plus one
-// optional label:
-// - leftActions (Like) pinned to the left, no scroll
-// - middleActions (Reshare, Save + ranked secondary + owner management) in a
-//   swipable strip, sized to show exactly (5 - left.length - right.length)
-//   items at a time — a constant 3, since left/right are always 1 icon each
-// - rightActions (Share) pinned to the right, no scroll
-// - belowLeftLabel (Comments count) rendered under the left group
-//
-// Every icon slot — fixed or swipable — occupies the same 1/5 share of the
-// row's width, so all 5 visible icons end up evenly spaced with no lopsided
-// gaps between groups.
-//
-// Dragging anywhere on the row — including directly on the fixed Like/Share
-// icons or the Comments label — scrolls the middle swipable strip. The
-// handlers live on the outer row container (not on each fixed group
-// separately) so the *entire* panel is one consistent drag surface, not
-// just small icon-sized hit targets: a finger doesn't need to land exactly
-// on an icon to start scrolling. The fixed icons themselves never move; a
-// touch that starts anywhere on the row is just treated as a scroll handle
-// for the middle group once it's clearly a drag (past DRAG_THRESHOLD_PX)
-// rather than a tap. Dragging directly on the middle strip still uses
-// native overflow-x-auto scrolling as before (its own onTouchStart calls
-// stopPropagation so the outer handler doesn't fight the native scroll).
-//
-// touch-action: the row is `pan-y` (only default-handle vertical pans;
-// horizontal movement is ours to interpret) so a slow, low-velocity drag
-// doesn't get ambiguously claimed by the browser as a page scroll attempt
-// partway through — that hijack is what made slow drags feel like they
-// "misbehaved": the browser would occasionally decide a slow horizontal-ish
-// touch was actually a vertical scroll and stop delivering touchmove events
-// to us. A fast flick was never ambiguous enough to trigger it, which is
-// why the bug only showed up when scrolling slowly. The inner strip is
-// `pan-x` for the same reason in the other axis, on top of its own native
-// horizontal scrolling.
-//
-// Looping: when there's overflow, the middle strip renders LOOP_COPIES back
-// -to-back copies of middleActions instead of one, and starts scrolled to
-// the start of the middle copy. A `scroll` listener watches for the
-// position crossing into a neighboring copy and silently jumps it back by
-// exactly one copy's width — invisible, since every copy is pixel-
-// identical — which is what makes scrolling past the last icon reveal the
-// first one again, and vice versa. That correction also has to nudge the
-// in-progress manual drag's reference point (dragRef.startScrollLeft) by
-// the same amount, or the very next touchmove would compute a position
-// back in the old (pre-jump) coordinate space and undo the wrap with a
-// visible snap.
-//
-// Touch isolation: once a touch is claimed as a drag (on the middle strip,
-// or on the row past the threshold), stopPropagation keeps the drag from
-// also being interpreted as a click once it ends (see guardFixedClick).
-// Isolation from the page's own swipe gesture (Feed/ProfilePage/LikedHub/
-// SavedHub's tab carousel, see SwipeableTabs.tsx) is handled a level up:
-// the outer row below carries data-swipeable-ignore, which SwipeableTabs
-// checks before claiming any touch as a tab-swipe candidate, so a touch
-// starting anywhere on this row is never seen by the tab carousel at all.
-// (A plain React stopPropagation() here wouldn't reach it on its own —
-// SwipeableTabs attaches its listeners with a real addEventListener rather
-// than JSX props, since it needs to preventDefault a non-passive
-// touchmove, and native listeners aren't stopped by a descendant's
-// *synthetic* stopPropagation.)
+// Purely presentational, and much simpler than the tray this replaced:
+// 4 fixed, evenly-spaced slots (Like, 2 ranked-by-usage, Share), each
+// bigger than before now that there's no overflow strip competing for
+// width. Long-pressing any of the 4 opens ReactionMoreSheet (rendered
+// by PostCard) with the complete action list — see moreActions above.
 export function ReactionTray({
   leftActions,
   middleActions,
   rightActions,
+  onOpenMore,
   belowLeftLabel,
 }: ReactionTrayProps) {
   const slotPct = 100 / VISIBLE_SLOTS;
-  const middleVisibleCount = Math.max(1, VISIBLE_SLOTS - leftActions.length - rightActions.length);
-  const hasOverflow = middleActions.length > middleVisibleCount;
-
-  const middleScrollRef = useRef<HTMLDivElement>(null);
-  const dragRef = useRef({ startX: 0, startScrollLeft: 0, dragging: false });
-
-  const loopedActions = hasOverflow
-    ? Array.from({ length: LOOP_COPIES }, () => middleActions).flat()
-    : middleActions;
-
-  // Center the strip on the middle copy on mount, and whenever the set of
-  // actions changes shape (e.g. owner-only actions appearing/disappearing
-  // changes middleActions.length, which changes each copy's width).
-  useLayoutEffect(() => {
-    const el = middleScrollRef.current;
-    if (!el || !hasOverflow) return;
-    el.scrollLeft = el.scrollWidth / LOOP_COPIES;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [hasOverflow, middleActions.length]);
-
-  // Wraps scrollLeft back into the middle copy whenever it drifts into a
-  // neighboring one — see the "Looping" note above.
-  useEffect(() => {
-    const el = middleScrollRef.current;
-    if (!el || !hasOverflow) return;
-
-    function handleScroll() {
-      if (!el) return;
-      const copyWidth = el.scrollWidth / LOOP_COPIES;
-      if (copyWidth <= 0) return;
-
-      if (el.scrollLeft < copyWidth) {
-        el.scrollLeft += copyWidth;
-        dragRef.current.startScrollLeft += copyWidth;
-      } else if (el.scrollLeft >= copyWidth * (LOOP_COPIES - 1)) {
-        el.scrollLeft -= copyWidth;
-        dragRef.current.startScrollLeft -= copyWidth;
-      }
-    }
-
-    el.addEventListener("scroll", handleScroll, { passive: true });
-    return () => el.removeEventListener("scroll", handleScroll);
-  }, [hasOverflow, middleActions.length]);
-
-  function handleRowTouchStart(e: TouchEvent) {
-    const touch = e.touches[0];
-    dragRef.current = {
-      startX: touch.clientX,
-      startScrollLeft: middleScrollRef.current?.scrollLeft ?? 0,
-      dragging: false,
-    };
-  }
-
-  function handleRowTouchMove(e: TouchEvent) {
-    const el = middleScrollRef.current;
-    const touch = e.touches[0];
-    if (!el || !touch) return;
-
-    const deltaX = dragRef.current.startX - touch.clientX;
-    if (!dragRef.current.dragging && Math.abs(deltaX) > DRAG_THRESHOLD_PX) {
-      dragRef.current.dragging = true;
-    }
-    if (dragRef.current.dragging) {
-      e.stopPropagation();
-      el.scrollLeft = dragRef.current.startScrollLeft + deltaX;
-    }
-  }
-
-  // Swallows the click that a touch-drag would otherwise fire on release —
-  // without this, dragging across Like (or Comments) to scroll the middle
-  // strip would also toggle Like / open comments the moment you lift your
-  // finger.
-  function guardFixedClick(onClick: (e: MouseEvent) => void) {
-    return (e: MouseEvent) => {
-      if (dragRef.current.dragging) {
-        dragRef.current.dragging = false;
-        return;
-      }
-      onClick(e);
-    };
-  }
+  // Reserved by capacity, not by middleActions.length — keeps Share
+  // pinned to the true right edge even when a caller has fewer middle
+  // actions than the row has room for (e.g. ProjectCard's owner view
+  // on a non-room project, where there's nothing to put in the middle
+  // at all), instead of Share drifting inward to sit right after a
+  // short middle group.
+  const middleSlotCount = Math.max(0, VISIBLE_SLOTS - leftActions.length - rightActions.length);
+  const middleItemWidth = 100 / Math.max(middleActions.length, 1);
 
   return (
-    <div
-      className="flex items-start mt-4 pt-4 pb-1 w-full"
-      style={{ touchAction: "pan-y" }}
-      data-swipeable-ignore
-      onTouchStart={handleRowTouchStart}
-      onTouchMove={handleRowTouchMove}
-    >
+    <div className="flex items-start mt-4 pt-4 pb-1 w-full">
       <div className="flex flex-col items-center flex-shrink-0" style={{ width: `${leftActions.length * slotPct}%` }}>
         <div className="flex w-full">
           {leftActions.map((action) => (
-            <ActionButton
-              key={action.key}
-              action={action}
-              widthPercent={100 / leftActions.length}
-              wrapClick={guardFixedClick}
-            />
+            <ActionButton key={action.key} action={action} widthPercent={100 / leftActions.length} onOpenMore={onOpenMore} />
           ))}
         </div>
 
         {belowLeftLabel && (
           <button
-            onClick={guardFixedClick(belowLeftLabel.onClick)}
-            className="text-[11px] font-medium leading-none text-ink-muted mt-2 whitespace-nowrap"
+            onClick={belowLeftLabel.onClick}
+            className="text-xs font-medium leading-none text-ink-muted mt-2 whitespace-nowrap"
           >
             {belowLeftLabel.text}
           </button>
         )}
       </div>
 
-      <div className="relative flex-shrink-0" style={{ width: `${middleVisibleCount * slotPct}%` }}>
-        <div
-          ref={middleScrollRef}
-          className="flex overflow-x-auto scrollbar-none"
-          style={{ touchAction: "pan-x" }}
-          onTouchStart={(e) => e.stopPropagation()}
-        >
-          {loopedActions.map((action, i) => (
-            <ActionButton
-              key={hasOverflow ? `${action.key}::${Math.floor(i / middleActions.length)}` : action.key}
-              action={action}
-              widthPercent={100 / middleVisibleCount}
-            />
-          ))}
-        </div>
-
-        {/* Edge fades on both sides now that the strip loops — either
-            direction always has more to reveal, not just the right. */}
-        {hasOverflow && (
-          <>
-            <div
-              className="absolute left-0 top-0 bottom-0 w-4 bg-gradient-to-r from-surface dark:from-[#121114] to-transparent pointer-events-none"
-              aria-hidden="true"
-            />
-            <div
-              className="absolute right-0 top-0 bottom-0 w-4 bg-gradient-to-l from-surface dark:from-[#121114] to-transparent pointer-events-none"
-              aria-hidden="true"
-            />
-          </>
-        )}
+      <div className="flex flex-shrink-0" style={{ width: `${middleSlotCount * slotPct}%` }}>
+        {middleActions.map((action) => (
+          <ActionButton key={action.key} action={action} widthPercent={middleItemWidth} onOpenMore={onOpenMore} />
+        ))}
       </div>
 
       <div className="flex flex-shrink-0" style={{ width: `${rightActions.length * slotPct}%` }}>
         {rightActions.map((action) => (
-          <ActionButton
-            key={action.key}
-            action={action}
-            widthPercent={100 / rightActions.length}
-            wrapClick={guardFixedClick}
-          />
+          <ActionButton key={action.key} action={action} widthPercent={100 / rightActions.length} onOpenMore={onOpenMore} />
         ))}
       </div>
     </div>
