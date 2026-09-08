@@ -30,8 +30,14 @@ export function ReactionMoreSheet({ actions, onClose }: ReactionMoreSheetProps) 
               <button
                 key={action.key}
                 onClick={(e) => {
-                  action.onClick(e);
+                  // Same ordering fix as DropdownMenu: close (and let
+                  // useBackDismiss's dummy history entry pop) before
+                  // running an action that might itself navigate (e.g.
+                  // the owner's Edit) — otherwise that navigation's push
+                  // lands on top of the dummy entry and the pending
+                  // history.back() reverts it instead.
                   onClose();
+                  setTimeout(() => action.onClick(e), 0);
                 }}
                 className="flex flex-col items-center gap-1.5 text-ink"
               >
