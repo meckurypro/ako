@@ -21,6 +21,7 @@ import {
   Play,
   Pause,
   Square,
+  Share2,
 } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "../lib/supabase";
@@ -56,11 +57,13 @@ import { PresenceDot } from "../components/PresenceDot";
 import { MessageActionMenu } from "../components/MessageActionMenu";
 import { DeleteMessageSheet } from "../components/DeleteMessageSheet";
 import { ForwardMessageSheet } from "../components/ForwardMessageSheet";
-import { ConfirmDialog } from "../components/ConfirmDialog";
 import { VoiceMessageBubble } from "../components/VoiceMessageBubble";
 import { EmojiPickerSheet, removeLastGrapheme } from "../components/EmojiPickerSheet";
 import { formatLastSeen } from "../lib/presence";
 import { decodeVoiceNote, VOICE_NOTE_LABEL, formatVoiceDuration } from "../lib/voiceNotes";
+import { getEmojiOnlyInfo, jumboEmojiSizeClass } from "../lib/emoji";
+import { formatMessageTime } from "../lib/messageTime";
+import { ReactionOptionsPopover, type ReactionPopoverTarget } from "../components/ReactionOptionsPopover";
 
 // Fetches the other participant's profile for the header — a small
 // dedicated query since useConversations' list-summary shape isn't
@@ -112,45 +115,57 @@ function highlightMatches(text: string, query: string, isMine: boolean) {
 
 /**
  * Grouped reaction badges under a bubble — tap toggles the current
- * user's own reaction. Background is always the "other bubble" tone
- * (bg-surface) with a darker neutral outline, regardless of which side
- * the message is on — reactions never render in the green accent
- * color, so they stay legible sitting on top of either bubble color.
- * The user's own reaction is marked with a bold border instead of a
- * color change, and tapping it again routes through a confirmation
- * (onRequestRemove) rather than removing immediately.
+ * user's own reaction. Each unique emoji is a perfectly round chip
+ * (fixed w/h, not a pill sized to its own padding) with a soft drop
+ * shadow standing in for the old hard outline — background is always
+ * the "other bubble" tone (bg-surface) regardless of which side the
+ * message is on, so reactions stay legible sitting on either bubble
+ * color and never compete with the accent green. A count above 1 rides
+ * in a small separate badge overlapping the bottom-right of the circle
+ * instead of being laid out inline next to the emoji, which is what
+ * kept the old badge from ever actually being round. The user's own
+ * reaction gets a subtle accent ring (still a ring, not a border-
+ * outline swap, so the circle's silhouette never changes) — tapping it
+ * again opens the replace/remove popover instead of removing
+ * immediately.
  */
 function ReactionsBar({
   reactions,
   myReaction,
   isMine,
   onAdd,
-  onRequestRemove,
+  onRequestManage,
 }: {
   reactions: MessageReaction[];
   myReaction: string | null;
   isMine: boolean;
   onAdd: (emoji: string) => void;
-  onRequestRemove: () => void;
+  onRequestManage: (anchorRect: DOMRect, emoji: string) => void;
 }) {
   if (!reactions.length) return null;
   const counts = new Map<string, number>();
   for (const r of reactions) counts.set(r.emoji, (counts.get(r.emoji) ?? 0) + 1);
 
   return (
-    <div className={`flex flex-wrap gap-1.5 mt-1 ${isMine ? "justify-end" : "justify-start"}`}>
+    <div className={`flex flex-wrap gap-2 mt-1.5 ${isMine ? "justify-end" : "justify-start"}`}>
       {[...counts.entries()].map(([emoji, count]) => {
         const isMineReaction = myReaction === emoji;
         return (
           <button
             key={emoji}
-            onClick={() => (isMineReaction ? onRequestRemove() : onAdd(emoji))}
-            className={`text-sm pl-1 pr-2 py-1 rounded-full bg-surface flex items-center gap-1.5 ${
-              isMineReaction ? "border-2 border-ink-muted/60" : "border border-ink-muted/25"
+            onClick={(e) =>
+              isMineReaction ? onRequestManage(e.currentTarget.getBoundingClientRect(), emoji) : onAdd(emoji)
+            }
+            className={`relative w-8 h-8 flex-shrink-0 rounded-full bg-surface reaction-badge-shadow flex items-center justify-center transition-transform active:scale-90 ${
+              isMineReaction ? "ring-2 ring-accent" : ""
             }`}
           >
-            <span className="text-lg leading-none">{emoji}</span>
-            {count > 1 && <span className="text-ink-muted text-xs">{count}</span>}
+            <span className="text-base leading-none">{emoji}</span>
+            {count > 1 && (
+              <span className="absolute -bottom-1 -right-1 min-w-[16px] h-4 px-1 rounded-full bg-ink-muted text-canvas text-[10px] font-semibold leading-4 text-center">
+                {count}
+              </span>
+            )}
           </button>
         );
       })}
@@ -285,10 +300,11 @@ export function MessageThread() {
 
   const [activeMessage, setActiveMessage] = useState<ActiveMessage | null>(null);
   const [emojiPickerTarget, setEmojiPickerTarget] = useState<EmojiPickerTarget>(null);
-  // Which message's reaction is pending a remove-confirmation — set by
-  // either the reaction bar under a bubble or the long-press quick-react
-  // strip; resolved by the ConfirmDialog rendered near the bottom.
-  const [pendingReactionRemoval, setPendingReactionRemoval] = useState<string | null>(null);
+  // Which message's own reaction is open for management (replace/
+  // remove) — set by either the reaction bar under a bubble or the
+  // long-press quick-react strip's "tap your own emoji again"; resolved
+  // by the ReactionOptionsPopover rendered near the bottom.
+  const [reactionPopover, setReactionPopover] = useState<ReactionPopoverTarget | null>(null);
 
   // --- Multi-select mode: reached via MessageActionMenu's "Select", or
   // by long-pressing straight past it in a future iteration. While
@@ -302,6 +318,14 @@ export function MessageThread() {
   function enterSelectMode(id: string) {
     setSelectMode(true);
     setSelectedIds(new Set([id]));
+  }
+  /** Tapping a second message while one is already highlighted (the
+   *  long-press menu is open for it) jumps straight into a multi-select
+   *  spanning both, instead of requiring "Select" from the overflow
+   *  menu first — see MessageActionMenu's onTapMessage. */
+  function enterMultiSelectFrom(idA: string, idB: string) {
+    setSelectMode(true);
+    setSelectedIds(new Set([idA, idB]));
   }
   function toggleSelected(id: string) {
     setSelectedIds((prev) => {
@@ -345,6 +369,18 @@ export function MessageThread() {
     const content = selectedMessages.filter((m) => !m.is_deleted).map((m) => ({ content: m.content }));
     if (!content.length) return;
     setForwardMessages(content);
+  }
+  function handleBulkShare() {
+    const text = selectedMessages
+      .filter((m) => !m.is_deleted)
+      .map((m) => (decodeVoiceNote(m.content) ? VOICE_NOTE_LABEL : m.content))
+      .join("\n");
+    if (!text) return;
+    if (navigator.share) {
+      navigator.share({ text }).catch(() => {});
+    } else {
+      navigator.clipboard.writeText(text);
+    }
   }
 
   function handleDeleteConfirm(scope: DeleteScope) {
@@ -399,6 +435,13 @@ export function MessageThread() {
   function startReply(m: MessageWithSender) {
     setReplyTarget(m);
     flashHighlight(m.id);
+    // Close the emoji panel if it's open so focusing the input below
+    // doesn't fight it for the bottom of the screen.
+    setEmojiPickerTarget((prev) => (prev?.mode === "input" ? null : prev));
+    // Wait a frame so the reply banner has actually mounted (it changes
+    // the composer's height) before focusing — focusing first can race
+    // some mobile browsers' keyboard/layout settling.
+    requestAnimationFrame(() => inputRef.current?.focus());
   }
 
   function scrollToMessage(id: string) {
@@ -546,6 +589,31 @@ export function MessageThread() {
 
   const currentMatchId = matches[matchIndex]?.id;
 
+  // The keyboard opening/closing fires a visualViewport resize (the
+  // h-dvh root container below handles the actual layout reflow) —
+  // but the message list's own scroll position doesn't automatically
+  // follow that reflow, so without this a message that was at the
+  // bottom before the keyboard opened can end up sitting behind the
+  // composer once it does. Prefers keeping whatever's currently
+  // "highlighted" (an active reply target, a flashed message) in view
+  // over always snapping to the very bottom, since replying to an
+  // older message shouldn't yank the view away from it the moment the
+  // keyboard appears.
+  useEffect(() => {
+    const vv = window.visualViewport;
+    if (!vv) return;
+    function keepActiveMessageVisible() {
+      requestAnimationFrame(() => {
+        const targetId = flashMessageId ?? replyTarget?.id;
+        const el = targetId ? messageRefs.current[targetId] : null;
+        if (el) el.scrollIntoView({ block: "nearest" });
+        else bottomRef.current?.scrollIntoView({ block: "end" });
+      });
+    }
+    vv.addEventListener("resize", keepActiveMessageVisible);
+    return () => vv.removeEventListener("resize", keepActiveMessageVisible);
+  }, [flashMessageId, replyTarget]);
+
   const activeReactions = activeMessage ? reactionsByMessage?.[activeMessage.message.id] ?? [] : [];
   const activeMyReaction = activeMessage
     ? activeReactions.find((r) => r.user_id === user?.id)?.emoji ?? null
@@ -666,7 +734,7 @@ export function MessageThread() {
   }
 
   return (
-    <div className="h-screen bg-canvas flex flex-col overflow-hidden">
+    <div className="h-dvh bg-canvas flex flex-col overflow-hidden">
       <header className="px-4 pt-6 pb-3 sticky top-0 bg-canvas z-30 border-b border-border flex items-center gap-3">
         {selectMode ? (
           <>
@@ -697,6 +765,14 @@ export function MessageThread() {
               aria-label="Forward"
             >
               <Forward size={19} />
+            </button>
+            <button
+              onClick={handleBulkShare}
+              disabled={!selectionHasForwardableContent}
+              className="text-ink-muted disabled:opacity-30 flex-shrink-0"
+              aria-label="Share outside app"
+            >
+              <Share2 size={19} />
             </button>
             <button
               onClick={handleBulkDeletePress}
@@ -854,15 +930,38 @@ export function MessageThread() {
             const repliedTo = m.reply_to?.[0];
             const repliedToVoiceNote = repliedTo && !repliedTo.is_deleted ? decodeVoiceNote(repliedTo.content) : null;
             const isSelected = selectedIds.has(m.id);
+            const isHighlighted = isCurrentMatch || isFlashed;
+            const timeStr = formatMessageTime(m.created_at);
+
+            // "Jumbo" emoji-only rendering (WhatsApp/iMessage behavior,
+            // researched — see lib/emoji.ts): 1-3 emoji and nothing
+            // else gets shown big with no bubble at all. Suppressed
+            // when replying to something, since the reply-quote strip
+            // still needs an actual bubble to sit inside.
+            const emojiInfo =
+              !m.is_deleted && !voiceNote && !repliedTo ? getEmojiOnlyInfo(m.content) : { isEmojiOnly: false, count: 0 };
+            const isJumboEmoji = emojiInfo.isEmojiOnly;
+            const tailClass = isMine ? "bubble-tail-mine" : "bubble-tail-theirs";
+
+            const ticks = isMine ? (
+              <MessageStatusTicks deliveredAt={m.delivered_at} readAt={m.read_at} size={14} />
+            ) : null;
 
             return (
               <div
                 key={m.id}
-                className={`flex items-center gap-2 mb-2 -mx-2 px-2 py-0.5 rounded-lg transition-colors ${
-                  isSelected ? "bg-highlight/60" : ""
-                }`}
+                className="flex items-center gap-2 mb-2 -mx-2 px-2 py-0.5"
                 onClick={() => {
-                  if (selectMode) toggleSelected(m.id);
+                  if (selectMode) {
+                    toggleSelected(m.id);
+                  } else if (activeMessage && activeMessage.message.id !== m.id) {
+                    // A tap on a different message while one is already
+                    // highlighted (the long-press menu open for it)
+                    // starts a multi-select spanning both, instead of
+                    // requiring "Select" from the overflow menu first.
+                    setActiveMessage(null);
+                    enterMultiSelectFrom(activeMessage.message.id, m.id);
+                  }
                 }}
               >
                 {selectMode && (
@@ -904,17 +1003,18 @@ export function MessageThread() {
                       ref={(el) => {
                         messageRefs.current[m.id] = el;
                       }}
+                      data-message-id={m.id}
                       onPointerDown={(e) => handlePointerDown(m, e)}
                       onPointerMove={(e) => handlePointerMove(m, e)}
                       onPointerUp={() => endGesture(m.id)}
                       onPointerLeave={() => endGesture(m.id)}
                       onPointerCancel={() => endGesture(m.id)}
                       onContextMenu={(e) => e.preventDefault()}
-                      className={`w-fit max-w-full rounded-2xl px-4 py-2.5 text-sm whitespace-pre-wrap break-words select-none ${
-                        isMine ? "bg-accent text-white" : "bg-surface text-ink"
-                      } ${m.is_deleted ? "italic opacity-70" : ""} ${
-                        isCurrentMatch || isFlashed ? "ring-2 ring-accent ring-offset-2 ring-offset-canvas" : ""
-                      }`}
+                      className={`relative w-fit max-w-full text-sm whitespace-pre-wrap break-words select-none ${
+                        isJumboEmoji
+                          ? "bg-transparent"
+                          : `rounded-2xl px-3 py-2 ${tailClass} ${isMine ? "bg-accent text-white" : "bg-surface text-ink"}`
+                      } ${m.is_deleted ? "italic opacity-70" : ""}`}
                       style={{
                         WebkitTouchCallout: "none",
                         touchAction: "pan-y",
@@ -924,6 +1024,20 @@ export function MessageThread() {
                           : "transform 200ms ease-out, box-shadow 300ms, background-color 300ms",
                       }}
                     >
+                      {/* Highlight, whatever the reason, is a shape-matching
+                          overlay — never a ring/offset (which changes the
+                          bubble's own outline) and never a background
+                          change on anything outside the bubble. rounded-
+                          [inherit] means it always tracks whatever corner
+                          shape the bubble itself has, tail included. */}
+                      {(isHighlighted || isSelected) && (
+                        <div
+                          className={`absolute inset-0 rounded-[inherit] pointer-events-none transition-opacity duration-300 ${
+                            isSelected ? "bg-highlight/50" : "bg-accent/25"
+                          }`}
+                        />
+                      )}
+
                       {repliedTo && !m.is_deleted && (
                         <button
                           type="button"
@@ -931,7 +1045,7 @@ export function MessageThread() {
                             e.stopPropagation();
                             scrollToMessage(repliedTo.id);
                           }}
-                          className={`block w-full text-left mb-1.5 pl-2 border-l-2 rounded-sm text-xs ${
+                          className={`relative block w-full text-left mb-1.5 pl-2 border-l-2 rounded-sm text-xs ${
                             isMine ? "border-white/50 text-white/80" : "border-accent/50 text-ink-muted"
                           }`}
                         >
@@ -947,16 +1061,57 @@ export function MessageThread() {
                           </span>
                         </button>
                       )}
+
                       {m.is_deleted ? (
-                        <span>This message was deleted</span>
+                        <span className="relative block">
+                          This message was deleted
+                          {ticks && (
+                            <span className="flex items-center gap-1 justify-end mt-1 text-[11px] not-italic opacity-100 text-ink-muted">
+                              {timeStr}
+                              {ticks}
+                            </span>
+                          )}
+                        </span>
                       ) : voiceNote ? (
-                        <VoiceMessageBubble url={voiceNote.url} durationSec={voiceNote.durationSec} isMine={isMine} />
+                        <span className="relative block">
+                          <VoiceMessageBubble url={voiceNote.url} durationSec={voiceNote.durationSec} isMine={isMine} />
+                          <span
+                            className={`flex items-center gap-1 justify-end mt-1 text-[11px] ${isMine ? "text-white/70" : "text-ink-muted"}`}
+                          >
+                            {timeStr}
+                            {ticks}
+                          </span>
+                        </span>
+                      ) : isJumboEmoji ? (
+                        <span className="relative flex flex-col items-end">
+                          <span className={jumboEmojiSizeClass(emojiInfo.count)}>{m.content.trim()}</span>
+                          <span className="flex items-center gap-1 mt-0.5 text-[11px] text-ink-muted">
+                            {timeStr}
+                            {ticks}
+                          </span>
+                        </span>
                       ) : (
-                        <span>{searchQuery ? highlightMatches(m.content, searchQuery, isMine) : m.content}</span>
-                      )}
-                      {isMine && (
-                        <span className="flex justify-end mt-1">
-                          <MessageStatusTicks deliveredAt={m.delivered_at} readAt={m.read_at} />
+                        // WhatsApp's own trick for a trailing inline
+                        // timestamp: an invisible copy of the time+ticks
+                        // reserves room at the end of the text flow (so
+                        // wrapping accounts for it, and short messages'
+                        // bubbles grow to fit it on the last line), while
+                        // the real, visible one is pinned to the bottom-
+                        // right corner on top of it.
+                        <span className="relative block">
+                          {searchQuery ? highlightMatches(m.content, searchQuery, isMine) : m.content}
+                          <span className="invisible inline-flex items-center gap-1 text-[11px] ml-2 align-bottom">
+                            {timeStr}
+                            {ticks}
+                          </span>
+                          <span
+                            className={`pointer-events-none absolute bottom-0 right-0 flex items-center gap-1 text-[11px] leading-none ${
+                              isMine ? "text-white/70" : "text-ink-muted"
+                            }`}
+                          >
+                            {timeStr}
+                            {ticks}
+                          </span>
                         </span>
                       )}
                     </div>
@@ -966,7 +1121,7 @@ export function MessageThread() {
                         myReaction={myReaction}
                         isMine={isMine}
                         onAdd={(emoji) => setReaction.mutate({ messageId: m.id, emoji }, { onError: onMutationError })}
-                        onRequestRemove={() => setPendingReactionRemoval(m.id)}
+                        onRequestManage={(anchorRect, emoji) => setReactionPopover({ messageId: m.id, anchorRect, emoji })}
                       />
                     )}
                   </div>
@@ -1124,6 +1279,7 @@ export function MessageThread() {
 
       {activeMessage && (
         <MessageActionMenu
+          messageId={activeMessage.message.id}
           content={activeMessage.message.content}
           isMine={activeMessage.message.sender_id === user?.id}
           isDeleted={activeMessage.message.is_deleted}
@@ -1133,7 +1289,10 @@ export function MessageThread() {
           emojis={topEmojis}
           myReaction={activeMyReaction}
           onReact={(emoji) => setReaction.mutate({ messageId: activeMessage.message.id, emoji }, { onError: onMutationError })}
-          onRequestRemoveReaction={() => setPendingReactionRemoval(activeMessage.message.id)}
+          onRequestRemoveReaction={(anchorRect) =>
+            activeMyReaction &&
+            setReactionPopover({ messageId: activeMessage.message.id, anchorRect, emoji: activeMyReaction })
+          }
           onOpenFullPicker={() => setEmojiPickerTarget({ mode: "reaction", messageId: activeMessage.message.id })}
           onCopy={() => navigator.clipboard.writeText(activeMessage.message.content)}
           onDeletePress={() =>
@@ -1168,6 +1327,11 @@ export function MessageThread() {
           }
           onSelect={() => enterSelectMode(activeMessage.message.id)}
           onClose={() => setActiveMessage(null)}
+          onTapMessage={(tappedId) => {
+            const anchorId = activeMessage.message.id;
+            setActiveMessage(null);
+            enterMultiSelectFrom(anchorId, tappedId);
+          }}
         />
       )}
 
@@ -1191,16 +1355,16 @@ export function MessageThread() {
         />
       )}
 
-      {pendingReactionRemoval && (
-        <ConfirmDialog
-          title="Remove your reaction?"
-          description="This only removes your own reaction — anyone else's reactions stay."
-          confirmLabel="Remove"
-          danger
-          onConfirm={() => {
-            removeReaction.mutate(pendingReactionRemoval, { onError: onMutationError });
-          }}
-          onCancel={() => setPendingReactionRemoval(null)}
+      {reactionPopover && (
+        <ReactionOptionsPopover
+          target={reactionPopover}
+          quickEmojis={topEmojis}
+          onReplace={(emoji) =>
+            setReaction.mutate({ messageId: reactionPopover.messageId, emoji }, { onError: onMutationError })
+          }
+          onOpenFullPicker={() => setEmojiPickerTarget({ mode: "reaction", messageId: reactionPopover.messageId })}
+          onRemove={() => removeReaction.mutate(reactionPopover.messageId, { onError: onMutationError })}
+          onClose={() => setReactionPopover(null)}
         />
       )}
 
