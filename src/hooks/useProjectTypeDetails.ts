@@ -17,6 +17,10 @@ export interface MeetingDetails {
   provider_room_id: string | null;
   status: "scheduled" | "live" | "ended" | "cancelled";
   recording_url: string | null;
+  // Requires the recording_enabled column added by the
+  // ako_projects_v5_meeting_infra migration — defaults to false via
+  // `?? false` wherever read, same pattern as Course's is_free_preview.
+  recording_enabled: boolean;
 }
 
 // Both tables are publicly readable (see ako_projects_v2_rls.sql) —
@@ -47,7 +51,7 @@ export function useMeetingDetails(projectId: string | undefined) {
         .eq("project_id", projectId)
         .maybeSingle();
       if (error) throw error;
-      return data;
+      return data ? { ...data, recording_enabled: data.recording_enabled ?? false } : null;
     },
     enabled: !!projectId,
   });
