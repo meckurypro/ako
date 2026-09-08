@@ -200,6 +200,7 @@ interface EventDetailsInput {
 
 interface MeetingDetailsInput {
   scheduled_at: string; // ISO
+  recording_enabled?: boolean;
 }
 
 // A 'media' project's audio/video/image channels — see MediaDetails
