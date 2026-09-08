@@ -1,6 +1,6 @@
 // src/pages/MessageThread.tsx
 import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams, useNavigate, useLocation } from "react-router-dom";
 import {
   ArrowLeft,
   Send,
@@ -193,6 +193,7 @@ type RecorderState =
 export function MessageThread() {
   const { conversationId } = useParams<{ conversationId: string }>();
   const navigate = useNavigate();
+  const location = useLocation();
   const { user } = useAuth();
   const { data: messages, isLoading } = useMessages(conversationId!);
   const { data: otherParticipant } = useOtherParticipant(conversationId!);
@@ -254,7 +255,22 @@ export function MessageThread() {
     });
   }, [messages, userStates]);
 
-  const [content, setContent] = useState("");
+  // Prefilled from e.g. ProjectCard's "Message for access" — an
+  // editable draft, not an auto-sent message, so a customised request
+  // is still genuinely the visitor's own words. Consumed once via
+  // history.replaceState so navigating back/forward through the
+  // thread afterward doesn't keep re-offering it.
+  const [content, setContent] = useState(
+    () => (location.state as { draftMessage?: string } | null)?.draftMessage ?? ""
+  );
+  useEffect(() => {
+    if (location.state && (location.state as { draftMessage?: string }).draftMessage) {
+      window.history.replaceState({}, "");
+    }
+    // Only ever needs to run once, on mount — re-running on every
+    // location.state change would fight with the user's own typing.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const bottomRef = useRef<HTMLDivElement>(null);
   const messageRefs = useRef<Record<string, HTMLDivElement | null>>({});
   // First render of a conversation should land on the last message
