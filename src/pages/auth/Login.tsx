@@ -3,6 +3,7 @@ import { useState, type FormEvent } from "react";
 import { Link, Navigate, useNavigate, useSearchParams } from "react-router-dom";
 import { useAuth } from "../../hooks/useAuth";
 import { supabase } from "../../lib/supabase";
+import { useAddAccount } from "../../hooks/useAccountSwitcher";
 import { Wordmark } from "../../components/Wordmark";
 import { AuthPattern } from "../../components/AuthPattern";
 import { FormField } from "../../components/FormField";
@@ -18,6 +19,13 @@ export function Login() {
     redirectParam && redirectParam.startsWith("/") && !redirectParam.startsWith("//")
       ? redirectParam
       : "/feed";
+  // ?add=1 — arrived here from AccountSwitcher/ProfilePage to sign
+  // into an ADDITIONAL personal account rather than replace the
+  // current one. Changes both the redirect-if-already-signed-in guard
+  // below (that guard exists for the normal case, but here being
+  // signed in already is the whole point) and what submit does.
+  const addMode = searchParams.get("add") === "1";
+  const addAccount = useAddAccount();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -32,7 +40,7 @@ export function Login() {
   // the session is still valid. Bounce straight past the form instead
   // of showing it again. `replace: true` here too, so back/forward
   // doesn't just bounce the user between this redirect and /login.
-  if (!authLoading && user) {
+  if (!addMode && !authLoading && user) {
     return <Navigate to={redirectTo} replace />;
   }
 
@@ -41,6 +49,22 @@ export function Login() {
     setError(null);
     setUnconfirmed(false);
     setLoading(true);
+
+    if (addMode) {
+      try {
+        const newProfile = await addAccount.mutateAsync({ email, password });
+        setLoading(false);
+        // Matches the modal it replaced: land on the newly-added
+        // account's own profile, not back on the one that was active
+        // before — same as Instagram/TikTok dropping you into the
+        // account you just added.
+        navigate(`/profile/${newProfile.username}`, { replace: true });
+      } catch (err: any) {
+        setLoading(false);
+        setError(err.message ?? "Incorrect email or password.");
+      }
+      return;
+    }
 
     const { error: signInError } = await supabase.auth.signInWithPassword({
       email,
@@ -93,6 +117,13 @@ export function Login() {
           <Wordmark asIcon />
         </div>
 
+        {addMode && (
+          <p className="text-center text-sm text-ink-muted mb-6">
+            Sign into another personal account. Your current account stays saved on this
+            device — switch back to it anytime.
+          </p>
+        )}
+
         <form onSubmit={handleSubmit}>
           <FormField
             id="email"
@@ -129,20 +160,22 @@ export function Login() {
           )}
 
           <Button type="submit" loading={loading}>
-            Log in
+            {addMode ? "Add account" : "Log in"}
           </Button>
 
-          <Link
-            to="/reset-password"
-            className="block text-center text-sm text-accent mt-4 hover:underline"
-          >
-            Forgot password?
-          </Link>
+          {!addMode && (
+            <Link
+              to="/reset-password"
+              className="block text-center text-sm text-accent mt-4 hover:underline"
+            >
+              Forgot password?
+            </Link>
+          )}
         </form>
 
         <p className="text-center text-sm text-ink-muted mt-6">
           New to Akọ?{" "}
-          <Link to="/signup" className="text-accent font-medium hover:underline">
+          <Link to={addMode ? "/signup?add=1" : "/signup"} className="text-accent font-medium hover:underline">
             Create an account
           </Link>
         </p>
