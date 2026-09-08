@@ -85,7 +85,10 @@ function useRankedFeed(page: number, enabled: boolean) {
       });
       if (rankError) throw rankError;
 
-      const orderedIds = (ranked ?? []).map((r: { post_id: string }) => r.post_id);
+      // supabase.rpc() isn't given a type param, so `ranked` (and thus
+      // anything derived from it with .map/.filter) comes back as `any`
+      // unless pinned down explicitly — hence the annotation here.
+      const orderedIds: string[] = (ranked ?? []).map((r: { post_id: string }) => r.post_id);
       if (orderedIds.length === 0) return [];
 
       const { data, error } = await supabase
