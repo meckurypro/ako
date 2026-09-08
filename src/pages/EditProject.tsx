@@ -16,6 +16,7 @@ import { useUploadProjectThumbnail } from "../hooks/useUploadProjectThumbnail";
 import { FormField } from "../components/FormField";
 import { Button } from "../components/Button";
 import { PrivacyToggle } from "../components/PrivacyToggle";
+import { ManageAccessSheet } from "../components/ManageAccessSheet";
 import { TopicPicker, MAX_TOPICS } from "../components/TopicPicker";
 import { FormatToolbar } from "../components/FormatToolbar";
 import { CONTENT_LIMIT, contentCounterClass } from "../lib/textLimits";
@@ -47,6 +48,7 @@ export function EditProject() {
   const smartBack = useSmartBack();
 
   const { data: project, isLoading } = useProject(projectId);
+  const [manageAccessOpen, setManageAccessOpen] = useState(false);
   const { data: existingTopicIds } = useProjectTopics(projectId);
   const { data: existingEventDetails } = useEventDetails(project?.project_type === "event" ? projectId : undefined);
   const { data: existingMeetingDetails } = useMeetingDetails(
@@ -541,6 +543,16 @@ export function EditProject() {
 
           <PrivacyToggle checked={isPrivate} onChange={setIsPrivate} />
 
+          {isPrivate && projectId && (
+            <button
+              type="button"
+              onClick={() => setManageAccessOpen(true)}
+              className="w-full text-left text-sm font-medium text-accent px-1 -mt-4 mb-6"
+            >
+              Manage who has access →
+            </button>
+          )}
+
           {error && (
             <p className="text-danger text-sm mb-4" role="alert">
               {error}
@@ -552,6 +564,14 @@ export function EditProject() {
           </Button>
         </form>
       </div>
+
+      {manageAccessOpen && projectId && project && (
+        <ManageAccessSheet
+          projectId={projectId}
+          projectTitle={project.title}
+          onClose={() => setManageAccessOpen(false)}
+        />
+      )}
     </div>
   );
 }
