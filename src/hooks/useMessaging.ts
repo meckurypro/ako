@@ -384,10 +384,12 @@ export function useSendVoiceNote(conversationId: string) {
     mutationFn: async ({
       blob,
       durationSec,
+      peaks,
       replyToMessageId,
     }: {
       blob: Blob;
       durationSec: number;
+      peaks?: number[];
       replyToMessageId?: string | null;
     }) => {
       if (!user) throw new Error("Not signed in");
@@ -400,7 +402,7 @@ export function useSendVoiceNote(conversationId: string) {
       if (uploadError) throw uploadError;
       const { data: publicUrl } = supabase.storage.from("post-media").getPublicUrl(path);
 
-      const content = encodeVoiceNote({ url: publicUrl.publicUrl, durationSec });
+      const content = encodeVoiceNote({ url: publicUrl.publicUrl, durationSec, peaks });
 
       const { error } = await supabase.from("messages").insert({
         conversation_id: conversationId,
