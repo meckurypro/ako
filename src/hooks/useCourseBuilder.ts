@@ -8,6 +8,11 @@ export interface CourseLesson {
   title: string;
   content: string | null;
   media_url: string | null;
+  // Requires the is_free_preview column added by the
+  // ako_projects_v4_course_progress migration. Defaulted with `?? false`
+  // wherever a lesson is read, so existing rows (or a DB that hasn't run
+  // the migration yet) just read as "not previewable" instead of crashing.
+  is_free_preview: boolean;
   sort_order: number;
 }
 
@@ -20,8 +25,8 @@ export interface CourseModule {
 }
 
 // One query, assembled client-side into modules-with-lessons — this
-// is a builder screen, not an infinite feed, so there's no pagination
-// concern that would push us toward two separate queries.
+// is a builder/player screen, not an infinite feed, so there's no
+// pagination concern that would push us toward separate queries.
 export function useCourseModules(projectId: string | undefined) {
   return useQuery({
     queryKey: ["course-modules", projectId],
@@ -42,11 +47,17 @@ export function useCourseModules(projectId: string | undefined) {
 
       return (modules ?? []).map((m) => ({
         ...m,
-        lessons: (lessons ?? []).filter((l) => l.module_id === m.id),
+        lessons: (lessons ?? [])
+          .filter((l) => l.module_id === m.id)
+          .map((l) => ({ ...l, is_free_preview: l.is_free_preview ?? false })) as CourseLesson[],
       }));
     },
     enabled: !!projectId,
   });
+}
+
+function invalidateCourse(queryClient: ReturnType<typeof useQueryClient>, projectId: string) {
+  queryClient.invalidateQueries({ queryKey: ["course-modules", projectId] });
 }
 
 export function useAddModule(projectId: string) {
@@ -59,24 +70,51 @@ export function useAddModule(projectId: string) {
         .insert({ project_id: projectId, title, sort_order: sortOrder });
       if (error) throw error;
     },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["course-modules", projectId] }),
+    onSuccess: () => invalidateCourse(queryClient, projectId),
   });
 }
 
-export function useAddLesson(projectId: string) {
+export function useUpdateModuleTitle(projectId: string) {
   const queryClient = useQueryClient();
   return useMutation({
     meta: { blocking: true },
-    mutationFn: async (input: { moduleId: string; title: string; content?: string; sortOrder: number }) => {
-      const { error } = await supabase.from("course_lessons").insert({
-        module_id: input.moduleId,
-        title: input.title,
-        content: input.content ?? null,
-        sort_order: input.sortOrder,
-      });
+    mutationFn: async ({ moduleId, title }: { moduleId: string; title: string }) => {
+      const { error } = await supabase.from("course_modules").update({ title }).eq("id", moduleId);
       if (error) throw error;
     },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["course-modules", projectId] }),
+    onSuccess: () => invalidateCourse(queryClient, projectId),
+  });
+}
+
+// Reordering is a simple adjacent swap (move up/down) rather than
+// drag-and-drop — same amount of end-user control for a curriculum
+// that's usually a handful of sections, without a drag library.
+export function useMoveModule(projectId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    meta: { blocking: true },
+    mutationFn: async ({
+      modules,
+      moduleId,
+      direction,
+    }: {
+      modules: CourseModule[];
+      moduleId: string;
+      direction: "up" | "down";
+    }) => {
+      const idx = modules.findIndex((m) => m.id === moduleId);
+      const swapIdx = direction === "up" ? idx - 1 : idx + 1;
+      if (idx < 0 || swapIdx < 0 || swapIdx >= modules.length) return;
+      const a = modules[idx];
+      const b = modules[swapIdx];
+      const [{ error: e1 }, { error: e2 }] = await Promise.all([
+        supabase.from("course_modules").update({ sort_order: b.sort_order }).eq("id", a.id),
+        supabase.from("course_modules").update({ sort_order: a.sort_order }).eq("id", b.id),
+      ]);
+      if (e1) throw e1;
+      if (e2) throw e2;
+    },
+    onSuccess: () => invalidateCourse(queryClient, projectId),
   });
 }
 
@@ -91,7 +129,104 @@ export function useDeleteModule(projectId: string) {
       const { error } = await supabase.from("course_modules").delete().eq("id", moduleId);
       if (error) throw error;
     },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["course-modules", projectId] }),
+    onSuccess: () => invalidateCourse(queryClient, projectId),
+  });
+}
+
+export interface LessonInput {
+  moduleId: string;
+  title: string;
+  content?: string;
+  mediaUrl?: string;
+  isFreePreview?: boolean;
+  sortOrder: number;
+}
+
+export function useAddLesson(projectId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    meta: { blocking: true },
+    mutationFn: async (input: LessonInput) => {
+      const { error } = await supabase.from("course_lessons").insert({
+        module_id: input.moduleId,
+        title: input.title,
+        content: input.content ?? null,
+        media_url: input.mediaUrl ?? null,
+        is_free_preview: input.isFreePreview ?? false,
+        sort_order: input.sortOrder,
+      });
+      if (error) throw error;
+    },
+    onSuccess: () => invalidateCourse(queryClient, projectId),
+  });
+}
+
+export interface LessonEditInput {
+  lessonId: string;
+  title: string;
+  content?: string;
+  mediaUrl?: string;
+  isFreePreview: boolean;
+}
+
+export function useUpdateLesson(projectId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    meta: { blocking: true },
+    mutationFn: async (input: LessonEditInput) => {
+      const { error } = await supabase
+        .from("course_lessons")
+        .update({
+          title: input.title,
+          content: input.content ?? null,
+          media_url: input.mediaUrl ?? null,
+          is_free_preview: input.isFreePreview,
+        })
+        .eq("id", input.lessonId);
+      if (error) throw error;
+    },
+    onSuccess: () => invalidateCourse(queryClient, projectId),
+  });
+}
+
+export function useDeleteLesson(projectId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    meta: { blocking: true },
+    mutationFn: async (lessonId: string) => {
+      const { error } = await supabase.from("course_lessons").delete().eq("id", lessonId);
+      if (error) throw error;
+    },
+    onSuccess: () => invalidateCourse(queryClient, projectId),
+  });
+}
+
+export function useMoveLesson(projectId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    meta: { blocking: true },
+    mutationFn: async ({
+      lessons,
+      lessonId,
+      direction,
+    }: {
+      lessons: CourseLesson[];
+      lessonId: string;
+      direction: "up" | "down";
+    }) => {
+      const idx = lessons.findIndex((l) => l.id === lessonId);
+      const swapIdx = direction === "up" ? idx - 1 : idx + 1;
+      if (idx < 0 || swapIdx < 0 || swapIdx >= lessons.length) return;
+      const a = lessons[idx];
+      const b = lessons[swapIdx];
+      const [{ error: e1 }, { error: e2 }] = await Promise.all([
+        supabase.from("course_lessons").update({ sort_order: b.sort_order }).eq("id", a.id),
+        supabase.from("course_lessons").update({ sort_order: a.sort_order }).eq("id", b.id),
+      ]);
+      if (e1) throw e1;
+      if (e2) throw e2;
+    },
+    onSuccess: () => invalidateCourse(queryClient, projectId),
   });
 }
 
@@ -114,5 +249,60 @@ export function usePublishCourse(projectId: string) {
       queryClient.invalidateQueries({ queryKey: ["project", projectId] });
       queryClient.invalidateQueries({ queryKey: ["project-detail", projectId] });
     },
+  });
+}
+
+// ---------------------------------------------------------------
+// Progress tracking — the Udemy-style "checkmark per completed
+// lecture" + overall course progress. Backed by course_lesson_progress
+// from the ako_projects_v4_course_progress migration; that table does
+// not exist until that migration is run. The query below treats a
+// missing-table error as "no progress yet" rather than crashing the
+// whole course page, so the course is still usable (just without
+// persisted progress) before the migration lands.
+// ---------------------------------------------------------------
+
+export function useCourseProgress(projectId: string | undefined, userId: string | undefined) {
+  return useQuery({
+    queryKey: ["course-progress", projectId, userId],
+    queryFn: async (): Promise<Set<string>> => {
+      const { data, error } = await supabase
+        .from("course_lesson_progress")
+        .select("lesson_id")
+        .eq("project_id", projectId)
+        .eq("user_id", userId);
+      if (error) {
+        console.warn("course_lesson_progress unavailable — has the migration run yet?", error);
+        return new Set<string>();
+      }
+      return new Set((data ?? []).map((r) => r.lesson_id as string));
+    },
+    enabled: !!projectId && !!userId,
+  });
+}
+
+export function useSetLessonComplete(projectId: string, userId: string | undefined) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ lessonId, completed }: { lessonId: string; completed: boolean }) => {
+      if (!userId) throw new Error("Sign in to track your progress.");
+      if (completed) {
+        const { error } = await supabase
+          .from("course_lesson_progress")
+          .upsert(
+            { project_id: projectId, lesson_id: lessonId, user_id: userId },
+            { onConflict: "lesson_id,user_id" }
+          );
+        if (error) throw error;
+      } else {
+        const { error } = await supabase
+          .from("course_lesson_progress")
+          .delete()
+          .eq("lesson_id", lessonId)
+          .eq("user_id", userId);
+        if (error) throw error;
+      }
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["course-progress", projectId, userId] }),
   });
 }
