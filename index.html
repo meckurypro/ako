@@ -6,8 +6,17 @@
     <!-- viewport-fit=cover lets the page paint into the iOS safe-area
          insets (notch/home-indicator strips) instead of Safari treating
          that space as a separate, unstyled bar — required for the
-         bottom bar to pick up the app's background color. -->
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+         bottom bar to pick up the app's background color.
+         interactive-widget=resizes-content (Chrome 108+) makes the
+         layout viewport — and so `dvh` units — actually shrink when the
+         on-screen keyboard opens, instead of the keyboard just
+         overlaying a viewport that never resizes. MessageThread's
+         h-dvh chat layout relies on this so the keyboard can never
+         cover the composer or the message being replied to. -->
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, viewport-fit=cover, interactive-widget=resizes-content"
+    />
     <!-- Colours Safari's address-bar/toolbar chrome (and Android's status
          bar) to match the app. Content is overwritten synchronously below
          and again by useTheme.tsx on every theme change — this starting
