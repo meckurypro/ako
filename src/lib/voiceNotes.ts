@@ -5,6 +5,11 @@ const VOICE_NOTE_MARKER = "ako-voice-note:v1:";
 export interface VoiceNotePayload {
   url: string;
   durationSec: number;
+  /** Waveform bar heights (0..1), computed client-side at record time.
+   *  Optional so older, already-sent voice notes without this field
+   *  still decode fine — the bubble falls back to fetching and
+   *  decoding the audio itself when it's missing. */
+  peaks?: number[];
 }
 
 /**
@@ -26,7 +31,11 @@ export function decodeVoiceNote(content: string): VoiceNotePayload | null {
   try {
     const parsed = JSON.parse(content.slice(VOICE_NOTE_MARKER.length));
     if (parsed && typeof parsed.url === "string" && typeof parsed.durationSec === "number") {
-      return parsed;
+      const peaks =
+        Array.isArray(parsed.peaks) && parsed.peaks.every((p: unknown) => typeof p === "number")
+          ? parsed.peaks
+          : undefined;
+      return { url: parsed.url, durationSec: parsed.durationSec, peaks };
     }
     return null;
   } catch {
