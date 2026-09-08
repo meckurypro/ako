@@ -49,6 +49,7 @@ import { useProjectAccessCount, useLogFreeProjectAccess } from "../hooks/useProj
 import { useMyReaction, useToggleReaction } from "../hooks/useReactions";
 import { useStartConversation } from "../hooks/useMessaging";
 import { ReactionTray, type EngagementAction } from "./ReactionTray";
+import { ReactionMoreSheet } from "./ReactionMoreSheet";
 
 // File and URL keep the original single-link/download "unlock"
 // pattern inline in the action row. Media gets its own block above
@@ -190,6 +191,7 @@ export function ProjectCard({
 
   const [error, setError] = useState<string | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [showMoreActions, setShowMoreActions] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
   const [audioSrc, setAudioSrc] = useState<string | null>(null);
   const [videoSrc, setVideoSrc] = useState<string | null>(null);
@@ -468,7 +470,7 @@ export function ProjectCard({
         {
           key: "like",
           label: isLiked ? "Liked" : "Like",
-          icon: <Heart size={18} fill={isLiked ? "currentColor" : "none"} className="text-danger" />,
+          icon: <Heart size={24} fill={isLiked ? "currentColor" : "none"} className="text-danger" />,
           count: project.like_count > 0 ? project.like_count : null,
           onClick: handleToggleLike,
         },
@@ -478,7 +480,7 @@ export function ProjectCard({
     {
       key: "share",
       label: "Share",
-      icon: <Redo2 size={18} className="text-ink" />,
+      icon: <Redo2 size={24} className="text-ink" />,
       count: null,
       onClick: () => void handleShare(),
     },
@@ -492,7 +494,7 @@ export function ProjectCard({
             label: isSaved ? "Saved" : "Save",
             icon: (
               <Bookmark
-                size={18}
+                size={24}
                 fill={isSaved ? "currentColor" : "none"}
                 className={isSaved ? "text-accent" : "text-ink"}
               />
@@ -509,7 +511,7 @@ export function ProjectCard({
             label: hasAccess ? "Enter room" : "Join room",
             icon: (
               <Users
-                size={18}
+                size={24}
                 fill={hasAccess ? "currentColor" : "none"}
                 className={hasAccess ? "text-accent" : "text-ink"}
               />
@@ -957,7 +959,16 @@ export function ProjectCard({
           )}
         </div>
 
-        <ReactionTray leftActions={leftActions} middleActions={middleActions} rightActions={rightActions} />
+        <ReactionTray
+          leftActions={leftActions}
+          middleActions={middleActions}
+          rightActions={rightActions}
+          onOpenMore={() => setShowMoreActions(true)}
+        />
+
+        {showMoreActions && (
+          <ReactionMoreSheet actions={middleActions} onClose={() => setShowMoreActions(false)} />
+        )}
       </div>
     </div>
   );
