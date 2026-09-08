@@ -148,7 +148,10 @@ export function EditProject() {
       });
       setTypeDetailsHydrated(true);
     } else if (project.project_type === "meeting" && existingMeetingDetails) {
-      setMeetingFields({ scheduled_at: existingMeetingDetails.scheduled_at.slice(0, 16) });
+      setMeetingFields({
+        scheduled_at: existingMeetingDetails.scheduled_at.slice(0, 16),
+        recording_enabled: existingMeetingDetails.recording_enabled,
+      });
       setTypeDetailsHydrated(true);
     } else if (project.project_type === "media" && existingMediaDetails) {
       setMediaFields({
@@ -298,7 +301,7 @@ export function EditProject() {
       if (project.project_type === "meeting") {
         const { error: detailsError } = await supabase
           .from("project_meeting_details")
-          .update({ scheduled_at: meetingFields.scheduled_at })
+          .update({ scheduled_at: meetingFields.scheduled_at, recording_enabled: meetingFields.recording_enabled })
           .eq("project_id", projectId);
         if (detailsError) throw detailsError;
       }
