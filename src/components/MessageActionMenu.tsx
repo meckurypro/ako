@@ -1,10 +1,11 @@
 // src/components/MessageActionMenu.tsx
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { Copy, Trash2, Redo2, MoreHorizontal, Star, Pin, Plus, X, Reply, Forward, EyeOff, CheckSquare } from "lucide-react";
 import { useBackDismiss } from "../hooks/useBackDismiss";
 import { DropdownMenu, type DropdownMenuItem } from "./DropdownMenu";
 
 interface MessageActionMenuProps {
+  messageId: string;
   content: string;
   isMine: boolean;
   /** Tombstoned ("deleted for everyone") — collapses the menu down to just Select and Delete-for-me. */
@@ -16,8 +17,9 @@ interface MessageActionMenuProps {
   myReaction: string | null;
   onReact: (emoji: string) => void;
   /** The user tapped their OWN already-active emoji again in the quick-react
-   *  strip — parent should confirm before actually removing it. */
-  onRequestRemoveReaction: () => void;
+   *  strip — parent should open the replace/remove popover anchored at
+   *  that button rather than removing immediately. */
+  onRequestRemoveReaction: (anchorRect: DOMRect) => void;
   onOpenFullPicker: () => void;
   onCopy: () => void;
   /** Opens DeleteMessageSheet in the caller — this menu never deletes directly, since the scope (me/everyone) still needs picking. */
@@ -30,6 +32,12 @@ interface MessageActionMenuProps {
   onShare: () => void;
   onSelect: () => void;
   onClose: () => void;
+  /** Fired instead of onClose when the dimmed backdrop tap actually
+   *  landed on a different message bubble (identified via
+   *  data-message-id on that bubble) — lets the parent hand off into a
+   *  multi-select spanning both messages instead of just dismissing
+   *  this menu. */
+  onTapMessage: (messageId: string) => void;
 }
 
 /**
@@ -47,6 +55,7 @@ interface MessageActionMenuProps {
  * me", since there's no content left to delete for everyone).
  */
 export function MessageActionMenu({
+  messageId,
   content,
   isMine,
   isDeleted,
@@ -68,10 +77,22 @@ export function MessageActionMenu({
   onShare,
   onSelect,
   onClose,
+  onTapMessage,
 }: MessageActionMenuProps) {
   useBackDismiss(onClose);
   const [moreOpen, setMoreOpen] = useState(false);
   const moreButtonRef = useRef<HTMLButtonElement>(null);
+  const pillRef = useRef<HTMLDivElement>(null);
+  // Measured after mount, then clamped to the viewport — replaces the
+  // old fixed "assume it's ~320px wide, anchor to the bubble's left
+  // edge" guess, which is what let the pill drift off-center and get
+  // its edge truncated depending on the bubble's actual position/the
+  // pill's actual (variable) rendered width.
+  const [pillPos, setPillPos] = useState<{ top: number; left: number; ready: boolean }>({
+    top: 0,
+    left: 0,
+    ready: false,
+  });
 
   useEffect(() => {
     document.body.style.overflow = "hidden";
@@ -82,14 +103,23 @@ export function MessageActionMenu({
 
   // Reaction pill sits above the bubble; if there isn't room (bubble
   // near the top of the viewport, under the top action bar), it flips
-  // to sit below instead.
-  const pillAbove = anchorRect.top > 140;
-  const pillTop = pillAbove ? anchorRect.top - 60 : anchorRect.bottom + 8;
-  const pillLeft = Math.min(Math.max(anchorRect.left, 8), window.innerWidth - 320);
+  // to sit below instead. Centered on the bubble's horizontal midpoint
+  // — not its left edge — and clamped against the pill's own measured
+  // width so it never runs off either side of the screen.
+  useLayoutEffect(() => {
+    const pill = pillRef.current;
+    if (!pill) return;
+    const { width, height } = pill.getBoundingClientRect();
+    const anchorCenterX = anchorRect.left + anchorRect.width / 2;
+    const left = Math.min(Math.max(anchorCenterX - width / 2, 8), window.innerWidth - width - 8);
+    const pillAbove = anchorRect.top > height + 24;
+    const top = pillAbove ? anchorRect.top - height - 8 : anchorRect.bottom + 8;
+    setPillPos({ top, left, ready: true });
+  }, [anchorRect]);
 
-  function handlePick(emoji: string) {
+  function handlePick(emoji: string, e: React.MouseEvent<HTMLButtonElement>) {
     if (myReaction === emoji) {
-      onRequestRemoveReaction();
+      onRequestRemoveReaction(e.currentTarget.getBoundingClientRect());
     } else {
       onReact(emoji);
     }
@@ -98,7 +128,27 @@ export function MessageActionMenu({
 
   return (
     <div className="fixed inset-0 z-50" role="dialog" aria-label="Message actions">
-      <div className="absolute inset-0 bg-canvas/70 backdrop-blur-sm" onClick={onClose} />
+      <div
+        className="absolute inset-0 bg-canvas/70 backdrop-blur-sm"
+        onClick={(e) => {
+          // A tap that landed on this dimmed area (i.e. not on the top
+          // bar, reaction pill, or frozen bubble copy — those are
+          // separate elements and never bubble a click here) might
+          // still be sitting directly over a different message in the
+          // real, still-mounted thread underneath. Briefly hide this
+          // backdrop from hit-testing to check what's actually there —
+          // otherwise elementFromPoint would just find this very div,
+          // since it covers the full screen.
+          const backdrop = e.currentTarget;
+          backdrop.style.pointerEvents = "none";
+          const el = document.elementFromPoint(e.clientX, e.clientY) as HTMLElement | null;
+          backdrop.style.pointerEvents = "";
+          const bubble = el?.closest("[data-message-id]") as HTMLElement | null;
+          const tappedId = bubble?.getAttribute("data-message-id");
+          if (tappedId && tappedId !== messageId) onTapMessage(tappedId);
+          else onClose();
+        }}
+      />
 
       {/* Top action bar — WhatsApp order: close, then (in priority order)
           Reply, Forward, Copy, Star, Delete, More. */}
@@ -230,13 +280,14 @@ export function MessageActionMenu({
           (not a fill) marks the user's own current reaction. */}
       {!isDeleted && (
         <div
-          className="absolute flex items-center gap-1.5 bg-surface border border-border rounded-full px-2.5 py-2 shadow-lg overflow-x-auto no-scrollbar snap-x snap-mandatory max-w-[92vw]"
-          style={{ top: pillTop, left: pillLeft }}
+          ref={pillRef}
+          className="absolute flex items-center gap-1.5 bg-surface border border-border rounded-full px-2.5 py-2 shadow-lg overflow-x-auto no-scrollbar snap-x snap-mandatory max-w-[92vw] transition-opacity duration-100"
+          style={{ top: pillPos.top, left: pillPos.left, opacity: pillPos.ready ? 1 : 0 }}
         >
           {emojis.map((emoji) => (
             <button
               key={emoji}
-              onClick={() => handlePick(emoji)}
+              onClick={(e) => handlePick(emoji, e)}
               className={`snap-start flex-shrink-0 text-3xl leading-none w-10 h-10 flex items-center justify-center rounded-full transition-transform active:scale-90 ${
                 myReaction === emoji ? "ring-2 ring-accent" : ""
               }`}
@@ -263,8 +314,8 @@ export function MessageActionMenu({
         style={{ top: anchorRect.top, left: anchorRect.left, width: anchorRect.width }}
       >
         <div
-          className={`rounded-2xl px-4 py-2.5 text-sm whitespace-pre-wrap break-words ${
-            isMine ? "bg-accent text-white" : "bg-surface text-ink"
+          className={`relative rounded-2xl px-4 py-2.5 text-sm whitespace-pre-wrap break-words ${
+            isMine ? "bg-accent text-white bubble-tail-mine" : "bg-surface text-ink bubble-tail-theirs"
           } ${isDeleted ? "italic opacity-70" : ""}`}
         >
           {isDeleted ? "This message was deleted" : content}
