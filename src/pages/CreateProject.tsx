@@ -176,7 +176,9 @@ export function CreateProject() {
               }
             : undefined,
         meeting_details:
-          projectType === "meeting" ? { scheduled_at: meetingFields.scheduled_at } : undefined,
+          projectType === "meeting"
+            ? { scheduled_at: meetingFields.scheduled_at, recording_enabled: meetingFields.recording_enabled }
+            : undefined,
         // Audio/video: upload and link are independent now — a channel
         // can carry either, or both, so both fields are sent whenever
         // they're filled rather than picking one via a "source". Image
