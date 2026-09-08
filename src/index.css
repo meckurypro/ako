@@ -124,6 +124,65 @@ body {
 }
 
 /*
+  WhatsApp-style message bubble corners (see MessageThread.tsx). Real
+  WhatsApp bubbles round three corners and leave the fourth — the one
+  nearest the sender's side of the screen — as a small flat-then-
+  flared "tail" corner: top-right for an outgoing/sent bubble, top-left
+  for an incoming/received one. Two pieces make that shape:
+    1. The bubble's own top-{left,right} radius is pulled way down
+       (from the usual ~18px to 4px) so that corner reads as the
+       tail's base instead of a smooth curve.
+    2. A small triangular ::before flap, colored via `background-color:
+       inherit` (so it always matches whichever bg-* class the bubble
+       itself has, light/dark included with zero extra overrides),
+       fills the corner back out and points outward past the bubble's
+       own edge — this is the actual "tail".
+  Both classes require the bubble element itself to be `position:
+  relative` (already true for every bubble that uses them).
+*/
+.bubble-tail-mine {
+  border-top-right-radius: 4px;
+}
+.bubble-tail-mine::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  right: -6px;
+  width: 10px;
+  height: 13px;
+  background-color: inherit;
+  clip-path: polygon(0 0, 0 100%, 100% 0);
+}
+.bubble-tail-theirs {
+  border-top-left-radius: 4px;
+}
+.bubble-tail-theirs::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: -6px;
+  width: 10px;
+  height: 13px;
+  background-color: inherit;
+  clip-path: polygon(100% 0, 100% 100%, 0 0);
+}
+
+/*
+  Reaction badges under a bubble (ReactionsBar in MessageThread.tsx) —
+  a perfectly round chip per emoji with a soft drop shadow standing in
+  for the old hard outline, which never actually traced a circle
+  around the glyph. Rides on the same --shadow-ink-rgb var the rest of
+  the app already uses for shadow/glow colors, so it stays "a shade
+  darker than the bubble it sits on" correctly in both themes with no
+  separate dark-mode override needed.
+*/
+.reaction-badge-shadow {
+  box-shadow:
+    0 1px 3px rgba(var(--shadow-ink-rgb), 0.28),
+    0 0 0 0.5px rgba(var(--shadow-ink-rgb), 0.06);
+}
+
+/*
   Global "saving" loading overlay (see components/LoadingOverlay.tsx).
   Backdrop fades/blurs in quickly so it never feels like a flash on
   fast mutations; the 8-dot ring breathes via staggered opacity —
