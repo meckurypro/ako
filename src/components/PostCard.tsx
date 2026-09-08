@@ -22,6 +22,7 @@ import { TierBadge } from "./TierBadge";
 import { RoleTags } from "./RoleTags";
 import { FollowButton } from "./FollowButton";
 import { ReactionTray, type EngagementAction } from "./ReactionTray";
+import { ReactionMoreSheet } from "./ReactionMoreSheet";
 import { PostMedia } from "./PostMedia";
 import { PostContent } from "./PostContent";
 import { StanceComposer, STANCE_COLORS } from "./StanceComposer";
@@ -87,6 +88,7 @@ export function PostCard({
   const [showReshareSheet, setShowReshareSheet] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [showArchiveConfirm, setShowArchiveConfirm] = useState(false);
+  const [showMoreActions, setShowMoreActions] = useState(false);
   const lastTapRef = useRef(0);
 
   // Reshare/quote: reshared_post_id set + empty content = plain reshare
@@ -244,21 +246,21 @@ export function PostCard({
     support: {
       key: "support",
       label: "Support",
-      icon: <Handshake size={18} className="text-ink" />,
+      icon: <Handshake size={24} className="text-ink" />,
       count: post.support_count > 0 ? post.support_count : null,
       onAction: () => handleStance("support"),
     },
     disagree: {
       key: "disagree",
       label: "Disagree",
-      icon: <Frown size={18} className={STANCE_COLORS.disagree.iconClass} />,
+      icon: <Frown size={24} className={STANCE_COLORS.disagree.iconClass} />,
       count: post.disagree_count > 0 ? post.disagree_count : null,
       onAction: () => handleStance("disagree"),
     },
     pushback: {
       key: "pushback",
       label: "Pushback",
-      icon: <Hand size={18} className={STANCE_COLORS.pushback.iconClass} />,
+      icon: <Hand size={24} className={STANCE_COLORS.pushback.iconClass} />,
       count: post.pushback_count > 0 ? post.pushback_count : null,
       onAction: () => handleStance("pushback"),
     },
@@ -267,7 +269,7 @@ export function PostCard({
       label: isDisliked ? "Disliked" : "Dislike",
       icon: (
         <ThumbsDown
-          size={18}
+          size={24}
           fill={isDisliked ? "currentColor" : "none"}
         />
       ),
@@ -277,14 +279,14 @@ export function PostCard({
     gift: {
       key: "gift",
       label: "Gift",
-      icon: <GiftIcon size={18} className="text-ink" />,
+      icon: <GiftIcon size={24} className="text-ink" />,
       count: post.gift_count > 0 ? post.gift_count : null,
       onAction: handleGift,
     },
     reshare: {
       key: "reshare",
       label: "Reshare",
-      icon: <Repeat2 size={18} className="text-ink" />,
+      icon: <Repeat2 size={24} className="text-ink" />,
       count: post.share_count > 0 ? post.share_count : null,
       onAction: handleReshareTap,
     },
@@ -293,7 +295,7 @@ export function PostCard({
       label: isBookmarked ? "Saved" : "Save",
       icon: (
         <Bookmark
-          size={18}
+          size={24}
           fill={isBookmarked ? "currentColor" : "none"}
         />
       ),
@@ -330,7 +332,7 @@ export function PostCard({
       label: isLiked ? "Liked" : "Like",
       icon: (
         <Heart
-          size={18}
+          size={24}
           fill={isLiked ? "currentColor" : "none"}
           className="text-danger"
         />
@@ -347,16 +349,18 @@ export function PostCard({
     {
       key: "share",
       label: "Share",
-      icon: <Redo2 size={18} className="text-ink" />,
+      icon: <Redo2 size={24} className="text-ink" />,
       count: null,
       onClick: () => void handleShare(),
     },
   ];
 
-  // ─── Middle (swipable, 3 slots visible): ranked secondary actions —
-  // including Reshare and Save now — plus own-post management folded in
-  // here instead of a separate "…" sheet.
-  const middleActions: EngagementAction[] = [
+  // ─── The long-press sheet: literally everything — every secondary
+  // action regardless of usage rank, plus own-post management folded in
+  // here instead of a separate "…" sheet. This is the full pool; only
+  // the top 2 (by usage) get a permanent visible slot (see
+  // `middleActions` below) — the rest are still one long-press away.
+  const moreActions: EngagementAction[] = [
     ...order.map((k): EngagementAction => ({
       key: secondaryDefs[k].key,
       label: secondaryDefs[k].label,
@@ -371,7 +375,7 @@ export function PostCard({
                 {
                   key: "edit",
                   label: "Edit",
-                  icon: <Pencil size={18} className="text-ink" />,
+                  icon: <Pencil size={24} className="text-ink" />,
                   count: null,
                   onClick: handleEdit,
                 } satisfies EngagementAction,
@@ -381,9 +385,9 @@ export function PostCard({
             key: "archive",
             label: post.is_archived ? "Unarchive" : "Archive",
             icon: post.is_archived ? (
-              <RotateCcw size={18} className="text-ink" />
+              <RotateCcw size={24} className="text-ink" />
             ) : (
-              <Archive size={18} className="text-ink" />
+              <Archive size={24} className="text-ink" />
             ),
             count: null,
             onClick: handleToggleArchive,
@@ -391,13 +395,18 @@ export function PostCard({
           {
             key: "delete",
             label: "Delete",
-            icon: <Trash2 size={18} className="text-ink" />,
+            icon: <Trash2 size={24} className="text-ink" />,
             count: null,
             onClick: handleDelete,
           },
         ] satisfies EngagementAction[])
       : []),
   ];
+
+  // ─── Middle (fixed, 2 slots): just the top 2 of moreActions — the
+  // row is 4 icons total now (Like + 2 + Share), no swiping. Long-
+  // pressing any of the 4 opens the sheet above with the rest.
+  const middleActions: EngagementAction[] = moreActions.slice(0, 2);
 
   function handleReshareTap() {
     if (plainReshare && originalGone) return; // nothing valid left to reshare
@@ -526,8 +535,13 @@ export function PostCard({
         leftActions={leftActions}
         middleActions={middleActions}
         rightActions={rightActions}
+        onOpenMore={() => setShowMoreActions(true)}
         belowLeftLabel={{ text: `Comments: ${post.comment_count}`, onClick: handleCommentTap }}
       />
+
+      {showMoreActions && (
+        <ReactionMoreSheet actions={moreActions} onClose={() => setShowMoreActions(false)} />
+      )}
 
       {activeStance && (
         <StanceComposer
