@@ -1,7 +1,7 @@
 // src/pages/ProfilePage.tsx
 import { useState, useRef } from "react";
 import { useParams, Link, useNavigate, useLocation } from "react-router-dom";
-import { Settings, Wallet, MessageCircle, MoreHorizontal, Plus, Eye, X, Globe, UserCheck, Lock, Redo2, Building2, Store, ChevronDown } from "lucide-react";
+import { Settings, Wallet, MessageCircle, MoreHorizontal, Plus, Eye, X, Globe, UserCheck, Lock, Redo2, Building2, Store } from "lucide-react";
 import { useAuth } from "../hooks/useAuth";
 import { useProfileByUsername, useIsFollowing, useIsFollowedByUser, useToggleFollow } from "../hooks/useProfile";
 import { useMyPages, useSwitchActiveMode } from "../hooks/usePages";
@@ -22,6 +22,7 @@ import { useUserProjects } from "../hooks/useProjects";
 import { useRecordProfileVisit, useProfileVisitCount } from "../hooks/useProfileVisits";
 import { Avatar } from "../components/Avatar";
 import { AccountSwitcher } from "../components/AccountSwitcher";
+import { useSavedAccounts } from "../hooks/useAccountSwitcher";
 import { ImageLightbox } from "../components/ImageLightbox";
 import { TierBadge } from "../components/TierBadge";
 import { RoleTags } from "../components/RoleTags";
@@ -68,6 +69,20 @@ export function ProfilePage() {
   const [ownerMenuOpen, setOwnerMenuOpen] = useState(false);
   const ownerMenuButtonRef = useRef<HTMLButtonElement>(null);
   const [accountSwitcherOpen, setAccountSwitcherOpen] = useState(false);
+  // Whether there's anything to actually switch between — if this is
+  // the only account on the device, tapping the name should skip
+  // straight to adding one instead of opening a dropdown with just
+  // "You" and an "Add account" row in it.
+  const { accounts: savedAccounts } = useSavedAccounts();
+  const hasOtherAccounts = savedAccounts.some((a) => a.user_id !== user?.id);
+
+  function handleAccountNameClick() {
+    if (hasOtherAccounts) {
+      setAccountSwitcherOpen((o) => !o);
+    } else {
+      navigate("/login?add=1");
+    }
+  }
   // Account-mode: the org/brand (if any) this user runs, shown as
   // switch-into rows in the owner menu below (see handleModeMenuClick).
   const { data: myPages } = useMyPages();
@@ -430,11 +445,10 @@ export function ProfilePage() {
                 <div className="relative">
                   <button
                     type="button"
-                    onClick={() => setAccountSwitcherOpen((o) => !o)}
+                    onClick={handleAccountNameClick}
                     className="flex items-center gap-1"
                   >
                     <h1 className="font-medium text-lg text-ink">{profile.display_name}</h1>
-                    <ChevronDown size={16} className="text-ink-muted" />
                   </button>
                   {accountSwitcherOpen && (
                     <AccountSwitcher onClose={() => setAccountSwitcherOpen(false)} />
