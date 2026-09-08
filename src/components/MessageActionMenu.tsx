@@ -96,7 +96,7 @@ export function MessageActionMenu({
 
   return (
     <div className="fixed inset-0 z-50" role="dialog" aria-label="Message actions">
-      <div className="absolute inset-0 bg-ink/50" onClick={onClose} />
+      <div className="absolute inset-0 bg-canvas/70 backdrop-blur-sm" onClick={onClose} />
 
       {/* Top action bar — WhatsApp order: close, then (in priority order)
           Reply, Forward, Copy, Star, Delete, More. */}
