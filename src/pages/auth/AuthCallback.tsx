@@ -1,7 +1,9 @@
 // src/pages/auth/AuthCallback.tsx
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { useQueryClient } from "@tanstack/react-query";
 import { supabase } from "../../lib/supabase";
+import { saveAccount, takePendingAddAccount } from "../../lib/accountSessions";
 import { Wordmark } from "../../components/Wordmark";
 import { Button } from "../../components/Button";
 import { AuthPattern } from "../../components/AuthPattern";
@@ -14,6 +16,7 @@ import { AuthPattern } from "../../components/AuthPattern";
 // for the specific auth event, then navigate ourselves.
 export function AuthCallback() {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const [status, setStatus] = useState<"waiting" | "error">("waiting");
 
   useEffect(() => {
@@ -38,6 +41,38 @@ export function AuthCallback() {
         navigate("/reset-password", { replace: true, state: { fromRecovery: true } });
       } else if (event === "SIGNED_IN" && session) {
         settled = true;
+
+        // Left behind by SignUp.tsx when this confirmation completes a
+        // sign-up started from "Add account" rather than a fresh,
+        // signed-out one — see lib/accountSessions.ts. Save the
+        // account that was active before, cache this new one too (so
+        // switching back to it later doesn't need the password again),
+        // and best-effort link them server-side, same as the
+        // login-path add-account flow.
+        const pending = takePendingAddAccount();
+        if (pending && pending.user_id !== session.user.id) {
+          saveAccount(pending);
+          void (async () => {
+            const { data: newProfile } = await supabase
+              .from("profiles")
+              .select("id, username, display_name, avatar_url")
+              .eq("id", session.user.id)
+              .single();
+            if (newProfile) {
+              saveAccount({
+                user_id: newProfile.id,
+                username: newProfile.username,
+                display_name: newProfile.display_name,
+                avatar_url: newProfile.avatar_url,
+                access_token: session.access_token,
+                refresh_token: session.refresh_token,
+              });
+            }
+            await supabase.rpc("link_accounts", { p_other_user_id: pending.user_id });
+          })();
+        }
+
+        queryClient.clear();
         navigate("/onboarding/interests", { replace: true });
       }
     });
