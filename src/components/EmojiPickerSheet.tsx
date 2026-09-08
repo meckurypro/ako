@@ -20,6 +20,12 @@ interface EmojiPickerSheetProps {
   mode: "input" | "reaction";
   content?: string;
   onBackspace?: () => void;
+  /** "input" mode only. The on-screen keyboard's own last-measured
+   *  height (see useKeyboardInset) — sizing the tray to this instead
+   *  of a fixed vh guess means it occupies exactly the space the
+   *  keyboard would have, so toggling between the two never changes
+   *  how much of the screen the message list gets. */
+  heightPx?: number;
 }
 
 /** Removes the last full grapheme cluster (so multi-part emoji —
@@ -42,7 +48,7 @@ export function removeLastGrapheme(text: string): string {
  * then each category), with plain text section labels instead of
  * tabs. No search.
  */
-export function EmojiPickerSheet({ onSelect, onClose, mode, content = "", onBackspace }: EmojiPickerSheetProps) {
+export function EmojiPickerSheet({ onSelect, onClose, mode, content = "", onBackspace, heightPx }: EmojiPickerSheetProps) {
   // Only "reaction" mode is a real full-screen modal — "input" mode is
   // inline under the compose bar and shouldn't touch browser history.
   useBackDismiss(onClose ?? (() => {}), mode === "reaction");
@@ -80,8 +86,15 @@ export function EmojiPickerSheet({ onSelect, onClose, mode, content = "", onBack
   if (mode === "input") {
     // Inline, sits directly under the compose bar — no backdrop, no
     // full-screen takeover, nothing covering the toggle button above.
+    // Fixed to the keyboard's own measured height (falling back to the
+    // vh guess only before we've ever measured a real keyboard) rather
+    // than a flat vh value, so this never occupies a different amount
+    // of screen than the keyboard it's replacing did.
     return (
-      <div className="bg-surface border-t border-border max-h-[45vh] min-h-[45vh] flex flex-col">
+      <div
+        className={`bg-surface border-t border-border flex flex-col ${heightPx ? "" : "max-h-[45vh] min-h-[45vh]"}`}
+        style={heightPx ? { height: heightPx, minHeight: heightPx, maxHeight: heightPx } : undefined}
+      >
         <div className="flex items-center justify-end px-3 pt-2 pb-1">
           <button
             type="button"
