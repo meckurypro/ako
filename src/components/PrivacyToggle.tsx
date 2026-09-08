@@ -19,7 +19,7 @@ export function PrivacyToggle({ checked, onChange }: PrivacyToggleProps) {
           <div>
             <p className="text-sm font-medium text-ink">Private project</p>
             <p className="text-xs text-ink-muted">
-              Not listed on your profile or shown anywhere else — only people with the link can open it.
+              Not listed anywhere, and not open to anyone by link — only people you add can see or open it.
             </p>
           </div>
         </div>
