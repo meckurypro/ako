@@ -1,5 +1,5 @@
 // src/pages/ProfilePage.tsx
-import { useState, useEffect, useRef } from "react";
+import { useState, useRef } from "react";
 import { useParams, Link, useNavigate, useLocation } from "react-router-dom";
 import { Settings, Wallet, MessageCircle, MoreHorizontal, Plus, Eye, X, Globe, UserCheck, Lock, Redo2, Building2, Store, ChevronDown } from "lucide-react";
 import { useAuth } from "../hooks/useAuth";
@@ -8,6 +8,7 @@ import { useMyPages, useSwitchActiveMode } from "../hooks/usePages";
 import { useTabState } from "../hooks/useTabState";
 import { useBackDismiss } from "../hooks/useBackDismiss";
 import { SwipeableTabs } from "../components/SwipeableTabs";
+import { DropdownMenu, type DropdownMenuItem } from "../components/DropdownMenu";
 import {
   useHasPendingFollowRequest,
   useSendFollowRequest,
@@ -59,13 +60,13 @@ export function ProfilePage() {
   const location = useLocation();
   const startConversation = useStartConversation();
   const [menuOpen, setMenuOpen] = useState(false);
-  const menuRef = useRef<HTMLDivElement>(null);
+  const menuButtonRef = useRef<HTMLButtonElement>(null);
   // Separate menu from the visitor-side mute/block one below — the
   // owner's dropdown (Share profile / View as visitor / Follow
   // requests / Wallet / Settings) needs its own open state and its
-  // own outside-click ref.
+  // own anchor button.
   const [ownerMenuOpen, setOwnerMenuOpen] = useState(false);
-  const ownerMenuRef = useRef<HTMLDivElement>(null);
+  const ownerMenuButtonRef = useRef<HTMLButtonElement>(null);
   const [accountSwitcherOpen, setAccountSwitcherOpen] = useState(false);
   // Account-mode: the org/brand (if any) this user runs, shown as
   // switch-into rows in the owner menu below (see handleModeMenuClick).
@@ -138,39 +139,9 @@ export function ProfilePage() {
   useRecordProfileVisit(profile?.id);
   const { data: visitCount } = useProfileVisitCount(profile?.id, showOwnerView);
 
-  // Outside-click / outside-tap closes whichever "…" menu is open —
-  // the visitor-side mute/block one, or the owner-side options one.
-  // Each only listened for clicks on its own toggle button before, so
-  // tapping anywhere else on the page while open did nothing.
-  useEffect(() => {
-    if (!menuOpen) return;
-    function handleOutside(e: MouseEvent | TouchEvent) {
-      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
-        setMenuOpen(false);
-      }
-    }
-    document.addEventListener("mousedown", handleOutside);
-    document.addEventListener("touchstart", handleOutside);
-    return () => {
-      document.removeEventListener("mousedown", handleOutside);
-      document.removeEventListener("touchstart", handleOutside);
-    };
-  }, [menuOpen]);
-
-  useEffect(() => {
-    if (!ownerMenuOpen) return;
-    function handleOutside(e: MouseEvent | TouchEvent) {
-      if (ownerMenuRef.current && !ownerMenuRef.current.contains(e.target as Node)) {
-        setOwnerMenuOpen(false);
-      }
-    }
-    document.addEventListener("mousedown", handleOutside);
-    document.addEventListener("touchstart", handleOutside);
-    return () => {
-      document.removeEventListener("mousedown", handleOutside);
-      document.removeEventListener("touchstart", handleOutside);
-    };
-  }, [ownerMenuOpen]);
+  // Outside-click / back-dismiss for both "…" menus (visitor-side
+  // mute/block, owner-side options) is handled internally by
+  // <DropdownMenu> now.
 
   function handleFollowClick() {
     if (isFollowing) {
@@ -299,8 +270,9 @@ export function ProfilePage() {
               <Plus size={22} />
             </Link>
 
-            <div ref={ownerMenuRef} className="relative">
+            <div className="relative">
               <button
+                ref={ownerMenuButtonRef}
                 onClick={() => setOwnerMenuOpen((o) => !o)}
                 className="relative p-2 text-ink-muted"
                 aria-label="Profile options"
@@ -317,88 +289,52 @@ export function ProfilePage() {
               </button>
 
               {ownerMenuOpen && (
-                <div className="absolute top-full right-0 mt-1 bg-canvas border border-border rounded-xl shadow-lg py-1 w-56 z-10">
-                  <button
-                    onClick={handleShareProfile}
-                    className="w-full flex items-center gap-2.5 text-left px-4 py-2.5 text-sm text-ink hover:bg-surface"
-                  >
-                    <Redo2 size={16} />
-                    Share profile
-                  </button>
-                  <button
-                    onClick={() => handleModeMenuClick(myOrg, "organization")}
-                    className="w-full flex items-center gap-2.5 text-left px-4 py-2.5 text-sm text-ink hover:bg-surface"
-                  >
-                    {myOrg ? (
-                      <>
-                        <span className="flex-1 min-w-0 truncate">{myOrg.name}</span>
-                        <Avatar src={myOrg.avatar_url} name={myOrg.name} size="sm" />
-                      </>
-                    ) : (
-                      <>
-                        <Building2 size={16} />
-                        Organisation
-                      </>
-                    )}
-                  </button>
-                  <button
-                    onClick={() => handleModeMenuClick(myBrand, "brand")}
-                    className="w-full flex items-center gap-2.5 text-left px-4 py-2.5 text-sm text-ink hover:bg-surface"
-                  >
-                    {myBrand ? (
-                      <>
-                        <span className="flex-1 min-w-0 truncate">{myBrand.name}</span>
-                        <Avatar src={myBrand.avatar_url} name={myBrand.name} size="sm" />
-                      </>
-                    ) : (
-                      <>
-                        <Store size={16} />
-                        Brand
-                      </>
-                    )}
-                  </button>
-                  <button
-                    onClick={() => {
-                      setPreviewingAsVisitor(true);
-                      setOwnerMenuOpen(false);
-                    }}
-                    className="w-full flex items-center gap-2.5 text-left px-4 py-2.5 text-sm text-ink hover:bg-surface"
-                  >
-                    <Eye size={16} />
-                    View as visitor
-                  </button>
-                  {profile.is_private && (
-                    <Link
-                      to="/requests"
-                      onClick={() => setOwnerMenuOpen(false)}
-                      className="flex items-center gap-2.5 px-4 py-2.5 text-sm text-ink hover:bg-surface"
-                    >
-                      <UserCheck size={16} />
-                      Follow requests
-                      {incomingRequestCount > 0 && (
-                        <span className="ml-auto bg-danger text-canvas text-[10px] font-medium rounded-full w-4 h-4 flex items-center justify-center shrink-0">
-                          {incomingRequestCount > 9 ? "9+" : incomingRequestCount}
-                        </span>
-                      )}
-                    </Link>
-                  )}
-                  <Link
-                    to="/wallet"
-                    onClick={() => setOwnerMenuOpen(false)}
-                    className="flex items-center gap-2.5 px-4 py-2.5 text-sm text-ink hover:bg-surface"
-                  >
-                    <Wallet size={16} />
-                    Wallet
-                  </Link>
-                  <Link
-                    to="/settings/profile"
-                    onClick={() => setOwnerMenuOpen(false)}
-                    className="flex items-center gap-2.5 px-4 py-2.5 text-sm text-ink hover:bg-surface"
-                  >
-                    <Settings size={16} />
-                    Settings
-                  </Link>
-                </div>
+                <DropdownMenu
+                  anchorRef={ownerMenuButtonRef}
+                  onClose={() => setOwnerMenuOpen(false)}
+                  widthClass="w-64"
+                  items={[
+                    { key: "share", label: "Share profile", icon: <Redo2 />, onSelect: handleShareProfile },
+                    {
+                      key: "org",
+                      label: myOrg ? myOrg.name : "Organisation",
+                      icon: myOrg ? undefined : <Building2 />,
+                      badge: myOrg ? <Avatar src={myOrg.avatar_url} name={myOrg.name} size="sm" /> : undefined,
+                      onSelect: () => handleModeMenuClick(myOrg, "organization"),
+                    },
+                    {
+                      key: "brand",
+                      label: myBrand ? myBrand.name : "Brand",
+                      icon: myBrand ? undefined : <Store />,
+                      badge: myBrand ? <Avatar src={myBrand.avatar_url} name={myBrand.name} size="sm" /> : undefined,
+                      onSelect: () => handleModeMenuClick(myBrand, "brand"),
+                    },
+                    {
+                      key: "view-as-visitor",
+                      label: "View as visitor",
+                      icon: <Eye />,
+                      onSelect: () => setPreviewingAsVisitor(true),
+                    },
+                    ...(profile.is_private
+                      ? ([
+                          {
+                            key: "follow-requests",
+                            label: "Follow requests",
+                            icon: <UserCheck />,
+                            badge:
+                              incomingRequestCount > 0 ? (
+                                <span className="bg-danger text-canvas text-[10px] font-medium rounded-full w-4 h-4 flex items-center justify-center shrink-0">
+                                  {incomingRequestCount > 9 ? "9+" : incomingRequestCount}
+                                </span>
+                              ) : undefined,
+                            onSelect: () => navigate("/requests"),
+                          },
+                        ] satisfies DropdownMenuItem[])
+                      : []),
+                    { key: "wallet", label: "Wallet", icon: <Wallet />, onSelect: () => navigate("/wallet") },
+                    { key: "settings", label: "Settings", icon: <Settings />, onSelect: () => navigate("/settings/profile") },
+                  ]}
+                />
               )}
             </div>
           </div>
@@ -439,8 +375,9 @@ export function ProfilePage() {
                 : "Follow"}
             </button>
 
-            <div ref={menuRef} className="relative">
+            <div className="relative">
               <button
+                ref={menuButtonRef}
                 onClick={() => setMenuOpen((o) => !o)}
                 className="text-ink-muted p-2"
                 aria-label="More options"
@@ -449,36 +386,25 @@ export function ProfilePage() {
               </button>
 
               {menuOpen && (
-                <div className="absolute top-full right-0 mt-1 bg-canvas border border-border rounded-xl shadow-lg py-1 w-40 z-10">
-                  <button
-                    onClick={() => {
-                      setMenuOpen(false);
-                      void shareProfile();
-                    }}
-                    className="w-full flex items-center gap-2.5 text-left px-4 py-2.5 text-sm text-ink hover:bg-surface"
-                  >
-                    <Redo2 size={16} />
-                    Share profile
-                  </button>
-                  <button
-                    onClick={() => {
-                      toggleMute.mutate(isMuted);
-                      setMenuOpen(false);
-                    }}
-                    className="w-full text-left px-4 py-2.5 text-sm text-ink hover:bg-surface"
-                  >
-                    {isMuted ? "Unmute" : "Mute"}
-                  </button>
-                  <button
-                    onClick={() => {
-                      toggleBlock.mutate(isBlocked);
-                      setMenuOpen(false);
-                    }}
-                    className="w-full text-left px-4 py-2.5 text-sm text-danger hover:bg-surface"
-                  >
-                    {isBlocked ? "Unblock" : "Block"}
-                  </button>
-                </div>
+                <DropdownMenu
+                  anchorRef={menuButtonRef}
+                  onClose={() => setMenuOpen(false)}
+                  widthClass="w-48"
+                  items={[
+                    { key: "share", label: "Share profile", icon: <Redo2 />, onSelect: () => void shareProfile() },
+                    {
+                      key: "mute",
+                      label: isMuted ? "Unmute" : "Mute",
+                      onSelect: () => toggleMute.mutate(isMuted),
+                    },
+                    {
+                      key: "block",
+                      label: isBlocked ? "Unblock" : "Block",
+                      variant: "danger",
+                      onSelect: () => toggleBlock.mutate(isBlocked),
+                    },
+                  ]}
+                />
               )}
             </div>
           </div>
