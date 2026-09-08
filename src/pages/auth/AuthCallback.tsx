@@ -94,7 +94,7 @@ export function AuthCallback() {
       <AuthPattern />
       <div className="relative z-10 w-full max-w-sm text-center">
         <div className="mb-8">
-          <Wordmark size="sm" showTagline={false} />
+          <Wordmark asIcon iconTagline={false} />
         </div>
 
         {status === "waiting" && (
