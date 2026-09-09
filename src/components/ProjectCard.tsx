@@ -915,17 +915,25 @@ export function ProjectCard({
             ))}
 
           {/* Event/Meeting/Course — once unlocked, hand off to their
-              own dedicated page rather than a link/download here. */}
+              own dedicated page rather than a link/download here. An
+              event's owner never buys their own ticket, so they get
+              the door-scanner page here instead of "View ticket". */}
           {!INLINE_TYPES.includes(project.project_type) &&
             !isMedia &&
             hasAccess &&
             TYPE_ROUTE[project.project_type] && (
               <button
-                onClick={() => navigate(TYPE_ROUTE[project.project_type]!(project.id))}
+                onClick={() =>
+                  navigate(
+                    project.project_type === "event" && isOwner
+                      ? `/projects/${project.id}/checkin`
+                      : TYPE_ROUTE[project.project_type]!(project.id)
+                  )
+                }
                 className="flex items-center gap-1.5 text-sm text-accent font-medium"
               >
                 {TypeIcon && <TypeIcon size={15} />}
-                {TYPE_ACTION_LABEL[project.project_type]}
+                {project.project_type === "event" && isOwner ? "Scan tickets" : TYPE_ACTION_LABEL[project.project_type]}
               </button>
             )}
 
