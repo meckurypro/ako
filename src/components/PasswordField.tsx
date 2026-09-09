@@ -20,7 +20,7 @@ export function PasswordField({ label, error, id, ...inputProps }: PasswordField
           id={id}
           type={visible ? "text" : "password"}
           {...inputProps}
-          className={`w-full px-4 py-3 pr-12 rounded-xl border bg-canvas text-ink placeholder:text-ink-muted/60
+          className={`w-full px-4 py-3 pr-12 rounded-xl border bg-input-fill input-shadow text-ink placeholder:text-ink-muted/60
             focus:outline-none focus:ring-2 focus:ring-accent/40 focus:border-accent
             transition-colors ${error ? "border-danger" : "border-border"}`}
         />
