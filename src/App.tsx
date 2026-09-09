@@ -30,6 +30,7 @@ import { Pages } from "./pages/Pages";
 import { CreatePage } from "./pages/CreatePage";
 import { PagePage } from "./pages/PagePage";
 import { PageTeam } from "./pages/PageTeam";
+import { EditPage } from "./pages/EditPage";
 
 import { WalletPage } from "./pages/Wallet";
 import { FundWallet } from "./pages/FundWallet";
@@ -254,6 +255,14 @@ function AppRoutes() {
               element={
                 <RequireAuth>
                   <PageTeam />
+                </RequireAuth>
+              }
+            />
+            <Route
+              path="/page/:username/edit"
+              element={
+                <RequireAuth>
+                  <EditPage />
                 </RequireAuth>
               }
             />
