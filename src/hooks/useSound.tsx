@@ -1,6 +1,7 @@
 // src/hooks/useSound.tsx
-import { createContext, useCallback, useContext, useMemo, useRef, useState, type ReactNode } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { MINIMALIST_EVENTS, SOUND_REGISTRY, type SoundEvent } from "../lib/sounds";
+import { duckAudioBus, getAudioBus, resumeAudioBus, unduckAudioBus } from "../lib/audioBus";
 
 export type SoundMode = "minimalist" | "normal";
 
@@ -29,17 +30,25 @@ interface SoundContextValue {
 const SoundContext = createContext<SoundContextValue | null>(null);
 
 /**
- * Wraps the app (see main.tsx). Lazily creates and caches one HTMLAudioElement
- * per event on first play, so nothing loads until it's actually needed.
+ * Wraps the app (see main.tsx). Every sound plays through the shared audio
+ * bus (see lib/audioBus.ts) rather than owning its own <audio> element, so
+ * one master gain can duck UI sounds under real media — a voice note, a
+ * post's video, a live Room/Meeting call — instead of talking over it.
  *
- * Swapping a placeholder for a real designed sound never touches this file —
- * just replace the file in public/sounds/ under the same name (see
+ * Ducking is media-driven, not feature-driven: a single capture-phase
+ * listener on document's play/pause/ended events catches every <audio>/
+ * <video> in the app (voice notes, post media, LiveKit's call audio all
+ * render real media elements — see MediaPreviewPlayer, VoiceMessageBubble,
+ * MeetingRoom), so nothing per-feature needs to know ducking exists.
+ *
+ * Swapping a placeholder for a real designed sound never touches this file
+ * — just replace the file in public/sounds/ under the same name (see
  * src/lib/sounds.ts for the registry).
  */
 export function SoundProvider({ children }: { children: ReactNode }) {
   const [enabled, setEnabledState] = useState<boolean>(readStoredEnabled);
   const [mode, setModeState] = useState<SoundMode>(readStoredMode);
-  const cache = useRef<Partial<Record<SoundEvent, HTMLAudioElement>>>({});
+  const bufferCache = useRef<Partial<Record<SoundEvent, Promise<AudioBuffer>>>>({});
 
   function setEnabled(next: boolean) {
     localStorage.setItem(ENABLED_KEY, String(next));
@@ -51,6 +60,42 @@ export function SoundProvider({ children }: { children: ReactNode }) {
     setModeState(next);
   }
 
+  // Duck (don't mute) while any real media element in the app is playing.
+  // A count rather than a boolean because e.g. two voice notes can't both
+  // play at once in this app today, but a video with sound plus a live
+  // Room call in another tab-like surface isn't impossible — the bus
+  // should only un-duck once every real source has stopped.
+  useEffect(() => {
+    let activeMediaCount = 0;
+
+    function isRealMedia(target: EventTarget | null): target is HTMLMediaElement {
+      return target instanceof HTMLMediaElement;
+    }
+
+    function handlePlay(e: Event) {
+      if (!isRealMedia(e.target)) return;
+      activeMediaCount += 1;
+      if (activeMediaCount === 1) duckAudioBus();
+    }
+
+    function handleStop(e: Event) {
+      if (!isRealMedia(e.target)) return;
+      activeMediaCount = Math.max(0, activeMediaCount - 1);
+      if (activeMediaCount === 0) unduckAudioBus();
+    }
+
+    // capture: true — play/pause/ended don't bubble, so this has to
+    // intercept them on the way down instead of listening at the target.
+    document.addEventListener("play", handlePlay, true);
+    document.addEventListener("pause", handleStop, true);
+    document.addEventListener("ended", handleStop, true);
+    return () => {
+      document.removeEventListener("play", handlePlay, true);
+      document.removeEventListener("pause", handleStop, true);
+      document.removeEventListener("ended", handleStop, true);
+    };
+  }, []);
+
   const play = useCallback(
     (event: SoundEvent) => {
       if (!enabled) return;
@@ -59,20 +104,30 @@ export function SoundProvider({ children }: { children: ReactNode }) {
       const def = SOUND_REGISTRY[event];
       if (!def) return;
 
-      let audio = cache.current[event];
-      if (!audio) {
-        audio = new Audio(def.file);
-        audio.preload = "auto";
-        cache.current[event] = audio;
+      const { context, gain } = getAudioBus();
+      resumeAudioBus(); // this call is itself a user-gesture handler, so this is safe
+
+      let bufferPromise = bufferCache.current[event];
+      if (!bufferPromise) {
+        bufferPromise = fetch(def.file)
+          .then((res) => res.arrayBuffer())
+          .then((data) => context.decodeAudioData(data));
+        bufferCache.current[event] = bufferPromise;
       }
 
-      // Restart from the top if it's still playing from a rapid repeat
-      // (e.g. double-tapping like) rather than queuing or ignoring it.
-      audio.currentTime = 0;
-      void audio.play().catch(() => {
-        // Autoplay can be blocked before the user's first interaction with
-        // the page — safe to ignore, the next user-initiated play will work.
-      });
+      bufferPromise
+        .then((buffer) => {
+          const source = context.createBufferSource();
+          source.buffer = buffer;
+          source.connect(gain);
+          source.start(0);
+        })
+        .catch(() => {
+          // Fetch/decode failure, or autoplay still blocked before any
+          // gesture has landed — safe to ignore, matches the old
+          // HTMLAudioElement behavior of silently skipping a blocked play.
+          bufferCache.current[event] = undefined;
+        });
     },
     [enabled, mode],
   );
