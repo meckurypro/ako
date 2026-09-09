@@ -1,8 +1,9 @@
 // src/components/CommentThread.tsx
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
-import { Heart, ThumbsDown } from "lucide-react";
+import { ThumbsDown } from "lucide-react";
 import { Avatar } from "./Avatar";
+import { LikeHeart } from "./LikeHeart";
 import { StanceComposer, STANCE_COLORS } from "./StanceComposer";
 import {
   useMyCommentReactions,
@@ -134,7 +135,7 @@ function CommentItem({
               }
               className="flex items-center gap-1.5 text-danger -ml-1.5 p-1.5"
             >
-              <Heart size={18} fill={isLiked ? "currentColor" : "none"} />
+              <LikeHeart active={isLiked} size={18} />
               {comment.like_count > 0 && <span className="text-sm">{comment.like_count}</span>}
             </button>
             <button
