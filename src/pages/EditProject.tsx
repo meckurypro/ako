@@ -183,6 +183,9 @@ export function EditProject() {
         tagline: existingGigDetails?.tagline ?? "",
         delivery_estimate: existingGigDetails?.delivery_estimate ?? "",
         sample_project_ids: existingGigSamples.map((p) => p.id),
+        revisions_included: existingGigDetails?.revisions_included?.toString() ?? "",
+        deliverables: existingGigDetails?.deliverables ?? [],
+        faq: existingGigDetails?.faq ?? [],
       });
       setTypeDetailsHydrated(true);
     } else if (!["event", "meeting", "media", "gig"].includes(project.project_type)) {
@@ -332,10 +335,18 @@ export function EditProject() {
         if (detailsError) throw detailsError;
       }
       if (project.project_type === "gig") {
+        const revisions = gigFields.revisions_included.trim();
+        const deliverables = gigFields.deliverables.map((d) => d.trim()).filter(Boolean);
+        const faq = gigFields.faq
+          .map((f) => ({ question: f.question.trim(), answer: f.answer.trim() }))
+          .filter((f) => f.question && f.answer);
         const { error: detailsError } = await supabase.from("project_gig_details").upsert({
           project_id: projectId,
           tagline: gigFields.tagline.trim(),
           delivery_estimate: gigFields.delivery_estimate.trim() || null,
+          revisions_included: revisions ? parseInt(revisions, 10) : null,
+          deliverables: deliverables.length > 0 ? deliverables : null,
+          faq: faq.length > 0 ? faq : null,
         });
         if (detailsError) throw detailsError;
 
