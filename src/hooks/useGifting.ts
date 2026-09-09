@@ -1,5 +1,6 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "../lib/supabase";
+import { useSound } from "./useSound";
 
 interface SendGiftInput {
   recipient_id: string;
@@ -10,6 +11,7 @@ interface SendGiftInput {
 
 export function useSendGift() {
   const queryClient = useQueryClient();
+  const { play } = useSound();
 
   return useMutation({
     meta: { blocking: true },
@@ -27,6 +29,7 @@ export function useSendGift() {
       queryClient.invalidateQueries({ queryKey: ["wallet"] });
       queryClient.invalidateQueries({ queryKey: ["wallet-transactions"] });
       queryClient.invalidateQueries({ queryKey: ["feed-posts"] });
+      play("gift-sent");
     },
   });
 }
