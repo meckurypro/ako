@@ -2,6 +2,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Room, RoomEvent, Track, type Participant } from "livekit-client";
 import { supabase } from "../lib/supabase";
+import { useSound } from "./useSound";
 
 export interface CallParticipantView {
   identity: string;
@@ -49,6 +50,7 @@ export function useLiveKitRoom(projectId: string | undefined) {
   const [micEnabled, setMicEnabled] = useState(false);
   const [cameraEnabled, setCameraEnabled] = useState(false);
   const [screenShareEnabled, setScreenShareEnabled] = useState(false);
+  const { play } = useSound();
 
   const refreshParticipants = useCallback((room: Room) => {
     setParticipants([
@@ -72,6 +74,7 @@ export function useLiveKitRoom(projectId: string | undefined) {
         setErrorMessage(
           "Video calling isn't connected yet — this project needs a LiveKit account and the mint-meeting-token function (see MEETING_INFRA.md)."
         );
+        play("error");
         return;
       }
 
@@ -93,6 +96,7 @@ export function useLiveKitRoom(projectId: string | undefined) {
           setMicEnabled(false);
           setCameraEnabled(false);
           setScreenShareEnabled(false);
+          play("room-leave");
         });
 
       await room.connect(data.url as string, data.token as string);
@@ -108,11 +112,13 @@ export function useLiveKitRoom(projectId: string | undefined) {
       setCameraEnabled(wantCamera);
       setConnectionState("connected");
       refreshParticipants(room);
+      play("room-join");
     } catch (err) {
       setConnectionState("error");
       setErrorMessage(err instanceof Error ? err.message : "Couldn't join the meeting.");
+      play("error");
     }
-  }, [projectId, refreshParticipants]);
+  }, [projectId, refreshParticipants, play]);
 
   const leave = useCallback(async () => {
     await roomRef.current?.disconnect();
