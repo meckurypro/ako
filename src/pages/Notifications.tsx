@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { Link } from "react-router-dom";
 import {
   Heart,
@@ -12,10 +13,13 @@ import {
   Repeat2,
   Quote,
   Redo2,
+  Users,
 } from "lucide-react";
 import { useNotifications, useMarkNotificationRead, useMarkAllRead } from "../hooks/useNotifications";
+import { usePageById } from "../hooks/usePages";
 import { Avatar } from "../components/Avatar";
 import { BottomNav } from "../components/BottomNav";
+import { PageInviteResponseModal } from "../components/PageInviteResponseModal";
 import type { NotificationWithActor } from "../hooks/useNotifications";
 
 const TYPE_CONFIG: Record<string, { icon: typeof Heart; verb: string }> = {
@@ -46,6 +50,8 @@ const TYPE_CONFIG: Record<string, { icon: typeof Heart; verb: string }> = {
   admin_message: { icon: Bell, verb: "" },
   follow_request: { icon: UserPlus, verb: "requested to follow you" },
   follow_request_accepted: { icon: UserCheck, verb: "accepted your follow request" },
+  page_role_invite: { icon: Users, verb: "invited you to join their team" },
+  page_role_accepted: { icon: UserCheck, verb: "accepted your team invite" },
 };
 
 function timeAgo(dateString: string): string {
@@ -58,10 +64,13 @@ function timeAgo(dateString: string): string {
   return `${Math.floor(hours / 24)}d`;
 }
 
-// Where a tap on a notification should land. Every engagement type
-// except gifts (gift_received routes through Messages, not here — see
-// TYPE_CONFIG/design notes) should take the person to the exact post or
-// comment they were engaged on, not just "a post somewhere":
+// Where a tap on a notification should land. page_role_invite/
+// page_role_accepted are handled entirely inside NotificationRow below
+// instead (a modal and an async username lookup respectively, neither
+// of which fits this synchronous function), so both are deliberately
+// left out here — every other engagement type except gifts (gift_received
+// routes through Messages, not here — see TYPE_CONFIG/design notes)
+// takes the person to the exact post or comment they were engaged on:
 //   - post-level engagement (like/dislike/support/disagree/pushback on
 //     a POST) already has target_id === the post id, so /post/{id} is
 //     already the exact target.
@@ -83,10 +92,101 @@ function notificationLink(n: NotificationWithActor): string {
   return "#";
 }
 
+// Row content shared by every notification type — pulled out so the
+// three different "what happens on tap" behaviors below (plain Link,
+// modal-opening button, async-resolved Link) can each wrap it the same
+// way instead of triplicating the avatar/text/unread-dot markup.
+function NotificationRowContent({ n, config }: { n: NotificationWithActor; config: { icon: typeof Heart; verb: string } }) {
+  const Icon = config.icon;
+  return (
+    <>
+      {n.actor ? (
+        <Avatar src={n.actor.avatar_url} name={n.actor.display_name} size="sm" />
+      ) : (
+        <div className="w-8 h-8 rounded-full bg-accent-soft flex items-center justify-center flex-shrink-0">
+          <Icon size={16} className="text-accent" />
+        </div>
+      )}
+
+      <div className="min-w-0 flex-1">
+        <p className="text-sm text-ink">
+          {n.actor && <span className="font-medium">{n.actor.display_name}</span>}
+          {n.type === "admin_message" && <span className="font-medium">Akọ.</span>}{" "}
+          {config.verb}
+        </p>
+        {n.preview_text && (
+          <p className="text-sm text-ink-muted truncate mt-0.5">"{n.preview_text}"</p>
+        )}
+        <p className="text-xs text-ink-muted mt-0.5">{timeAgo(n.created_at)}</p>
+      </div>
+
+      {!n.read_at && <div className="w-2 h-2 rounded-full bg-accent flex-shrink-0 mt-2" />}
+    </>
+  );
+}
+
+const ROW_CLASS = (unread: boolean) =>
+  `flex items-start gap-3 py-3.5 border-b border-border w-full text-left ${unread ? "bg-highlight -mx-4 px-4" : ""}`;
+
+// A tap on a page_role_accepted notification should land on the page's
+// team roster (so the inviter can actually see their new teammate),
+// but the notification only carries the page's id, not its username —
+// resolved here via usePageById rather than in the synchronous
+// notificationLink() above.
+function PageAcceptedRow({ n, onRead }: { n: NotificationWithActor; onRead: () => void }) {
+  const { data: page } = usePageById(n.target_id ?? "", !!n.target_id);
+  return (
+    <Link
+      to={page ? `/page/${page.username}/team` : "#"}
+      onClick={onRead}
+      className={ROW_CLASS(!n.read_at)}
+    >
+      <NotificationRowContent n={n} config={TYPE_CONFIG.page_role_accepted} />
+    </Link>
+  );
+}
+
+function NotificationRow({
+  n,
+  onRead,
+  onOpenInvite,
+}: {
+  n: NotificationWithActor;
+  onRead: () => void;
+  onOpenInvite: (pageId: string) => void;
+}) {
+  const config = TYPE_CONFIG[n.type] ?? TYPE_CONFIG.system;
+
+  if (n.type === "page_role_invite" && n.target_id) {
+    return (
+      <button
+        onClick={() => {
+          onRead();
+          onOpenInvite(n.target_id!);
+        }}
+        className={ROW_CLASS(!n.read_at)}
+      >
+        <NotificationRowContent n={n} config={config} />
+      </button>
+    );
+  }
+
+  if (n.type === "page_role_accepted") {
+    return <PageAcceptedRow n={n} onRead={onRead} />;
+  }
+
+  return (
+    <Link to={notificationLink(n)} onClick={onRead} className={ROW_CLASS(!n.read_at)}>
+      <NotificationRowContent n={n} config={config} />
+    </Link>
+  );
+}
+
 export function Notifications() {
   const { data: notifications, isLoading } = useNotifications();
   const markRead = useMarkNotificationRead();
   const markAllRead = useMarkAllRead();
+  const [openInvitePageId, setOpenInvitePageId] = useState<string | null>(null);
 
   const hasUnread = notifications?.some((n) => !n.read_at);
 
@@ -110,49 +210,23 @@ export function Notifications() {
         ) : !notifications || notifications.length === 0 ? (
           <p className="text-ink-muted text-center py-10 text-sm">Nothing yet.</p>
         ) : (
-          notifications.map((n) => {
-            const config = TYPE_CONFIG[n.type] ?? TYPE_CONFIG.system;
-            const Icon = config.icon;
-
-            return (
-              <Link
-                key={n.id}
-                to={notificationLink(n)}
-                onClick={() => !n.read_at && markRead.mutate(n.id)}
-                // Unread rows use --color-highlight — a deliberately more
-                // saturated green than the pale bg-accent-soft used
-                // elsewhere in the app, so unread items stand out at a
-                // glance instead of blending into the list.
-                className={`flex items-start gap-3 py-3.5 border-b border-border ${
-                  !n.read_at ? "bg-highlight -mx-4 px-4" : ""
-                }`}
-              >
-                {n.actor ? (
-                  <Avatar src={n.actor.avatar_url} name={n.actor.display_name} size="sm" />
-                ) : (
-                  <div className="w-8 h-8 rounded-full bg-accent-soft flex items-center justify-center flex-shrink-0">
-                    <Icon size={16} className="text-accent" />
-                  </div>
-                )}
-
-                <div className="min-w-0 flex-1">
-                  <p className="text-sm text-ink">
-                    {n.actor && <span className="font-medium">{n.actor.display_name}</span>}
-                    {n.type === "admin_message" && <span className="font-medium">Akọ.</span>}{" "}
-                    {config.verb}
-                  </p>
-                  {n.preview_text && (
-                    <p className="text-sm text-ink-muted truncate mt-0.5">"{n.preview_text}"</p>
-                  )}
-                  <p className="text-xs text-ink-muted mt-0.5">{timeAgo(n.created_at)}</p>
-                </div>
-
-                {!n.read_at && <div className="w-2 h-2 rounded-full bg-accent flex-shrink-0 mt-2" />}
-              </Link>
-            );
-          })
+          notifications.map((n) => (
+            <NotificationRow
+              key={n.id}
+              n={n}
+              onRead={() => !n.read_at && markRead.mutate(n.id)}
+              onOpenInvite={setOpenInvitePageId}
+            />
+          ))
         )}
       </div>
+
+      {openInvitePageId && (
+        <PageInviteResponseModal
+          pageId={openInvitePageId}
+          onClose={() => setOpenInvitePageId(null)}
+        />
+      )}
 
       <BottomNav />
     </div>
