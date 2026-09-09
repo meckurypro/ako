@@ -2,6 +2,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "../lib/supabase";
 import { useAuth } from "./useAuth";
+import { useSound } from "./useSound";
 import { PROFILE_ROLES_SELECT, toProfileRoles } from "../lib/profileRoles";
 import { DEBUG_DISABLE_PER_CARD_QUERIES } from "../lib/debugFlags";
 import type { ReactionType } from "../types/database";
@@ -67,6 +68,7 @@ export function useToggleReaction(targetId: string, targetType: "post" | "projec
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const column = COLUMN_FOR[targetType];
+  const { play } = useSound();
 
   return useMutation({
     mutationFn: async (currentlyActive: boolean) => {
@@ -95,7 +97,12 @@ export function useToggleReaction(targetId: string, targetType: "post" | "projec
         if (error && error.code !== UNIQUE_VIOLATION) throw error;
       }
     },
-    onSuccess: () => {
+    onSuccess: (_data, currentlyActive) => {
+      // currentlyActive is the state *before* this toggle — false means
+      // this call just turned the reaction on, which is the only
+      // direction worth a sound (un-liking shouldn't play anything).
+      if (type === "like" && !currentlyActive) play("like");
+
       queryClient.invalidateQueries({ queryKey: ["my-reaction", targetType, targetId, type] });
       if (targetType === "post") {
         queryClient.invalidateQueries({ queryKey: ["feed-posts"] });
@@ -190,6 +197,7 @@ export function useToggleCommentReaction(postId: string) {
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const queryKey = commentReactionsQueryKey(postId, user?.id);
+  const { play } = useSound();
 
   return useMutation({
     mutationFn: async ({ commentId, type, currentlyActive }: ToggleCommentReactionInput) => {
@@ -249,6 +257,8 @@ export function useToggleCommentReaction(postId: string) {
       }
       next.set(commentId, entry);
       queryClient.setQueryData(queryKey, next);
+
+      if (type === "like" && nowActive) play("like");
 
       return { previous };
     },
