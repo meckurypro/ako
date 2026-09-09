@@ -1,4 +1,5 @@
 // src/components/FollowButton.tsx
+import { useEffect, useRef, useState } from "react";
 import { useIsFollowing, useIsFollowedByUser, useToggleFollow } from "../hooks/useProfile";
 import { useHasPendingFollowRequest, useSendFollowRequest } from "../hooks/useFollowRequests";
 
@@ -26,19 +27,43 @@ export function FollowButton({ authorId, isPrivate }: FollowButtonProps) {
   const toggleFollow = useToggleFollow(authorId);
   const sendRequest = useSendFollowRequest(authorId);
 
-  // Wait for the relationship checks before rendering anything — avoids a
-  // flash of "Follow" on someone you already follow while the query loads.
-  if (isFollowingQuery.isLoading || isFollowedByUserQuery.isLoading || hasPendingQuery.isLoading) {
-    return null;
-  }
-
   const isFollowing = !!isFollowingQuery.data;
   const isFollowedByUser = !!isFollowedByUserQuery.data;
   const hasPendingRequest = !!hasPendingQuery.data;
+  const loading = isFollowingQuery.isLoading || isFollowedByUserQuery.isLoading || hasPendingQuery.isLoading;
+
+  // A brief scale+fade "arrival" plays on the pill the instant it first
+  // appears (not-following → following/requested) — never on an ordinary
+  // re-render or remount of an already-established relationship, since
+  // prevEstablished starts wherever the data actually is on first load.
+  const [justArrived, setJustArrived] = useState(false);
+  const prevEstablished = useRef<boolean | null>(null);
+
+  useEffect(() => {
+    if (loading) return;
+    const established = isFollowing || hasPendingRequest;
+    if (prevEstablished.current !== null && established && !prevEstablished.current) {
+      setJustArrived(true);
+      const timer = setTimeout(() => setJustArrived(false), 280);
+      prevEstablished.current = established;
+      return () => clearTimeout(timer);
+    }
+    prevEstablished.current = established;
+  }, [loading, isFollowing, hasPendingRequest]);
+
+  // Wait for the relationship checks before rendering anything — avoids a
+  // flash of "Follow" on someone you already follow while the query loads.
+  if (loading) {
+    return null;
+  }
 
   if (isFollowing) {
     return (
-      <span className="text-[11px] font-semibold px-2.5 py-1 rounded-full bg-accent-soft text-accent whitespace-nowrap">
+      <span
+        className={`text-[11px] font-semibold px-2.5 py-1 rounded-full bg-accent-soft text-accent whitespace-nowrap ${
+          justArrived ? "ako-pill-in" : ""
+        }`}
+      >
         {isFollowedByUser ? "Friends" : "Following"}
       </span>
     );
@@ -46,7 +71,11 @@ export function FollowButton({ authorId, isPrivate }: FollowButtonProps) {
 
   if (hasPendingRequest) {
     return (
-      <span className="text-[11px] font-semibold px-2.5 py-1 rounded-full bg-accent-soft text-accent whitespace-nowrap">
+      <span
+        className={`text-[11px] font-semibold px-2.5 py-1 rounded-full bg-accent-soft text-accent whitespace-nowrap ${
+          justArrived ? "ako-pill-in" : ""
+        }`}
+      >
         Requested
       </span>
     );
