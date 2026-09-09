@@ -39,6 +39,11 @@ const TYPE_CONFIG: Record<string, { icon: typeof Heart; verb: string }> = {
   gift_received: { icon: Gift, verb: "sent you a gift" },
   message: { icon: MessageCircle, verb: "sent you a message" },
   system: { icon: Bell, verb: "" },
+  // Sent by an admin via /admin/notifications/send — actor_id is
+  // always null for these (nobody "did" this to the recipient), so
+  // it renders with the Akọ. mark instead of a user avatar, same
+  // pattern as `system` but with its own sender label.
+  admin_message: { icon: Bell, verb: "" },
   follow_request: { icon: UserPlus, verb: "requested to follow you" },
   follow_request_accepted: { icon: UserCheck, verb: "accepted your follow request" },
 };
@@ -132,7 +137,8 @@ export function Notifications() {
 
                 <div className="min-w-0 flex-1">
                   <p className="text-sm text-ink">
-                    {n.actor && <span className="font-medium">{n.actor.display_name}</span>}{" "}
+                    {n.actor && <span className="font-medium">{n.actor.display_name}</span>}
+                    {n.type === "admin_message" && <span className="font-medium">Akọ.</span>}{" "}
                     {config.verb}
                   </p>
                   {n.preview_text && (
