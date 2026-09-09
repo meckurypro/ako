@@ -191,12 +191,18 @@ export function GiftPicker({
 
           {step === "sent" && selected && (
             <div className="flex flex-col items-center text-center gap-3 py-8">
-              <div className="w-16 h-16 rounded-full bg-accent-soft flex items-center justify-center overflow-hidden">
+              <div className="relative w-16 h-16 rounded-full bg-accent-soft flex items-center justify-center overflow-hidden ako-gift-pop">
                 {selected.icon_url ? (
                   <img src={selected.icon_url} alt="" className="w-full h-full object-cover" />
                 ) : (
                   <span className="text-2xl">🎁</span>
                 )}
+                {/* A second glyph rises and fades above the icon — the icon
+                    itself pops in place, this is what carries the "sent"
+                    motion upward toward the recipient. */}
+                <span className="ako-gift-rise text-2xl" aria-hidden="true">
+                  🎁
+                </span>
               </div>
               <p className="font-display text-lg text-ink">Gift sent!</p>
               <p className="text-sm text-ink-muted">
