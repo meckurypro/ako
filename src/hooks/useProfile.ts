@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "../lib/supabase";
 import { useAuth } from "./useAuth";
+import { useSound } from "./useSound";
 import { PROFILE_ROLES_SELECT, toProfileRoles } from "../lib/profileRoles";
 import type { Profile, ProfileWithRoles } from "../types/database";
 
@@ -114,6 +115,7 @@ export function useIsFollowedByUser(targetUserId: string) {
 export function useToggleFollow(targetUserId: string) {
   const { user } = useAuth();
   const queryClient = useQueryClient();
+  const { play } = useSound();
 
   return useMutation({
     mutationFn: async (currentlyFollowing: boolean) => {
@@ -133,7 +135,9 @@ export function useToggleFollow(targetUserId: string) {
         if (error) throw error;
       }
     },
-    onSuccess: () => {
+    onSuccess: (_data, currentlyFollowing) => {
+      if (!currentlyFollowing) play("follow");
+
       queryClient.invalidateQueries({ queryKey: ["is-following", targetUserId] });
       queryClient.invalidateQueries({ queryKey: ["is-followed-by", targetUserId] });
       queryClient.invalidateQueries({ queryKey: ["profile"] });
