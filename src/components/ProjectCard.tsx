@@ -14,7 +14,6 @@ import {
   Redo2,
   Trash2,
   Bookmark,
-  Heart,
   Ticket,
   Users,
   Video,
@@ -28,6 +27,8 @@ import {
   Check,
 } from "lucide-react";
 import { useAuth } from "../hooks/useAuth";
+import { LikeHeart } from "./LikeHeart";
+import { UnlockReveal } from "./UnlockReveal";
 import { renderFormattedText } from "../lib/formatText";
 import {
   useHasPurchased,
@@ -497,7 +498,7 @@ export function ProjectCard({
         {
           key: "like",
           label: isLiked ? "Liked" : "Like",
-          icon: <Heart size={24} fill={isLiked ? "currentColor" : "none"} className="text-danger" />,
+          icon: <LikeHeart active={isLiked} size={24} className="text-danger" />,
           count: project.like_count > 0 ? project.like_count : null,
           onClick: handleToggleLike,
         },
@@ -724,7 +725,7 @@ export function ProjectCard({
         {privacyBlocked ? (
           <PrivateProjectNotice onMessage={() => void handleRequestAccess()} messagePending={startConversation.isPending} />
         ) : (
-          <>
+          <UnlockReveal unlocked={hasAccess}>
         {project.description && (
           <p className="text-sm text-ink-muted mt-1 whitespace-pre-wrap break-words">
             {renderFormattedText(project.description, "d")}
@@ -1007,7 +1008,7 @@ export function ProjectCard({
         {showMoreActions && (
           <ReactionMoreSheet actions={middleActions} onClose={() => setShowMoreActions(false)} />
         )}
-          </>
+          </UnlockReveal>
         )}
       </div>
 
