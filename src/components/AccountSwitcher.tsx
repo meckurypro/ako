@@ -1,5 +1,5 @@
 // src/components/AccountSwitcher.tsx
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Check, Plus } from "lucide-react";
 import { Avatar } from "./Avatar";
@@ -18,9 +18,10 @@ export function AccountSwitcher({ onClose }: { onClose: () => void }) {
   const navigate = useNavigate();
   const { user } = useAuth();
   const { data: me } = useMyProfile();
-  const { accounts } = useSavedAccounts();
+  const { accounts, refresh: refreshSavedAccounts } = useSavedAccounts();
   const switchAccount = useSwitchAccount();
   const ref = useRef<HTMLDivElement>(null);
+  const [switchError, setSwitchError] = useState<string | null>(null);
 
   // Same outside-tap-closes pattern used by the "…" menus on
   // ProfilePage/PagePage — no shared hook for it yet, so inlined here
@@ -57,10 +58,19 @@ export function AccountSwitcher({ onClose }: { onClose: () => void }) {
         <button
           key={account.user_id}
           onClick={() => {
+            setSwitchError(null);
             switchAccount.mutate(account, {
               onSuccess: () => {
                 onClose();
                 navigate(`/profile/${account.username}`);
+              },
+              onError: (err) => {
+                setSwitchError(err instanceof Error ? err.message : "Couldn't switch accounts.");
+                // A stale entry gets removed from storage inside the
+                // mutation itself (useSwitchAccount) on this failure mode —
+                // re-read here so it disappears from `others` immediately
+                // instead of only after this component remounts.
+                refreshSavedAccounts();
               },
             });
           }}
@@ -71,6 +81,10 @@ export function AccountSwitcher({ onClose }: { onClose: () => void }) {
           <span className="flex-1 min-w-0 truncate">{account.display_name}</span>
         </button>
       ))}
+
+      {switchError && (
+        <p className="px-4 py-2 text-xs text-danger border-t border-border">{switchError}</p>
+      )}
 
       {/* Full login/signup flow, not a lightweight password modal —
           see Login.tsx's `add` mode, which snapshots this account
