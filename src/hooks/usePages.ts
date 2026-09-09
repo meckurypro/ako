@@ -8,12 +8,32 @@ import type {
   Page,
   PageAffiliation,
   PageMemberWithProfile,
+  PageSummary,
   PageType,
   PageWithMyMembership,
   PendingPageInvite,
 } from "../types/database";
 
 const PAGE_SELECT = "id, page_type, name, username, tagline, bio, avatar_url, cover_url, website_url, category_id, parent_organization_id, created_by, is_verified, is_active, follower_count, created_at, updated_at";
+
+/** Minimal page lookup by id — used where only a page_id is on hand
+ * (e.g. resolving a page_role_accepted notification's target to a
+ * route), as opposed to usePageByUsername which is what routes use. */
+export function usePageById(pageId: string, enabled = true) {
+  return useQuery({
+    queryKey: ["page-by-id", pageId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("pages")
+        .select("id, username, name, avatar_url, page_type, is_verified")
+        .eq("id", pageId)
+        .single();
+      if (error) throw error;
+      return data as PageSummary;
+    },
+    enabled: enabled && !!pageId,
+  });
+}
 
 export function usePageByUsername(username: string) {
   return useQuery({
