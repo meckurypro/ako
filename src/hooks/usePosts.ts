@@ -10,7 +10,6 @@ import { DEBUG_DISABLE_PER_CARD_QUERIES } from "../lib/debugFlags";
 const PAGE_SIZE = 15;
 export const POST_EDIT_WINDOW_MS = 15 * 60 * 1000;
 
-const TOP_DISCUSSIONS_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
 
 const AUTHOR_SELECT = `id, username, display_name, avatar_url, tier, is_private, ${PROFILE_ROLES_SELECT}`;
 // Joined alongside author on every post select — null on the vast
@@ -164,47 +163,65 @@ export function useFollowingFeed(page = 0) {
     queryFn: async (): Promise<PostWithAuthor[]> => {
       if (!user) return [];
 
-      const { data: follows, error: followsError } = await supabase
-        .from("follows")
-        .select("following_id")
-        .eq("follower_id", user.id);
-      if (followsError) throw followsError;
+      const { data: ranked, error: rankError } = await supabase.rpc("get_following_feed", {
+        p_viewer_id: user.id,
+        p_limit: PAGE_SIZE,
+        p_offset: page * PAGE_SIZE,
+      });
+      if (rankError) throw rankError;
 
-      const followingIds = (follows ?? []).map((f) => f.following_id);
-      if (followingIds.length === 0) return [];
+      const orderedIds = (ranked ?? []).map((r: { post_id: string }) => r.post_id);
+      if (orderedIds.length === 0) return [];
 
       const { data, error } = await supabase
         .from("posts")
         .select(FEED_SELECT)
-        .in("author_id", followingIds)
-        .eq("is_deleted", false)
-        .eq("is_archived", false)
-        .order("created_at", { ascending: false })
-        .range(page * PAGE_SIZE, page * PAGE_SIZE + PAGE_SIZE - 1);
+        .in("id", orderedIds);
       if (error) throw error;
-      return (data as any[]).map(normalizePost);
+
+      const byId = new Map((data as any[]).map((raw) => [raw.id, normalizePost(raw)]));
+
+      supabase.rpc("fulfill_gift_tokens", {
+        p_viewer_id: user.id,
+        p_served_post_ids: orderedIds,
+      }).then(({ error: fulfillError }) => {
+        if (fulfillError) console.error("fulfill_gift_tokens failed:", fulfillError);
+      });
+
+      return orderedIds.map((id) => byId.get(id)).filter((p): p is PostWithAuthor => !!p);
     },
     enabled: !!user,
   });
 }
 
 export function useTopDiscussionsFeed(page = 0) {
+  const { user } = useAuth();
+
   return useQuery({
-    queryKey: ["feed-posts", "top", page],
+    queryKey: ["feed-posts", "top", user?.id, page],
     queryFn: async (): Promise<PostWithAuthor[]> => {
-      const since = new Date(Date.now() - TOP_DISCUSSIONS_WINDOW_MS).toISOString();
+      if (!user) return [];
+
+      const { data: ranked, error: rankError } = await supabase.rpc("get_trending_feed", {
+        p_viewer_id: user.id,
+        p_limit: PAGE_SIZE,
+        p_offset: page * PAGE_SIZE,
+      });
+      if (rankError) throw rankError;
+
+      const orderedIds = (ranked ?? []).map((r: { post_id: string }) => r.post_id);
+      if (orderedIds.length === 0) return [];
 
       const { data, error } = await supabase
         .from("posts")
         .select(FEED_SELECT)
-        .eq("is_deleted", false)
-        .eq("is_archived", false)
-        .gte("created_at", since)
-        .order("comment_count", { ascending: false })
-        .range(page * PAGE_SIZE, page * PAGE_SIZE + PAGE_SIZE - 1);
+        .in("id", orderedIds);
       if (error) throw error;
-      return (data as any[]).map(normalizePost);
+
+      const byId = new Map((data as any[]).map((raw) => [raw.id, normalizePost(raw)]));
+      return orderedIds.map((id) => byId.get(id)).filter((p): p is PostWithAuthor => !!p);
     },
+    enabled: !!user,
   });
 }
 
@@ -397,6 +414,63 @@ export function useUpdatePost() {
       queryClient.invalidateQueries({ queryKey: ["feed-posts"] });
       queryClient.invalidateQueries({ queryKey: ["user-posts"] });
       queryClient.invalidateQueries({ queryKey: ["post", post.id] });
+    },
+  });
+}
+
+/**
+ * Today's prioritized post for a creator, if any — drives the
+ * Prioritize button's state on PostCard (whether this exact post
+ * is today's pick, a different post is, or nothing's been chosen
+ * yet). See feed_algorithm_migration.sql for prioritized_posts.
+ */
+export function usePrioritizedPostToday(creatorId: string, enabled = true) {
+  return useQuery({
+    queryKey: ["prioritized-post-today", creatorId],
+    queryFn: async (): Promise<string | null> => {
+      const today = new Date().toISOString().slice(0, 10); // YYYY-MM-DD, matches the edge function
+      const { data, error } = await supabase
+        .from("prioritized_posts")
+        .select("post_id")
+        .eq("creator_id", creatorId)
+        .eq("prioritized_date", today)
+        .maybeSingle();
+      if (error) throw error;
+      return data?.post_id ?? null;
+    },
+    enabled,
+  });
+}
+
+export function usePrioritizePost() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (postId: string) => {
+      const { data, error } = await supabase.functions.invoke("prioritize-post", {
+        body: { post_id: postId },
+      });
+      if (error) {
+        // Same FunctionsHttpError unwrapping as useReshare — the friendly
+        // "already prioritized today" message lives in the function's
+        // response body, not the generic error supabase-js surfaces.
+        if (error instanceof FunctionsHttpError) {
+          try {
+            const body = await error.context.json();
+            throw new Error(typeof body?.error === "string" ? body.error : error.message);
+          } catch (parseError) {
+            if (parseError instanceof Error && parseError.message !== error.message) throw parseError;
+            throw error;
+          }
+        }
+        throw error;
+      }
+      if (data?.error) throw new Error(data.error);
+      return data.prioritized as { post_id: string; creator_id: string; prioritized_date: string };
+    },
+    onSuccess: (prioritized) => {
+      queryClient.invalidateQueries({ queryKey: ["prioritized-post-today", prioritized.creator_id] });
+      queryClient.invalidateQueries({ queryKey: ["feed-posts"] });
     },
   });
 }
