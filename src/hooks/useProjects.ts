@@ -2,6 +2,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "../lib/supabase";
 import { useAuth } from "./useAuth";
+import { useSound } from "./useSound";
 import { PROFILE_ROLES_SELECT, toProfileRoles } from "../lib/profileRoles";
 import type { AuthorSummary } from "../types/database";
 
@@ -464,6 +465,7 @@ export function useHasPurchased(projectId: string) {
 
 export function usePurchaseProject() {
   const queryClient = useQueryClient();
+  const { play } = useSound();
 
   return useMutation({
     meta: { blocking: true },
@@ -478,6 +480,7 @@ export function usePurchaseProject() {
     onSuccess: (_data, projectId) => {
       queryClient.invalidateQueries({ queryKey: ["has-purchased", projectId] });
       queryClient.invalidateQueries({ queryKey: ["wallet"] });
+      play("unlock-success");
     },
   });
 }
@@ -490,6 +493,7 @@ export function usePurchaseProject() {
 // direct conversation and seeds an opening message. See book-gig/index.ts.
 export function useBookGig() {
   const queryClient = useQueryClient();
+  const { play } = useSound();
 
   return useMutation({
     meta: { blocking: true },
@@ -505,6 +509,7 @@ export function useBookGig() {
       queryClient.invalidateQueries({ queryKey: ["has-purchased", projectId] });
       queryClient.invalidateQueries({ queryKey: ["wallet"] });
       queryClient.invalidateQueries({ queryKey: ["conversations"] });
+      play("unlock-success");
     },
   });
 }
