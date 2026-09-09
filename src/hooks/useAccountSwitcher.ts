@@ -7,6 +7,7 @@ import {
   listSavedAccounts,
   removeSavedAccount as removeSavedAccountFromStorage,
   saveAccount,
+  updateSavedAccountTokens,
   type SavedAccount,
 } from "../lib/accountSessions";
 
@@ -49,11 +50,46 @@ export function useSwitchAccount() {
 
   return useMutation({
     mutationFn: async (account: SavedAccount) => {
-      const { error } = await supabase.auth.setSession({
+      // Snapshot whoever's active right now — with their LIVE tokens,
+      // which may already have drifted from storage via a background
+      // refresh — before overwriting the client's session. Without this,
+      // switching away from an account silently locks in whatever was
+      // last written for it, which can already be stale.
+      const { data: currentSessionData } = await supabase.auth.getSession();
+      const previousSession = currentSessionData.session;
+      if (previousSession && previousSession.user.id !== account.user_id) {
+        updateSavedAccountTokens(previousSession.user.id, {
+          access_token: previousSession.access_token,
+          refresh_token: previousSession.refresh_token,
+        });
+      }
+
+      const { data, error } = await supabase.auth.setSession({
         access_token: account.access_token,
         refresh_token: account.refresh_token,
       });
-      if (error) throw error;
+      if (error) {
+        // The saved refresh token has already been rotated/invalidated —
+        // most commonly because this account kept refreshing in the
+        // background before useAuth's sync existed, or its saved copy
+        // just never got updated. Drop it so it doesn't keep failing the
+        // same way forever; the caller re-prompts sign-in instead.
+        removeSavedAccountFromStorage(account.user_id);
+        throw new Error(
+          `Your session for ${account.display_name} has expired — sign in again to switch to it.`
+        );
+      }
+
+      // setSession's own response carries the actual resulting tokens —
+      // write those back rather than trusting what was passed in, so the
+      // cached copy is guaranteed valid immediately after a switch.
+      if (data.session) {
+        saveAccount({
+          ...account,
+          access_token: data.session.access_token,
+          refresh_token: data.session.refresh_token,
+        });
+      }
     },
     onSuccess: () => {
       queryClient.clear();
