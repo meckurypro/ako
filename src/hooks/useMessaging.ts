@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient, keepPreviousData } from "@tansta
 import { useCallback, useEffect, useState } from "react";
 import { supabase } from "../lib/supabase";
 import { useAuth } from "./useAuth";
+import { useSound } from "./useSound";
 import { encodeVoiceNote } from "../lib/voiceNotes";
 import { upsertMessageUserState } from "./useMessageReactions";
 
@@ -345,8 +346,10 @@ const MESSAGES_PAGE_SIZE = 30;
  * empty/loading state.
  */
 export function useMessages(conversationId: string) {
+  const { user } = useAuth();
   const queryClient = useQueryClient();
   const [pageCount, setPageCount] = useState(1);
+  const { play } = useSound();
 
   // A different conversation should start back at the most recent
   // page, not carry over how far a previous, longer-scrolled thread
@@ -410,12 +413,18 @@ export function useMessages(conversationId: string) {
       .on(
         "postgres_changes",
         { event: "INSERT", schema: "public", table: "messages", filter: `conversation_id=eq.${conversationId}` },
-        () => {
+        (payload) => {
           // exact: false invalidates every paged variant of this
           // conversation's messages query (all `limit` values), not
           // just whichever page happens to be mounted right now.
           queryClient.invalidateQueries({ queryKey: ["messages", conversationId], exact: false });
           queryClient.invalidateQueries({ queryKey: ["conversations"] });
+
+          // Only the other participant's messages get a sound — our own
+          // send already played "message-sent" via useSendMessage, and
+          // this INSERT event fires for that same row too (echoed back).
+          const senderId = (payload.new as { sender_id?: string } | null)?.sender_id;
+          if (senderId && senderId !== user?.id) play("message-received");
         }
       )
       .on(
@@ -434,7 +443,7 @@ export function useMessages(conversationId: string) {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [conversationId, queryClient]);
+  }, [conversationId, queryClient, user?.id, play]);
 
   const hasMore = (query.data?.length ?? 0) >= limit;
   const loadOlder = useCallback(() => {
@@ -481,6 +490,7 @@ function getMessagesQueries(queryClient: ReturnType<typeof useQueryClient>, conv
 export function useSendMessage(conversationId: string) {
   const { user } = useAuth();
   const queryClient = useQueryClient();
+  const { play } = useSound();
 
   return useMutation({
     mutationFn: async (input: string | SendMessageInput) => {
@@ -574,6 +584,7 @@ export function useSendMessage(conversationId: string) {
       queryClient.invalidateQueries({ queryKey: ["conversations"] });
       queryClient.invalidateQueries({ queryKey: ["archived-conversations"] });
       queryClient.invalidateQueries({ queryKey: ["my-participant-state", conversationId] });
+      play("message-sent");
     },
   });
 }
