@@ -2,7 +2,7 @@
 import { useRef, useState } from "react";
 import { Link, useNavigate, useLocation } from "react-router-dom";
 import {
-  Heart,
+
   ThumbsDown,
   Repeat2,
   Redo2,
@@ -19,6 +19,7 @@ import {
   Rocket,
 } from "lucide-react";
 import { Avatar } from "./Avatar";
+import { LikeHeart } from "./LikeHeart";
 import { TierBadge } from "./TierBadge";
 import { RoleTags } from "./RoleTags";
 import { FollowButton } from "./FollowButton";
@@ -360,11 +361,7 @@ export function PostCard({
       key: "like",
       label: isLiked ? "Liked" : "Like",
       icon: (
-        <Heart
-          size={24}
-          fill={isLiked ? "currentColor" : "none"}
-          className="text-danger"
-        />
+        <LikeHeart active={isLiked} size={24} className="text-danger" />
       ),
       count: post.like_count > 0 ? post.like_count : null,
       onClick: () => toggleLike.mutate(isLiked),
