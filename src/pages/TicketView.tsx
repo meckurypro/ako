@@ -1,21 +1,36 @@
 // src/pages/TicketView.tsx
+import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
+import QRCode from "qrcode";
 import { useSmartBack } from "../hooks/useSmartBack";
-import { ArrowLeft, Download, Clock } from "lucide-react";
+import { ArrowLeft, Download, Clock, CheckCircle2 } from "lucide-react";
 import { useProject } from "../hooks/useProjects";
 import { useEventDetails } from "../hooks/useProjectTypeDetails";
 import { useMyEventTicket } from "../hooks/useEventTickets";
 
 // NOTE: this reads event_tickets, but nothing writes to it yet — the
 // purchase edge function needs to be extended to issue a ticket (see
-// useEventTickets.ts). Until then this correctly shows "processing"
-// for anyone who's bought but has no ticket row.
+// EVENT_INFRA.md). Until then this correctly shows "processing" for
+// anyone who's bought but has no ticket row.
 export function TicketView() {
   const { projectId } = useParams<{ projectId: string }>();
   const smartBack = useSmartBack();
   const { data: project } = useProject(projectId);
   const { data: eventDetails } = useEventDetails(projectId);
   const { data: ticket, isLoading } = useMyEventTicket(projectId);
+  const [qrUrl, setQrUrl] = useState<string | null>(null);
+
+  // The QR encodes the raw ticket_code — the same string printed as
+  // text below it and the same one a host can type manually into the
+  // check-in scanner if a code won't scan. One source of truth, two
+  // ways to read it (matches the "always keep a manual backup"
+  // check-in best practice).
+  useEffect(() => {
+    if (!ticket) return;
+    QRCode.toDataURL(ticket.ticket_code, { margin: 1, width: 240 })
+      .then(setQrUrl)
+      .catch(() => setQrUrl(null));
+  }, [ticket]);
 
   if (!project) {
     return (
@@ -47,10 +62,18 @@ export function TicketView() {
             {ticket.ticket_image_url ? (
               <img src={ticket.ticket_image_url} alt="Your ticket" className="w-full" />
             ) : (
-              <div className="p-6 text-center">
+              <div className="p-6 flex flex-col items-center text-center gap-3">
                 <p className="text-ink font-medium">{project.title}</p>
-                <p className="text-xs text-ink-muted mt-1">Ticket code</p>
-                <p className="font-mono text-sm text-ink">{ticket.ticket_code}</p>
+                {qrUrl && <img src={qrUrl} alt="Ticket QR code" className="w-40 h-40" />}
+                <div>
+                  <p className="text-xs text-ink-muted">Ticket code</p>
+                  <p className="font-mono text-sm text-ink tracking-wide">{ticket.ticket_code}</p>
+                </div>
+                {ticket.checked_in_at && (
+                  <span className="flex items-center gap-1.5 text-xs text-accent font-medium">
+                    <CheckCircle2 size={13} /> Checked in {new Date(ticket.checked_in_at).toLocaleString()}
+                  </span>
+                )}
               </div>
             )}
             <div className="p-4 flex items-center justify-between">
