@@ -16,6 +16,7 @@ import {
   Archive,
   RotateCcw,
   Trash2,
+  Rocket,
 } from "lucide-react";
 import { Avatar } from "./Avatar";
 import { TierBadge } from "./TierBadge";
@@ -40,6 +41,8 @@ import {
   useSetPostArchived,
   useHasReshared,
   usePostViewCount,
+  usePrioritizedPostToday,
+  usePrioritizePost,
   canEditPost,
 } from "../hooks/usePosts";
 import { shortDisplayName } from "../lib/displayName";
@@ -150,6 +153,14 @@ export function PostCard({
 
   const deletePost = useDeletePost();
   const setArchived = useSetPostArchived();
+  const prioritizePost = usePrioritizePost();
+  // Only the owner ever needs to know today's pick — everyone else's
+  // view of Prioritize plays out through the feed itself, not this button.
+  const prioritizedTodayQuery = usePrioritizedPostToday(post.author.id, isOwner);
+  const prioritizedPostIdToday = prioritizedTodayQuery.data ?? null;
+  const isPrioritizedToday = prioritizedPostIdToday === post.id;
+  const [showPrioritizeConfirm, setShowPrioritizeConfirm] = useState(false);
+  const [prioritizeError, setPrioritizeError] = useState<string | null>(null);
 
   const { data: engagementOrder } = useEngagementOrder();
 
@@ -237,6 +248,23 @@ export function PostCard({
   function handleConfirmDelete() {
     setShowDeleteConfirm(false);
     deletePost.mutate(post.id);
+  }
+
+  // Deliberately confirmed — prioritizing locks out the creator's other
+  // posts from feeds today (until each viewer engages with this one),
+  // so it's a "this is my one pick for today" decision, not a toggle.
+  function handlePrioritizeTap() {
+    if (isPrioritizedToday) return; // already today's pick — nothing to do
+    setShowPrioritizeConfirm(true);
+  }
+
+  function handleConfirmPrioritize() {
+    setShowPrioritizeConfirm(false);
+    prioritizePost.mutate(post.id, {
+      onError: (err) => {
+        setPrioritizeError(err instanceof Error ? err.message : "Couldn't prioritize this post.");
+      },
+    });
   }
 
   // ─── Secondary action definitions (all 7, passed to scrollable tray) ──────
@@ -371,6 +399,19 @@ export function PostCard({
     })),
     ...(isOwner
       ? ([
+          {
+            key: "prioritize",
+            label: isPrioritizedToday ? "Prioritized today" : "Prioritize",
+            icon: (
+              <Rocket
+                size={24}
+                className={isPrioritizedToday ? "text-accent" : "text-ink"}
+                fill={isPrioritizedToday ? "currentColor" : "none"}
+              />
+            ),
+            count: null,
+            onClick: handlePrioritizeTap,
+          } satisfies EngagementAction,
           ...(canEdit
             ? [
                 {
@@ -581,6 +622,29 @@ export function PostCard({
           onCancel={() => setShowArchiveConfirm(false)}
         />
       )}
+
+      {showPrioritizeConfirm && (
+        <ConfirmDialog
+          title="Prioritize this post?"
+          description="This is your one pick for today — it'll take priority over your other posts in people's feeds until they interact with it."
+          confirmLabel="Prioritize"
+          danger={false}
+          onConfirm={handleConfirmPrioritize}
+          onCancel={() => setShowPrioritizeConfirm(false)}
+        />
+      )}
+
+      {prioritizeError && (
+        <ConfirmDialog
+          title="Couldn't prioritize this post"
+          description={prioritizeError}
+          confirmLabel="OK"
+          danger={false}
+          onConfirm={() => setPrioritizeError(null)}
+          onCancel={() => setPrioritizeError(null)}
+        />
+      )}
+
 
       {showDeleteConfirm && (
         <ConfirmDialog
