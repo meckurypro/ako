@@ -108,10 +108,20 @@ export function useMediaDetails(projectId: string | undefined) {
   });
 }
 
+export interface GigFaqItem {
+  question: string;
+  answer: string;
+}
+
 export interface GigDetails {
   project_id: string;
   tagline: string | null;
   delivery_estimate: string | null;
+  // Requires the ako_projects_v7_gig_extras migration — default to
+  // empty/null wherever read, same pattern as Course's is_free_preview.
+  revisions_included: number | null;
+  deliverables: string[] | null;
+  faq: GigFaqItem[] | null;
 }
 
 // Publicly readable, same as event/meeting/media above.
@@ -125,7 +135,13 @@ export function useGigDetails(projectId: string | undefined) {
         .eq("project_id", projectId)
         .maybeSingle();
       if (error) throw error;
-      return data;
+      return data
+        ? {
+            ...data,
+            deliverables: data.deliverables ?? null,
+            faq: data.faq ?? null,
+          }
+        : null;
     },
     enabled: !!projectId,
   });
