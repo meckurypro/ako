@@ -3,6 +3,7 @@ import { NavLink, useMatch } from "react-router-dom";
 import { Search, Activity as ActivityIcon, MessageCircle, User } from "lucide-react";
 import { useAuth } from "../hooks/useAuth";
 import { useUnreadConversationCount } from "../hooks/useMessaging";
+import { useActiveIdentity } from "../hooks/usePages";
 
 // Lucide's Home icon always draws a door line as part of the glyph —
 // looks odd here at both weights, and doesn't read as a clean solid
@@ -49,13 +50,20 @@ function NavIcon({ Icon, isActive }: { Icon: ComponentType<IconProps>; isActive:
 export function BottomNav() {
   const { user, profile } = useAuth();
   const unreadCount = useUnreadConversationCount();
+  const { data: identity } = useActiveIdentity();
 
   // Compare the :username in the URL to OUR OWN username — not a path
   // prefix match — so this is only active on our own profile, never
   // on someone else's, and works regardless of /me's redirect.
   const profileMatch = useMatch("/profile/:username/*");
+  // /me redirects to /page/:username instead of /profile/:username while
+  // acting as a page (see MyProfileRedirect) — match that too, but only
+  // against the page currently acting-as, never any other page someone
+  // just happens to be viewing.
+  const pageMatch = useMatch("/page/:username/*");
   const isOwnProfileActive =
-    !!profile?.username && profileMatch?.params.username === profile.username;
+    (!!profile?.username && profileMatch?.params.username === profile.username) ||
+    (identity?.mode === "page" && pageMatch?.params.username === identity.page.username);
 
   const linkClass = ({ isActive }: { isActive: boolean }) =>
     `flex flex-col items-center gap-1 w-14 text-[11px] font-medium transition-colors ${
