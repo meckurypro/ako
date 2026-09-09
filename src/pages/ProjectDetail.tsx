@@ -14,6 +14,9 @@ import {
   Play,
   Music,
   Trash2,
+  Star,
+  ChevronDown,
+  RefreshCw,
 } from "lucide-react";
 import { useProjectDetail, useSimilarProjects, PROJECT_TYPE_LABELS, type Project } from "../hooks/useProjects";
 import { useEventDetails, useMeetingDetails, useGigDetails, useGigSamples } from "../hooks/useProjectTypeDetails";
@@ -27,6 +30,7 @@ import {
   useDeleteEventHighlight,
   type EventHighlight,
 } from "../hooks/useEventHighlights";
+import { useGigReviews, useGigRatingSummary, useCanReviewGig, useAddGigReview } from "../hooks/useGigReviews";
 import { Avatar } from "../components/Avatar";
 import { TierBadge } from "../components/TierBadge";
 import { RoleTags } from "../components/RoleTags";
@@ -116,7 +120,144 @@ function HighlightTile({
   );
 }
 
-// Post-event recap gallery — public (no ticket required to view, see
+// Collapsed-by-default FAQ list — reduces the repetitive "wait, does
+// this include X?" DMs a host would otherwise field one at a time.
+function GigFaqSection({ faq }: { faq: { question: string; answer: string }[] }) {
+  const [openIndex, setOpenIndex] = useState<number | null>(null);
+  return (
+    <div className="mb-4">
+      <h3 className="font-display text-base text-ink mb-2">FAQ</h3>
+      <div className="flex flex-col gap-1.5">
+        {faq.map((item, i) => (
+          <div key={i} className="rounded-xl border border-border bg-surface overflow-hidden">
+            <button
+              onClick={() => setOpenIndex(openIndex === i ? null : i)}
+              className="w-full flex items-center justify-between gap-2 px-3 py-2.5 text-left"
+            >
+              <span className="text-sm text-ink font-medium">{item.question}</span>
+              <ChevronDown
+                size={15}
+                className={`text-ink-muted flex-shrink-0 transition-transform ${openIndex === i ? "rotate-180" : ""}`}
+              />
+            </button>
+            {openIndex === i && <p className="px-3 pb-2.5 text-sm text-ink-muted">{item.answer}</p>}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function StarRow({ rating, size = 14 }: { rating: number; size?: number }) {
+  return (
+    <div className="flex items-center gap-0.5">
+      {[1, 2, 3, 4, 5].map((n) => (
+        <Star
+          key={n}
+          size={size}
+          className={n <= Math.round(rating) ? "text-accent" : "text-border"}
+          fill={n <= Math.round(rating) ? "currentColor" : "none"}
+        />
+      ))}
+    </div>
+  );
+}
+
+// Reviews are the trust signal that actually moves a buyer to message
+// a seller they've never worked with — the single highest-leverage
+// addition a small service listing can make (this is Fiverr's own
+// stated view of what its "primary quality signal" is). Anyone can
+// read them; only someone who's actually booked the gig (checked
+// against `purchases`, enforced by RLS, not just this UI) can leave
+// one, once.
+function GigReviewsSection({ projectId }: { projectId: string }) {
+  const { data: reviews } = useGigReviews(projectId);
+  const { average, count } = useGigRatingSummary(projectId);
+  const canReview = useCanReviewGig(projectId);
+  const addReview = useAddGigReview(projectId);
+  const [showForm, setShowForm] = useState(false);
+  const [rating, setRating] = useState(5);
+  const [reviewText, setReviewText] = useState("");
+
+  async function handleSubmit() {
+    await addReview.mutateAsync({ rating, reviewText: reviewText.trim() || undefined });
+    setShowForm(false);
+    setReviewText("");
+  }
+
+  return (
+    <div className="mb-4">
+      <div className="flex items-center justify-between mb-2">
+        <h3 className="font-display text-base text-ink">Reviews</h3>
+        {canReview && !showForm && (
+          <button onClick={() => setShowForm(true)} className="text-sm text-accent font-medium">
+            Leave a review
+          </button>
+        )}
+      </div>
+
+      {count > 0 && average !== null && (
+        <div className="flex items-center gap-2 mb-3">
+          <StarRow rating={average} />
+          <span className="text-sm text-ink-muted">
+            {average.toFixed(1)} · {count} review{count === 1 ? "" : "s"}
+          </span>
+        </div>
+      )}
+
+      {showForm && (
+        <div className="mb-3 p-3 rounded-xl border border-border bg-surface">
+          <div className="flex items-center gap-1 mb-2">
+            {[1, 2, 3, 4, 5].map((n) => (
+              <button key={n} onClick={() => setRating(n)} aria-label={`Rate ${n} stars`}>
+                <Star size={20} className={n <= rating ? "text-accent" : "text-border"} fill={n <= rating ? "currentColor" : "none"} />
+              </button>
+            ))}
+          </div>
+          <textarea
+            value={reviewText}
+            onChange={(e) => setReviewText(e.target.value)}
+            placeholder="How did it go? (optional)"
+            rows={3}
+            maxLength={500}
+            className="w-full px-3 py-2 rounded-lg border border-border bg-canvas text-sm text-ink resize-none mb-2"
+          />
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => void handleSubmit()}
+              disabled={addReview.isPending}
+              className="px-4 py-2 rounded-full bg-accent text-canvas text-sm font-medium disabled:opacity-50"
+            >
+              {addReview.isPending ? "Posting…" : "Post review"}
+            </button>
+            <button onClick={() => setShowForm(false)} className="text-sm text-ink-muted">
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
+
+      {!reviews || reviews.length === 0 ? (
+        <p className="text-sm text-ink-muted">No reviews yet.</p>
+      ) : (
+        <div className="flex flex-col gap-3">
+          {reviews.map((r) => (
+            <div key={r.id} className="flex gap-2.5">
+              <Avatar src={r.reviewer.avatar_url} name={r.reviewer.display_name} size="sm" />
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-medium text-ink truncate">{r.reviewer.display_name}</span>
+                  <StarRow rating={r.rating} size={11} />
+                </div>
+                {r.review_text && <p className="text-sm text-ink-muted mt-0.5">{r.review_text}</p>}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
 // the RLS in ako_projects_v6_event_extras.sql), since this is
 // promotional material for the host's future events, not paid
 // content. Only the host can add or remove items.
@@ -272,9 +413,33 @@ export function ProjectDetail() {
               <p className="-mt-2 mb-2 text-sm font-medium text-ink">{gigDetails.tagline}</p>
             )}
             {project.project_type === "gig" && gigDetails?.delivery_estimate && (
-              <div className="flex items-center gap-1.5 mb-4 text-sm text-ink-muted">
+              <div className="flex items-center gap-1.5 mb-1.5 text-sm text-ink-muted">
                 <Clock size={14} /> {gigDetails.delivery_estimate}
+                {gigDetails.revisions_included !== null && gigDetails.revisions_included !== undefined && (
+                  <span className="flex items-center gap-1">
+                    · <RefreshCw size={12} /> {gigDetails.revisions_included} revision
+                    {gigDetails.revisions_included === 1 ? "" : "s"}
+                  </span>
+                )}
               </div>
+            )}
+            {project.project_type === "gig" &&
+              !gigDetails?.delivery_estimate &&
+              gigDetails?.revisions_included !== null &&
+              gigDetails?.revisions_included !== undefined && (
+                <div className="flex items-center gap-1.5 mb-1.5 text-sm text-ink-muted">
+                  <RefreshCw size={12} /> {gigDetails.revisions_included} revision
+                  {gigDetails.revisions_included === 1 ? "" : "s"}
+                </div>
+              )}
+            {project.project_type === "gig" && gigDetails?.deliverables && gigDetails.deliverables.length > 0 && (
+              <ul className="mb-4 flex flex-col gap-1">
+                {gigDetails.deliverables.map((item, i) => (
+                  <li key={i} className="text-sm text-ink-muted flex items-start gap-1.5">
+                    <span className="text-accent mt-0.5">✓</span> {item}
+                  </li>
+                ))}
+              </ul>
             )}
             {project.project_type === "gig" && gigSamples && gigSamples.length > 0 && (
               <div className="mb-4">
@@ -286,6 +451,10 @@ export function ProjectDetail() {
                 </div>
               </div>
             )}
+            {project.project_type === "gig" && gigDetails?.faq && gigDetails.faq.length > 0 && (
+              <GigFaqSection faq={gigDetails.faq} />
+            )}
+            {project.project_type === "gig" && <GigReviewsSection projectId={project.id} />}
 
             {project.project_type === "event" && <EventHighlightsSection projectId={project.id} isOwner={isOwner} />}
 
