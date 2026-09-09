@@ -3,6 +3,7 @@ import { createContext, useContext, useEffect, useState, type ReactNode } from "
 import type { Session, User } from "@supabase/supabase-js";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "../lib/supabase";
+import { updateSavedAccountTokens } from "../lib/accountSessions";
 
 interface MyProfile {
   username: string;
@@ -34,6 +35,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((_event, session) => {
       setSession(session);
+      // Fires on SIGNED_IN, TOKEN_REFRESHED, etc. — this is the only
+      // reliable point to catch a silent background token refresh and
+      // keep the saved-accounts cache from drifting out of sync with it.
+      if (session) {
+        updateSavedAccountTokens(session.user.id, {
+          access_token: session.access_token,
+          refresh_token: session.refresh_token,
+        });
+      }
     });
 
     return () => subscription.unsubscribe();
