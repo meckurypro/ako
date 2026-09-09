@@ -55,6 +55,24 @@ export function getSavedAccount(userId: string): SavedAccount | undefined {
   return listSavedAccounts().find((a) => a.user_id === userId);
 }
 
+// Keeps a saved account's cached tokens in sync with whatever Supabase
+// does to that session in the background. Supabase rotates the refresh
+// token on every silent auto-refresh — without this, a saved account's
+// cached token pair goes stale the moment it refreshes while active
+// (even if the user never manually re-saves it), and switching back to
+// it later fails on setSession with no obvious cause. No-ops if this
+// user has nothing saved yet — there's nothing to keep in sync.
+export function updateSavedAccountTokens(
+  userId: string,
+  tokens: { access_token: string; refresh_token: string }
+): void {
+  const accounts = listSavedAccounts();
+  const idx = accounts.findIndex((a) => a.user_id === userId);
+  if (idx === -1) return;
+  accounts[idx] = { ...accounts[idx], ...tokens };
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(accounts));
+}
+
 // ------------------------------------------------------------
 // Pending "add account via sign-up" handoff.
 //
