@@ -2,7 +2,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useParams, Link, useNavigate } from "react-router-dom";
 import { useSmartBack } from "../hooks/useSmartBack";
-import { ArrowLeft, ArrowLeftRight, BadgeCheck, Check, ChevronDown, Globe, MoreHorizontal, Redo2, Users, UserCog } from "lucide-react";
+import { ArrowLeft, ArrowLeftRight, BadgeCheck, Check, ChevronDown, Globe, MoreHorizontal, Pencil, Redo2, Users, UserCog } from "lucide-react";
 import { useAuth } from "../hooks/useAuth";
 import { useMyProfile } from "../hooks/useProfile";
 import { Avatar } from "../components/Avatar";
@@ -212,6 +212,17 @@ export function PagePage() {
                       <span className="truncate">Switch to {p.name}</span>
                     </button>
                   ))}
+
+                {isAdmin && (
+                  <Link
+                    to={`/page/${page.username}/edit`}
+                    onClick={() => setMenuOpen(false)}
+                    className="flex items-center gap-2.5 px-4 py-2.5 text-sm text-ink hover:bg-surface"
+                  >
+                    <Pencil size={16} />
+                    Edit page
+                  </Link>
+                )}
 
                 {isAdmin && (
                   <Link
