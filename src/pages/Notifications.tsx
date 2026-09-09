@@ -10,6 +10,7 @@ import {
   MessageCircle,
   Bell,
   UserCheck,
+  UserX,
   Repeat2,
   Quote,
   Redo2,
@@ -52,6 +53,7 @@ const TYPE_CONFIG: Record<string, { icon: typeof Heart; verb: string }> = {
   follow_request_accepted: { icon: UserCheck, verb: "accepted your follow request" },
   page_role_invite: { icon: Users, verb: "invited you to join their team" },
   page_role_accepted: { icon: UserCheck, verb: "accepted your team invite" },
+  page_role_declined: { icon: UserX, verb: "declined your team invite" },
 };
 
 function timeAgo(dateString: string): string {
@@ -128,20 +130,22 @@ function NotificationRowContent({ n, config }: { n: NotificationWithActor; confi
 const ROW_CLASS = (unread: boolean) =>
   `flex items-start gap-3 py-3.5 border-b border-border w-full text-left ${unread ? "bg-highlight -mx-4 px-4" : ""}`;
 
-// A tap on a page_role_accepted notification should land on the page's
-// team roster (so the inviter can actually see their new teammate),
-// but the notification only carries the page's id, not its username —
+// A tap on a page_role_accepted OR page_role_declined notification
+// should land on the page's team roster — so the inviter can see
+// their new teammate, or re-invite someone else after a decline —
+// but the notification only carries the page's id, not its username,
 // resolved here via usePageById rather than in the synchronous
 // notificationLink() above.
-function PageAcceptedRow({ n, onRead }: { n: NotificationWithActor; onRead: () => void }) {
+function PageResponseRow({ n, onRead }: { n: NotificationWithActor; onRead: () => void }) {
   const { data: page } = usePageById(n.target_id ?? "", !!n.target_id);
+  const config = n.type === "page_role_declined" ? TYPE_CONFIG.page_role_declined : TYPE_CONFIG.page_role_accepted;
   return (
     <Link
       to={page ? `/page/${page.username}/team` : "#"}
       onClick={onRead}
       className={ROW_CLASS(!n.read_at)}
     >
-      <NotificationRowContent n={n} config={TYPE_CONFIG.page_role_accepted} />
+      <NotificationRowContent n={n} config={config} />
     </Link>
   );
 }
@@ -171,8 +175,8 @@ function NotificationRow({
     );
   }
 
-  if (n.type === "page_role_accepted") {
-    return <PageAcceptedRow n={n} onRead={onRead} />;
+  if (n.type === "page_role_accepted" || n.type === "page_role_declined") {
+    return <PageResponseRow n={n} onRead={onRead} />;
   }
 
   return (
