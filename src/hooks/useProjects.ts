@@ -231,6 +231,9 @@ interface GigDetailsInput {
   tagline?: string;
   delivery_estimate?: string;
   sample_project_ids?: string[];
+  revisions_included?: number;
+  deliverables?: string[];
+  faq?: { question: string; answer: string }[];
 }
 
 interface CreateProjectInput {
