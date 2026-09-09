@@ -24,6 +24,49 @@ interface DropdownMenuProps {
 const ROW_HEIGHT = 52; // ~13 x 4 — matches WhatsApp's roomy row scale
 const VIEWPORT_MARGIN = 8;
 
+// Safety-net only — see runAfterDismiss below for why this exists.
+const DISMISS_FALLBACK_MS = 200;
+
+/**
+ * Runs `action` only once this menu's dismiss has actually finished,
+ * instead of guessing with a fixed-delay timer.
+ *
+ * useBackDismiss pushes a dummy history entry while the menu is open
+ * and pops it (`history.back()`) when the menu unmounts. Per spec —
+ * and confirmed across Chrome/Firefox/Safari — the `popstate` that
+ * pop produces fires *asynchronously*, on its own task, with no
+ * guaranteed ordering against anything else queued around the same
+ * time, including a `setTimeout(fn, 0)`.
+ *
+ * That's a problem for any item whose onSelect() itself navigates
+ * (pushState, via react-router's navigate()): if the item's own push
+ * happens to run before the still-in-flight back() resolves, the
+ * pop then removes the entry that was JUST pushed instead of the
+ * dummy one — the navigation lands, then silently reverts a moment
+ * later. A fixed setTimeout only ever *happened* to dodge this often
+ * enough to look fixed; it isn't one.
+ *
+ * Listening for the real popstate event removes the guesswork —
+ * `action` runs exactly when the dismiss has genuinely completed,
+ * never before. `DISMISS_FALLBACK_MS` is only a safety net for the
+ * (rare) case no popstate ever arrives at all, so a tap can't get
+ * silently swallowed.
+ */
+function runAfterDismiss(close: () => void, action: () => void) {
+  let done = false;
+  let fallback: number;
+  const finish = () => {
+    if (done) return;
+    done = true;
+    window.removeEventListener("popstate", finish);
+    window.clearTimeout(fallback);
+    action();
+  };
+  window.addEventListener("popstate", finish);
+  fallback = window.setTimeout(finish, DISMISS_FALLBACK_MS);
+  close();
+}
+
 /**
  * Shared three-dot / kebab menu panel. Renders via the shared
  * <Portal> component straight onto `document.body` — needed for the
@@ -105,16 +148,10 @@ export function DropdownMenu({ anchorRef, items, onClose, widthClass = "w-56" }:
               key={item.key}
               onClick={() => {
                 if (item.disabled) return;
-                // Close FIRST, and defer onSelect a tick. useBackDismiss
-                // pops a dummy history entry when this menu unmounts; if
-                // onSelect runs first and itself navigates (e.g. Edit,
-                // Settings), that push lands on top of the dummy entry,
-                // so the pop that follows removes the page just navigated
-                // to instead — the option flashes and silently reverts.
-                // Closing first lets that pop resolve before onSelect's
-                // own navigation ever pushes anything.
-                onClose();
-                setTimeout(() => item.onSelect(), 0);
+                // See runAfterDismiss above — waits for the actual
+                // popstate from this menu's dismiss instead of
+                // racing it with a blind setTimeout(fn, 0).
+                runAfterDismiss(onClose, item.onSelect);
               }}
               disabled={item.disabled}
               className={`w-full flex items-center gap-4 text-left px-5 py-3.5 text-base leading-snug hover:bg-surface active:bg-surface disabled:opacity-40 ${
