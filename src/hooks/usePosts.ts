@@ -170,7 +170,7 @@ export function useFollowingFeed(page = 0) {
       });
       if (rankError) throw rankError;
 
-      const orderedIds = (ranked ?? []).map((r: { post_id: string }) => r.post_id);
+      const orderedIds: string[] = (ranked ?? []).map((r: { post_id: string }) => r.post_id);
       if (orderedIds.length === 0) return [];
 
       const { data, error } = await supabase
@@ -209,7 +209,7 @@ export function useTopDiscussionsFeed(page = 0) {
       });
       if (rankError) throw rankError;
 
-      const orderedIds = (ranked ?? []).map((r: { post_id: string }) => r.post_id);
+      const orderedIds: string[] = (ranked ?? []).map((r: { post_id: string }) => r.post_id);
       if (orderedIds.length === 0) return [];
 
       const { data, error } = await supabase
