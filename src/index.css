@@ -39,7 +39,6 @@
   --color-tick-read: #FF6A00;     /* neon orange — read-receipt double-ticks ONLY, deliberately loud so it snaps against both the accent bubble and the plain canvas list background. Reused for the "recently online" presence dot. */
   --color-presence-online: #39FF6A; /* neon green — online-now presence dot */
   --color-highlight: #BFE6C6;     /* saturated sage — deliberately more vivid than accent-soft, used for the few spots that need to visually pop against a list (unread notification rows, jump-to-comment flash) rather than sit quietly like an accent-soft badge */
-  --color-input-fill: #F8E4D7;    /* form input backgrounds (FormField/PasswordField) — canvas blended ~10% toward the wordmark's orange (#FC5100, sampled off public/app_icon_light_without_tagline.png's 'ó' glyph), so inputs read as a distinct, faintly warm surface instead of vanishing into the page (was plain --color-canvas, a real visual-accessibility problem: no boundary at all besides a 1px hairline border). Deliberately just a tint, not a saturated orange box — "minimalist and professional" per the request this shipped for. */
 
   --font-display: "Playfair Display", Georgia, serif;
   --font-body: "Inter", -apple-system, BlinkMacSystemFont, sans-serif;
@@ -89,7 +88,6 @@
   --color-danger: #C97C6B;
   --color-pushback: #D9A857;
   --color-highlight: #1E4B31;    /* dark-mode counterpart — noticeably more saturated/green than --color-accent-soft's #17281F so unread rows still pop against near-black canvas */
-  --color-input-fill: #1F120A;   /* dark canvas blended ~8% toward the wordmark's orange (#FC5100) — same "distinct warm surface" intent as the light value, just against near-black instead of near-white */
 
   --shadow-ink-rgb: 0, 0, 0;
   --accent-rgb: 76, 174, 124;
@@ -182,17 +180,6 @@ body {
   box-shadow:
     0 1px 3px rgba(var(--shadow-ink-rgb), 0.28),
     0 0 0 0.5px rgba(var(--shadow-ink-rgb), 0.06);
-}
-
-/*
-  Soft lift for form inputs (FormField/PasswordField) — pairs with
-  --color-input-fill as the other half of making inputs read as their
-  own distinct surface instead of flattening into the page background.
-  Kept faint on purpose: this is meant to be felt more than seen, the
-  fill color is doing most of the actual work.
-*/
-.input-shadow {
-  box-shadow: 0 1px 3px rgba(var(--shadow-ink-rgb), 0.06);
 }
 
 /*
