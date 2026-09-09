@@ -1,19 +1,26 @@
 // src/components/project-types/GigFields.tsx
-import { ImageIcon, Check } from "lucide-react";
+import { ImageIcon, Check, Plus, X } from "lucide-react";
 import { FormField } from "../FormField";
 import { useAuth } from "../../hooks/useAuth";
 import { useUserProjects, PROJECT_TYPE_LABELS } from "../../hooks/useProjects";
+import type { GigFaqItem } from "../../hooks/useProjectTypeDetails";
 
 export interface GigFieldsValue {
   tagline: string;
   delivery_estimate: string;
   sample_project_ids: string[];
+  revisions_included: string; // "" = unspecified, kept as text for the input
+  deliverables: string[];
+  faq: GigFaqItem[];
 }
 
 export const EMPTY_GIG_FIELDS: GigFieldsValue = {
   tagline: "",
   delivery_estimate: "",
   sample_project_ids: [],
+  revisions_included: "",
+  deliverables: [],
+  faq: [],
 };
 
 export const MAX_GIG_SAMPLES = 6;
@@ -26,9 +33,13 @@ interface GigFieldsProps {
   excludeProjectId?: string;
 }
 
-// Samples are drawn from the host's own other projects (any type —
-// file, media, url, whatever already exists) rather than uploaded
-// fresh here. This is proof-of-work, not new content.
+// Grounded in what Fiverr's own seller guidance calls out as the
+// difference between a gig that converts and one that doesn't: a
+// clear list of what's actually delivered, the number of revisions
+// included, and an FAQ that heads off the questions buyers would
+// otherwise have to DM to ask. All optional — a bare tagline still
+// works, same as before — but each one a host fills in removes a
+// reason to bounce before messaging.
 export function GigFields({ value, onChange, excludeProjectId }: GigFieldsProps) {
   const { user } = useAuth();
   const { data: ownProjects } = useUserProjects(user?.id ?? "", true);
@@ -46,6 +57,25 @@ export function GigFields({ value, onChange, excludeProjectId }: GigFieldsProps)
     }
   }
 
+  function updateDeliverable(index: number, text: string) {
+    const next = [...value.deliverables];
+    next[index] = text;
+    onChange({ ...value, deliverables: next });
+  }
+
+  function removeDeliverable(index: number) {
+    onChange({ ...value, deliverables: value.deliverables.filter((_, i) => i !== index) });
+  }
+
+  function updateFaq(index: number, field: keyof GigFaqItem, text: string) {
+    const next = value.faq.map((item, i) => (i === index ? { ...item, [field]: text } : item));
+    onChange({ ...value, faq: next });
+  }
+
+  function removeFaq(index: number) {
+    onChange({ ...value, faq: value.faq.filter((_, i) => i !== index) });
+  }
+
   return (
     <div className="mb-4">
       <FormField
@@ -57,14 +87,97 @@ export function GigFields({ value, onChange, excludeProjectId }: GigFieldsProps)
         maxLength={100}
       />
 
-      <FormField
-        id="gig_delivery_estimate"
-        label="Delivery estimate (optional)"
-        value={value.delivery_estimate}
-        onChange={(e) => onChange({ ...value, delivery_estimate: e.target.value })}
-        placeholder="e.g. 3–5 business days"
-        maxLength={60}
-      />
+      <div className="flex gap-3">
+        <div className="flex-1">
+          <FormField
+            id="gig_delivery_estimate"
+            label="Delivery estimate (optional)"
+            value={value.delivery_estimate}
+            onChange={(e) => onChange({ ...value, delivery_estimate: e.target.value })}
+            placeholder="e.g. 3–5 business days"
+            maxLength={60}
+          />
+        </div>
+        <div className="w-32">
+          <FormField
+            id="gig_revisions"
+            label="Revisions"
+            type="number"
+            min={0}
+            value={value.revisions_included}
+            onChange={(e) => onChange({ ...value, revisions_included: e.target.value })}
+            placeholder="e.g. 2"
+          />
+        </div>
+      </div>
+
+      <div className="mb-4">
+        <label className="block text-sm font-medium text-ink-muted mb-1.5">
+          What's included <span className="font-normal">(optional)</span>
+        </label>
+        <div className="flex flex-col gap-2">
+          {value.deliverables.map((item, i) => (
+            <div key={i} className="flex items-center gap-2">
+              <input
+                value={item}
+                onChange={(e) => updateDeliverable(i, e.target.value)}
+                placeholder="e.g. 2 revisions, source files included"
+                maxLength={120}
+                className="flex-1 px-3 py-2 rounded-lg border border-border bg-canvas text-sm text-ink"
+              />
+              <button type="button" onClick={() => removeDeliverable(i)} className="text-ink-muted">
+                <X size={15} />
+              </button>
+            </div>
+          ))}
+        </div>
+        <button
+          type="button"
+          onClick={() => onChange({ ...value, deliverables: [...value.deliverables, ""] })}
+          className="flex items-center gap-1 text-xs text-accent font-medium mt-2"
+        >
+          <Plus size={12} /> Add item
+        </button>
+      </div>
+
+      <div className="mb-4">
+        <label className="block text-sm font-medium text-ink-muted mb-1.5">
+          FAQ <span className="font-normal">(optional — head off the questions before they're asked)</span>
+        </label>
+        <div className="flex flex-col gap-2">
+          {value.faq.map((item, i) => (
+            <div key={i} className="flex flex-col gap-1.5 p-2.5 rounded-lg border border-border bg-canvas">
+              <div className="flex items-center gap-2">
+                <input
+                  value={item.question}
+                  onChange={(e) => updateFaq(i, "question", e.target.value)}
+                  placeholder="Question"
+                  maxLength={120}
+                  className="flex-1 px-2.5 py-1.5 rounded-lg border border-border bg-surface text-sm text-ink"
+                />
+                <button type="button" onClick={() => removeFaq(i)} className="text-ink-muted">
+                  <X size={15} />
+                </button>
+              </div>
+              <textarea
+                value={item.answer}
+                onChange={(e) => updateFaq(i, "answer", e.target.value)}
+                placeholder="Answer"
+                rows={2}
+                maxLength={400}
+                className="px-2.5 py-1.5 rounded-lg border border-border bg-surface text-sm text-ink resize-none"
+              />
+            </div>
+          ))}
+        </div>
+        <button
+          type="button"
+          onClick={() => onChange({ ...value, faq: [...value.faq, { question: "", answer: "" }] })}
+          className="flex items-center gap-1 text-xs text-accent font-medium mt-2"
+        >
+          <Plus size={12} /> Add question
+        </button>
+      </div>
 
       <div>
         <label className="block text-sm font-medium text-ink-muted mb-1.5">
