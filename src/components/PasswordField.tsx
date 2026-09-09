@@ -11,8 +11,11 @@ export function PasswordField({ label, error, id, ...inputProps }: PasswordField
   const [visible, setVisible] = useState(false);
 
   return (
-    <div className="mb-4">
-      <label htmlFor={id} className="block text-sm font-medium text-ink-muted mb-1.5">
+    <div className="mb-6">
+      <label
+        htmlFor={id}
+        className="block text-[11px] font-medium uppercase tracking-[0.14em] text-ink-muted mb-2.5"
+      >
         {label}
       </label>
       <div className="relative">
@@ -20,21 +23,21 @@ export function PasswordField({ label, error, id, ...inputProps }: PasswordField
           id={id}
           type={visible ? "text" : "password"}
           {...inputProps}
-          className={`w-full px-4 py-3 pr-12 rounded-xl border bg-input-fill input-shadow text-ink placeholder:text-ink-muted/60
-            focus:outline-none focus:ring-2 focus:ring-accent/40 focus:border-accent
-            transition-colors ${error ? "border-danger" : "border-border"}`}
+          className={`w-full bg-transparent px-0 pb-3 pt-1 pr-8 text-base text-ink placeholder:text-ink-muted/45
+            border-0 border-b-2 focus:outline-none transition-colors duration-200
+            ${error ? "border-danger" : "border-ink-muted/20 hover:border-ink-muted/40 focus:border-accent"}`}
         />
         <button
           type="button"
           onClick={() => setVisible((v) => !v)}
           tabIndex={-1}
           aria-label={visible ? "Hide password" : "Show password"}
-          className="absolute right-3 top-1/2 -translate-y-1/2 text-ink-muted hover:text-ink transition-colors"
+          className="absolute right-0 bottom-3 text-ink-muted hover:text-ink transition-colors"
         >
-          {visible ? <EyeOff size={18} /> : <Eye size={18} />}
+          {visible ? <EyeOff size={17} /> : <Eye size={17} />}
         </button>
       </div>
-      {error && <p className="text-danger text-sm mt-1.5">{error}</p>}
+      {error && <p className="text-danger text-sm mt-2">{error}</p>}
     </div>
   );
 }
