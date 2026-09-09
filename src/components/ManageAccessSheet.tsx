@@ -2,6 +2,7 @@
 import { useState } from "react";
 import { Search, X, UserMinus, UserPlus } from "lucide-react";
 import { useBackDismiss } from "../hooks/useBackDismiss";
+import { Portal } from "./Portal";
 import { useSearchPeople } from "../hooks/useSearch";
 import {
   useProjectMembers,
@@ -32,7 +33,13 @@ export function ManageAccessSheet({ projectId, projectTitle, onClose }: ManageAc
 
   const memberIds = new Set((members ?? []).map((m) => m.user_id));
 
+  // Portaled to document.body (see Portal.tsx) — opened from ProjectCard
+  // while it's rendered inside SwipeableTabs' translateX'd pane
+  // (ProfilePage/SavedHub/LikedHub). A transformed ancestor becomes the
+  // containing block for `fixed` descendants, so without this the sheet
+  // was clipped/offset inside that pane instead of filling the viewport.
   return (
+    <Portal>
     <div className="fixed inset-0 z-50 flex items-end justify-center">
       <div className="absolute inset-0 bg-ink/40" onClick={onClose} />
       <div className="relative w-full max-w-xl bg-surface rounded-t-2xl border-t border-border max-h-[85vh] flex flex-col pb-[env(safe-area-inset-bottom)]">
@@ -132,5 +139,6 @@ export function ManageAccessSheet({ projectId, projectTitle, onClose }: ManageAc
         </div>
       </div>
     </div>
+    </Portal>
   );
 }
