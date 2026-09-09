@@ -215,6 +215,21 @@ export function CreateProject() {
                 tagline: gigFields.tagline.trim(),
                 delivery_estimate: gigFields.delivery_estimate.trim() || undefined,
                 sample_project_ids: gigFields.sample_project_ids,
+                revisions_included: gigFields.revisions_included.trim()
+                  ? parseInt(gigFields.revisions_included.trim(), 10)
+                  : undefined,
+                deliverables:
+                  gigFields.deliverables.map((d) => d.trim()).filter(Boolean).length > 0
+                    ? gigFields.deliverables.map((d) => d.trim()).filter(Boolean)
+                    : undefined,
+                faq:
+                  gigFields.faq
+                    .map((f) => ({ question: f.question.trim(), answer: f.answer.trim() }))
+                    .filter((f) => f.question && f.answer).length > 0
+                    ? gigFields.faq
+                        .map((f) => ({ question: f.question.trim(), answer: f.answer.trim() }))
+                        .filter((f) => f.question && f.answer)
+                    : undefined,
               }
             : undefined,
       });
