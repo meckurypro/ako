@@ -2,9 +2,9 @@
 import { useState } from "react";
 import { useParams } from "react-router-dom";
 import { useSmartBack } from "../hooks/useSmartBack";
-import { ArrowLeft, ShieldCheck, X } from "lucide-react";
-import { supabase } from "../lib/supabase";
+import { ArrowLeft, Search, ShieldCheck, X } from "lucide-react";
 import { useAuth } from "../hooks/useAuth";
+import { useSearchPeople } from "../hooks/useSearch";
 import { Avatar } from "../components/Avatar";
 import {
   usePageByUsername,
@@ -12,6 +12,7 @@ import {
   useInvitePageMember,
   useRemovePageMember,
 } from "../hooks/usePages";
+import type { ProfileWithRoles } from "../types/database";
 
 // /page/:username/team — admin view: active roster + pending invites,
 // invite-by-username form, remove/leave. Reachable from the gear icon
@@ -27,11 +28,19 @@ export function PageTeam() {
   const invite = useInvitePageMember();
   const remove = useRemovePageMember();
 
-  const [inviteUsername, setInviteUsername] = useState("");
+  // Smart search-as-you-type replaces the old "type the exact username,
+  // look it up on submit" flow. `selectedUser` is who's about to be
+  // invited — set by tapping a result row, cleared on X or after a
+  // successful invite. Query and selection are separate so picking a
+  // result can blank the input without immediately re-triggering search.
+  const [query, setQuery] = useState("");
+  const [selectedUser, setSelectedUser] = useState<ProfileWithRoles | null>(null);
   const [inviteRole, setInviteRole] = useState("");
   const [inviteAsAdmin, setInviteAsAdmin] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+
+  const { data: searchResults, isLoading: searching } = useSearchPeople(query);
 
   const myMembership = members?.find((m) => m.user_id === user?.id && m.status === "active");
   const isAdmin = !!myMembership?.is_admin;
@@ -39,31 +48,30 @@ export function PageTeam() {
   const active = (members ?? []).filter((m) => m.status === "active");
   const pending = (members ?? []).filter((m) => m.status === "invited");
 
+  // Already on the team (active or pending) shouldn't show up as an
+  // invite target again.
+  const existingIds = new Set([...active, ...pending].map((m) => m.user_id));
+  const results = (searchResults ?? []).filter((p) => !existingIds.has(p.id));
+
+  function handleSelectUser(person: ProfileWithRoles) {
+    setSelectedUser(person);
+    setQuery("");
+  }
+
   async function handleInvite(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
-    if (!page || !inviteUsername.trim() || !inviteRole.trim()) return;
+    if (!page || !selectedUser || !inviteRole.trim()) return;
 
     setSubmitting(true);
     try {
-      const { data: target, error: lookupError } = await supabase
-        .from("profiles")
-        .select("id, username")
-        .eq("username", inviteUsername.trim().replace(/^@/, ""))
-        .maybeSingle();
-
-      if (lookupError || !target) {
-        setError("No user found with that username.");
-        return;
-      }
-
       await invite.mutateAsync({
         page_id: page.id,
-        user_id: target.id,
+        user_id: selectedUser.id,
         role_label: inviteRole.trim(),
         is_admin: inviteAsAdmin,
       });
-      setInviteUsername("");
+      setSelectedUser(null);
       setInviteRole("");
       setInviteAsAdmin(false);
     } catch (err: any) {
@@ -101,12 +109,64 @@ export function PageTeam() {
 
         <form onSubmit={handleInvite} className="bg-surface rounded-2xl p-4 mb-6 space-y-3">
           <p className="text-xs font-medium text-ink-muted uppercase tracking-wide">Invite someone</p>
-          <input
-            value={inviteUsername}
-            onChange={(e) => setInviteUsername(e.target.value)}
-            placeholder="@username"
-            className="w-full bg-canvas rounded-xl px-4 py-2.5 text-sm text-ink placeholder:text-ink-muted"
-          />
+
+          {selectedUser ? (
+            <div className="flex items-center gap-3 bg-canvas rounded-xl px-3 py-2.5">
+              <Avatar src={selectedUser.avatar_url} name={selectedUser.display_name} size="sm" />
+              <div className="flex-1 min-w-0">
+                <p className="text-sm text-ink truncate">{selectedUser.display_name}</p>
+                <p className="text-xs text-ink-muted truncate">@{selectedUser.username}</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSelectedUser(null)}
+                className="text-ink-muted"
+                aria-label="Change selected user"
+              >
+                <X size={16} />
+              </button>
+            </div>
+          ) : (
+            <div className="relative">
+              <div className="relative">
+                <Search size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-ink-muted" />
+                <input
+                  value={query}
+                  onChange={(e) => setQuery(e.target.value)}
+                  placeholder="Search by username or name…"
+                  className="w-full bg-canvas rounded-xl pl-9 pr-4 py-2.5 text-sm text-ink placeholder:text-ink-muted"
+                />
+              </div>
+
+              {/* Live filtered results — appears as soon as there's enough
+                  to search on, disappears once a result is picked. */}
+              {query.trim().length > 1 && (
+                <div className="absolute top-full left-0 right-0 mt-1 bg-canvas border border-border rounded-xl shadow-lg max-h-64 overflow-y-auto z-10">
+                  {searching ? (
+                    <p className="text-ink-muted text-center py-4 text-sm">Searching…</p>
+                  ) : results.length === 0 ? (
+                    <p className="text-ink-muted text-center py-4 text-sm">No one found.</p>
+                  ) : (
+                    results.map((person) => (
+                      <button
+                        key={person.id}
+                        type="button"
+                        onClick={() => handleSelectUser(person)}
+                        className="w-full flex items-center gap-3 px-3 py-2.5 text-left hover:bg-surface"
+                      >
+                        <Avatar src={person.avatar_url} name={person.display_name} size="sm" />
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm text-ink truncate">{person.display_name}</p>
+                          <p className="text-xs text-ink-muted truncate">@{person.username}</p>
+                        </div>
+                      </button>
+                    ))
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+
           <input
             value={inviteRole}
             onChange={(e) => setInviteRole(e.target.value)}
@@ -126,7 +186,7 @@ export function PageTeam() {
           {error && <p className="text-sm text-danger">{error}</p>}
           <button
             type="submit"
-            disabled={submitting}
+            disabled={submitting || !selectedUser || !inviteRole.trim()}
             className="w-full bg-accent text-canvas rounded-xl py-2.5 text-sm font-medium disabled:opacity-60"
           >
             {submitting ? "Sending…" : "Send invite"}
