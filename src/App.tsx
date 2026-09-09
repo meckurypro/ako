@@ -59,6 +59,7 @@ import { Room } from "./pages/Room";
 import { Course } from "./pages/Course";
 import { MeetingRoom } from "./pages/MeetingRoom";
 import { TicketView } from "./pages/TicketView";
+import { EventCheckIn } from "./pages/EventCheckIn";
 import { Activity } from "./pages/Activity";
 import { CreateChoice } from "./pages/CreateChoice";
 import { SavedHub } from "./pages/SavedHub";
@@ -447,6 +448,14 @@ function AppRoutes() {
               element={
                 <RequireAuth>
                   <TicketView />
+                </RequireAuth>
+              }
+            />
+            <Route
+              path="/projects/:projectId/checkin"
+              element={
+                <RequireAuth>
+                  <EventCheckIn />
                 </RequireAuth>
               }
             />
