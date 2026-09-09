@@ -1,11 +1,18 @@
 import { Link } from "react-router-dom";
-import { Tag, Gift, Flag, ShieldAlert } from "lucide-react";
+import { Tag, Gift, Flag, ShieldAlert, Mail, Send, MailPlus, Bell } from "lucide-react";
 import { usePendingReports } from "../../hooks/useAdmin";
 
 const SECTIONS = [
   { to: "/admin/categories", icon: Tag, label: "Categories" },
   { to: "/admin/gift-types", icon: Gift, label: "Gift types" },
   { to: "/admin/report-reasons", icon: Flag, label: "Report reasons" },
+];
+
+const COMMS_SECTIONS = [
+  { to: "/admin/smtp", icon: Mail, label: "SMTP settings" },
+  { to: "/admin/emails/templates", icon: MailPlus, label: "Email templates" },
+  { to: "/admin/emails/campaigns", icon: Send, label: "Email campaigns" },
+  { to: "/admin/notifications/send", icon: Bell, label: "Send notification" },
 ];
 
 export function AdminHome() {
@@ -44,9 +51,23 @@ export function AdminHome() {
             </Link>
           ))}
         </div>
-        <p className="text-xs text-ink-muted mt-4">
+        <p className="text-xs text-ink-muted mt-4 mb-6">
           Interests are managed inline under each category.
         </p>
+
+        <h2 className="font-display text-lg text-ink mb-3">Communications</h2>
+        <div className="space-y-2">
+          {COMMS_SECTIONS.map(({ to, icon: Icon, label }) => (
+            <Link
+              key={to}
+              to={to}
+              className="flex items-center gap-3 bg-surface rounded-xl p-4 border border-border"
+            >
+              <Icon size={20} className="text-ink-muted" />
+              <span className="font-medium text-ink">{label}</span>
+            </Link>
+          ))}
+        </div>
       </div>
     </div>
   );
