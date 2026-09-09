@@ -4,6 +4,7 @@ import { X, ArrowLeft } from "lucide-react";
 import { useGiftTypes, useWallet } from "../hooks/useWallet";
 import { useSendGift } from "../hooks/useGifting";
 import { useBackDismiss } from "../hooks/useBackDismiss";
+import { Portal } from "./Portal";
 import { Avatar } from "./Avatar";
 import type { GiftType } from "../types/database";
 
@@ -27,6 +28,12 @@ interface GiftPickerProps {
 
 type Step = "catalog" | "confirm" | "sent";
 
+// Portaled to document.body (see Portal.tsx) — opened from PostCard's
+// Gift action while PostCard is rendered inside SwipeableTabs'
+// translateX'd pane (Feed/ProfilePage/SavedHub/LikedHub). A transformed
+// ancestor becomes the containing block for `fixed` descendants, so
+// without this the sheet was clipped/offset inside that pane instead of
+// filling the real viewport.
 export function GiftPicker({
   recipientId,
   recipientName,
@@ -73,6 +80,7 @@ export function GiftPicker({
   const insufficientBalance = !!selected && balance < selected.cost_usd;
 
   return (
+    <Portal>
     <div className="fixed inset-0 z-[60] flex items-end justify-center" role="dialog" aria-modal="true">
       <div className="absolute inset-0 bg-canvas/70 backdrop-blur-sm" onClick={onClose} />
 
@@ -228,5 +236,6 @@ export function GiftPicker({
         )}
       </div>
     </div>
+    </Portal>
   );
 }
