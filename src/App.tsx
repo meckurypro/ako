@@ -46,11 +46,18 @@ import { Search } from "./pages/Search";
 import { Settings } from "./pages/Settings";
 
 import { RequireAdmin } from "./components/RequireAdmin";
+import { AdminLogin } from "./pages/admin/AdminLogin";
 import { AdminHome } from "./pages/admin/AdminHome";
 import { AdminCategories } from "./pages/admin/AdminCategories";
 import { AdminGiftTypes } from "./pages/admin/AdminGiftTypes";
 import { AdminReportReasons } from "./pages/admin/AdminReportReasons";
 import { AdminReports } from "./pages/admin/AdminReports";
+import { AdminSmtpSettings } from "./pages/admin/AdminSmtpSettings";
+import { AdminEmailTemplates } from "./pages/admin/AdminEmailTemplates";
+import { AdminEmailTemplateEditor } from "./pages/admin/AdminEmailTemplateEditor";
+import { AdminEmailCampaigns } from "./pages/admin/AdminEmailCampaigns";
+import { AdminEmailCampaignEditor } from "./pages/admin/AdminEmailCampaignEditor";
+import { AdminSendNotification } from "./pages/admin/AdminSendNotification";
 
 import { CreateProject } from "./pages/CreateProject";
 import { EditProject } from "./pages/EditProject";
@@ -120,6 +127,11 @@ function AppRoutes() {
             <Route path="/verify-email" element={<VerifyEmail />} />
             <Route path="/reset-password" element={<ResetPassword />} />
             <Route path="/auth/callback" element={<AuthCallback />} />
+            {/* Separate entry point for admins — not wrapped in
+                RequireAuth (an admin may not have a normal session
+                yet), and it does its own admin_roles check + sign-out
+                on failure before ever reaching /admin. */}
+            <Route path="/admin/login" element={<AdminLogin />} />
 
             {/* Onboarding */}
             <Route
@@ -416,6 +428,66 @@ function AppRoutes() {
                 <RequireAuth>
                   <RequireAdmin>
                     <AdminReports />
+                  </RequireAdmin>
+                </RequireAuth>
+              }
+            />
+            <Route
+              path="/admin/smtp"
+              element={
+                <RequireAuth>
+                  <RequireAdmin>
+                    <AdminSmtpSettings />
+                  </RequireAdmin>
+                </RequireAuth>
+              }
+            />
+            <Route
+              path="/admin/emails/templates"
+              element={
+                <RequireAuth>
+                  <RequireAdmin>
+                    <AdminEmailTemplates />
+                  </RequireAdmin>
+                </RequireAuth>
+              }
+            />
+            <Route
+              path="/admin/emails/templates/:templateId"
+              element={
+                <RequireAuth>
+                  <RequireAdmin>
+                    <AdminEmailTemplateEditor />
+                  </RequireAdmin>
+                </RequireAuth>
+              }
+            />
+            <Route
+              path="/admin/emails/campaigns"
+              element={
+                <RequireAuth>
+                  <RequireAdmin>
+                    <AdminEmailCampaigns />
+                  </RequireAdmin>
+                </RequireAuth>
+              }
+            />
+            <Route
+              path="/admin/emails/campaigns/:campaignId"
+              element={
+                <RequireAuth>
+                  <RequireAdmin>
+                    <AdminEmailCampaignEditor />
+                  </RequireAdmin>
+                </RequireAuth>
+              }
+            />
+            <Route
+              path="/admin/notifications/send"
+              element={
+                <RequireAuth>
+                  <RequireAdmin>
+                    <AdminSendNotification />
                   </RequireAdmin>
                 </RequireAuth>
               }
