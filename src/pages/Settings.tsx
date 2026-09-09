@@ -11,6 +11,8 @@ import {
   Users,
   UserX,
   VolumeX,
+  Volume2,
+  Volume1,
   Palette,
   Sun,
   Moon,
@@ -30,6 +32,7 @@ import { useUploadAvatar } from "../hooks/useUploadAvatar";
 import { useRoles } from "../hooks/useRoles";
 import { PROFILE_ROLES_SELECT } from "../lib/profileRoles";
 import { useTheme, type ThemeSetting } from "../hooks/useTheme";
+import { useSound, type SoundMode } from "../hooks/useSound";
 import {
   useTogglePrivateAccount,
   useToggleHideFollowersList,
@@ -160,7 +163,22 @@ const THEME_OPTIONS: { value: ThemeSetting; label: string; description: string; 
   },
 ];
 
-type SectionId = "profile" | "security" | "privacy" | "appearance" | "advanced";
+const SOUND_MODE_OPTIONS: { value: SoundMode; label: string; description: string; icon: React.ReactNode }[] = [
+  {
+    value: "normal",
+    label: "Normal",
+    description: "Sounds for messages, likes, gifts, purchases, and live rooms",
+    icon: <Volume2 size={18} className="text-ink-muted" />,
+  },
+  {
+    value: "minimalist",
+    label: "Minimalist",
+    description: "Only the moments that matter — new messages, gifts, purchases, errors",
+    icon: <Volume1 size={18} className="text-ink-muted" />,
+  },
+];
+
+type SectionId = "profile" | "security" | "privacy" | "appearance" | "sound" | "advanced";
 
 export function Settings() {
   const navigate = useNavigate();
@@ -367,7 +385,11 @@ export function Settings() {
 
   // ---- Appearance ----
   const { theme, setTheme } = useTheme();
+  const { enabled: soundEnabled, setEnabled: setSoundEnabled, mode: soundMode, setMode: setSoundMode } = useSound();
   const themeLabel = THEME_OPTIONS.find((o) => o.value === theme)?.label ?? "System";
+  const soundLabel = soundEnabled
+    ? (SOUND_MODE_OPTIONS.find((o) => o.value === soundMode)?.label ?? "Normal")
+    : "Off";
 
   // ---- Advanced / danger zone ----
   const deactivate = useDeactivateAccount();
@@ -741,6 +763,47 @@ export function Settings() {
                 </button>
               ))}
             </div>
+          </SettingsSection>
+
+          {/* Sound */}
+          <SettingsSection
+            icon={<Volume2 size={18} />}
+            title="Sound"
+            summary={soundLabel}
+            open={openSection === "sound"}
+            onToggle={() => toggleSection("sound")}
+          >
+            <div className="mt-3">
+              <ToggleRow
+                icon={soundEnabled ? <Volume2 size={18} className="text-ink-muted" /> : <VolumeX size={18} className="text-ink-muted" />}
+                title="Sounds"
+                description="Play sounds for messages, likes, gifts, and more"
+                checked={soundEnabled}
+                onToggle={() => setSoundEnabled(!soundEnabled)}
+                pending={false}
+              />
+            </div>
+            {soundEnabled && (
+              <div className="rounded-xl overflow-hidden border border-border mt-1">
+                {SOUND_MODE_OPTIONS.map((opt, i) => (
+                  <button
+                    key={opt.value}
+                    onClick={() => setSoundMode(opt.value)}
+                    aria-pressed={soundMode === opt.value}
+                    className={`w-full flex items-center gap-3 p-4 text-left bg-canvas ${
+                      i > 0 ? "border-t border-border" : ""
+                    }`}
+                  >
+                    {opt.icon}
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-ink">{opt.label}</p>
+                      <p className="text-xs text-ink-muted">{opt.description}</p>
+                    </div>
+                    {soundMode === opt.value && <Check size={18} className="text-accent flex-shrink-0" />}
+                  </button>
+                ))}
+              </div>
+            )}
           </SettingsSection>
 
           {/* Advanced / danger zone — kept last and on its own, the standard
