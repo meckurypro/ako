@@ -56,6 +56,9 @@ import { AdminHome } from "./pages/admin/AdminHome";
 import { AdminCategories } from "./pages/admin/AdminCategories";
 import { AdminGiftTypes } from "./pages/admin/AdminGiftTypes";
 import { AdminReportReasons } from "./pages/admin/AdminReportReasons";
+import { AdminProjectTypes } from "./pages/admin/AdminProjectTypes";
+import { AdminAccountExemptions } from "./pages/admin/AdminAccountExemptions";
+import { AdminModeration } from "./pages/admin/AdminModeration";
 import { AdminReports } from "./pages/admin/AdminReports";
 import { AdminSmtpSettings } from "./pages/admin/AdminSmtpSettings";
 import { AdminEmailTemplates } from "./pages/admin/AdminEmailTemplates";
@@ -463,6 +466,36 @@ function AppRoutes() {
                 <RequireAuth>
                   <RequireAdmin>
                     <AdminReports />
+                  </RequireAdmin>
+                </RequireAuth>
+              }
+            />
+            <Route
+              path="/admin/project-types"
+              element={
+                <RequireAuth>
+                  <RequireAdmin>
+                    <AdminProjectTypes />
+                  </RequireAdmin>
+                </RequireAuth>
+              }
+            />
+            <Route
+              path="/admin/account-exemptions"
+              element={
+                <RequireAuth>
+                  <RequireAdmin>
+                    <AdminAccountExemptions />
+                  </RequireAdmin>
+                </RequireAuth>
+              }
+            />
+            <Route
+              path="/admin/moderation"
+              element={
+                <RequireAuth>
+                  <RequireAdmin>
+                    <AdminModeration />
                   </RequireAdmin>
                 </RequireAuth>
               }
