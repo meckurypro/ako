@@ -3,6 +3,7 @@ import { useMemo, useState } from "react";
 import { Search, X, Send } from "lucide-react";
 import { useConversations, useForwardMessages } from "../hooks/useMessaging";
 import { useBackDismiss } from "../hooks/useBackDismiss";
+import { useScrollLock } from "../hooks/useScrollLock";
 import { Avatar } from "./Avatar";
 
 interface ForwardMessageSheetProps {
@@ -22,6 +23,7 @@ interface ForwardMessageSheetProps {
  */
 export function ForwardMessageSheet({ messages, onClose, onSent }: ForwardMessageSheetProps) {
   useBackDismiss(onClose);
+  useScrollLock();
   const { data: conversations, isLoading } = useConversations();
   const forwardMessages = useForwardMessages();
   const [query, setQuery] = useState("");
@@ -62,7 +64,7 @@ export function ForwardMessageSheet({ messages, onClose, onSent }: ForwardMessag
 
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center">
-      <div className="absolute inset-0 bg-canvas/70 backdrop-blur-sm" onClick={onClose} />
+      <div className="absolute inset-0 bg-canvas/70 backdrop-blur-overlay" onClick={onClose} />
       <div className="relative w-full max-w-xl bg-surface rounded-t-2xl border-t border-border max-h-[80vh] flex flex-col pb-[env(safe-area-inset-bottom)]">
         <div className="flex items-center justify-between px-4 pt-4 pb-2">
           <p className="text-sm font-medium text-ink">
