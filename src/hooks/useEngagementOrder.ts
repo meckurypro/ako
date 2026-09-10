@@ -3,10 +3,14 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "../lib/supabase";
 import { useAuth } from "./useAuth";
 
-// 'share' removed — share now lives as a dedicated header button on PostCard.
 // 'dislike' added — it's now part of the scrollable tray, ranked by usage.
 // 'reshare' added — no longer a fixed left-side slot; ranked like everything
-// else now that only Like (left) and Share (right) stay fixed.
+// else now that only Like (left) stays fixed.
+// 'share' added — was pinned right, unpinned per the "only Like stays
+// pinned" change; ranked using the same reactions-table 'share' count
+// PostCard's toggleShare already writes on every share tap (see
+// handleShare), so this needed no new usage signal, just reading one
+// that was already being recorded.
 export type SecondaryActionKey =
   | "support"
   | "disagree"
@@ -14,7 +18,8 @@ export type SecondaryActionKey =
   | "dislike"
   | "gift"
   | "save"
-  | "reshare";
+  | "reshare"
+  | "share";
 
 const ALL_SECONDARY: SecondaryActionKey[] = [
   "support",
@@ -24,12 +29,14 @@ const ALL_SECONDARY: SecondaryActionKey[] = [
   "gift",
   "save",
   "reshare",
+  "share",
 ];
 
 // Tiebreaker for brand-new users (all counts = 0).
 const DEFAULT_ORDER: SecondaryActionKey[] = [
   "support",
   "reshare",
+  "share",
   "gift",
   "save",
   "disagree",
@@ -40,7 +47,7 @@ const DEFAULT_ORDER: SecondaryActionKey[] = [
 type UsageCounts = Record<SecondaryActionKey, number>;
 
 /**
- * Ranks the 6 secondary post actions by how often the current user
+ * Ranks the 7 secondary post actions by how often the current user
  * has used each one, most-used first.
  *
  * Usage sources:
@@ -51,10 +58,11 @@ type UsageCounts = Record<SecondaryActionKey, number>;
  *   reshare                        →  posts authored by this user with
  *                                      reshared_post_id set (plain reshares
  *                                      and quotes both count as "resharing")
+ *   share                          →  reactions of type "share"
  *
- * PostCard places Like first (fixed), then streams all 7 in this ranked
- * order into the horizontally-scrollable tray. The first few are visible;
- * the rest reveal on swipe. Cached 5 min — usage shifts slowly.
+ * PostCard places Like first (fixed), then streams all 8 in this ranked
+ * order into the visible middle slots + long-press sheet. Cached 5 min —
+ * usage shifts slowly.
  */
 export function useEngagementOrder() {
   const { user } = useAuth();
@@ -70,9 +78,10 @@ export function useEngagementOrder() {
         gift: 0,
         save: 0,
         reshare: 0,
+        share: 0,
       };
 
-      const [stanceRes, dislikeRes, giftRes, saveRes, reshareRes] = await Promise.all([
+      const [stanceRes, dislikeRes, giftRes, saveRes, reshareRes, shareRes] = await Promise.all([
         // Support/Disagree/Pushback are stance-tagged comments.
         supabase
           .from("comments")
@@ -102,6 +111,12 @@ export function useEngagementOrder() {
           .select("id", { count: "exact", head: true })
           .eq("author_id", user!.id)
           .not("reshared_post_id", "is", null),
+
+        supabase
+          .from("reactions")
+          .select("id", { count: "exact", head: true })
+          .eq("user_id", user!.id)
+          .eq("type", "share"),
       ]);
 
       if (stanceRes.error) throw stanceRes.error;
@@ -109,6 +124,7 @@ export function useEngagementOrder() {
       if (giftRes.error) throw giftRes.error;
       if (saveRes.error) throw saveRes.error;
       if (reshareRes.error) throw reshareRes.error;
+      if (shareRes.error) throw shareRes.error;
 
       for (const row of stanceRes.data ?? []) {
         if (row.stance === "support") counts.support++;
@@ -119,6 +135,7 @@ export function useEngagementOrder() {
       counts.gift = giftRes.count ?? 0;
       counts.save = saveRes.count ?? 0;
       counts.reshare = reshareRes.count ?? 0;
+      counts.share = shareRes.count ?? 0;
 
       return [...ALL_SECONDARY].sort((a, b) => {
         const diff = counts[b] - counts[a];
