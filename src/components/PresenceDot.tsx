@@ -3,7 +3,7 @@ import { getPresenceStatus } from "../lib/presence";
 
 const DOT_STYLES = {
   online: "bg-[var(--color-presence-online)] shadow-[0_0_6px_var(--color-presence-online)]",
-  recent: "bg-[var(--color-tick-read)] shadow-[0_0_6px_var(--color-tick-read)]",
+  recent: "bg-[var(--color-online-glow)] shadow-[0_0_6px_var(--color-online-glow)]",
   offline: "bg-ink-muted/30",
 } as const;
 
