@@ -128,9 +128,14 @@ export function GiftPicker({
                       onClick={() => handleSelect(gift)}
                       className="flex flex-col items-center gap-1.5 bg-canvas rounded-xl border border-border p-3"
                     >
-                      <div className="w-12 h-12 rounded-full bg-accent-soft flex items-center justify-center overflow-hidden">
+                      {/* p-2 + object-contain (not object-cover in a
+                          circle) so the artifact renders whole — a
+                          staff or shield silhouette shouldn't get
+                          corner-cropped by a circular mask the way a
+                          generic icon could. */}
+                      <div className="w-14 h-14 rounded-2xl bg-accent-soft flex items-center justify-center overflow-hidden p-2">
                         {gift.icon_url ? (
-                          <img src={gift.icon_url} alt="" className="w-full h-full object-cover" />
+                          <img src={gift.icon_url} alt="" className="w-full h-full object-contain" />
                         ) : (
                           <span className="text-lg">🎁</span>
                         )}
@@ -146,9 +151,9 @@ export function GiftPicker({
 
           {step === "confirm" && selected && (
             <div className="flex flex-col items-center text-center gap-4 py-2">
-              <div className="w-20 h-20 rounded-full bg-accent-soft flex items-center justify-center overflow-hidden">
+              <div className="w-20 h-20 rounded-2xl bg-accent-soft flex items-center justify-center overflow-hidden p-3">
                 {selected.icon_url ? (
-                  <img src={selected.icon_url} alt="" className="w-full h-full object-cover" />
+                  <img src={selected.icon_url} alt="" className="w-full h-full object-contain" />
                 ) : (
                   <span className="text-3xl">🎁</span>
                 )}
@@ -193,9 +198,9 @@ export function GiftPicker({
 
           {step === "sent" && selected && (
             <div className="flex flex-col items-center text-center gap-3 py-8">
-              <div className="relative w-16 h-16 rounded-full bg-accent-soft flex items-center justify-center overflow-hidden ako-gift-pop">
+              <div className="relative w-16 h-16 rounded-2xl bg-accent-soft flex items-center justify-center overflow-hidden p-2.5 ako-gift-pop">
                 {selected.icon_url ? (
-                  <img src={selected.icon_url} alt="" className="w-full h-full object-cover" />
+                  <img src={selected.icon_url} alt="" className="w-full h-full object-contain" />
                 ) : (
                   <span className="text-2xl">🎁</span>
                 )}
