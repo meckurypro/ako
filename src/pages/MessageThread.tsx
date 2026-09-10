@@ -143,7 +143,7 @@ export function MessageThread() {
   const toggleHidden = useToggleMessageState(conversationId!, "hidden_at");
   const topEmojis = useUserTopEmojis();
   const trackEmojiUsage = useTrackEmojiUsage();
-  const inputRef = useRef<HTMLInputElement>(null);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
   const { viewportHeight, lastKnownHeight } = useKeyboardInset();
 
   // Brief inline banner for async failures (delete/star/pin/react/…)
@@ -198,6 +198,17 @@ export function MessageThread() {
   const bottomRef = useRef<HTMLDivElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
   const messageRefs = useRef<Record<string, HTMLDivElement | null>>({});
+  // Keeps the compose textarea's height in sync with `content` no
+  // matter how it changed — typing, an emoji tapped in from
+  // EmojiPickerSheet, the reply-draft prefill above, or clearing back
+  // to "" the moment a message sends. An onChange-only resize would
+  // miss every one of those except plain typing.
+  useEffect(() => {
+    const el = inputRef.current;
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = `${Math.min(el.scrollHeight, 120)}px`;
+  }, [content]);
   // Set right before calling loadOlder(), holding the scroll container's
   // height at that moment — the layout effect below uses it to keep the
   // viewport pinned to the same messages once the older page is
@@ -966,13 +977,19 @@ export function MessageThread() {
             >
               {emojiPickerTarget?.mode === "input" ? <Keyboard size={22} /> : <Smile size={22} />}
             </button>
-            <input
+            <textarea
               ref={inputRef}
               value={content}
               onChange={(e) => setContent(e.target.value)}
               maxLength={2000}
+              rows={1}
               placeholder="Message…"
-              className="flex-1 px-4 py-2.5 rounded-full border border-border bg-surface text-ink
+              // No onKeyDown at all on purpose — a bare <textarea> never
+              // submits its form on Enter (only <input> does that), so
+              // Enter already just inserts a newline for free. Sending
+              // only ever happens via the button below.
+              className="flex-1 px-4 py-2.5 rounded-3xl border border-border bg-surface text-ink resize-none
+                max-h-[120px] leading-snug
                 focus:outline-none focus:ring-2 focus:ring-accent/40 focus:border-accent"
             />
             {content.trim() ? (
