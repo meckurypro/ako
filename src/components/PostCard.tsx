@@ -17,6 +17,8 @@ import {
   RotateCcw,
   Trash2,
   Rocket,
+  Tag,
+  Users,
 } from "lucide-react";
 import { Avatar } from "./Avatar";
 import { LikeHeart } from "./LikeHeart";
@@ -33,6 +35,9 @@ import { GiftPicker } from "./GiftPicker";
 import { RepostEmbed } from "./RepostEmbed";
 import { RepostBadge } from "./RepostBadge";
 import { ConfirmDialog } from "./ConfirmDialog";
+import { TagPeopleSheet } from "./TagPeopleSheet";
+import { CollaboratorsSheet } from "./CollaboratorsSheet";
+import { PostCollaboratorsBadge } from "./PostCollaboratorsBadge";
 import { useAuth } from "../hooks/useAuth";
 import { useIsBookmarked, useToggleBookmark } from "../hooks/useBookmarks";
 import { useMyReaction, useToggleReaction } from "../hooks/useReactions";
@@ -94,6 +99,8 @@ export function PostCard({
   const [showGiftPicker, setShowGiftPicker] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [showArchiveConfirm, setShowArchiveConfirm] = useState(false);
+  const [showTagSheet, setShowTagSheet] = useState(false);
+  const [showCollaboratorsSheet, setShowCollaboratorsSheet] = useState(false);
   const [showMoreActions, setShowMoreActions] = useState(false);
   const lastTapRef = useRef(0);
 
@@ -424,6 +431,20 @@ export function PostCard({
               ]
             : []),
           {
+            key: "tag-people",
+            label: "Tag people",
+            icon: <Tag size={24} className="text-ink" />,
+            count: null,
+            onClick: () => setShowTagSheet(true),
+          },
+          {
+            key: "collaborators",
+            label: "Collaborators",
+            icon: <Users size={24} className="text-ink" />,
+            count: null,
+            onClick: () => setShowCollaboratorsSheet(true),
+          },
+          {
             key: "archive",
             label: post.is_archived ? "Unarchive" : "Archive",
             icon: post.is_archived ? (
@@ -462,8 +483,9 @@ export function PostCard({
       className="bg-surface dark:bg-[#121114] rounded-2xl p-4 mb-4 relative shadow-[0_0_0_1px_rgba(var(--shadow-ink-rgb),0.07),0_10px_24px_-6px_rgba(var(--shadow-ink-rgb),0.16)]"
     >
       <div className="flex items-start gap-3">
-        <Link to={identityHref}>
+        <Link to={identityHref} className="relative">
           <Avatar src={identityAvatar} name={identityName} size="md" />
+          <PostCollaboratorsBadge target="post" targetId={post.id} />
         </Link>
 
         <div className="flex-1 min-w-0">
@@ -610,6 +632,14 @@ export function PostCard({
           postId={post.id}
           onClose={() => setShowGiftPicker(false)}
         />
+      )}
+
+      {showTagSheet && (
+        <TagPeopleSheet target="post" targetId={post.id} onClose={() => setShowTagSheet(false)} />
+      )}
+
+      {showCollaboratorsSheet && (
+        <CollaboratorsSheet target="post" targetId={post.id} onClose={() => setShowCollaboratorsSheet(false)} />
       )}
 
       {showArchiveConfirm && (
