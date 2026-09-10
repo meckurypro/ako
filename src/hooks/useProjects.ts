@@ -28,7 +28,8 @@ export type ProjectType =
   | "course"
   | "room"
   | "meeting"
-  | "gig";
+  | "gig"
+  | "pitch";
 
 export const PROJECT_TYPE_LABELS: Record<ProjectType, string> = {
   event: "Event",
@@ -39,11 +40,13 @@ export const PROJECT_TYPE_LABELS: Record<ProjectType, string> = {
   room: "Room",
   meeting: "Meeting",
   gig: "Gig",
+  pitch: "Pitch",
 };
 
 // Order to show in the type picker.
 export const PROJECT_TYPE_OPTIONS: ProjectType[] = [
   "gig",
+  "pitch",
   "event",
   "meeting",
   "room",
@@ -64,6 +67,8 @@ export const PROJECT_TYPE_HINTS: Record<ProjectType, string> = {
   file: "A file you upload and host here — visitors download it with one click.",
   url: "A link you're selling access to — a WhatsApp group, a page, anything.",
   gig: "A skill or service you offer. Show proof of work, get messaged or booked.",
+  pitch:
+    "Share an idea and let people support it — not an investment, just backing. No price tag; supporters back it for any amount and keep whatever's raised regardless of the goal.",
 };
 
 // Which posting identity each type is restricted to — see
@@ -80,11 +85,13 @@ export const PROJECT_TYPE_ACCESS: Record<ProjectType, ProjectAccess> = {
   event: "page",
   room: "page",
   course: "page",
-  // Personal-only — inherently about one person's own time/skill/work.
+  // Personal-only — inherently about one person's own time/skill/work
+  // or, for pitch, one person's own idea.
   gig: "personal",
   meeting: "personal",
   media: "personal",
   file: "personal",
+  pitch: "personal",
   // Either.
   url: "either",
 };
@@ -558,8 +565,60 @@ export function useCreateProject() {
   });
 }
 
+interface CreatePitchProjectInput {
+  title: string;
+  description?: string;
+  thumbnail_url?: string;
+  thumbnail_width?: number;
+  thumbnail_height?: number;
+  is_private?: boolean;
+  posted_as_page_id?: string;
+  goal_amount_usd: number;
+  topic_ids?: string[];
+}
 
-interface UpdateProjectInput {
+// Pitch is created through its own RPC, not the shared insert above —
+// a Pitch is really two projects (the pitch itself + an auto-
+// provisioned, private update Room every supporter joins on backing)
+// plus a project_pitch_details row, and doing that as three
+// sequential client-side inserts risks an orphaned Room if a later
+// step fails. create_pitch_project (ako_projects_v8_pitch.sql) does
+// all three in one transaction instead.
+export function useCreatePitchProject() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    meta: { blocking: true },
+    mutationFn: async ({ topic_ids, ...input }: CreatePitchProjectInput) => {
+      const { data, error } = await supabase.rpc("create_pitch_project", {
+        p_title: input.title,
+        p_description: input.description ?? null,
+        p_thumbnail_url: input.thumbnail_url ?? null,
+        p_thumbnail_width: input.thumbnail_width ?? null,
+        p_thumbnail_height: input.thumbnail_height ?? null,
+        p_is_private: input.is_private ?? false,
+        p_posted_as_page_id: input.posted_as_page_id ?? null,
+        p_goal_amount_usd: input.goal_amount_usd,
+      });
+      if (error) throw error;
+
+      const pitchProjectId = data as string;
+
+      if (topic_ids && topic_ids.length > 0) {
+        const rows = topic_ids.map((interest_id) => ({ project_id: pitchProjectId, interest_id }));
+        const { error: topicsError } = await supabase.from("project_topics").insert(rows);
+        if (topicsError) throw topicsError;
+      }
+
+      return pitchProjectId;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["user-projects"] });
+    },
+  });
+}
+
+
   id: string;
   title?: string;
   description?: string | null;
