@@ -66,9 +66,42 @@ export const PROJECT_TYPE_HINTS: Record<ProjectType, string> = {
   gig: "A skill or service you offer. Show proof of work, get messaged or booked.",
 };
 
+// Which posting identity each type is restricted to — see
+// projects_page_authorship_migration.sql for the schema/RLS side of
+// this. The split follows one rule: does this type represent one
+// person's individual expertise/time (personal), or does it benefit
+// from a team/organizational identity behind it (page)? 'url' is a
+// bare link either kind of identity can sell equally, so it's the
+// only 'either'.
+export type ProjectAccess = "page" | "personal" | "either";
+
+export const PROJECT_TYPE_ACCESS: Record<ProjectType, ProjectAccess> = {
+  // Page-only — benefits from a team/brand identity behind it.
+  event: "page",
+  room: "page",
+  course: "page",
+  // Personal-only — inherently about one person's own time/skill/work.
+  gig: "personal",
+  meeting: "personal",
+  media: "personal",
+  file: "personal",
+  // Either.
+  url: "either",
+};
+
+export function getAllowedProjectTypes(mode: "personal" | "page"): ProjectType[] {
+  return PROJECT_TYPE_OPTIONS.filter(
+    (type) => PROJECT_TYPE_ACCESS[type] === "either" || PROJECT_TYPE_ACCESS[type] === mode
+  );
+}
+
 export interface Project {
   id: string;
   owner_id: string;
+  // Overlay attribution, same relationship as posts.posted_as_page_id
+  // to posts.author_id — owner_id is still always the creating user;
+  // this marks which page (if any) the project is attributed to.
+  posted_as_page_id: string | null;
   title: string;
   description: string | null;
   external_url: string | null;
@@ -250,6 +283,12 @@ interface CreateProjectInput {
   promo_price_usd?: number | null;
   status?: ProjectStatus;   // defaults to 'active' (publish immediately) if omitted
   is_private?: boolean;     // defaults to false (listed/discoverable) if omitted
+  // Which page this project is attributed to, if posted in page mode —
+  // see PROJECT_TYPE_ACCESS above for which types this is required/
+  // disallowed for. RLS (projects_page_authorship_migration.sql)
+  // enforces the caller is actually an active member of this page —
+  // this is never trusted client-side alone.
+  posted_as_page_id?: string;
   topic_ids?: string[];
   event_details?: EventDetailsInput;
   meeting_details?: MeetingDetailsInput;
