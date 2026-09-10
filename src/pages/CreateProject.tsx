@@ -38,11 +38,19 @@ import {
   type MediaFieldsValue,
 } from "../components/project-types/MediaFields";
 import { GigFields, EMPTY_GIG_FIELDS, type GigFieldsValue } from "../components/project-types/GigFields";
+import { PitchFields, EMPTY_PITCH_FIELDS, type PitchFieldsValue } from "../components/project-types/PitchFields";
+import { useCreatePitchProject } from "../hooks/useProjects";
 
 export function CreateProject() {
   const navigate = useNavigate();
   const smartBack = useSmartBack();
   const createProject = useCreateProject();
+  // Pitch is created through its own RPC-backed hook, not the shared
+  // createProject mutation — a Pitch is really two projects (the
+  // pitch + its auto-provisioned update Room) created atomically
+  // server-side, not a single-row insert with a details row bolted
+  // on. See create_pitch_project in ako_projects_v8_pitch.sql.
+  const createPitchProject = useCreatePitchProject();
   const uploadThumbnail = useUploadProjectThumbnail();
 
   const [title, setTitle] = useState("");
@@ -108,6 +116,7 @@ export function CreateProject() {
   const [eventFields, setEventFields] = useState<EventFieldsValue>(EMPTY_EVENT_FIELDS);
   const [meetingFields, setMeetingFields] = useState<MeetingFieldsValue>(EMPTY_MEETING_FIELDS);
   const [gigFields, setGigFields] = useState<GigFieldsValue>(EMPTY_GIG_FIELDS);
+  const [pitchFields, setPitchFields] = useState<PitchFieldsValue>(EMPTY_PITCH_FIELDS);
 
   const thumbnailInputRef = useRef<HTMLInputElement>(null);
 
@@ -161,6 +170,12 @@ export function CreateProject() {
     if (projectType === "gig" && !gigFields.tagline.trim()) {
       return "Add a short tagline for this gig.";
     }
+    if (projectType === "pitch") {
+      const goal = parseFloat(pitchFields.goal_amount_usd);
+      if (!pitchFields.goal_amount_usd.trim() || Number.isNaN(goal) || goal <= 0) {
+        return "Set a fundraising goal above $0.";
+      }
+    }
     return null;
   }
 
@@ -186,6 +201,34 @@ export function CreateProject() {
     // so this is UX, not the real security boundary.
     if (eligibility && !eligibility.eligible) {
       setError(eligibility.reasons[0]);
+      return;
+    }
+
+    // Pitch never carries a price/promo — it's created through its
+    // own atomic RPC (pitch + linked update Room together), so it
+    // branches off here rather than falling into the shared
+    // createProject call below.
+    if (projectType === "pitch") {
+      try {
+        await createPitchProject.mutateAsync({
+          title: title.trim(),
+          description: description.trim() || undefined,
+          thumbnail_url: thumbnailUrl ?? undefined,
+          thumbnail_width: thumbnailRatio?.width,
+          thumbnail_height: thumbnailRatio?.height,
+          is_private: isPrivate,
+          posted_as_page_id: postingAsPage?.id,
+          goal_amount_usd: parseFloat(pitchFields.goal_amount_usd),
+          topic_ids: Array.from(topicIds),
+        });
+        if (postingAsPage) {
+          navigate(`/page/${postingAsPage.username}`);
+        } else {
+          navigate(-1);
+        }
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Couldn't create project.");
+      }
       return;
     }
 
@@ -451,62 +494,71 @@ export function CreateProject() {
           {projectType === "room" && <RoomFields />}
           {projectType === "course" && <CourseFields />}
           {projectType === "gig" && <GigFields value={gigFields} onChange={setGigFields} />}
+          {projectType === "pitch" && <PitchFields value={pitchFields} onChange={setPitchFields} />}
           {/* ---- end type-specific block ---- */}
 
-          <div className="mb-4">
-            <label className="block text-sm font-medium text-ink-muted mb-1.5">
-              {projectType === "gig" ? "Booking fee (USD, optional)" : "Price (USD)"}
-            </label>
-            <input
-              type="number"
-              value={priceUsd}
-              onChange={(e) => setPriceUsd(e.target.value)}
-              min={0}
-              step="0.01"
-              className="w-full px-4 py-3 rounded-xl border border-border bg-canvas text-ink
-                focus:outline-none focus:ring-2 focus:ring-accent/40 focus:border-accent"
-            />
-            <p className="text-xs text-ink-muted mt-1">
-              {projectType === "gig"
-                ? "Set to 0 to keep this message-only — people reach out, no payment upfront. Add an amount to also let people pay a booking fee to secure a slot."
-                : "Set to 0 for a free project."}
-            </p>
-          </div>
-
-          {/* Promo price — optional. Leaving it off shows only the
-              main price with no strikethrough, exactly as before. */}
-          <div className="mb-6">
-            <label className="flex items-center gap-2 text-sm font-medium text-ink-muted mb-2">
-              <input
-                type="checkbox"
-                checked={showPromo}
-                onChange={(e) => {
-                  setShowPromo(e.target.checked);
-                  if (!e.target.checked) setPromoPriceUsd("");
-                }}
-                className="rounded border-border"
-              />
-              Add a promo price
-            </label>
-
-            {showPromo && (
-              <>
+          {/* Pitch never carries a price tag — it's support-based
+              fundraising with a free-form pledge amount chosen by the
+              supporter, not a sale, so the price/promo block below is
+              skipped entirely for that type. */}
+          {projectType !== "pitch" && (
+            <>
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-ink-muted mb-1.5">
+                  {projectType === "gig" ? "Booking fee (USD, optional)" : "Price (USD)"}
+                </label>
                 <input
                   type="number"
-                  value={promoPriceUsd}
-                  onChange={(e) => setPromoPriceUsd(e.target.value)}
+                  value={priceUsd}
+                  onChange={(e) => setPriceUsd(e.target.value)}
                   min={0}
                   step="0.01"
-                  placeholder="Promo price"
                   className="w-full px-4 py-3 rounded-xl border border-border bg-canvas text-ink
                     focus:outline-none focus:ring-2 focus:ring-accent/40 focus:border-accent"
                 />
                 <p className="text-xs text-ink-muted mt-1">
-                  Shown next to the actual price, which will appear crossed out. Must be lower than the actual price.
+                  {projectType === "gig"
+                    ? "Set to 0 to keep this message-only — people reach out, no payment upfront. Add an amount to also let people pay a booking fee to secure a slot."
+                    : "Set to 0 for a free project."}
                 </p>
-              </>
-            )}
-          </div>
+              </div>
+
+              {/* Promo price — optional. Leaving it off shows only the
+                  main price with no strikethrough, exactly as before. */}
+              <div className="mb-6">
+                <label className="flex items-center gap-2 text-sm font-medium text-ink-muted mb-2">
+                  <input
+                    type="checkbox"
+                    checked={showPromo}
+                    onChange={(e) => {
+                      setShowPromo(e.target.checked);
+                      if (!e.target.checked) setPromoPriceUsd("");
+                    }}
+                    className="rounded border-border"
+                  />
+                  Add a promo price
+                </label>
+
+                {showPromo && (
+                  <>
+                    <input
+                      type="number"
+                      value={promoPriceUsd}
+                      onChange={(e) => setPromoPriceUsd(e.target.value)}
+                      min={0}
+                      step="0.01"
+                      placeholder="Promo price"
+                      className="w-full px-4 py-3 rounded-xl border border-border bg-canvas text-ink
+                        focus:outline-none focus:ring-2 focus:ring-accent/40 focus:border-accent"
+                    />
+                    <p className="text-xs text-ink-muted mt-1">
+                      Shown next to the actual price, which will appear crossed out. Must be lower than the actual price.
+                    </p>
+                  </>
+                )}
+              </div>
+            </>
+          )}
 
           <PrivacyToggle checked={isPrivate} onChange={setIsPrivate} />
 
@@ -516,8 +568,11 @@ export function CreateProject() {
             </p>
           )}
 
-          <Button type="submit" loading={createProject.isPending}>
-            {projectType === "course" ? "Create draft" : "Publish project"}
+          <Button
+            type="submit"
+            loading={projectType === "pitch" ? createPitchProject.isPending : createProject.isPending}
+          >
+            {projectType === "course" ? "Create draft" : projectType === "pitch" ? "Publish pitch" : "Publish project"}
           </Button>
         </form>
       </div>
