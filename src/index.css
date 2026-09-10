@@ -36,7 +36,8 @@
   --color-border: #E9E4D8;        /* hairline borders, nudged for brighter surface */
   --color-danger: #A64B3F;        /* warm brick-red for destructive/dislike states, not pure red */
   --color-pushback: #B8862E;      /* muted warm gold/ochre — Pushback stance only (was raw amber-*) */
-  --color-tick-read: #FF6A00;     /* neon orange — read-receipt double-ticks ONLY, deliberately loud so it snaps against both the accent bubble and the plain canvas list background. Reused for the "recently online" presence dot. */
+  --color-online-glow: #FF6A00;    /* neon orange — "recently online" presence dot only. Used to double as the read-tick color too (misleadingly named --color-tick-read); ticks now use their own --color-tick-blue below, WhatsApp-accurate instead of this loud orange. */
+  --color-tick-blue: #53BDEB;      /* WhatsApp's own read-receipt blue — double-tick color once a message has been read. Sent/delivered ticks stay the neutral unread color in MessageStatusTicks; only this final state goes blue, matching WhatsApp exactly. */
   --color-presence-online: #39FF6A; /* neon green — online-now presence dot */
   --color-highlight: #BFE6C6;     /* saturated sage — deliberately more vivid than accent-soft, used for the few spots that need to visually pop against a list (unread notification rows, jump-to-comment flash) rather than sit quietly like an accent-soft badge */
 
@@ -110,9 +111,11 @@
   warm-orange undertone (never an orange background itself — the ask
   was "orange design", not "orange wallpaper"), text nudged the same
   direction, and the accent itself a muted burnt orange/terracotta —
-  deliberately NOT the bright neon-orange of --color-tick-read, which
-  stays reserved for its one existing job (read receipts) in every
-  mode so it doesn't lose meaning by becoming "just the page color".
+  deliberately NOT the bright neon-orange of --color-online-glow (the
+  "recently online" presence dot) or the WhatsApp blue of
+  --color-tick-blue (read receipts) — neither is overridden below, so
+  both stay reserved for their one existing job in every mode instead
+  of losing meaning by becoming "just the page color".
   Contrast-checked against both canvas and dark canvas — see the
   python snippet in the PR notes; light accent is 4.99:1, dark accent
   6.20:1 against their respective canvases, both comfortably AA.
@@ -319,5 +322,17 @@ body {
 @media (prefers-reduced-motion: reduce) {
   .ako-tab-indicator {
     transition: none;
+  }
+}
+
+/* Toast.tsx — small rise + fade so a toast doesn't just pop in. */
+@keyframes toast-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
   }
 }
