@@ -2,6 +2,8 @@ import { useEffect, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { X } from "lucide-react";
 import { useFeedPosts, useFollowingFeed, useTopDiscussionsFeed } from "../hooks/usePosts";
+import { usePageRankedFeed, usePageFollowingFeed } from "../hooks/usePageFeed";
+import { useActiveIdentity } from "../hooks/usePages";
 import { useTabState } from "../hooks/useTabState";
 import { PostCard } from "../components/PostCard";
 import { BottomNav } from "../components/BottomNav";
@@ -51,10 +53,19 @@ function LoadMoreButton({ onClick }: { onClick: () => void }) {
 
 function ForYouTab({ interestId }: { interestId?: string }) {
   const [page, setPage] = useState(0);
-  const { data: pagePosts, isLoading, error } = useFeedPosts(interestId, page);
-  const posts = useAccumulatedPages(pagePosts, page, interestId);
+  const { data: identity } = useActiveIdentity();
+  const activePageId = identity?.mode === "page" ? identity.page.id : undefined;
+  const isPageMode = !!activePageId && !interestId;
 
-  useEffect(() => setPage(0), [interestId]);
+  // Topic-filtered browsing ("everything tagged X") stays identity-
+  // agnostic — only the personalized ranking swaps to the page's own
+  // when acting as a page. See usePageFeed.ts for why.
+  const personal = useFeedPosts(interestId, page);
+  const pageFeed = usePageRankedFeed(isPageMode ? activePageId : undefined, page);
+  const { data: pagePosts, isLoading, error } = isPageMode ? pageFeed : personal;
+  const posts = useAccumulatedPages(pagePosts, page, interestId ?? (isPageMode ? activePageId : "personal"));
+
+  useEffect(() => setPage(0), [interestId, isPageMode]);
 
   if (isLoading && page === 0) return <p className="text-ink-muted text-center py-10">Loading your feed…</p>;
   if (error) return (
@@ -86,8 +97,16 @@ function ForYouTab({ interestId }: { interestId?: string }) {
 
 function FollowingTab() {
   const [page, setPage] = useState(0);
-  const { data: pagePosts, isLoading, error } = useFollowingFeed(page);
-  const posts = useAccumulatedPages(pagePosts, page, "following");
+  const { data: identity } = useActiveIdentity();
+  const activePageId = identity?.mode === "page" ? identity.page.id : undefined;
+  const isPageMode = !!activePageId;
+
+  const personal = useFollowingFeed(page);
+  const pageFeed = usePageFollowingFeed(isPageMode ? activePageId : undefined, page);
+  const { data: pagePosts, isLoading, error } = isPageMode ? pageFeed : personal;
+  const posts = useAccumulatedPages(pagePosts, page, isPageMode ? activePageId : "personal");
+
+  useEffect(() => setPage(0), [isPageMode]);
 
   if (isLoading && page === 0) return <p className="text-ink-muted text-center py-10">Loading…</p>;
   if (error) return <p className="text-danger text-center py-10">Couldn't load this feed. Try again.</p>;
