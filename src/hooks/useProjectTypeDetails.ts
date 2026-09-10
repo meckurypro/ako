@@ -1,6 +1,7 @@
 // src/hooks/useProjectTypeDetails.ts
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "../lib/supabase";
+import { useAuth } from "./useAuth";
 import type { Project } from "./useProjects";
 
 export interface EventDetails {
@@ -176,5 +177,116 @@ export function useGigSamples(gigProjectId: string | undefined) {
       return links.map((l) => byId.get(l.sample_project_id)).filter((p): p is Project => !!p);
     },
     enabled: !!gigProjectId,
+  });
+}
+
+// A Pitch's fundraising goal + the id of its auto-provisioned update
+// Room, which every supporter is added to on backing (see
+// create_pitch_project and add_supporter_to_pitch_room in
+// ako_projects_v8_pitch.sql). Pitch never has price_usd on the base
+// `projects` row — the goal here is a progress-bar target only,
+// always keep-what-you-raise, never a gate.
+export interface PitchDetails {
+  project_id: string;
+  goal_amount_usd: number;
+  linked_room_id: string;
+}
+
+// Publicly readable, same as event/meeting/media/gig above — this is
+// browsing info shown before anyone supports.
+export function usePitchDetails(projectId: string | undefined) {
+  return useQuery({
+    queryKey: ["project-pitch-details", projectId],
+    queryFn: async (): Promise<PitchDetails | null> => {
+      const { data, error } = await supabase
+        .from("project_pitch_details")
+        .select("*")
+        .eq("project_id", projectId)
+        .maybeSingle();
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!projectId,
+  });
+}
+
+// The "raised" side of the goal-progress bar — summed from the
+// pitch_supporters ledger rather than stored as a column, same
+// reasoning as this codebase's other accumulation logic (e.g.
+// project_access_events unlock counts): the ledger is the source of
+// truth, a cached total is just one more place for drift to creep in.
+export function usePitchRaised(projectId: string | undefined) {
+  return useQuery({
+    queryKey: ["project-pitch-raised", projectId],
+    queryFn: async (): Promise<number> => {
+      const { data, error } = await supabase
+        .from("pitch_supporters")
+        .select("amount_usd")
+        .eq("project_id", projectId);
+      if (error) throw error;
+      return (data ?? []).reduce((sum, row) => sum + row.amount_usd, 0);
+    },
+    enabled: !!projectId,
+  });
+}
+
+export interface PitchSupporter {
+  id: string;
+  supporter_id: string;
+  amount_usd: number;
+  message: string | null;
+  supported_at: string;
+}
+
+// Publicly readable, matching pitch_supporters' RLS — part of what
+// makes public accountability work: anyone can see who backed an
+// idea and for how much.
+export function usePitchSupporters(projectId: string | undefined) {
+  return useQuery({
+    queryKey: ["project-pitch-supporters", projectId],
+    queryFn: async (): Promise<PitchSupporter[]> => {
+      const { data, error } = await supabase
+        .from("pitch_supporters")
+        .select("id, supporter_id, amount_usd, message, supported_at")
+        .eq("project_id", projectId)
+        .order("supported_at", { ascending: false });
+      if (error) throw error;
+      return data ?? [];
+    },
+    enabled: !!projectId,
+  });
+}
+
+// Backing a Pitch: a free-form pledge, not a purchase — no price to
+// validate, no unlock to grant. In production this should go through
+// a support-pitch edge function that captures the Paystack charge
+// first and only then writes the ledger row with the service role,
+// the same pattern as purchase-project for paid unlocks; the direct
+// insert here is the client-side shape for that flow, guarded by the
+// "a user can insert their own support" RLS policy either way. The
+// insert trigger (add_supporter_to_pitch_room) handles adding the
+// supporter to the linked update Room server-side — nothing extra to
+// do here for that part.
+export function useSupportPitch(projectId: string) {
+  const { user } = useAuth();
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ amountUsd, message }: { amountUsd: number; message?: string }) => {
+      if (!user) throw new Error("Not signed in");
+      if (!(amountUsd > 0)) throw new Error("Enter an amount to support with.");
+
+      const { error } = await supabase.from("pitch_supporters").insert({
+        project_id: projectId,
+        supporter_id: user.id,
+        amount_usd: amountUsd,
+        message: message?.trim() || null,
+      });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["project-pitch-raised", projectId] });
+      queryClient.invalidateQueries({ queryKey: ["project-pitch-supporters", projectId] });
+    },
   });
 }
