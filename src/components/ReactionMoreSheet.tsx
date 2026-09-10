@@ -39,10 +39,21 @@ export function ReactionMoreSheet({ actions, onClose }: ReactionMoreSheetProps) 
                   // and then silently revert.
                   runAfterDismiss(onClose, () => action.onClick(e));
                 }}
-                className="flex flex-col items-center gap-1.5 text-ink"
+                // select-none + WebkitTouchCallout mirror ActionButton in
+                // ReactionTray.tsx — this sheet mounts at the exact moment
+                // the long-press that opened it is still held down, which
+                // is also right when a mobile browser's own long-press-to-
+                // select-text timer fires. Without these, whichever label
+                // happens to render under the still-resting finger gets
+                // natively selected/highlighted (plus the iOS copy/share
+                // callout) the instant the sheet appears, so it reads as
+                // "already highlighted" and the user has to tap elsewhere
+                // to clear a selection they never asked for.
+                className="flex flex-col items-center gap-1.5 text-ink select-none"
+                style={{ WebkitTouchCallout: "none" }}
               >
                 {action.icon}
-                <span className="text-[11px] text-ink-muted leading-tight text-center">
+                <span className="text-[11px] text-ink-muted leading-tight text-center select-none">
                   {action.label}
                   {action.count !== null ? ` (${action.count})` : ""}
                 </span>
