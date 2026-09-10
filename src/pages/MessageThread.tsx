@@ -18,6 +18,7 @@ import {
   Star,
   Mic,
   Share2,
+  Users,
 } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "../lib/supabase";
@@ -62,15 +63,40 @@ import { useKeyboardInset } from "../hooks/useKeyboardInset";
 import { useVoiceRecorder } from "../hooks/useVoiceRecorder";
 import { MessageBubble, SWIPE_THRESHOLD, SWIPE_MAX } from "../components/MessageBubble";
 
-// Fetches the other participant's profile for the header — a small
-// dedicated query since useConversations' list-summary shape isn't
-// available when landing here directly (e.g. from a notification link).
-function useOtherParticipant(conversationId: string) {
+// Fetches header identity for the thread — a small dedicated query
+// since useConversations' list-summary shape isn't available when
+// landing here directly (e.g. from a notification link). Group
+// conversations (a page's team chat — see
+// team_group_chat_migration.sql) get their identity from the page
+// itself, not a participant lookup: the old version here used
+// .maybeSingle() on "every OTHER participant", which throws outright
+// the moment a conversation has more than one (any group with 3+
+// total members) — this branches before ever reaching that query.
+function useConversationHeader(conversationId: string) {
   const { user } = useAuth();
 
   return useQuery({
-    queryKey: ["other-participant", conversationId, user?.id],
+    queryKey: ["conversation-header", conversationId, user?.id],
     queryFn: async () => {
+      const { data: conv, error: convError } = await supabase
+        .from("conversations")
+        .select(
+          "is_group, team_page:pages!conversations_team_page_id_fkey(id, username, name, avatar_url, page_type, is_verified)"
+        )
+        .eq("id", conversationId)
+        .single();
+      if (convError) throw convError;
+
+      if (conv.is_group) {
+        return {
+          is_group: true as const,
+          team_page: (conv as any).team_page as
+            | { id: string; username: string; name: string; avatar_url: string | null; page_type: "organization" | "brand"; is_verified: boolean }
+            | null,
+          other_participant: undefined,
+        };
+      }
+
       const { data, error } = await supabase
         .from("conversation_participants")
         .select(
@@ -80,9 +106,14 @@ function useOtherParticipant(conversationId: string) {
         .neq("user_id", user!.id)
         .maybeSingle();
       if (error) throw error;
-      return data?.profile as
-        | { id: string; username: string; display_name: string; avatar_url: string | null; last_seen_at: string | null }
-        | undefined;
+
+      return {
+        is_group: false as const,
+        team_page: null,
+        other_participant: data?.profile as
+          | { id: string; username: string; display_name: string; avatar_url: string | null; last_seen_at: string | null }
+          | undefined,
+      };
     },
     enabled: !!conversationId && !!user,
     refetchInterval: 30_000, // keeps the header status dot from going stale on a long-open thread
@@ -119,11 +150,14 @@ export function MessageThread() {
   const location = useLocation();
   const { user } = useAuth();
   const { data: messages, isLoading, hasMore, loadOlder, isLoadingOlder } = useMessages(conversationId!);
-  const { data: otherParticipant } = useOtherParticipant(conversationId!);
+  const { data: header } = useConversationHeader(conversationId!);
+  const otherParticipant = header?.other_participant;
+  const teamPage = header?.team_page;
   const { data: myParticipantState } = useMyParticipantState(conversationId!);
 
   // Same ring-on-avatar treatment as ConversationList — checks just
-  // this one participant for an unseen post from the last 24h.
+  // this one participant for an unseen post from the last 24h. No
+  // equivalent for a group thread (no single "the other person").
   const { data: unseenPosts } = useUnseenPosts(otherParticipant ? [otherParticipant.id] : []);
   const unseenPostId = otherParticipant ? unseenPosts?.[otherParticipant.id] : undefined;
   const sendMessage = useSendMessage(conversationId!);
@@ -779,6 +813,28 @@ export function MessageThread() {
             <button onClick={() => navigate("/messages")} className="text-ink-muted flex-shrink-0" aria-label="Back">
               <ArrowLeft size={22} />
             </button>
+            {teamPage && (
+              <>
+                <button
+                  type="button"
+                  onClick={() => navigate(`/page/${teamPage.username}`)}
+                  aria-label={`View ${teamPage.name}'s page`}
+                  className="flex-shrink-0"
+                >
+                  <Avatar src={teamPage.avatar_url} name={teamPage.name} size="sm" />
+                </button>
+                <div className="flex-1 min-w-0">
+                  <p className="font-medium text-ink truncate flex items-center gap-1.5">
+                    <span className="truncate">{teamPage.name}</span>
+                    <span className="flex-shrink-0 inline-flex items-center gap-0.5 px-1.5 py-[1px] rounded-full bg-surface border border-border text-[10px] font-medium text-ink-muted">
+                      <Users size={10} />
+                      Group
+                    </span>
+                  </p>
+                  <p className="text-xs text-ink-muted">Team chat</p>
+                </div>
+              </>
+            )}
             {otherParticipant && (
               <>
                 {unseenPostId ? (
@@ -911,6 +967,16 @@ export function MessageThread() {
         </div>
       </div>
 
+      {myParticipantState?.left_at ? (
+        // No longer an active member — the trigger on messages
+        // (see team_group_chat_migration.sql, enforce_active_group_
+        // participant) would reject a send from here anyway; this is
+        // just the honest UI instead of letting them type into a
+        // composer that's guaranteed to fail.
+        <div className="sticky bottom-0 bg-canvas border-t border-border max-w-xl mx-auto w-full px-4 py-3 text-center text-sm text-ink-muted">
+          You're no longer part of this chat.
+        </div>
+      ) : (
       <div className="sticky bottom-0 bg-canvas border-t border-border max-w-xl mx-auto w-full">
         {replyTarget && voiceRecorder.phase === "idle" && (
           <div className="flex items-start gap-2 px-4 pt-2.5">
@@ -1028,6 +1094,7 @@ export function MessageThread() {
           />
         )}
       </div>
+      )}
 
       {activeMessage && (
         <MessageActionMenu
