@@ -7,6 +7,7 @@ import { useProfileByUsername, useIsFollowing, useIsFollowedByUser, useToggleFol
 import { useMyPages, useSwitchActiveMode } from "../hooks/usePages";
 import { useTabState } from "../hooks/useTabState";
 import { useBackDismiss } from "../hooks/useBackDismiss";
+import { useScrollLock } from "../hooks/useScrollLock";
 import { SwipeableTabs } from "../components/SwipeableTabs";
 import { DropdownMenu, type DropdownMenuItem } from "../components/DropdownMenu";
 import {
@@ -91,6 +92,7 @@ export function ProfilePage() {
   const myBrand = myPages?.find((p) => p.page_type === "brand");
   const [showUnfollowConfirm, setShowUnfollowConfirm] = useState(false);
   useBackDismiss(() => setShowUnfollowConfirm(false), showUnfollowConfirm);
+  useScrollLock(showUnfollowConfirm);
 
   const [previewingAsVisitor, setPreviewingAsVisitor] = useState(false);
   const [avatarOpen, setAvatarOpen] = useState(false);
@@ -612,7 +614,7 @@ export function ProfilePage() {
 
       {showUnfollowConfirm && (
         <div
-          className="fixed inset-0 bg-canvas/70 backdrop-blur-sm flex items-center justify-center z-50 px-6"
+          className="fixed inset-0 bg-canvas/70 backdrop-blur-overlay flex items-center justify-center z-50 px-6"
           onClick={() => setShowUnfollowConfirm(false)}
         >
           <div
