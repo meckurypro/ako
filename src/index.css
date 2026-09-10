@@ -41,6 +41,19 @@
   --color-presence-online: #39FF6A; /* neon green — online-now presence dot */
   --color-highlight: #BFE6C6;     /* saturated sage — deliberately more vivid than accent-soft, used for the few spots that need to visually pop against a list (unread notification rows, jump-to-comment flash) rather than sit quietly like an accent-soft badge */
 
+  /*
+    Dedicated chat-bubble colors — deliberately separate tokens from
+    --color-accent / --color-surface (not aliases) so a message bubble
+    can be tuned for its own contrast needs (against the tick-blue
+    read receipt, and against the canvas behind it) without touching
+    every button/card that also reads --color-accent/--color-surface.
+    In light mode these just equal the normal accent/surface, since
+    contrast is already fine here — the dark-mode overrides below are
+    where they diverge.
+  */
+  --color-bubble-mine: #3D5A45;    /* sent-bubble background */
+  --color-bubble-theirs: #FFFFFF;  /* received-bubble background — a touch whiter than --color-surface so it visibly lifts off the canvas even with the subtle shadow doing most of the work; see .bubble-elevate below */
+
   --font-display: "Playfair Display", Georgia, serif;
   --font-body: "Inter", -apple-system, BlinkMacSystemFont, sans-serif;
 
@@ -108,6 +121,24 @@
   --color-pushback: #D9A857;
   --color-highlight: #1E4B31;    /* dark-mode counterpart — noticeably more saturated/green than --color-accent-soft's #17281F so unread rows still pop against near-black canvas */
 
+  /*
+    Sent-bubble green is kept noticeably darker than --color-accent
+    here on purpose. Dark mode's --color-accent (#4CAE7C) and
+    --color-tick-blue (#53BDEB, fixed across all themes) sit at very
+    similar brightness, so a read receipt's blue double-tick nearly
+    disappeared into a bubble using the bright accent directly. This
+    reuses the light theme's deep sage instead — plenty of green
+    against near-black canvas, and dark enough that the light blue
+    ticks (and the white/70 timestamp) read clearly on top again.
+    Received-bubble background goes the other way: dark-mode
+    "elevation" is conventionally done by lightening a surface a few
+    steps rather than dropping a shadow (shadows barely render against
+    a near-black canvas), so this sits visibly above both
+    --color-surface and --color-canvas instead of matching either.
+  */
+  --color-bubble-mine: #2F4636;
+  --color-bubble-theirs: #1D1D1A;
+
   --shadow-ink-rgb: 0, 0, 0;
   --accent-rgb: 76, 174, 124;
 }
@@ -153,6 +184,13 @@
   --color-border: #EDDFCB;
   --color-highlight: #F0C08A;     /* saturated peach — unread rows / jump-to-comment flash, analogous to the green's #BFE6C6 */
 
+  /* Light page-mode's accent is already dark enough to contrast the
+     fixed tick-blue, same as personal light mode, so bubble-mine just
+     mirrors it. bubble-theirs is nudged whiter than --color-surface
+     for the same standalone-elevation reason as personal mode. */
+  --color-bubble-mine: #A8501F;
+  --color-bubble-theirs: #FFFBF3;
+
   --shadow-ink-rgb: 36, 28, 21;   /* == --color-ink here */
   --accent-rgb: 168, 80, 31;      /* == --color-accent here */
 }
@@ -167,6 +205,15 @@
   --color-accent-soft: #2B1912;
   --color-border: #2E2015;
   --color-highlight: #5C3018;
+
+  /* Same tick-contrast fix as personal dark mode: this palette's
+     bright dark accent (#D9773D) sits close enough to --color-tick-blue
+     to wash the read receipt out, so the sent bubble uses the darker
+     terracotta instead. bubble-theirs lightens off both surface and
+     canvas rather than relying on a shadow, for the same reason as
+     personal dark mode above. */
+  --color-bubble-mine: #7E3B16;
+  --color-bubble-theirs: #211913;
 
   --shadow-ink-rgb: 0, 0, 0;
   --accent-rgb: 217, 119, 61;
@@ -259,6 +306,23 @@ body {
   box-shadow:
     0 1px 3px rgba(var(--shadow-ink-rgb), 0.28),
     0 0 0 0.5px rgba(var(--shadow-ink-rgb), 0.06);
+}
+
+/*
+  Lifts the "their" chat bubble off the canvas — bg-bubble-theirs
+  handles most of the work (see --color-bubble-theirs above), this
+  adds a soft drop shadow for light mode (where --shadow-ink-rgb is a
+  real dark color and shadows read clearly) plus a hairline top
+  highlight that's nearly invisible in light mode but gives the dark
+  palettes (where --shadow-ink-rgb is pure black, so the drop shadow
+  below is a no-op) a faint sheen instead of a flat, undifferentiated
+  fill.
+*/
+.bubble-elevate {
+  box-shadow:
+    0 1px 2px rgba(var(--shadow-ink-rgb), 0.07),
+    0 1px 1px rgba(var(--shadow-ink-rgb), 0.04),
+    inset 0 1px 0 rgba(255, 255, 255, 0.05);
 }
 
 /*
