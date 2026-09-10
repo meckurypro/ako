@@ -29,8 +29,13 @@ interface ReactionOptionsPopoverProps {
  * through, leaving a stray "are you sure" prompt with nothing left to
  * confirm. This replaces that with a small anchored card, the same
  * weight as the emoji reaction pill it's managing: a short strip of
- * quick swap options plus a "Remove reaction" row. Every action closes
- * the popover itself — there's nothing left to wait around for.
+ * quick swap options plus a remove row. Every action closes the
+ * popover itself — there's nothing left to wait around for.
+ *
+ * Only one reaction per message per person, always — tapping your own
+ * current emoji in the strip below removes it (same destination as
+ * the explicit row underneath), tapping any other emoji replaces it.
+ * There's no "add a second reaction" path anywhere in this component.
  */
 export function ReactionOptionsPopover({
   target,
@@ -80,14 +85,23 @@ export function ReactionOptionsPopover({
               <button
                 key={emoji}
                 onClick={() => {
-                  if (i === 0) return; // tapping your own current reaction again is a no-op here, not a toggle
-                  onReplace(emoji);
+                  // Tapping your own already-active reaction removes
+                  // it — a second tap on the same emoji was previously
+                  // a no-op here, leaving removal reachable only via
+                  // the explicit row below. Tapping any other emoji
+                  // still replaces, same as before; only one reaction
+                  // is ever active at a time either way.
+                  if (i === 0) {
+                    onRemove();
+                  } else {
+                    onReplace(emoji);
+                  }
                   onClose();
                 }}
                 className={`flex-shrink-0 w-9 h-9 flex items-center justify-center rounded-full text-xl leading-none transition-transform active:scale-90 ${
                   i === 0 ? "ring-2 ring-accent" : ""
                 }`}
-                aria-label={i === 0 ? `Current reaction ${emoji}` : `React with ${emoji}`}
+                aria-label={i === 0 ? `Remove your reaction ${emoji}` : `React with ${emoji}`}
               >
                 {emoji}
               </button>
@@ -111,7 +125,7 @@ export function ReactionOptionsPopover({
             className="flex items-center gap-2 w-full px-4 pt-2 text-sm text-danger text-left"
           >
             <Trash2 size={15} />
-            Remove reaction
+            Tap to replace or remove
           </button>
         </div>
       </div>
