@@ -1,15 +1,18 @@
 // src/pages/CreateProject.tsx
-import { useRef, useState, type FormEvent } from "react";
-import { useNavigate } from "react-router-dom";
+import { useEffect, useRef, useState, type FormEvent } from "react";
+import { useNavigate, Link } from "react-router-dom";
 import { useSmartBack } from "../hooks/useSmartBack";
 import { ArrowLeft, ImageIcon } from "lucide-react";
+import { Avatar } from "../components/Avatar";
 import {
   useCreateProject,
-  PROJECT_TYPE_OPTIONS,
   PROJECT_TYPE_LABELS,
   PROJECT_TYPE_HINTS,
+  getAllowedProjectTypes,
   type ProjectType,
 } from "../hooks/useProjects";
+import { useActiveIdentity } from "../hooks/usePages";
+import { useMyProfile } from "../hooks/useProfile";
 import { useUploadProjectThumbnail } from "../hooks/useUploadProjectThumbnail";
 import { FormField } from "../components/FormField";
 import { Button } from "../components/Button";
@@ -49,6 +52,27 @@ export function CreateProject() {
   const [thumbnailUrl, setThumbnailUrl] = useState<string | null>(null);
   const [thumbnailRatio, setThumbnailRatio] = useState<{ width: number; height: number } | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  const { data: identity } = useActiveIdentity();
+  const { data: me } = useMyProfile();
+  // Same reasoning as Compose.tsx: read once at mount, not editable
+  // from here — switch mode first via /pages, then create, so there's
+  // no chance of a type picked for one identity ending up attributed
+  // to the other mid-draft.
+  const postingAsPage = identity?.mode === "page" ? identity.page : null;
+  const allowedTypes = getAllowedProjectTypes(postingAsPage ? "page" : "personal");
+
+  // The type picker only ever shows allowedTypes (below), but the
+  // initial "file" default is personal-only — if identity resolves to
+  // page mode after that default was set, correct it to the first
+  // type that's actually valid rather than leaving an invalid
+  // selection sitting in a hidden option.
+  useEffect(() => {
+    if (!allowedTypes.includes(projectType)) {
+      setProjectType(allowedTypes[0]);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [postingAsPage?.id]);
 
   // Type-specific state — only the block matching projectType is
   // read/validated/sent; switching types keeps the others' state
@@ -151,6 +175,7 @@ export function CreateProject() {
         title: title.trim(),
         description: description.trim() || undefined,
         project_type: projectType,
+        posted_as_page_id: postingAsPage?.id,
         // File stores only an uploaded file, URL stores only a link —
         // Media doesn't use either base column at all, it lives
         // entirely in media_details below.
@@ -233,7 +258,11 @@ export function CreateProject() {
               }
             : undefined,
       });
-      navigate(-1);
+      if (postingAsPage) {
+        navigate(`/page/${postingAsPage.username}`);
+      } else {
+        navigate(-1);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Couldn't create project.");
     }
@@ -281,6 +310,30 @@ export function CreateProject() {
             className="hidden"
           />
 
+          {/* Who this project is attributed to — same fixed-at-open,
+              switch-mode-first pattern as Compose.tsx. Also the reason
+              the type picker below only shows a subset of types: some
+              only make sense for one identity or the other. */}
+          <div className="flex items-center gap-2 mb-4">
+            <Avatar
+              src={postingAsPage ? postingAsPage.avatar_url : me?.avatar_url}
+              name={postingAsPage ? postingAsPage.name : me?.display_name ?? "You"}
+              size="sm"
+            />
+            <p className="text-sm text-ink-muted">
+              Posting as{" "}
+              <span className="text-ink font-medium">
+                {postingAsPage ? postingAsPage.name : me?.display_name}
+              </span>
+              {!postingAsPage && (
+                <>
+                  {" "}
+                  · <Link to="/pages" className="text-accent">switch</Link>
+                </>
+              )}
+            </p>
+          </div>
+
           <FormField
             id="title"
             label="Title"
@@ -302,14 +355,19 @@ export function CreateProject() {
               className="w-full px-4 py-3 rounded-xl border border-border bg-canvas text-ink
                 focus:outline-none focus:ring-2 focus:ring-accent/40 focus:border-accent"
             >
-              {PROJECT_TYPE_OPTIONS.map((type) => (
+              {allowedTypes.map((type) => (
                 <option key={type} value={type}>
                   {PROJECT_TYPE_LABELS[type]}
                 </option>
               ))}
             </select>
           </div>
-          <p className="text-xs text-ink-muted mb-4">{PROJECT_TYPE_HINTS[projectType]}</p>
+          <p className="text-xs text-ink-muted mb-4">
+            {PROJECT_TYPE_HINTS[projectType]}
+            {postingAsPage
+              ? " Event, Room, and Course are page-only — that's why some types you might expect aren't listed here."
+              : " Gig, Meeting, Media, and File are personal-only — switch to a page to create an Event, Room, or Course."}
+          </p>
 
           <div className="mb-4">
             <label className="block text-sm font-medium text-ink-muted mb-1.5">Description</label>
