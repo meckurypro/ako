@@ -41,13 +41,22 @@ interface MessageActionMenuProps {
 }
 
 /**
- * Long-press action overlay for a message — dims the rest of the
- * screen, shows a swipeable emoji-reaction pill anchored just above
- * the pressed bubble, and a top action bar (WhatsApp's own order:
- * Reply, Forward, Copy, Star, Delete, then a "More" overflow for the
- * rest — Pin, Hide, Select, Share-outside-app).
+ * Long-press action overlay for a message — highlights the pressed
+ * bubble's own space and shows a swipeable emoji-reaction pill
+ * anchored just above it, plus a top action bar (WhatsApp's own
+ * order: Reply, Forward, Copy, Star, Delete, then a "More" overflow
+ * for the rest — Pin, Hide, Select, Share-outside-app).
  * Positioned entirely from `anchorRect`, captured by the caller from
  * the bubble's getBoundingClientRect() at long-press time.
+ *
+ * Deliberately does NOT dim/blur the rest of the thread the way
+ * DropdownMenu/ConfirmDialog/ReactionMoreSheet do — this isn't really
+ * a modal blocking the page behind it, it's WhatsApp's selection
+ * state: the chat stays fully visible, just non-interactive (the
+ * transparent backdrop div below still catches outside taps, it just
+ * has no visual treatment of its own), and the pressed message gets a
+ * soft highlight panel behind it instead so IT is what reads as
+ * "selected," not "everything else is now unavailable."
  *
  * A tombstoned message (isDeleted) has nothing left to copy, react to,
  * reply to, forward, star, pin, or share — the menu collapses down to
@@ -129,16 +138,16 @@ export function MessageActionMenu({
   return (
     <div className="fixed inset-0 z-50" role="dialog" aria-label="Message actions">
       <div
-        className="absolute inset-0 bg-canvas/70 backdrop-blur-sm"
+        className="absolute inset-0"
         onClick={(e) => {
-          // A tap that landed on this dimmed area (i.e. not on the top
-          // bar, reaction pill, or frozen bubble copy — those are
-          // separate elements and never bubble a click here) might
-          // still be sitting directly over a different message in the
-          // real, still-mounted thread underneath. Briefly hide this
-          // backdrop from hit-testing to check what's actually there —
-          // otherwise elementFromPoint would just find this very div,
-          // since it covers the full screen.
+          // A tap that landed on this (invisible) backdrop area — i.e.
+          // not on the top bar, reaction pill, or frozen bubble copy,
+          // those are separate elements and never bubble a click here
+          // — might still be sitting directly over a different message
+          // in the real, still-mounted thread underneath. Briefly hide
+          // this backdrop from hit-testing to check what's actually
+          // there — otherwise elementFromPoint would just find this
+          // very div, since it covers the full screen.
           const backdrop = e.currentTarget;
           backdrop.style.pointerEvents = "none";
           const el = document.elementFromPoint(e.clientX, e.clientY) as HTMLElement | null;
@@ -308,7 +317,24 @@ export function MessageActionMenu({
         </div>
       )}
 
-      {/* Frozen copy of the bubble, highlighted above the dimmed backdrop */}
+      {/* Highlight for the selected message's own space — this, not a
+          dimmed backdrop, is what marks it as "selected" (see the
+          component doc comment above for why). Deliberately a plain
+          rect wider/taller than the bubble by a fixed margin rather
+          than matched to bubble's own border-radius — reads as a
+          selection highlight sitting behind the message, not as a
+          second bubble. */}
+      <div
+        className="absolute rounded-xl bg-accent-soft/60 pointer-events-none"
+        style={{
+          top: anchorRect.top - 6,
+          left: anchorRect.left - 6,
+          width: anchorRect.width + 12,
+          height: anchorRect.height + 12,
+        }}
+      />
+
+      {/* Frozen copy of the bubble, sitting on the highlight above */}
       <div
         className="absolute pointer-events-none select-none"
         style={{ top: anchorRect.top, left: anchorRect.left, width: anchorRect.width }}
