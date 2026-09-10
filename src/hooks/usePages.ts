@@ -2,6 +2,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "../lib/supabase";
 import { useAuth } from "./useAuth";
+import { syncThemeColorMeta } from "./useTheme";
 import { PAGE_AFFILIATION_SELECT, PAGE_WITH_MEMBERSHIP_SELECT, toPageAffiliations } from "../lib/pageRoles";
 import type {
   ActiveIdentity,
@@ -154,8 +155,24 @@ export function useSwitchActiveMode() {
       const { error } = await supabase.rpc("switch_active_mode", { p_page_id: pageId });
       if (error) throw error;
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["active-identity"] });
+    // Awaited (not fire-and-forget) so the mutation's own promise — and
+    // therefore LoadingOverlay, which is keyed to this mutation via
+    // meta.blocking — doesn't settle until the refetch this triggers has
+    // actually landed in the cache.
+    //
+    // The class/meta-color toggle itself is also applied directly here
+    // rather than left to usePageThemeSync's effect to pick up on the
+    // next render: we already know which mode we're switching TO (it's
+    // the pageId argument), so there's no reason to wait on a re-render
+    // to rediscover that. usePageThemeSync still exists and still runs —
+    // it's the source of truth for cold loads (see the localStorage hint
+    // in index.html) and for identity changing from another surface —
+    // it'll just confirm the same value here, harmlessly redundant on
+    // this path specifically.
+    onSuccess: async (_data, pageId) => {
+      await queryClient.invalidateQueries({ queryKey: ["active-identity"] });
+      document.documentElement.classList.toggle("page-mode", pageId !== null);
+      syncThemeColorMeta();
     },
   });
 }
