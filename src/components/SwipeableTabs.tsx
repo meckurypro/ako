@@ -73,6 +73,23 @@ export function SwipeableTabs({ index, onIndexChange, onProgress, children, clas
   const count = children.length;
   const containerRef = useRef<HTMLDivElement>(null);
   const paneRefs = useRef<(HTMLDivElement | null)[]>([]);
+  const isFirstRender = useRef(true);
+
+  // Whatever scroll position the previous tab was left at otherwise
+  // carries straight over — the new tab mounts already scrolled down,
+  // so its top content is effectively truncated out of view until the
+  // user scrolls back up themselves. Reset on every real tab change
+  // (swipe settling OR a tab button jump, both funnel through
+  // onIndexChange → this `index` prop) but not on first mount, where
+  // the page's own scroll position (top, from ScrollToTop) is already
+  // correct and shouldn't be second-guessed.
+  useEffect(() => {
+    if (isFirstRender.current) {
+      isFirstRender.current = false;
+      return;
+    }
+    window.scrollTo(0, 0);
+  }, [index]);
 
   // Panes render lazily: a pane's real content only mounts once it's
   // the active tab or immediately next to it, instead of every pane
