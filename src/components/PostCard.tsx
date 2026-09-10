@@ -332,6 +332,17 @@ export function PostCard({
       count: null,
       onAction: () => toggleBookmark.mutate(isBookmarked),
     },
+    // Unpinned from its old fixed right-side slot — only Like stays
+    // pinned now, everything else (Share included) is ranked by usage.
+    // handleShare already calls toggleShare.mutate on every tap, so the
+    // usage signal this ranks against was already being recorded.
+    share: {
+      key: "share",
+      label: "Share",
+      icon: <Redo2 size={24} className="text-ink" />,
+      count: null,
+      onAction: () => void handleShare(),
+    },
   };
 
   // Ranked order from the hook, falling back to the default until loaded.
@@ -341,7 +352,7 @@ export function PostCard({
   // it's hidden not just for owners but also once you've already reshared
   // this post — the same condition that used to gate it out of leftActions.
   const order: SecondaryActionKey[] = (
-    engagementOrder ?? ["support", "reshare", "gift", "save", "disagree", "pushback", "dislike"]
+    engagementOrder ?? ["support", "reshare", "share", "gift", "save", "disagree", "pushback", "dislike"]
   ).filter((k) => {
     if (isOwner && HIDDEN_FOR_OWNER.includes(k)) return false;
     if (k === "reshare" && (isOwner || hasReshared)) return false;
@@ -368,18 +379,10 @@ export function PostCard({
     },
   ];
 
-  // ─── Right (fixed): Share only. Save used to live here too but is now
-  // ranked by usage in the swipable middle group, same as the other
-  // secondary actions.
-  const rightActions: EngagementAction[] = [
-    {
-      key: "share",
-      label: "Share",
-      icon: <Redo2 size={24} className="text-ink" />,
-      count: null,
-      onClick: () => void handleShare(),
-    },
-  ];
+  // ─── Right: nothing pinned anymore — Share used to live here fixed,
+  // now it's ranked by usage in the middle group like everything else
+  // (see secondaryDefs.share above). Only Like stays pinned.
+  const rightActions: EngagementAction[] = [];
 
   // ─── The long-press sheet: literally everything — every secondary
   // action regardless of usage rank, plus own-post management folded in
@@ -442,10 +445,10 @@ export function PostCard({
       : []),
   ];
 
-  // ─── Middle (fixed, 2 slots): just the top 2 of moreActions — the
-  // row is 4 icons total now (Like + 2 + Share), no swiping. Long-
-  // pressing any of the 4 opens the sheet above with the rest.
-  const middleActions: EngagementAction[] = moreActions.slice(0, 2);
+  // ─── Middle (fixed, 3 slots): top 3 of moreActions — the row is 4
+  // icons total (Like + 3), no swiping, nothing pinned right anymore.
+  // Long-pressing any of the 4 opens the sheet above with the rest.
+  const middleActions: EngagementAction[] = moreActions.slice(0, 3);
 
   function handleReshareTap() {
     if (plainReshare && originalGone) return; // nothing valid left to reshare
