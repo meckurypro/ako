@@ -34,6 +34,7 @@ import { useGigReviews, useGigRatingSummary, useCanReviewGig, useAddGigReview } 
 import { Avatar } from "../components/Avatar";
 import { TierBadge } from "../components/TierBadge";
 import { RoleTags } from "../components/RoleTags";
+import { pageModeLabel } from "../lib/pageRoles";
 import { ProjectCard } from "../components/ProjectCard";
 import { BottomNav } from "../components/BottomNav";
 
@@ -472,25 +473,49 @@ export function ProjectDetail() {
             )}
 
             {/* Creator byline — tapping any part of it opens the
-                creator's profile, per the "fanlink" behavior. */}
+                creator's profile (or the page's, if this was posted in
+                page mode), per the "fanlink" behavior. A page-posted
+                project shows the brand/org name and "Brand"/
+                "Organization" here in place of the personal owner's
+                name and role tags — owner_id is still always the
+                creating user underneath (see posted_as_page_id in
+                useProjects.ts), this is purely a display swap. */}
             <Link
-              to={`/profile/${project.owner.username}`}
+              to={project.posted_as_page ? `/page/${project.posted_as_page.username}` : `/profile/${project.owner.username}`}
               className="flex items-center gap-3 bg-surface rounded-2xl border border-border p-4"
             >
-              <Avatar src={project.owner.avatar_url} name={project.owner.display_name} size="lg" />
-              <div className="min-w-0">
-                <div className="flex items-center gap-2 flex-wrap">
-                  <span className="font-medium text-ink">{project.owner.display_name}</span>
-                  <TierBadge tier={project.owner.tier} />
-                </div>
-                {project.owner.roles.length > 0 && (
-                  <RoleTags roles={project.owner.roles} className="text-xs text-ink-muted block mt-0.5" />
-                )}
-                <span className="text-sm text-ink-muted">@{project.owner.username}</span>
-              </div>
+              {project.posted_as_page ? (
+                <>
+                  <Avatar src={project.posted_as_page.avatar_url} name={project.posted_as_page.name} size="lg" />
+                  <div className="min-w-0">
+                    <span className="font-medium text-ink">{project.posted_as_page.name}</span>
+                    <span className="text-xs text-ink-muted block mt-0.5">
+                      {pageModeLabel(project.posted_as_page.page_type)}
+                    </span>
+                    <span className="text-sm text-ink-muted">@{project.posted_as_page.username}</span>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <Avatar src={project.owner.avatar_url} name={project.owner.display_name} size="lg" />
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="font-medium text-ink">{project.owner.display_name}</span>
+                      <TierBadge tier={project.owner.tier} />
+                    </div>
+                    {project.owner.roles.length > 0 && (
+                      <RoleTags roles={project.owner.roles} className="text-xs text-ink-muted block mt-0.5" />
+                    )}
+                    <span className="text-sm text-ink-muted">@{project.owner.username}</span>
+                  </div>
+                </>
+              )}
             </Link>
 
-            <ProjectRail title={`More from ${project.owner.display_name}`} projects={similar?.moreFromCreator ?? []} />
+            <ProjectRail
+              title={`More from ${project.posted_as_page ? project.posted_as_page.name : project.owner.display_name}`}
+              projects={similar?.moreFromCreator ?? []}
+            />
             <ProjectRail title="Similar topics" projects={similar?.moreOnTopic ?? []} />
             <ProjectRail
               title={`More ${PROJECT_TYPE_LABELS[project.project_type]}s`}
