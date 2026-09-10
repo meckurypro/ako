@@ -49,6 +49,7 @@ import { Button } from "../components/Button";
 import { PasswordField } from "../components/PasswordField";
 import { Avatar } from "../components/Avatar";
 import { SettingsSection } from "../components/SettingsSection";
+import { MentionTextarea } from "../components/MentionTextarea";
 
 // Own-profile lookup by id, since this page doesn't have :username in the URL
 function useOwnProfile() {
@@ -553,10 +554,10 @@ export function Settings() {
                 <label htmlFor="bio" className="block text-sm font-medium text-ink-muted mb-1.5">
                   Bio
                 </label>
-                <textarea
+                <MentionTextarea
                   id="bio"
                   value={bio}
-                  onChange={(e) => setBio(e.target.value)}
+                  onChange={setBio}
                   maxLength={280}
                   rows={3}
                   className="w-full px-4 py-3 rounded-xl border border-border bg-canvas text-ink resize-none
