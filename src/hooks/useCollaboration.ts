@@ -86,7 +86,19 @@ export function useMyPendingCollaborationInvites() {
       ]);
       if (postsRes.error) throw postsRes.error;
       if (projectsRes.error) throw projectsRes.error;
-      return { posts: postsRes.data ?? [], projects: projectsRes.data ?? [] };
+
+      // Supabase's generated types can't tell this FK embed is to-one,
+      // so it infers `inviter` as an array even though the DB returns
+      // a single row. Unwrap it here so every consumer gets a plain object.
+      const unwrapInviter = <T extends { inviter: unknown }>(row: T) => ({
+        ...row,
+        inviter: Array.isArray(row.inviter) ? row.inviter[0] : row.inviter,
+      });
+
+      return {
+        posts: (postsRes.data ?? []).map(unwrapInviter),
+        projects: (projectsRes.data ?? []).map(unwrapInviter),
+      };
     },
     enabled: !!user,
   });
