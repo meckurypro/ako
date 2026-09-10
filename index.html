@@ -30,12 +30,25 @@
       rel="stylesheet"
     />
     <!--
-      Sets .dark on <html> before React mounts (and before first paint),
-      reading the same localStorage key useTheme.tsx uses. Without this,
-      the page always paints light first, then flips to dark a beat
-      later once React runs — a visible flash on every load for anyone
-      using dark mode. Kept deliberately tiny and dependency-free since
-      it has to run synchronously, blocking, in <head>.
+      Sets .dark and .page-mode on <html> before React mounts (and before
+      first paint) — .dark from the same localStorage key useTheme.tsx
+      uses, .page-mode from a cached hint of the last identity mode we
+      saw (written by usePageThemeSync.ts whenever the real server query
+      resolves). Without this, the page always paints light/personal
+      first, then flips a beat later once React mounts and that query
+      comes back — a visible flash on every load for anyone using dark
+      mode or currently acting as a page. Kept deliberately tiny and
+      dependency-free since it has to run synchronously, blocking, in
+      <head>.
+
+      The page-mode hint can go stale — e.g. removed from the page's
+      team on another device — since unlike theme (pure client
+      preference) it's a guess about server state made before that
+      server has been asked. That's an accepted trade: usePageThemeSync
+      corrects it within one query round-trip of mount if it's wrong,
+      same as any other stale-cache-then-refetch pattern, and "usually
+      right immediately, rarely corrected a moment later" beats "always
+      wrong for a moment" on every single load.
     -->
     <script>
       (function () {
@@ -46,14 +59,26 @@
             (stored !== "light" &&
               window.matchMedia("(prefers-color-scheme: dark)").matches);
           if (isDark) document.documentElement.classList.add("dark");
+
+          var isPageMode = localStorage.getItem("ako-active-mode") === "page";
+          if (isPageMode) document.documentElement.classList.add("page-mode");
+
           // Keep in sync with --color-surface in src/index.css (topnav/
-          // bottomnav color) for both themes.
+          // bottomnav color) for all four theme/mode combinations.
+          var surfaceColor = isPageMode
+            ? isDark
+              ? "#17110C"
+              : "#FCF6EC"
+            : isDark
+              ? "#131311"
+              : "#FDFBF6";
           document
             .querySelector('meta[name="theme-color"]')
-            .setAttribute("content", isDark ? "#131311" : "#FDFBF6");
+            .setAttribute("content", surfaceColor);
         } catch (e) {
           // localStorage/matchMedia unavailable (privacy mode, old
-          // browser) — fall back to light, same as if nothing were set.
+          // browser) — fall back to light/personal, same as if nothing
+          // were set.
         }
       })();
     </script>
