@@ -2,7 +2,7 @@
 import { useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useSmartBack } from "../hooks/useSmartBack";
-import { ArrowLeft, Search, X, Pin, Archive, ChevronRight, Trash2, CheckSquare } from "lucide-react";
+import { ArrowLeft, Search, X, Pin, Archive, ChevronRight, Trash2, CheckSquare, Users } from "lucide-react";
 import {
   useConversations,
   useUpdateConversationState,
@@ -159,6 +159,21 @@ export function ConversationList() {
     );
   }
 
+  // A team group chat shows the PAGE's identity (name/avatar/username),
+  // not a mashup of member names — see team_group_chat_migration.sql.
+  // Every other place below that used to reach into c.other_participant
+  // directly for display purposes goes through this instead.
+  function displayIdentity(c: ConversationSummary) {
+    if (c.is_group && c.team_page) {
+      return { name: c.team_page.name, avatarUrl: c.team_page.avatar_url, username: c.team_page.username };
+    }
+    return {
+      name: c.other_participant.display_name,
+      avatarUrl: c.other_participant.avatar_url,
+      username: c.other_participant.username,
+    };
+  }
+
   // Client-side filter over the already-fetched list — matches by
   // contact name/username or last-message content. Cheap enough at
   // conversation-list scale; no need for a server round trip.
@@ -166,9 +181,9 @@ export function ConversationList() {
     const q = searchQuery.trim().toLowerCase();
     if (!q || !conversations) return conversations;
     return conversations.filter((c) => {
-      const { display_name, username } = c.other_participant;
+      const { name, username } = displayIdentity(c);
       return (
-        display_name.toLowerCase().includes(q) ||
+        name.toLowerCase().includes(q) ||
         username.toLowerCase().includes(q) ||
         (c.last_message?.content ?? "").toLowerCase().includes(q)
       );
@@ -187,7 +202,10 @@ export function ConversationList() {
   );
 
   function renderRow(c: ConversationSummary) {
-    const unseenPostId = unseenPosts?.[c.other_participant.id];
+    const identity = displayIdentity(c);
+    // The unseen-post glow is a 1:1 thing (view a specific person's new
+    // post) — a group chat has no single "other person" it applies to.
+    const unseenPostId = c.is_group ? undefined : unseenPosts?.[c.other_participant.id];
     // Only show ticks when the last message is one WE sent — seeing
     // your own message's delivery/read state in the list preview, same
     // as the double-tick-in-list pattern in WhatsApp.
@@ -221,7 +239,7 @@ export function ConversationList() {
         {unseenPostId ? (
           <span
             role="link"
-            aria-label={`View ${c.other_participant.display_name}'s new post`}
+            aria-label={`View ${identity.name}'s new post`}
             onClick={(e) => {
               e.preventDefault();
               if (selectMode) {
@@ -234,18 +252,24 @@ export function ConversationList() {
             className="flex-shrink-0 rounded-full p-[2.5px] bg-accent shadow-[0_0_6px_rgba(var(--accent-rgb),0.45)]"
           >
             <span className="block rounded-full bg-canvas p-[2px]">
-              <Avatar src={c.other_participant.avatar_url} name={c.other_participant.display_name} />
+              <Avatar src={identity.avatarUrl} name={identity.name} />
             </span>
           </span>
         ) : (
-          <Avatar src={c.other_participant.avatar_url} name={c.other_participant.display_name} />
+          <Avatar src={identity.avatarUrl} name={identity.name} />
         )}
 
         <div className="min-w-0 flex-1">
           <div className="flex items-center justify-between">
             <p className={`text-sm truncate flex items-center gap-1 ${c.unreadCount > 0 ? "font-semibold text-ink" : "font-medium text-ink"}`}>
               {c.pinned_at && <Pin size={12} className="text-ink-muted flex-shrink-0" />}
-              <span className="truncate">{c.other_participant.display_name}</span>
+              <span className="truncate">{identity.name}</span>
+              {c.is_group && (
+                <span className="flex-shrink-0 inline-flex items-center gap-0.5 px-1.5 py-[1px] rounded-full bg-surface border border-border text-[10px] font-medium text-ink-muted">
+                  <Users size={10} />
+                  Group
+                </span>
+              )}
             </p>
             <span className="text-xs text-ink-muted flex-shrink-0 ml-2">{timeAgo(c.last_message_at)}</span>
           </div>
@@ -399,7 +423,7 @@ export function ConversationList() {
 
       {actionTarget && (
         <ConversationActionSheet
-          displayName={actionTarget.other_participant.display_name}
+          displayName={displayIdentity(actionTarget).name}
           isPinned={!!actionTarget.pinned_at}
           onTogglePin={() => handleTogglePin(actionTarget)}
           onArchive={() =>
