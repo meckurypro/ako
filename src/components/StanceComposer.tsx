@@ -5,7 +5,7 @@ import { useBackDismiss } from "../hooks/useBackDismiss";
 import { useScrollLock } from "../hooks/useScrollLock";
 import { Portal } from "./Portal";
 import type { Stance } from "../types/database";
-import { FormatToolbar } from "./FormatToolbar";
+import { MentionTextarea } from "./MentionTextarea";
 import { CONTENT_LIMIT, contentCounterClass } from "../lib/textLimits";
 
 const STANCES: Stance[] = ["support", "disagree", "pushback"];
@@ -151,20 +151,14 @@ export function StanceComposer({
         <div className="p-5">
           <p className="text-sm text-ink-muted mb-3">{colors.prompt}</p>
 
-          <FormatToolbar
-            textareaRef={contentRef}
-            value={content}
-            onChange={setContent}
-            className="mb-1.5"
-          />
-
-          <textarea
+          <MentionTextarea
             ref={contentRef}
             value={content}
-            onChange={(e) => setContent(e.target.value)}
+            onChange={setContent}
             maxLength={CONTENT_LIMIT}
             rows={4}
             autoFocus
+            showFormatToolbar
             placeholder={colors.prompt}
             className={`w-full px-4 py-3 rounded-xl border border-border bg-surface text-ink
               resize-none focus:outline-none focus:ring-2 ${colors.ringClass} transition-colors duration-150`}
