@@ -4,6 +4,7 @@ import { X, ArrowLeft } from "lucide-react";
 import { useGiftTypes, useWallet } from "../hooks/useWallet";
 import { useSendGift } from "../hooks/useGifting";
 import { useBackDismiss } from "../hooks/useBackDismiss";
+import { useScrollLock } from "../hooks/useScrollLock";
 import { Portal } from "./Portal";
 import { Avatar } from "./Avatar";
 import type { GiftType } from "../types/database";
@@ -51,6 +52,7 @@ export function GiftPicker({
   const sendGift = useSendGift();
 
   useBackDismiss(step === "confirm" ? () => setStep("catalog") : onClose);
+  useScrollLock();
 
   const balance = Number(wallet?.balance ?? 0);
 
@@ -82,7 +84,7 @@ export function GiftPicker({
   return (
     <Portal>
     <div className="fixed inset-0 z-[60] flex items-end justify-center" role="dialog" aria-modal="true">
-      <div className="absolute inset-0 bg-canvas/70 backdrop-blur-sm" onClick={onClose} />
+      <div className="absolute inset-0 bg-canvas/70 backdrop-blur-overlay" onClick={onClose} />
 
       <div className="relative w-full max-w-xl bg-surface rounded-t-3xl border border-border max-h-[85vh] flex flex-col">
         {/* Header */}
