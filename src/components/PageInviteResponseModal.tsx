@@ -4,6 +4,7 @@ import { useNavigate } from "react-router-dom";
 import { Avatar } from "./Avatar";
 import { Portal } from "./Portal";
 import { useBackDismiss } from "../hooks/useBackDismiss";
+import { useScrollLock } from "../hooks/useScrollLock";
 import { useMyPendingPageInvites, useRespondToPageInvite } from "../hooks/usePages";
 
 // Opened from a tap on a page_role_invite notification (see
@@ -25,6 +26,7 @@ export function PageInviteResponseModal({
   const [error, setError] = useState<string | null>(null);
 
   useBackDismiss(onClose);
+  useScrollLock();
 
   const invite = invites?.find((i) => i.page.id === pageId);
 
@@ -51,7 +53,7 @@ export function PageInviteResponseModal({
   return (
     <Portal>
       <div className="fixed inset-0 z-[60] flex items-center justify-center px-6" role="dialog" aria-modal="true">
-        <div className="absolute inset-0 bg-canvas/70 backdrop-blur-sm" onClick={onClose} />
+        <div className="absolute inset-0 bg-canvas/70 backdrop-blur-overlay" onClick={onClose} />
         <div className="relative w-full max-w-sm bg-surface rounded-2xl border border-border p-5 shadow-xl">
           {isLoading ? (
             <p className="text-sm text-ink-muted text-center py-6">Loading…</p>
