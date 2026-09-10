@@ -3,6 +3,8 @@ import { useNavigate, Link } from "react-router-dom";
 import { Search, ChevronDown, X } from "lucide-react";
 import { useCategories } from "../hooks/useCategories";
 import { useSearchPeople, useSearchPosts, useSuggestedPeople } from "../hooks/useSearch";
+import { usePageSuggestedPeople } from "../hooks/usePageDiscover";
+import { useActiveIdentity } from "../hooks/usePages";
 import { useTabState } from "../hooks/useTabState";
 import { Avatar } from "../components/Avatar";
 import { TierBadge } from "../components/TierBadge";
@@ -45,7 +47,13 @@ export function Discover() {
   const [openCategoryId, setOpenCategoryId] = useState<string | null>(null);
 
   const { data: categories, isLoading: categoriesLoading } = useCategories();
-  const { data: suggestedPeople, isLoading: suggestedLoading } = useSuggestedPeople();
+  const { data: identity } = useActiveIdentity();
+  const activePageId = identity?.mode === "page" ? identity.page.id : undefined;
+  const personalSuggestions = useSuggestedPeople();
+  const pageSuggestions = usePageSuggestedPeople(activePageId);
+  const { data: suggestedPeople, isLoading: suggestedLoading } = activePageId
+    ? pageSuggestions
+    : personalSuggestions;
   const { data: peopleResults, isLoading: peopleLoading } = useSearchPeople(query);
   const { data: postResults, isLoading: postsLoading } = useSearchPosts(query);
 
@@ -132,7 +140,9 @@ export function Discover() {
             {/* Suggested people */}
             <section className="mb-8">
               <h2 className="font-display text-xl text-ink mb-0.5">People to follow</h2>
-              <p className="text-ink-muted text-sm mb-4">Based on your network and activity.</p>
+              <p className="text-ink-muted text-sm mb-4">
+                {activePageId ? "Based on this page's network and activity." : "Based on your network and activity."}
+              </p>
 
               {suggestedLoading ? (
                 <p className="text-ink-muted text-sm py-4">Loading…</p>
