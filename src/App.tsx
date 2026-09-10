@@ -7,6 +7,7 @@ import { ScrollToTop } from "./components/ScrollToTop";
 import { PathHistoryTracker } from "./components/PathHistoryTracker";
 import { LoadingOverlay } from "./components/LoadingOverlay";
 import { usePageThemeSync } from "./hooks/usePageThemeSync";
+import { ToastProvider } from "./components/Toast";
 
 import { SignUp } from "./pages/auth/SignUp";
 import { Login } from "./pages/auth/Login";
@@ -91,13 +92,15 @@ export default function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <LoadingOverlay />
-      <AuthProvider>
-        <BrowserRouter>
-          <ScrollToTop />
-          <PathHistoryTracker />
-          <AppRoutes />
-        </BrowserRouter>
-      </AuthProvider>
+      <ToastProvider>
+        <AuthProvider>
+          <BrowserRouter>
+            <ScrollToTop />
+            <PathHistoryTracker />
+            <AppRoutes />
+          </BrowserRouter>
+        </AuthProvider>
+      </ToastProvider>
     </QueryClientProvider>
   );
 }
