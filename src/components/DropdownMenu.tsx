@@ -1,6 +1,6 @@
 // src/components/DropdownMenu.tsx
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode, type RefObject } from "react";
-import { useBackDismiss } from "../hooks/useBackDismiss";
+import { useBackDismiss, runAfterDismiss } from "../hooks/useBackDismiss";
 import { Portal } from "./Portal";
 
 export interface DropdownMenuItem {
@@ -24,49 +24,6 @@ interface DropdownMenuProps {
 const ROW_HEIGHT = 52; // ~13 x 4 — matches WhatsApp's roomy row scale
 const VIEWPORT_MARGIN = 8;
 
-// Safety-net only — see runAfterDismiss below for why this exists.
-const DISMISS_FALLBACK_MS = 200;
-
-/**
- * Runs `action` only once this menu's dismiss has actually finished,
- * instead of guessing with a fixed-delay timer.
- *
- * useBackDismiss pushes a dummy history entry while the menu is open
- * and pops it (`history.back()`) when the menu unmounts. Per spec —
- * and confirmed across Chrome/Firefox/Safari — the `popstate` that
- * pop produces fires *asynchronously*, on its own task, with no
- * guaranteed ordering against anything else queued around the same
- * time, including a `setTimeout(fn, 0)`.
- *
- * That's a problem for any item whose onSelect() itself navigates
- * (pushState, via react-router's navigate()): if the item's own push
- * happens to run before the still-in-flight back() resolves, the
- * pop then removes the entry that was JUST pushed instead of the
- * dummy one — the navigation lands, then silently reverts a moment
- * later. A fixed setTimeout only ever *happened* to dodge this often
- * enough to look fixed; it isn't one.
- *
- * Listening for the real popstate event removes the guesswork —
- * `action` runs exactly when the dismiss has genuinely completed,
- * never before. `DISMISS_FALLBACK_MS` is only a safety net for the
- * (rare) case no popstate ever arrives at all, so a tap can't get
- * silently swallowed.
- */
-function runAfterDismiss(close: () => void, action: () => void) {
-  let done = false;
-  let fallback: number;
-  const finish = () => {
-    if (done) return;
-    done = true;
-    window.removeEventListener("popstate", finish);
-    window.clearTimeout(fallback);
-    action();
-  };
-  window.addEventListener("popstate", finish);
-  fallback = window.setTimeout(finish, DISMISS_FALLBACK_MS);
-  close();
-}
-
 /**
  * Shared three-dot / kebab menu panel. Renders via the shared
  * <Portal> component straight onto `document.body` — needed for the
@@ -82,7 +39,14 @@ function runAfterDismiss(close: () => void, action: () => void) {
  * Flips to open upward when there isn't enough room below the
  * trigger, and caps its own height with `overflow-y-auto` +
  * `scroll-smooth` so a long list scrolls in place instead of running
- * off the bottom of the screen.
+ * off the bottom of the screen OR under BottomNav — the available
+ * space calculation below subtracts BottomNav's real rendered height
+ * (via #ako-bottom-nav) from the viewport first, so "room below the
+ * trigger" means room above the nav bar, not literal screen bottom.
+ * Without that, a menu near the bottom of a page could size/position
+ * itself as if the nav bar weren't there, then either render its last
+ * rows underneath the (higher-stacked, but still visually blocking)
+ * nav strip or open upward when it didn't actually need to.
  *
  * Caller is expected to render this conditionally — `{open &&
  * <DropdownMenu ... />}` — matching the existing pattern everywhere
@@ -99,8 +63,13 @@ export function DropdownMenu({ anchorRef, items, onClose, widthClass = "w-56" }:
     if (!anchor) return;
 
     const rect = anchor.getBoundingClientRect();
-    const viewportH = window.innerHeight;
     const viewportW = window.innerWidth;
+    // The real bottom-nav footprint, if one is mounted on this page —
+    // treat it as the effective bottom edge of the viewport rather
+    // than the literal screen bottom, so "space below" never counts
+    // space the nav bar is actually sitting on top of.
+    const bottomNavHeight = document.getElementById("ako-bottom-nav")?.getBoundingClientRect().height ?? 0;
+    const viewportH = window.innerHeight - bottomNavHeight;
 
     const rowCount = items.filter((i) => i !== "divider").length;
     const desired = Math.min(rowCount * ROW_HEIGHT + 16, 420);
@@ -112,16 +81,18 @@ export function DropdownMenu({ anchorRef, items, onClose, widthClass = "w-56" }:
     setStyle({
       position: "fixed",
       ...(openUp
-        ? { bottom: viewportH - rect.top + 4 }
+        ? { bottom: window.innerHeight - rect.top + 4 }
         : { top: rect.bottom + 4 }),
       right: Math.max(VIEWPORT_MARGIN, viewportW - rect.right),
       maxHeight: Math.max(160, Math.min(desired, openUp ? spaceAbove : spaceBelow)),
     });
   }, [anchorRef, items]);
 
-  // Outside click/tap closes — a transparent full-screen catcher
-  // rather than a dimmed backdrop, matching how WhatsApp's ordinary
-  // dropdowns (as opposed to the long-press message overlay) behave.
+  // Outside click/tap closes — handled by the dimmed backdrop below
+  // (onClick), same as every other overlay in the app now. Kept as a
+  // separate document-level listener too so a tap that lands on inert
+  // page chrome outside both the panel AND the backdrop's own bounds
+  // (rare, but e.g. a browser UI element) still closes the menu.
   useEffect(() => {
     function handlePointerDown(e: MouseEvent | TouchEvent) {
       const target = e.target as Node;
@@ -135,6 +106,11 @@ export function DropdownMenu({ anchorRef, items, onClose, widthClass = "w-56" }:
 
   return (
     <Portal>
+      {/* Same dim + blur treatment as every modal/dialog in the app
+          (see ConfirmDialog, ReactionMoreSheet) — a kebab menu is
+          still a modal interaction, it just anchors near the trigger
+          instead of centering, so it gets the same backdrop. */}
+      <div className="fixed inset-0 z-50 bg-canvas/70 backdrop-blur-sm" onClick={onClose} />
       <div
         ref={panelRef}
         style={style ?? { position: "fixed", opacity: 0 }}
@@ -158,11 +134,13 @@ export function DropdownMenu({ anchorRef, items, onClose, widthClass = "w-56" }:
                 item.variant === "danger" ? "text-danger" : "text-ink"
               }`}
             >
-              {item.icon && (
-                <span className="shrink-0 [&_svg]:w-6 [&_svg]:h-6 flex items-center justify-center">
-                  {item.icon}
-                </span>
-              )}
+              {/* Fixed-size slot rendered for every row, icon or not —
+                  otherwise an icon-less item's label starts flush left
+                  while every other row's label starts one icon-width
+                  in, reading as inconsistent padding down the list. */}
+              <span className="shrink-0 w-6 h-6 flex items-center justify-center [&_svg]:w-6 [&_svg]:h-6">
+                {item.icon}
+              </span>
               <span className="flex-1">{item.label}</span>
               {item.badge}
             </button>
