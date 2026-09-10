@@ -54,6 +54,7 @@ import { ReactionMoreSheet } from "./ReactionMoreSheet";
 import { DropdownMenu, type DropdownMenuItem } from "./DropdownMenu";
 import { ManageAccessSheet } from "./ManageAccessSheet";
 import { PrivateProjectNotice } from "./PrivateProjectNotice";
+import { useToast } from "./Toast";
 import { useIsProjectMember } from "../hooks/useProjectMembers";
 
 // File and URL keep the original single-link/download "unlock"
@@ -189,6 +190,7 @@ export function ProjectCard({
   const toggleSaved = useToggleSavedProject(project.id);
   const isLikedQuery = useMyReaction(project.id, "project", "like");
   const toggleLike = useToggleReaction(project.id, "project", "like");
+  const toast = useToast();
   const accessCountQuery = useProjectAccessCount(project.id);
   const logFreeAccess = useLogFreeProjectAccess();
   const { data: mediaDetails } = useMediaDetails(project.project_type === "media" ? project.id : undefined);
@@ -482,7 +484,9 @@ export function ProjectCard({
       navigate(`/login?redirect=${encodeURIComponent(`/projects/${project.id}`)}`);
       return;
     }
-    toggleLike.mutate(isLiked);
+    toggleLike.mutate(isLiked, {
+      onError: () => toast("Couldn't like this project. Try again in a moment.", { variant: "error" }),
+    });
   }
 
   // Engagement row — same ReactionTray component and left/middle/right
@@ -504,15 +508,10 @@ export function ProjectCard({
         },
       ];
 
-  const rightActions: EngagementAction[] = [
-    {
-      key: "share",
-      label: "Share",
-      icon: <Redo2 size={24} className="text-ink" />,
-      count: null,
-      onClick: () => void handleShare(),
-    },
-  ];
+  // Nothing pinned right anymore — Share used to be a fixed right slot,
+  // now it joins the middle group with everything else (see
+  // middleActions below). Only Like stays pinned left.
+  const rightActions: EngagementAction[] = [];
 
   const middleActions: EngagementAction[] = [
     ...(!isOwner
@@ -549,6 +548,17 @@ export function ProjectCard({
           } satisfies EngagementAction,
         ]
       : []),
+    // Share always makes sense (owner or not), so it's unconditional —
+    // last in this list only because Save/Join are the two conditional
+    // ones above; there's no per-project usage signal to genuinely rank
+    // against yet, unlike PostCard's engagement-order-backed version.
+    {
+      key: "share",
+      label: "Share",
+      icon: <Redo2 size={24} className="text-ink" />,
+      count: null,
+      onClick: () => void handleShare(),
+    },
   ];
 
   const aspectRatio =
