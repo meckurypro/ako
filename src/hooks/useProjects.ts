@@ -4,7 +4,7 @@ import { supabase } from "../lib/supabase";
 import { useAuth } from "./useAuth";
 import { useSound } from "./useSound";
 import { PROFILE_ROLES_SELECT, toProfileRoles } from "../lib/profileRoles";
-import type { AuthorSummary } from "../types/database";
+import type { AuthorSummary, PageSummary } from "../types/database";
 
 // ------------------------------------------------------------
 // Types — mirror the projects table after ako_projects_v3_media_url_privacy.sql
@@ -614,10 +614,16 @@ export function useProjectTopics(projectId: string | undefined) {
 // --------------------------------------------------------
 export type ProjectWithOwner = Project & {
   owner: AuthorSummary;
+  // Set when the project was created in page mode (see
+  // CreateProject.tsx / projects_page_authorship_migration.sql).
+  // When present, the byline should show this in place of owner —
+  // brand/org name where a name would go, "Brand"/"Organization"
+  // where a job/hobby line would go — not "owner posted as page".
+  posted_as_page: PageSummary | null;
   topics: { id: string; name: string }[];
 };
 
-const PROJECT_WITH_OWNER_SELECT = `*, owner:profiles!projects_owner_id_fkey(id, username, display_name, avatar_url, tier, ${PROFILE_ROLES_SELECT}), topics:project_topics(interest:interests(id, name))`;
+const PROJECT_WITH_OWNER_SELECT = `*, owner:profiles!projects_owner_id_fkey(id, username, display_name, avatar_url, tier, ${PROFILE_ROLES_SELECT}), posted_as_page:pages(id, username, name, avatar_url, page_type, is_verified), topics:project_topics(interest:interests(id, name))`;
 
 export function useProjectDetail(projectId: string | undefined) {
   return useQuery({
@@ -635,6 +641,7 @@ export function useProjectDetail(projectId: string | undefined) {
       return {
         ...raw,
         owner: { ...owner, roles: toProfileRoles(profile_roles) },
+        posted_as_page: raw.posted_as_page ?? null,
         topics: (raw.topics ?? []).map((t: any) => t.interest),
       };
     },
