@@ -13,6 +13,7 @@
 // simple on purpose to match how people actually type on WhatsApp.
 import { Fragment, type ReactNode } from "react";
 import { Link } from "react-router-dom";
+import { MentionLink } from "../components/MentionLink";
 
 const TOKEN_PATTERN =
   /(#[a-zA-Z0-9_]+|@[a-zA-Z0-9_]+|\*[^*\n]+\*|_[^_\n]+_|~[^~\n]+~|\[u\][^[\]]*\[\/u\])/g;
@@ -40,15 +41,14 @@ export function renderFormattedText(text: string, keyPrefix = "f"): ReactNode[] 
 
     if (/^@[a-zA-Z0-9_]+$/.test(part)) {
       const username = part.slice(1);
+      // Could be a personal profile or an organization/brand page —
+      // MentionLink resolves which and routes accordingly (see
+      // useAccountKind); this parser has no account-type context of
+      // its own, just the raw @handle text.
       return (
-        <Link
-          key={key}
-          to={`/profile/${username}`}
-          onClick={(e) => e.stopPropagation()}
-          className="text-accent hover:underline"
-        >
+        <MentionLink key={key} username={username}>
           {part}
-        </Link>
+        </MentionLink>
       );
     }
 
