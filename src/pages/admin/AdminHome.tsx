@@ -1,11 +1,14 @@
 import { Link } from "react-router-dom";
-import { Tag, Gift, Flag, ShieldAlert, Mail, Send, MailPlus, Bell } from "lucide-react";
+import { Tag, Gift, Flag, ShieldAlert, Mail, Send, MailPlus, Bell, ToggleLeft, ShieldCheck, UserCheck } from "lucide-react";
 import { usePendingReports } from "../../hooks/useAdmin";
 
 const SECTIONS = [
   { to: "/admin/categories", icon: Tag, label: "Categories" },
   { to: "/admin/gift-types", icon: Gift, label: "Gift types" },
   { to: "/admin/report-reasons", icon: Flag, label: "Report reasons" },
+  { to: "/admin/project-types", icon: ToggleLeft, label: "Project types" },
+  { to: "/admin/account-exemptions", icon: UserCheck, label: "Account exemptions" },
+  { to: "/admin/moderation", icon: ShieldCheck, label: "Content moderation" },
 ];
 
 const COMMS_SECTIONS = [
