@@ -11,6 +11,7 @@ import {
   usePageMembers,
   useInvitePageMember,
   useRemovePageMember,
+  usePageRoleLabelSuggestions,
 } from "../hooks/usePages";
 import type { ProfileWithRoles } from "../types/database";
 
@@ -36,11 +37,17 @@ export function PageTeam() {
   const [query, setQuery] = useState("");
   const [selectedUser, setSelectedUser] = useState<ProfileWithRoles | null>(null);
   const [inviteRole, setInviteRole] = useState("");
+  // Separate from `inviteRole.trim().length > 0` — tracks whether the
+  // list should be showing at all right now, so it can be dismissed
+  // (on picking a suggestion, or on blur) without clearing what was
+  // typed, and reopened on refocus/further typing.
+  const [showRoleSuggestions, setShowRoleSuggestions] = useState(false);
   const [inviteAsAdmin, setInviteAsAdmin] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
   const { data: searchResults, isLoading: searching } = useSearchPeople(query);
+  const { data: roleSuggestions } = usePageRoleLabelSuggestions(inviteRole);
 
   const myMembership = members?.find((m) => m.user_id === user?.id && m.status === "active");
   const isAdmin = !!myMembership?.is_admin;
@@ -73,6 +80,7 @@ export function PageTeam() {
       });
       setSelectedUser(null);
       setInviteRole("");
+      setShowRoleSuggestions(false);
       setInviteAsAdmin(false);
     } catch (err: any) {
       setError(err.message ?? "Couldn't send that invite.");
@@ -167,13 +175,48 @@ export function PageTeam() {
             </div>
           )}
 
-          <input
-            value={inviteRole}
-            onChange={(e) => setInviteRole(e.target.value)}
-            placeholder="Role — e.g. Graphics Designer"
-            maxLength={60}
-            className="w-full bg-canvas rounded-xl px-4 py-2.5 text-sm text-ink placeholder:text-ink-muted"
-          />
+          <div className="relative">
+            <input
+              value={inviteRole}
+              onChange={(e) => {
+                setInviteRole(e.target.value);
+                setShowRoleSuggestions(true);
+              }}
+              onFocus={() => setShowRoleSuggestions(true)}
+              onBlur={() => {
+                // Give a suggestion's onMouseDown (below) a chance to
+                // fire first — a plain blur would otherwise close this
+                // before the click on it is registered.
+                setTimeout(() => setShowRoleSuggestions(false), 100);
+              }}
+              placeholder="Role — e.g. Graphics Designer"
+              maxLength={60}
+              className="w-full bg-canvas rounded-xl px-4 py-2.5 text-sm text-ink placeholder:text-ink-muted"
+            />
+
+            {/* Existing role titles that match what's typed so far —
+                selecting one just fills the field with it; typing
+                something with no match is still a perfectly valid
+                role, it simply won't show suggestions. */}
+            {showRoleSuggestions && inviteRole.trim().length > 0 && !!roleSuggestions?.length && (
+              <div className="absolute top-full left-0 right-0 mt-1 bg-canvas border border-border rounded-xl shadow-lg max-h-56 overflow-y-auto z-10">
+                {roleSuggestions.map((label) => (
+                  <button
+                    key={label}
+                    type="button"
+                    onMouseDown={(e) => e.preventDefault()}
+                    onClick={() => {
+                      setInviteRole(label);
+                      setShowRoleSuggestions(false);
+                    }}
+                    className="w-full px-3 py-2.5 text-left text-sm text-ink hover:bg-surface truncate"
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
           <label className="flex items-center gap-2 text-sm text-ink">
             <input
               type="checkbox"
