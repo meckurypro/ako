@@ -18,6 +18,7 @@ import { BottomNav } from "../components/BottomNav";
 import { MessageStatusTicks } from "../components/MessageStatusTicks";
 import { ConversationActionSheet } from "../components/ConversationActionSheet";
 import { ConfirmDialog } from "../components/ConfirmDialog";
+import { ImageLightbox } from "../components/ImageLightbox";
 
 const MAX_PINNED = 3;
 
@@ -63,6 +64,23 @@ export function ConversationList() {
   // history from your view is significant enough to warrant a pause,
   // unlike archive/pin/select which are all instantly reversible.
   const [deleteTarget, setDeleteTarget] = useState<{ ids: string[]; label: string } | null>(null);
+
+  // Tapping a chat row's avatar previews the photo instead of opening the
+  // thread — same pattern as tapping an avatar elsewhere in the app.
+  // Uses displayIdentity (not raw other_participant) so this also works
+  // for a team group chat's page avatar.
+  const [previewAvatar, setPreviewAvatar] = useState<{ src: string; name: string } | null>(null);
+  function handleAvatarClick(c: ConversationSummary, e: React.MouseEvent) {
+    e.preventDefault();
+    e.stopPropagation();
+    if (selectMode) {
+      toggleSelected(c.id);
+      return;
+    }
+    const identity = displayIdentity(c);
+    if (!identity.avatarUrl) return; // nothing to enlarge — let the row's own tap navigate
+    setPreviewAvatar({ src: identity.avatarUrl, name: identity.name });
+  }
 
   function enterSelectMode(id: string) {
     setSelectMode(true);
@@ -256,7 +274,15 @@ export function ConversationList() {
             </span>
           </span>
         ) : (
-          <Avatar src={identity.avatarUrl} name={identity.name} />
+          <button
+            type="button"
+            onPointerDown={(e) => e.stopPropagation()}
+            onClick={(e) => handleAvatarClick(c, e)}
+            className="flex-shrink-0"
+            aria-label={`View ${identity.name}'s photo`}
+          >
+            <Avatar src={identity.avatarUrl} name={identity.name} />
+          </button>
         )}
 
         <div className="min-w-0 flex-1">
@@ -450,6 +476,14 @@ export function ConversationList() {
           confirmLabel="Delete"
           onConfirm={confirmDelete}
           onCancel={() => setDeleteTarget(null)}
+        />
+      )}
+
+      {previewAvatar && (
+        <ImageLightbox
+          src={previewAvatar.src}
+          alt={`${previewAvatar.name}'s profile photo`}
+          onClose={() => setPreviewAvatar(null)}
         />
       )}
     </div>
