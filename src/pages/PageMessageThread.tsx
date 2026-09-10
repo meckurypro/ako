@@ -2,12 +2,13 @@
 //
 // Page-mode counterpart to MessageThread.tsx — text-only for v1, see
 // the scope note at the top of usePageInbox.ts.
-import { useEffect, useRef, useState } from "react";
+import { Fragment, useCallback, useEffect, useRef, useState } from "react";
 import { useParams } from "react-router-dom";
 import { ArrowLeft, Send } from "lucide-react";
 import { useSmartBack } from "../hooks/useSmartBack";
 import { usePageThread, useSendPageMessage, useMarkPageThreadRead } from "../hooks/usePageInbox";
 import { BottomNav } from "../components/BottomNav";
+import { dayKeyFor, formatMessageDayLabel } from "../lib/messageTime";
 
 function timeAgo(dateString: string): string {
   const seconds = Math.floor((Date.now() - new Date(dateString).getTime()) / 1000);
@@ -27,6 +28,38 @@ export function PageMessageThread() {
   const markRead = useMarkPageThreadRead(conversationId);
   const [draft, setDraft] = useState("");
   const bottomRef = useRef<HTMLDivElement>(null);
+  const listRef = useRef<HTMLDivElement>(null);
+
+  // Same WhatsApp-style floating date badge as MessageThread.tsx —
+  // see the longer comment there for the reasoning.
+  const [stickyDayLabel, setStickyDayLabel] = useState<string | null>(null);
+  const [stickyDayVisible, setStickyDayVisible] = useState(false);
+  const stickyDayHideTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (stickyDayHideTimer.current) clearTimeout(stickyDayHideTimer.current);
+    };
+  }, []);
+
+  const handleListScroll = useCallback((e: React.UIEvent<HTMLDivElement>) => {
+    const el = e.currentTarget;
+    const separators = el.querySelectorAll<HTMLElement>("[data-day-separator]");
+    let currentLabel: string | null = null;
+    for (const sep of separators) {
+      if (sep.offsetTop <= el.scrollTop + 8) {
+        currentLabel = sep.dataset.dayLabel ?? currentLabel;
+      } else {
+        break;
+      }
+    }
+    if (currentLabel) {
+      setStickyDayLabel(currentLabel);
+      setStickyDayVisible(true);
+      if (stickyDayHideTimer.current) clearTimeout(stickyDayHideTimer.current);
+      stickyDayHideTimer.current = setTimeout(() => setStickyDayVisible(false), 1200);
+    }
+  }, []);
 
   useEffect(() => {
     markRead.mutate();
@@ -53,35 +86,71 @@ export function PageMessageThread() {
         <h2 className="font-display text-lg text-ink flex-1">Conversation</h2>
       </header>
 
-      <div className="flex-1 max-w-xl w-full mx-auto px-4 pt-4 pb-2 overflow-y-auto">
-        {isLoading ? (
-          <p className="text-ink-muted text-center py-10">Loading…</p>
-        ) : !messages || messages.length === 0 ? (
-          <p className="text-ink-muted text-center py-10 text-sm">Say hello.</p>
-        ) : (
-          <div className="flex flex-col gap-2">
-            {messages.map((m) => (
-              <div
-                key={m.id}
-                className={`max-w-[75%] rounded-2xl px-3.5 py-2 text-sm ${
-                  m.sender_type === "page"
-                    ? "self-end bg-accent text-canvas"
-                    : "self-start bg-surface text-ink border border-border"
-                }`}
-              >
-                <p>{m.content}</p>
-                <p
-                  className={`text-[10px] mt-0.5 ${
-                    m.sender_type === "page" ? "text-canvas/70" : "text-ink-muted"
-                  }`}
-                >
-                  {timeAgo(m.created_at)}
-                </p>
-              </div>
-            ))}
-            <div ref={bottomRef} />
-          </div>
-        )}
+      <div className="relative flex-1 min-h-0">
+        <div
+          className={`pointer-events-none absolute top-2 left-1/2 -translate-x-1/2 z-20 transition-opacity duration-300 ${
+            stickyDayVisible && stickyDayLabel ? "opacity-100" : "opacity-0"
+          }`}
+        >
+          <span className="inline-flex items-center px-3 py-1 rounded-full bg-surface/95 backdrop-blur-sm border border-border text-[11px] font-medium text-ink-muted shadow-sm">
+            {stickyDayLabel}
+          </span>
+        </div>
+        <div
+          ref={listRef}
+          onScroll={handleListScroll}
+          className="h-full max-w-xl w-full mx-auto px-4 pt-4 pb-2 overflow-y-auto"
+        >
+          {isLoading ? (
+            <p className="text-ink-muted text-center py-10">Loading…</p>
+          ) : !messages || messages.length === 0 ? (
+            <p className="text-ink-muted text-center py-10 text-sm">Say hello.</p>
+          ) : (
+            <div className="flex flex-col gap-2">
+              {(() => {
+                let lastDayKey: string | null = null;
+                return messages.map((m) => {
+                  const dayKey = dayKeyFor(m.created_at);
+                  const isNewDay = dayKey !== lastDayKey;
+                  lastDayKey = dayKey;
+
+                  return (
+                    <Fragment key={m.id}>
+                      {isNewDay && (
+                        <div
+                          className="flex justify-center py-2 self-stretch first:pt-0"
+                          data-day-separator
+                          data-day-label={formatMessageDayLabel(m.created_at)}
+                        >
+                          <span className="inline-flex items-center px-3 py-1 rounded-full bg-surface/90 border border-border text-[11px] font-medium text-ink-muted shadow-sm">
+                            {formatMessageDayLabel(m.created_at)}
+                          </span>
+                        </div>
+                      )}
+                      <div
+                        className={`max-w-[75%] rounded-2xl px-3.5 py-2 text-sm ${
+                          m.sender_type === "page"
+                            ? "self-end bg-accent text-canvas"
+                            : "self-start bg-surface text-ink border border-border"
+                        }`}
+                      >
+                        <p>{m.content}</p>
+                        <p
+                          className={`text-[10px] mt-0.5 ${
+                            m.sender_type === "page" ? "text-canvas/70" : "text-ink-muted"
+                          }`}
+                        >
+                          {timeAgo(m.created_at)}
+                        </p>
+                      </div>
+                    </Fragment>
+                  );
+                });
+              })()}
+              <div ref={bottomRef} />
+            </div>
+          )}
+        </div>
       </div>
 
       <div className="sticky bottom-0 bg-canvas border-t border-border px-4 py-3">
