@@ -17,7 +17,12 @@ import {
   Users,
 } from "lucide-react";
 import { useNotifications, useMarkNotificationRead, useMarkAllRead } from "../hooks/useNotifications";
-import { usePageById } from "../hooks/usePages";
+import {
+  usePageNotifications,
+  useMarkPageNotificationRead,
+  useMarkAllPageNotificationsRead,
+} from "../hooks/usePageNotifications";
+import { usePageById, useActiveIdentity } from "../hooks/usePages";
 import { Avatar } from "../components/Avatar";
 import { BottomNav } from "../components/BottomNav";
 import { PageInviteResponseModal } from "../components/PageInviteResponseModal";
@@ -187,9 +192,24 @@ function NotificationRow({
 }
 
 export function Notifications() {
-  const { data: notifications, isLoading } = useNotifications();
-  const markRead = useMarkNotificationRead();
-  const markAllRead = useMarkAllRead();
+  const { data: identity } = useActiveIdentity();
+  const isPageMode = identity?.mode === "page";
+  const pageId = isPageMode ? identity.page.id : undefined;
+
+  // Same shape (NotificationWithActor[]), different source table —
+  // see usePageNotifications.ts for why pages get a separate table
+  // instead of reusing personal notifications with a page_id column.
+  const personal = useNotifications();
+  const page = usePageNotifications(pageId);
+  const { data: notifications, isLoading } = isPageMode ? page : personal;
+
+  const markReadPersonal = useMarkNotificationRead();
+  const markReadPage = useMarkPageNotificationRead(pageId);
+  const markAllReadPersonal = useMarkAllRead();
+  const markAllReadPage = useMarkAllPageNotificationsRead(pageId);
+  const markRead = isPageMode ? markReadPage : markReadPersonal;
+  const markAllRead = isPageMode ? markAllReadPage : markAllReadPersonal;
+
   const [openInvitePageId, setOpenInvitePageId] = useState<string | null>(null);
 
   const hasUnread = notifications?.some((n) => !n.read_at);
@@ -197,7 +217,9 @@ export function Notifications() {
   return (
     <div className="min-h-screen bg-canvas pb-24">
       <header className="px-4 pt-6 pb-3 sticky top-0 bg-canvas z-30 border-b border-border flex items-center justify-between">
-        <h2 className="font-display text-2xl text-ink">Notifications</h2>
+        <h2 className="font-display text-2xl text-ink">
+          {isPageMode ? `${identity.page.name}'s Notifications` : "Notifications"}
+        </h2>
         {hasUnread && (
           <button
             onClick={() => markAllRead.mutate()}
