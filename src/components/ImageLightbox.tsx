@@ -2,6 +2,7 @@
 import { useEffect } from "react";
 import { X } from "lucide-react";
 import { useBackDismiss } from "../hooks/useBackDismiss";
+import { useScrollLock } from "../hooks/useScrollLock";
 
 interface ImageLightboxProps {
   src: string;
@@ -17,19 +18,14 @@ interface ImageLightboxProps {
 // canvas color behind photos would wash out contrast either way.
 export function ImageLightbox({ src, alt, onClose }: ImageLightboxProps) {
   useBackDismiss(onClose);
+  useScrollLock();
 
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
       if (e.key === "Escape") onClose();
     }
     document.addEventListener("keydown", handleKeyDown);
-    // Lock background scroll while the viewer is open.
-    const previousOverflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    return () => {
-      document.removeEventListener("keydown", handleKeyDown);
-      document.body.style.overflow = previousOverflow;
-    };
+    return () => document.removeEventListener("keydown", handleKeyDown);
   }, [onClose]);
 
   return (
