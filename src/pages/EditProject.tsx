@@ -10,7 +10,7 @@ import {
   PROJECT_TYPE_LABELS,
   type ProjectStatus,
 } from "../hooks/useProjects";
-import { useEventDetails, useMeetingDetails, useMediaDetails, useGigDetails, useGigSamples } from "../hooks/useProjectTypeDetails";
+import { useEventDetails, useMeetingDetails, useMediaDetails, useGigDetails, useGigSamples, usePitchDetails } from "../hooks/useProjectTypeDetails";
 import { supabase } from "../lib/supabase";
 import { useUploadProjectThumbnail } from "../hooks/useUploadProjectThumbnail";
 import { FormField } from "../components/FormField";
@@ -31,6 +31,7 @@ import {
   type MediaFieldsValue,
 } from "../components/project-types/MediaFields";
 import { GigFields, EMPTY_GIG_FIELDS, type GigFieldsValue } from "../components/project-types/GigFields";
+import { PitchFields, EMPTY_PITCH_FIELDS, type PitchFieldsValue } from "../components/project-types/PitchFields";
 
 // 'cancelled' is deliberately not offered here — it only happens
 // through the (not-yet-built) Event/Meeting cancellation flow, which
@@ -59,6 +60,7 @@ export function EditProject() {
   );
   const { data: existingGigDetails } = useGigDetails(project?.project_type === "gig" ? projectId : undefined);
   const { data: existingGigSamples } = useGigSamples(project?.project_type === "gig" ? projectId : undefined);
+  const { data: existingPitchDetails } = usePitchDetails(project?.project_type === "pitch" ? projectId : undefined);
   const updateProject = useUpdateProject();
   const uploadThumbnail = useUploadProjectThumbnail();
 
@@ -83,6 +85,7 @@ export function EditProject() {
   const [eventFields, setEventFields] = useState<EventFieldsValue>(EMPTY_EVENT_FIELDS);
   const [meetingFields, setMeetingFields] = useState<MeetingFieldsValue>(EMPTY_MEETING_FIELDS);
   const [gigFields, setGigFields] = useState<GigFieldsValue>(EMPTY_GIG_FIELDS);
+  const [pitchFields, setPitchFields] = useState<PitchFieldsValue>(EMPTY_PITCH_FIELDS);
   const [typeDetailsHydrated, setTypeDetailsHydrated] = useState(false);
 
   const thumbnailInputRef = useRef<HTMLInputElement>(null);
@@ -188,7 +191,13 @@ export function EditProject() {
         faq: existingGigDetails?.faq ?? [],
       });
       setTypeDetailsHydrated(true);
-    } else if (!["event", "meeting", "media", "gig"].includes(project.project_type)) {
+    } else if (project.project_type === "pitch" && existingPitchDetails) {
+      // linked_room_id is deliberately never surfaced/edited here — the
+      // update Room is internal plumbing (see ako_projects_v8_pitch.sql),
+      // not something the creator manages from this form.
+      setPitchFields({ goal_amount_usd: String(existingPitchDetails.goal_amount_usd) });
+      setTypeDetailsHydrated(true);
+    } else if (!["event", "meeting", "media", "gig", "pitch"].includes(project.project_type)) {
       setTypeDetailsHydrated(true);
     }
   }, [
@@ -198,6 +207,7 @@ export function EditProject() {
     existingMediaDetails,
     existingGigDetails,
     existingGigSamples,
+    existingPitchDetails,
     typeDetailsHydrated,
   ]);
 
@@ -237,6 +247,12 @@ export function EditProject() {
     if (project.project_type === "gig" && !gigFields.tagline.trim()) {
       return "Add a short tagline for this gig.";
     }
+    if (project.project_type === "pitch") {
+      const goal = parseFloat(pitchFields.goal_amount_usd);
+      if (!pitchFields.goal_amount_usd.trim() || Number.isNaN(goal) || goal <= 0) {
+        return "Set a fundraising goal above $0.";
+      }
+    }
     return null;
   }
 
@@ -250,7 +266,7 @@ export function EditProject() {
       return;
     }
 
-    const price = parseFloat(priceUsd) || 0;
+    const price = project.project_type === "pitch" ? 0 : parseFloat(priceUsd) || 0;
 
     const typeError = validateTypeSpecific();
     if (typeError) {
@@ -259,7 +275,7 @@ export function EditProject() {
     }
 
     let promoPrice: number | null = null;
-    if (showPromo && promoPriceUsd.trim() !== "") {
+    if (project.project_type !== "pitch" && showPromo && promoPriceUsd.trim() !== "") {
       promoPrice = parseFloat(promoPriceUsd);
       if (Number.isNaN(promoPrice) || promoPrice < 0) {
         setError("Promo price must be a valid amount.");
@@ -366,6 +382,17 @@ export function EditProject() {
           const { error: insertSamplesError } = await supabase.from("project_gig_samples").insert(rows);
           if (insertSamplesError) throw insertSamplesError;
         }
+      }
+
+      if (project.project_type === "pitch") {
+        // goal_amount_usd only — linked_room_id is never touched from
+        // here (see the hydration comment above), and there's no
+        // price/promo to write since Pitch never carries either.
+        const { error: detailsError } = await supabase
+          .from("project_pitch_details")
+          .update({ goal_amount_usd: parseFloat(pitchFields.goal_amount_usd) })
+          .eq("project_id", projectId);
+        if (detailsError) throw detailsError;
       }
 
       navigate(-1);
@@ -501,59 +528,68 @@ export function EditProject() {
           {project.project_type === "gig" && (
             <GigFields value={gigFields} onChange={setGigFields} excludeProjectId={project.id} />
           )}
+          {project.project_type === "pitch" && (
+            <PitchFields value={pitchFields} onChange={setPitchFields} />
+          )}
           {/* ---- end type-specific block ---- */}
 
-          <div className="mb-4">
-            <label className="block text-sm font-medium text-ink-muted mb-1.5">
-              {project.project_type === "gig" ? "Booking fee (USD, optional)" : "Price (USD)"}
-            </label>
-            <input
-              type="number"
-              value={priceUsd}
-              onChange={(e) => setPriceUsd(e.target.value)}
-              min={0}
-              step="0.01"
-              className="w-full px-4 py-3 rounded-xl border border-border bg-canvas text-ink
-                focus:outline-none focus:ring-2 focus:ring-accent/40 focus:border-accent"
-            />
-            <p className="text-xs text-ink-muted mt-1">
-              {project.project_type === "gig"
-                ? "Set to 0 to keep this message-only. Add an amount to also let people pay a booking fee to secure a slot."
-                : "Set to 0 for a free project."}
-            </p>
-          </div>
-
-          <div className="mb-6">
-            <label className="flex items-center gap-2 text-sm font-medium text-ink-muted mb-2">
-              <input
-                type="checkbox"
-                checked={showPromo}
-                onChange={(e) => {
-                  setShowPromo(e.target.checked);
-                  if (!e.target.checked) setPromoPriceUsd("");
-                }}
-                className="rounded border-border"
-              />
-              Add a promo price
-            </label>
-            {showPromo && (
-              <>
+          {/* Pitch never carries a price tag — see CreateProject for
+              the same rule. */}
+          {project.project_type !== "pitch" && (
+            <>
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-ink-muted mb-1.5">
+                  {project.project_type === "gig" ? "Booking fee (USD, optional)" : "Price (USD)"}
+                </label>
                 <input
                   type="number"
-                  value={promoPriceUsd}
-                  onChange={(e) => setPromoPriceUsd(e.target.value)}
+                  value={priceUsd}
+                  onChange={(e) => setPriceUsd(e.target.value)}
                   min={0}
                   step="0.01"
-                  placeholder="Promo price"
                   className="w-full px-4 py-3 rounded-xl border border-border bg-canvas text-ink
                     focus:outline-none focus:ring-2 focus:ring-accent/40 focus:border-accent"
                 />
                 <p className="text-xs text-ink-muted mt-1">
-                  Shown next to the actual price, which will appear crossed out. Must be lower than the actual price.
+                  {project.project_type === "gig"
+                    ? "Set to 0 to keep this message-only. Add an amount to also let people pay a booking fee to secure a slot."
+                    : "Set to 0 for a free project."}
                 </p>
-              </>
-            )}
-          </div>
+              </div>
+
+              <div className="mb-6">
+                <label className="flex items-center gap-2 text-sm font-medium text-ink-muted mb-2">
+                  <input
+                    type="checkbox"
+                    checked={showPromo}
+                    onChange={(e) => {
+                      setShowPromo(e.target.checked);
+                      if (!e.target.checked) setPromoPriceUsd("");
+                    }}
+                    className="rounded border-border"
+                  />
+                  Add a promo price
+                </label>
+                {showPromo && (
+                  <>
+                    <input
+                      type="number"
+                      value={promoPriceUsd}
+                      onChange={(e) => setPromoPriceUsd(e.target.value)}
+                      min={0}
+                      step="0.01"
+                      placeholder="Promo price"
+                      className="w-full px-4 py-3 rounded-xl border border-border bg-canvas text-ink
+                        focus:outline-none focus:ring-2 focus:ring-accent/40 focus:border-accent"
+                    />
+                    <p className="text-xs text-ink-muted mt-1">
+                      Shown next to the actual price, which will appear crossed out. Must be lower than the actual price.
+                    </p>
+                  </>
+                )}
+              </div>
+            </>
+          )}
 
           <PrivacyToggle checked={isPrivate} onChange={setIsPrivate} />
 
