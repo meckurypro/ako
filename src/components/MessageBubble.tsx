@@ -220,7 +220,9 @@ function MessageBubbleImpl({
             className={`relative w-fit max-w-full text-sm whitespace-pre-wrap break-words select-none ${
               isJumboEmoji
                 ? "bg-transparent"
-                : `rounded-2xl px-3 py-2 ${tailClass} ${isMine ? "bg-accent text-white" : "bg-surface text-ink"}`
+                : `rounded-2xl px-3 py-2 ${tailClass} ${
+                    isMine ? "bg-bubble-mine text-white" : "bg-bubble-theirs text-ink bubble-elevate"
+                  }`
             } ${m.is_deleted ? "italic opacity-70" : ""}`}
             style={{
               WebkitTouchCallout: "none",
