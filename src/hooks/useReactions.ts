@@ -63,11 +63,26 @@ const UNIQUE_VIOLATION = "23505";
  * Toggles a reaction on/off for a post or project. Reactions go
  * straight through RLS (no edge function needed) since they carry no
  * text and therefore don't need moderation.
+ *
+ * Optimistic + rollback, same pattern as useToggleCommentReaction
+ * below — and for the same reason: a tap that visibly does nothing
+ * until a round trip completes reads as "doesn't work" even when it
+ * eventually succeeds. This also surfaces failures instead of
+ * swallowing them: if the insert/delete is rejected server-side (see
+ * the trg_notify_on_reaction / notifications.type constraint note on
+ * useToggleCommentReaction's onError below — projects are the prime
+ * suspect, since a "someone liked your project" notification type
+ * may not be in that constraint's allow-list the way post/comment
+ * likes are, which would explain why liking a project specifically
+ * looks broken while liking a post doesn't), the button now snaps
+ * back and the error is thrown for the caller to surface, rather than
+ * silently no-op'ing the way a bare `.mutate()` with no onError did.
  */
 export function useToggleReaction(targetId: string, targetType: "post" | "project", type: ReactionType) {
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const column = COLUMN_FOR[targetType];
+  const queryKey = ["my-reaction", targetType, targetId, type, user?.id];
   const { play } = useSound();
 
   return useMutation({
@@ -96,6 +111,18 @@ export function useToggleReaction(targetId: string, targetType: "post" | "projec
         // toast the user didn't do anything to deserve.
         if (error && error.code !== UNIQUE_VIOLATION) throw error;
       }
+    },
+    onMutate: async (currentlyActive) => {
+      await queryClient.cancelQueries({ queryKey });
+      const previous = queryClient.getQueryData(queryKey);
+      // Shape only needs to be truthy/falsy for isLikedQuery.data below
+      // — {id: "optimistic"} vs null mirrors what the real query returns.
+      queryClient.setQueryData(queryKey, currentlyActive ? null : { id: "optimistic" });
+      return { previous };
+    },
+    onError: (err, _vars, context) => {
+      if (context) queryClient.setQueryData(queryKey, context.previous);
+      console.error(`${targetType} reaction failed:`, err);
     },
     onSuccess: (_data, currentlyActive) => {
       // currentlyActive is the state *before* this toggle — false means
