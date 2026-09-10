@@ -6,6 +6,7 @@ import { RequireAuth } from "./components/RequireAuth";
 import { ScrollToTop } from "./components/ScrollToTop";
 import { PathHistoryTracker } from "./components/PathHistoryTracker";
 import { LoadingOverlay } from "./components/LoadingOverlay";
+import { usePageThemeSync } from "./hooks/usePageThemeSync";
 
 import { SignUp } from "./pages/auth/SignUp";
 import { Login } from "./pages/auth/Login";
@@ -25,6 +26,7 @@ import { Discover } from "./pages/Discover";
 import { ProfilePage } from "./pages/ProfilePage";
 import { FollowListPage } from "./pages/FollowListPage";
 import { MyProfileRedirect } from "./pages/MyProfileRedirect";
+import { MyInboxRedirect } from "./pages/MyInboxRedirect";
 
 import { Pages } from "./pages/Pages";
 import { CreatePage } from "./pages/CreatePage";
@@ -39,6 +41,8 @@ import { Withdraw } from "./pages/Withdraw";
 import { Notifications } from "./pages/Notifications";
 import { FollowRequests } from "./pages/FollowRequests";
 import { ConversationList } from "./pages/ConversationList";
+import { PageInbox } from "./pages/PageInbox";
+import { PageMessageThread } from "./pages/PageMessageThread";
 import { Archive } from "./pages/Archive";
 import { MessageThread } from "./pages/MessageThread";
 import { HiddenMessages } from "./pages/HiddenMessages";
@@ -115,6 +119,7 @@ export default function App() {
 function AppRoutes() {
   const location = useLocation();
   const backgroundLocation = (location.state as { background?: Location } | null)?.background;
+  usePageThemeSync();
 
   return (
     <>
@@ -332,6 +337,33 @@ function AppRoutes() {
               element={
                 <RequireAuth>
                   <ConversationList />
+                </RequireAuth>
+              }
+            />
+            {/* /inbox is what BottomNav's Messages tab actually links to
+                — routes to here (personal) or /page-inbox (page mode)
+                depending on active identity. See MyInboxRedirect. */}
+            <Route
+              path="/inbox"
+              element={
+                <RequireAuth>
+                  <MyInboxRedirect />
+                </RequireAuth>
+              }
+            />
+            <Route
+              path="/page-inbox"
+              element={
+                <RequireAuth>
+                  <PageInbox />
+                </RequireAuth>
+              }
+            />
+            <Route
+              path="/page-inbox/:conversationId"
+              element={
+                <RequireAuth>
+                  <PageMessageThread />
                 </RequireAuth>
               }
             />
