@@ -1,8 +1,6 @@
 // src/components/ConfirmDialog.tsx
 import { AlertTriangle } from "lucide-react";
-import { useBackDismiss } from "../hooks/useBackDismiss";
-import { useScrollLock } from "../hooks/useScrollLock";
-import { Portal } from "./Portal";
+import { Modal } from "./Modal";
 
 interface ConfirmDialogProps {
   title: string;
@@ -23,13 +21,9 @@ interface ConfirmDialogProps {
  * this; it's specifically for the handful of actions that can't be
  * undone or that affect the other participant too.
  *
- * Portaled to document.body (see Portal.tsx) — this can be opened from
- * PostCard/ProjectCard while they're rendered inside SwipeableTabs'
- * translateX'd pane (Feed/ProfilePage/SavedHub/LikedHub), and a
- * transformed ancestor becomes the containing block for `fixed`
- * descendants, so without this the dialog was clipped/offset inside
- * that pane instead of centering on the real viewport — e.g. deleting
- * or archiving a post from the Profile page.
+ * Built on the shared <Modal> wrapper — see Modal.tsx for what that
+ * centralizes (Portal, z-index, centering, scroll-lock, Escape) so
+ * this file only has to own its own content.
  */
 export function ConfirmDialog({
   title,
@@ -40,44 +34,36 @@ export function ConfirmDialog({
   onConfirm,
   onCancel,
 }: ConfirmDialogProps) {
-  useBackDismiss(onCancel);
-  useScrollLock();
-
   return (
-    <Portal>
-      <div className="fixed inset-0 z-[60] flex items-center justify-center px-6" role="alertdialog" aria-modal="true">
-        <div className="absolute inset-0 bg-canvas/70 backdrop-blur-overlay" onClick={onCancel} />
-        <div className="relative w-full max-w-sm bg-surface rounded-2xl border border-border p-5 shadow-xl">
-          <div className="flex items-start gap-3">
-            {danger && (
-              <span className="flex-shrink-0 w-9 h-9 rounded-full bg-red-50 text-danger flex items-center justify-center">
-                <AlertTriangle size={18} />
-              </span>
-            )}
-            <div className="min-w-0">
-              <p className="font-medium text-ink">{title}</p>
-              <p className="text-sm text-ink-muted mt-1">{description}</p>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-2 mt-5">
-            <button
-              onClick={onCancel}
-              className="flex-1 py-2.5 rounded-full border border-border text-sm font-medium text-ink"
-            >
-              {cancelLabel}
-            </button>
-            <button
-              onClick={onConfirm}
-              className={`flex-1 py-2.5 rounded-full text-sm font-medium ${
-                danger ? "bg-danger text-canvas" : "bg-accent text-canvas"
-              }`}
-            >
-              {confirmLabel}
-            </button>
-          </div>
+    <Modal onClose={onCancel} role="alertdialog" ariaLabel={title}>
+      <div className="flex items-start gap-3">
+        {danger && (
+          <span className="flex-shrink-0 w-9 h-9 rounded-full bg-red-50 text-danger flex items-center justify-center">
+            <AlertTriangle size={18} />
+          </span>
+        )}
+        <div className="min-w-0">
+          <p className="font-medium text-ink">{title}</p>
+          <p className="text-sm text-ink-muted mt-1">{description}</p>
         </div>
       </div>
-    </Portal>
+
+      <div className="flex items-center gap-2 mt-5">
+        <button
+          onClick={onCancel}
+          className="flex-1 py-2.5 rounded-full border border-border text-sm font-medium text-ink"
+        >
+          {cancelLabel}
+        </button>
+        <button
+          onClick={onConfirm}
+          className={`flex-1 py-2.5 rounded-full text-sm font-medium ${
+            danger ? "bg-danger text-canvas" : "bg-accent text-canvas"
+          }`}
+        >
+          {confirmLabel}
+        </button>
+      </div>
+    </Modal>
   );
 }
