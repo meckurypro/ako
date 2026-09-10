@@ -81,3 +81,49 @@ export function useBackDismiss(onClose: () => void, enabled: boolean = true) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [enabled]);
 }
+
+// Safety-net only — see runAfterDismiss below for why this exists.
+const DISMISS_FALLBACK_MS = 200;
+
+/**
+ * Runs `action` only once an overlay's useBackDismiss-driven close has
+ * actually finished, instead of guessing with a fixed-delay timer.
+ *
+ * useBackDismiss pushes a dummy history entry while an overlay is open
+ * and pops it (`history.back()`) when the overlay unmounts. Per spec —
+ * confirmed across Chrome/Firefox/Safari — the `popstate` that pop
+ * produces fires *asynchronously*, on its own task, with no guaranteed
+ * ordering against anything else queued around the same time,
+ * including a `setTimeout(fn, 0)`.
+ *
+ * That's a problem for any tapped action whose effect itself navigates
+ * (pushState, via react-router's navigate()): if the action's own push
+ * happens to run before the still-in-flight back() resolves, the pop
+ * then removes the entry that was JUST pushed instead of the dummy
+ * one — the navigation lands, then silently reverts a moment later.
+ * A fixed setTimeout only ever *happened* to dodge this often enough
+ * to look fixed; it isn't one. Originally written for DropdownMenu's
+ * three-dot menus, then found to be the same root cause behind
+ * ReactionMoreSheet's icons "trying to do something" and reverting —
+ * hence living here, shared, instead of duplicated per overlay.
+ *
+ * Listening for the real popstate event removes the guesswork —
+ * `action` runs exactly when the dismiss has genuinely completed,
+ * never before. `DISMISS_FALLBACK_MS` is only a safety net for the
+ * (rare) case no popstate ever arrives at all, so a tap can't get
+ * silently swallowed.
+ */
+export function runAfterDismiss(close: () => void, action: () => void) {
+  let done = false;
+  let fallback: number;
+  const finish = () => {
+    if (done) return;
+    done = true;
+    window.removeEventListener("popstate", finish);
+    window.clearTimeout(fallback);
+    action();
+  };
+  window.addEventListener("popstate", finish);
+  fallback = window.setTimeout(finish, DISMISS_FALLBACK_MS);
+  close();
+}
