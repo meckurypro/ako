@@ -291,6 +291,40 @@ export function useInvitePageMember() {
   });
 }
 
+/** Live search-as-you-type for existing team role titles — shown
+ * under the free-text role field in PageTeam so a title like
+ * "Graphics Designer" only ever gets typed out in full once, not
+ * once per invite. Backed by page_role_labels, which a DB trigger on
+ * page_members keeps in sync on its own (see the migration) — this
+ * hook only ever reads from it. Typing something with no match just
+ * shows no suggestions and the invite proceeds as free text exactly
+ * like before this existed; the new title becomes a suggestion for
+ * next time once that invite's insert fires the trigger. */
+export function usePageRoleLabelSuggestions(query: string) {
+  return useQuery({
+    queryKey: ["page-role-label-suggestions", query],
+    queryFn: async (): Promise<string[]> => {
+      const q = query.trim();
+      if (!q) return [];
+
+      const { data, error } = await supabase
+        .from("page_role_labels")
+        .select("label")
+        .ilike("label", `%${q}%`)
+        .order("usage_count", { ascending: false })
+        .limit(8);
+      if (error) throw error;
+
+      // Drop an exact (case-insensitive) match to what's already
+      // typed — no point suggesting the text that's already there.
+      return (data ?? [])
+        .map((r) => r.label as string)
+        .filter((label) => label.toLowerCase() !== q.toLowerCase());
+    },
+    enabled: query.trim().length > 0,
+  });
+}
+
 export function useRespondToPageInvite() {
   const { user } = useAuth();
   const queryClient = useQueryClient();
