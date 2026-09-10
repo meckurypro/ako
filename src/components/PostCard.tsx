@@ -42,6 +42,7 @@ import { useAuth } from "../hooks/useAuth";
 import { useIsBookmarked, useToggleBookmark } from "../hooks/useBookmarks";
 import { useMyReaction, useToggleReaction } from "../hooks/useReactions";
 import { useEngagementOrder, type SecondaryActionKey } from "../hooks/useEngagementOrder";
+import { useCollaborators } from "../hooks/useCollaboration";
 import {
   useDeletePost,
   useSetPostArchived,
@@ -103,6 +104,11 @@ export function PostCard({
   const [showCollaboratorsSheet, setShowCollaboratorsSheet] = useState(false);
   const [showMoreActions, setShowMoreActions] = useState(false);
   const lastTapRef = useRef(0);
+
+  // Same "accepted only" rule as PostCollaboratorsBadge — an
+  // outstanding invite isn't a real collaboration yet.
+  const { data: collaborators } = useCollaborators("post", post.id);
+  const hasAcceptedCollaborators = (collaborators ?? []).some((c) => c.status === "accepted");
 
   // Reshare/quote: reshared_post_id set + empty content = plain reshare
   // (own card, own engagement — attributed to the resharer, with a
@@ -369,7 +375,12 @@ export function PostCard({
   // Edit eligibility is always about this row (the reshare/quote/normal
   // post belonging to the viewer). A plain reshare has no content of its
   // own, so there's nothing to edit — only Archive/Delete apply to it.
-  const canEdit = !plainReshare && canEditPost(post);
+  // A post with an accepted collaborator is never editable, no matter
+  // the time window — the other person is credited on this exact
+  // content, so changing it out from under them isn't allowed. It can
+  // still be deleted (see the "delete" menu item below), just not
+  // silently rewritten.
+  const canEdit = !plainReshare && !hasAcceptedCollaborators && canEditPost(post);
 
   // ─── Left (fixed): Like only. Reshare used to live here too but is now
   // ranked alongside the other secondary actions in the swipable middle
