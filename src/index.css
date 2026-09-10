@@ -43,6 +43,24 @@
 
   --font-display: "Playfair Display", Georgia, serif;
   --font-body: "Inter", -apple-system, BlinkMacSystemFont, sans-serif;
+
+  /*
+    Backdrop blur for every dismissible overlay — bottom sheets,
+    modals, dialogs, dropdown menus. Tailwind's own blur scale jumps
+    straight from 0 to blur-sm's 4px, which read as too heavy: the
+    page underneath became hard to place, and it wasn't obvious
+    tapping through the backdrop would return you to what you were
+    doing. 1.2px is 30% of that old 4px value — background stays
+    legible, backdrop-blur-overlay (below) is the ONE place to
+    retune it app-wide. Named --blur-* per Tailwind v4's theme
+    namespace for blur utilities, so this generates both
+    `blur-overlay` and `backdrop-blur-overlay` automatically.
+    Deliberately NOT applied to LoadingOverlay.tsx's blocking-save
+    spinner — that one isn't user-dismissible (no backdrop tap, no
+    back-button close), so it isn't part of this "can I still see
+    what I was doing" concern the same way an actual sheet/modal is.
+  */
+  --blur-overlay: 1.2px;
 }
 
 /*
