@@ -2,6 +2,7 @@
 import { useRef, useState } from "react";
 import { useCreateComment } from "../hooks/useComments";
 import { useBackDismiss } from "../hooks/useBackDismiss";
+import { useScrollLock } from "../hooks/useScrollLock";
 import { Portal } from "./Portal";
 import type { Stance } from "../types/database";
 import { FormatToolbar } from "./FormatToolbar";
@@ -80,6 +81,7 @@ export function StanceComposer({
   stances = STANCES,
 }: StanceComposerProps) {
   useBackDismiss(onClose);
+  useScrollLock();
   const [activeStance, setActiveStance] = useState<Stance>(initialStance);
   // Single content state shared across tabs — text is retained when
   // the user switches stance so they never lose what they typed.
@@ -119,7 +121,7 @@ export function StanceComposer({
 
   return (
     <Portal>
-    <div className="fixed inset-0 bg-canvas/70 backdrop-blur-sm flex items-end sm:items-center justify-center z-50 px-4">
+    <div className="fixed inset-0 bg-canvas/70 backdrop-blur-overlay flex items-end sm:items-center justify-center z-50 px-4">
       {/* Top border colour changes with the active stance */}
       <div className={`bg-canvas rounded-2xl w-full max-w-md mb-safe overflow-hidden ${colors.topBorderClass}`}>
 
