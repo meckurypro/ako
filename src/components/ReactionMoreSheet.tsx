@@ -1,5 +1,6 @@
 // src/components/ReactionMoreSheet.tsx
 import { useBackDismiss, runAfterDismiss } from "../hooks/useBackDismiss";
+import { useScrollLock } from "../hooks/useScrollLock";
 import { Portal } from "./Portal";
 import type { EngagementAction } from "./ReactionTray";
 
@@ -19,11 +20,12 @@ interface ReactionMoreSheetProps {
  */
 export function ReactionMoreSheet({ actions, onClose }: ReactionMoreSheetProps) {
   useBackDismiss(onClose);
+  useScrollLock();
 
   return (
     <Portal>
       <div className="fixed inset-0 z-50 flex items-end justify-center">
-        <div className="absolute inset-0 bg-canvas/70 backdrop-blur-sm" onClick={onClose} />
+        <div className="absolute inset-0 bg-canvas/70 backdrop-blur-overlay" onClick={onClose} />
         <div className="relative w-full max-w-xl bg-surface rounded-t-2xl border-t border-border pb-[env(safe-area-inset-bottom)]">
           <div className="grid grid-cols-4 gap-y-4 px-2 pt-5 pb-2">
             {actions.map((action) => (
