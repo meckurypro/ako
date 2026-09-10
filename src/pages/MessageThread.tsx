@@ -488,14 +488,16 @@ export function MessageThread() {
         handleLoadOlder();
       }
 
-      // Find the day separator currently scrolled to (or just past) the
-      // top of the viewport — same idea as a sticky section header,
-      // except it's shown/hidden manually so it can fade away when the
-      // user stops scrolling instead of staying pinned permanently.
+      // Find the day separator currently at (or just past) the top of
+      // the viewport. Compared via on-screen position (getBoundingClientRect)
+      // rather than offsetTop, and with no fudge factor — WhatsApp swaps
+      // the floating date the instant the next section's separator meets
+      // the top edge, in both scroll directions, not a moment after.
+      const containerTop = el.getBoundingClientRect().top;
       const separators = el.querySelectorAll<HTMLElement>("[data-day-separator]");
       let currentLabel: string | null = null;
       for (const sep of separators) {
-        if (sep.offsetTop <= el.scrollTop + 8) {
+        if (sep.getBoundingClientRect().top <= containerTop + 1) {
           currentLabel = sep.dataset.dayLabel ?? currentLabel;
         } else {
           break;
