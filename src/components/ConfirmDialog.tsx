@@ -1,6 +1,7 @@
 // src/components/ConfirmDialog.tsx
 import { AlertTriangle } from "lucide-react";
 import { useBackDismiss } from "../hooks/useBackDismiss";
+import { useScrollLock } from "../hooks/useScrollLock";
 import { Portal } from "./Portal";
 
 interface ConfirmDialogProps {
@@ -40,11 +41,12 @@ export function ConfirmDialog({
   onCancel,
 }: ConfirmDialogProps) {
   useBackDismiss(onCancel);
+  useScrollLock();
 
   return (
     <Portal>
       <div className="fixed inset-0 z-[60] flex items-center justify-center px-6" role="alertdialog" aria-modal="true">
-        <div className="absolute inset-0 bg-canvas/70 backdrop-blur-sm" onClick={onCancel} />
+        <div className="absolute inset-0 bg-canvas/70 backdrop-blur-overlay" onClick={onCancel} />
         <div className="relative w-full max-w-sm bg-surface rounded-2xl border border-border p-5 shadow-xl">
           <div className="flex items-start gap-3">
             {danger && (
