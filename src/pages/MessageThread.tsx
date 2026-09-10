@@ -1,5 +1,5 @@
 // src/pages/MessageThread.tsx
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type FormEvent, type PointerEvent as ReactPointerEvent } from "react";
+import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type FormEvent, type PointerEvent as ReactPointerEvent } from "react";
 import { useParams, useNavigate, useLocation } from "react-router-dom";
 import {
   ArrowLeft,
@@ -56,6 +56,7 @@ import { VoiceRecordingBar } from "../components/VoiceRecordingBar";
 import { VoicePreviewBar } from "../components/VoicePreviewBar";
 import { EmojiPickerSheet, removeLastGrapheme } from "../components/EmojiPickerSheet";
 import { formatLastSeen } from "../lib/presence";
+import { dayKeyFor, formatMessageDayLabel } from "../lib/messageTime";
 import { decodeVoiceNote, VOICE_NOTE_LABEL } from "../lib/voiceNotes";
 import { ReactionOptionsPopover, type ReactionPopoverTarget } from "../components/ReactionOptionsPopover";
 import { useBackDismiss } from "../hooks/useBackDismiss";
@@ -232,6 +233,22 @@ export function MessageThread() {
   const bottomRef = useRef<HTMLDivElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
   const messageRefs = useRef<Record<string, HTMLDivElement | null>>({});
+
+  // WhatsApp-style floating date badge — shows which day's messages are
+  // currently scrolled to the top of the viewport, visible only while
+  // actively scrolling and fading out shortly after it settles. Driven
+  // off the same day-separator elements rendered inline in the list
+  // (see data-day-separator below), rather than a duplicate date
+  // computation, so the two can never disagree.
+  const [stickyDayLabel, setStickyDayLabel] = useState<string | null>(null);
+  const [stickyDayVisible, setStickyDayVisible] = useState(false);
+  const stickyDayHideTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (stickyDayHideTimer.current) clearTimeout(stickyDayHideTimer.current);
+    };
+  }, []);
   // Keeps the compose textarea's height in sync with `content` no
   // matter how it changed — typing, an emoji tapped in from
   // EmojiPickerSheet, the reply-draft prefill above, or clearing back
@@ -466,8 +483,30 @@ export function MessageThread() {
 
   const handleListScroll = useCallback(
     (e: React.UIEvent<HTMLDivElement>) => {
-      if (e.currentTarget.scrollTop < 120 && hasMore && !isLoadingOlder) {
+      const el = e.currentTarget;
+      if (el.scrollTop < 120 && hasMore && !isLoadingOlder) {
         handleLoadOlder();
+      }
+
+      // Find the day separator currently scrolled to (or just past) the
+      // top of the viewport — same idea as a sticky section header,
+      // except it's shown/hidden manually so it can fade away when the
+      // user stops scrolling instead of staying pinned permanently.
+      const separators = el.querySelectorAll<HTMLElement>("[data-day-separator]");
+      let currentLabel: string | null = null;
+      for (const sep of separators) {
+        if (sep.offsetTop <= el.scrollTop + 8) {
+          currentLabel = sep.dataset.dayLabel ?? currentLabel;
+        } else {
+          break;
+        }
+      }
+
+      if (currentLabel) {
+        setStickyDayLabel(currentLabel);
+        setStickyDayVisible(true);
+        if (stickyDayHideTimer.current) clearTimeout(stickyDayHideTimer.current);
+        stickyDayHideTimer.current = setTimeout(() => setStickyDayVisible(false), 1200);
       }
     },
     [hasMore, isLoadingOlder, handleLoadOlder]
@@ -922,6 +961,19 @@ export function MessageThread() {
 
       <div className="relative flex-1 min-h-0 overflow-hidden">
         <Wallpaper />
+        {/* Floating date badge: positioned against the viewport (outside
+            the scrolling div below), so it stays put at the top while
+            the content scrolls under it. Opacity-toggled rather than
+            unmounted so the fade transition can play both ways. */}
+        <div
+          className={`pointer-events-none absolute top-2 left-1/2 -translate-x-1/2 z-20 transition-opacity duration-300 ${
+            stickyDayVisible && stickyDayLabel ? "opacity-100" : "opacity-0"
+          }`}
+        >
+          <span className="inline-flex items-center px-3 py-1 rounded-full bg-surface/95 backdrop-blur-sm border border-border text-[11px] font-medium text-ink-muted shadow-sm">
+            {stickyDayLabel}
+          </span>
+        </div>
         <div ref={listRef} onScroll={handleListScroll} className="relative z-10 h-full overflow-y-auto px-4 py-4 max-w-xl mx-auto w-full">
         {isLoading ? (
           <p className="text-ink-muted text-center py-10">Loading…</p>
@@ -930,37 +982,56 @@ export function MessageThread() {
         ) : (
           <>
             {isLoadingOlder && <p className="text-ink-muted text-center py-2 text-xs">Loading earlier messages…</p>}
-            {visibleMessages.map((m) => {
-              const reactions = m.is_deleted ? [] : reactionsByMessage?.[m.id] ?? [];
-              const myReaction = reactions.find((r) => r.user_id === user?.id)?.emoji ?? null;
-              const isCurrentMatch = m.id === currentMatchId;
-              const isFlashed = flashMessageId === m.id;
+            {(() => {
+              let lastDayKey: string | null = null;
+              return visibleMessages.map((m) => {
+                const reactions = m.is_deleted ? [] : reactionsByMessage?.[m.id] ?? [];
+                const myReaction = reactions.find((r) => r.user_id === user?.id)?.emoji ?? null;
+                const isCurrentMatch = m.id === currentMatchId;
+                const isFlashed = flashMessageId === m.id;
 
-              return (
-                <MessageBubble
-                  key={m.id}
-                  message={m}
-                  currentUserId={user?.id}
-                  otherParticipantName={otherParticipant?.display_name ?? "Them"}
-                  reactions={reactions}
-                  myReaction={myReaction}
-                  isSelected={selectedIds.has(m.id)}
-                  selectMode={selectMode}
-                  isHighlighted={isCurrentMatch || isFlashed}
-                  searchQuery={searchQuery}
-                  dragOffset={dragOffsets[m.id] ?? 0}
-                  isDraggingThis={activeDragId === m.id}
-                  registerRef={registerRef}
-                  onRowClick={onRowClick}
-                  onPointerDown={handlePointerDown}
-                  onPointerMove={handlePointerMove}
-                  onEndGesture={endGesture}
-                  onScrollToMessage={scrollToMessage}
-                  onAddReaction={onAddReaction}
-                  onRequestManageReaction={onRequestManageReaction}
-                />
-              );
-            })}
+                const dayKey = dayKeyFor(m.created_at);
+                const isNewDay = dayKey !== lastDayKey;
+                lastDayKey = dayKey;
+
+                return (
+                  <Fragment key={m.id}>
+                    {isNewDay && (
+                      <div
+                        className="flex justify-center py-2 first:pt-0"
+                        data-day-separator
+                        data-day-label={formatMessageDayLabel(m.created_at)}
+                      >
+                        <span className="inline-flex items-center px-3 py-1 rounded-full bg-surface/90 border border-border text-[11px] font-medium text-ink-muted shadow-sm">
+                          {formatMessageDayLabel(m.created_at)}
+                        </span>
+                      </div>
+                    )}
+                    <MessageBubble
+                      message={m}
+                      currentUserId={user?.id}
+                      otherParticipantName={otherParticipant?.display_name ?? "Them"}
+                      reactions={reactions}
+                      myReaction={myReaction}
+                      isSelected={selectedIds.has(m.id)}
+                      selectMode={selectMode}
+                      isHighlighted={isCurrentMatch || isFlashed}
+                      searchQuery={searchQuery}
+                      dragOffset={dragOffsets[m.id] ?? 0}
+                      isDraggingThis={activeDragId === m.id}
+                      registerRef={registerRef}
+                      onRowClick={onRowClick}
+                      onPointerDown={handlePointerDown}
+                      onPointerMove={handlePointerMove}
+                      onEndGesture={endGesture}
+                      onScrollToMessage={scrollToMessage}
+                      onAddReaction={onAddReaction}
+                      onRequestManageReaction={onRequestManageReaction}
+                    />
+                  </Fragment>
+                );
+              });
+            })()}
           </>
         )}
         <div ref={bottomRef} />
