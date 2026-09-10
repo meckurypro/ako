@@ -1,6 +1,7 @@
 // src/pages/CreateChoice.tsx
 import { useNavigate } from "react-router-dom";
 import { useSmartBack } from "../hooks/useSmartBack";
+import { useScrollLock } from "../hooks/useScrollLock";
 import { X, PenSquare, FolderPlus, ChevronRight } from "lucide-react";
 
 // The "+" on Feed's header opens this. Styled as a bottom sheet
@@ -26,10 +27,11 @@ const CHOICES = [
 export function CreateChoice() {
   const navigate = useNavigate();
   const smartBack = useSmartBack();
+  useScrollLock();
 
   return (
     <div
-      className="fixed inset-0 z-50 bg-canvas/70 backdrop-blur-sm flex items-end justify-center"
+      className="fixed inset-0 z-50 bg-canvas/70 backdrop-blur-overlay flex items-end justify-center"
       onClick={smartBack}
     >
       <div
