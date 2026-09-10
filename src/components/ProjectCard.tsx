@@ -25,6 +25,7 @@ import {
   MessageCircle,
   Copy,
   Check,
+  Heart,
 } from "lucide-react";
 import { useAuth } from "../hooks/useAuth";
 import { LikeHeart } from "./LikeHeart";
@@ -43,7 +44,7 @@ import {
   PROJECT_TYPE_LABELS,
   type Project,
 } from "../hooks/useProjects";
-import { useMediaDetails } from "../hooks/useProjectTypeDetails";
+import { useMediaDetails, usePitchDetails, usePitchRaised } from "../hooks/useProjectTypeDetails";
 import { MediaPreviewPlayer } from "./MediaPreviewPlayer";
 import { useIsProjectSaved, useToggleSavedProject } from "../hooks/useSavedProjects";
 import { useProjectAccessCount, useLogFreeProjectAccess } from "../hooks/useProjectAccess";
@@ -53,6 +54,7 @@ import { ReactionTray, type EngagementAction } from "./ReactionTray";
 import { ReactionMoreSheet } from "./ReactionMoreSheet";
 import { DropdownMenu, type DropdownMenuItem } from "./DropdownMenu";
 import { ManageAccessSheet } from "./ManageAccessSheet";
+import { SupportPitchSheet } from "./SupportPitchSheet";
 import { PrivateProjectNotice } from "./PrivateProjectNotice";
 import { useToast } from "./Toast";
 import { useIsProjectMember } from "../hooks/useProjectMembers";
@@ -80,6 +82,7 @@ const TYPE_ICON: Partial<Record<Project["project_type"], typeof Ticket>> = {
   room: Users,
   course: BookOpen,
   gig: Briefcase,
+  pitch: Heart,
 };
 
 const TYPE_ACTION_LABEL: Partial<Record<Project["project_type"], string>> = {
@@ -194,6 +197,9 @@ export function ProjectCard({
   const accessCountQuery = useProjectAccessCount(project.id);
   const logFreeAccess = useLogFreeProjectAccess();
   const { data: mediaDetails } = useMediaDetails(project.project_type === "media" ? project.id : undefined);
+  const isPitch = project.project_type === "pitch";
+  const { data: pitchDetails } = usePitchDetails(isPitch ? project.id : undefined);
+  const { data: pitchRaised } = usePitchRaised(isPitch ? project.id : undefined);
   const startConversation = useStartConversation();
 
   const [error, setError] = useState<string | null>(null);
@@ -201,6 +207,7 @@ export function ProjectCard({
   const [showMoreActions, setShowMoreActions] = useState(false);
   const menuButtonRef = useRef<HTMLButtonElement>(null);
   const [manageAccessOpen, setManageAccessOpen] = useState(false);
+  const [supportSheetOpen, setSupportSheetOpen] = useState(false);
   const [audioSrc, setAudioSrc] = useState<string | null>(null);
   const [videoSrc, setVideoSrc] = useState<string | null>(null);
   const [imageSrc, setImageSrc] = useState<string | null>(null);
@@ -310,6 +317,11 @@ export function ProjectCard({
     } catch (err) {
       setError(err instanceof Error ? err.message : "Couldn't start conversation.");
     }
+  }
+
+  function handleSupported() {
+    setSupportSheetOpen(false);
+    toast("Thanks for backing this idea 🎉", { variant: "success" });
   }
 
   async function handleShare() {
@@ -709,7 +721,11 @@ export function ProjectCard({
           </div>
 
           <div className="flex-shrink-0 text-right">
-            {isFree && project.project_type === "gig" ? (
+            {isPitch ? (
+              <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-accent-soft text-accent">
+                ${(pitchRaised ?? 0).toFixed(0)} raised
+              </span>
+            ) : isFree && project.project_type === "gig" ? (
               <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-accent-soft text-accent">
                 Message to inquire
               </span>
@@ -740,6 +756,26 @@ export function ProjectCard({
           <p className="text-sm text-ink-muted mt-1 whitespace-pre-wrap break-words">
             {renderFormattedText(project.description, "d")}
           </p>
+        )}
+
+        {/* Goal-progress bar — informational only, per the
+            keep-what-you-raise decision: hitting or missing
+            goal_amount_usd changes nothing about what the creator can
+            access from what's already been pledged. */}
+        {isPitch && pitchDetails && (
+          <div className="mt-2.5">
+            <div className="h-1.5 w-full rounded-full bg-canvas overflow-hidden">
+              <div
+                className="h-full rounded-full bg-accent"
+                style={{
+                  width: `${Math.min(100, ((pitchRaised ?? 0) / pitchDetails.goal_amount_usd) * 100)}%`,
+                }}
+              />
+            </div>
+            <p className="text-xs text-ink-muted mt-1">
+              ${(pitchRaised ?? 0).toFixed(0)} raised of ${pitchDetails.goal_amount_usd.toFixed(0)} goal
+            </p>
+          </div>
         )}
 
         {error && <p className="text-danger text-sm mt-2">{error}</p>}
@@ -951,6 +987,7 @@ export function ProjectCard({
           {!INLINE_TYPES.includes(project.project_type) &&
             !isMedia &&
             project.project_type !== "gig" &&
+            project.project_type !== "pitch" &&
             !hasAccess &&
             !isCourseUnpublished && (
               <span className="flex items-center gap-1.5 text-sm text-ink-muted">
@@ -984,10 +1021,23 @@ export function ProjectCard({
             </span>
           )}
 
+          {/* Pitch — always viewable (it's never locked by payment),
+              so Support is its own pill rather than gated behind
+              hasAccess like the generic Buy pill below. */}
+          {isPitch && !isOwner && (
+            <button
+              onClick={() => setSupportSheetOpen(true)}
+              className="ml-auto flex items-center gap-1.5 bg-accent text-canvas px-4 py-1.5 rounded-full text-sm font-medium"
+            >
+              <Heart size={15} />
+              Support
+            </button>
+          )}
+
           {/* Buy/Book pill for everything except Room, which now joins
               via the Join engagement icon below instead — price is
               still visible up top in the badge next to the title. */}
-          {project.project_type !== "room" && !hasAccess && !isCourseUnpublished && (
+          {project.project_type !== "room" && project.project_type !== "pitch" && !hasAccess && !isCourseUnpublished && (
             <button
               onClick={project.project_type === "gig" ? handleBookGig : handleBuy}
               disabled={project.project_type === "gig" ? bookGig.isPending : purchaseProject.isPending}
@@ -1027,6 +1077,15 @@ export function ProjectCard({
           projectId={project.id}
           projectTitle={project.title}
           onClose={() => setManageAccessOpen(false)}
+        />
+      )}
+
+      {supportSheetOpen && (
+        <SupportPitchSheet
+          projectId={project.id}
+          projectTitle={project.title}
+          onClose={() => setSupportSheetOpen(false)}
+          onSupported={handleSupported}
         />
       )}
     </div>
