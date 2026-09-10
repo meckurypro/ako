@@ -95,6 +95,190 @@ export function getAllowedProjectTypes(mode: "personal" | "page"): ProjectType[]
   );
 }
 
+// ------------------------------------------------------------
+// Per-type on/off switch + achievement-gated access, set by admins
+// (see ako_admin_project_type_controls_migration.sql and
+// useAdmin.ts). Both tables are public-read so any signed-in user's
+// CreateProject screen can filter/explain without an admin-only call.
+// ------------------------------------------------------------
+export interface ProjectTypeActiveSetting {
+  project_type: ProjectType;
+  is_active: boolean;
+  hide_when_ineligible: boolean;
+}
+
+// Which types are currently switched on. Defaults to "all active"
+// while loading so the picker doesn't flash empty/wrong on first
+// render — the real list swaps in once the query resolves.
+export function useActiveProjectTypes() {
+  return useQuery({
+    queryKey: ["project-type-settings"],
+    queryFn: async (): Promise<ProjectTypeActiveSetting[]> => {
+      const { data, error } = await supabase
+        .from("project_type_settings")
+        .select("project_type, is_active, hide_when_ineligible");
+      if (error) throw error;
+      return data;
+    },
+    staleTime: 60_000,
+  });
+}
+
+export interface ProjectTypeAccessRule {
+  project_type: ProjectType;
+  min_follower_count: number;
+  min_account_age_days: number;
+  min_total_engagement: number;
+}
+
+export function useProjectTypeAccessRules() {
+  return useQuery({
+    queryKey: ["project-type-access-rules"],
+    queryFn: async (): Promise<ProjectTypeAccessRule[]> => {
+      const { data, error } = await supabase
+        .from("project_type_access_rules")
+        .select("project_type, min_follower_count, min_account_age_days, min_total_engagement");
+      if (error) throw error;
+      return data;
+    },
+    staleTime: 60_000,
+  });
+}
+
+// The stats an achievement rule is checked against, for the
+// currently signed-in user. account_age_days is computed client-side
+// from created_at — fine for UI messaging; the real gate is the
+// enforce_project_type_rules trigger on the server, which computes it
+// fresh at insert time.
+export interface MyEligibilityStats {
+  follower_count: number;
+  account_age_days: number;
+  total_engagement: number;
+}
+
+export function useMyEligibilityStats() {
+  const { user } = useAuth();
+
+  return useQuery({
+    queryKey: ["my-eligibility-stats", user?.id],
+    queryFn: async (): Promise<MyEligibilityStats> => {
+      const { data: profile, error: profileError } = await supabase
+        .from("profiles")
+        .select("follower_count, created_at")
+        .eq("id", user!.id)
+        .single();
+      if (profileError) throw profileError;
+
+      const { data: engagement, error: engagementError } = await supabase.rpc(
+        "get_user_total_engagement",
+        { target_user: user!.id }
+      );
+      if (engagementError) throw engagementError;
+
+      const accountAgeMs = Date.now() - new Date(profile.created_at).getTime();
+
+      return {
+        follower_count: profile.follower_count,
+        account_age_days: Math.floor(accountAgeMs / (1000 * 60 * 60 * 24)),
+        total_engagement: engagement ?? 0,
+      };
+    },
+    enabled: !!user,
+  });
+}
+
+// Whether an admin has granted the current user a full pass on
+// project_type_access_rules (see project_type_rule_exemptions).
+// `undefined` while loading — treated as "not exempt yet" by callers
+// so a warning doesn't briefly disappear then reappear.
+export function useMyProjectTypeExemption() {
+  const { user } = useAuth();
+
+  return useQuery({
+    queryKey: ["my-project-type-exemption", user?.id],
+    queryFn: async (): Promise<boolean> => {
+      const { data, error } = await supabase
+        .from("project_type_rule_exemptions")
+        .select("user_id")
+        .eq("user_id", user!.id)
+        .maybeSingle();
+      if (error) throw error;
+      return !!data;
+    },
+    enabled: !!user,
+  });
+}
+
+export interface ProjectTypeEligibility {
+  eligible: boolean;
+  // Empty when eligible — otherwise one entry per unmet requirement,
+  // e.g. "You need 50 more followers".
+  reasons: string[];
+}
+
+// Combines a project type's rule with the caller's own stats. Returns
+// `undefined` while either query is still loading, so callers can
+// tell "don't know yet" apart from "eligible" — useful to avoid
+// flashing a false-negative warning on first render. `isExempt`
+// short-circuits straight to eligible, regardless of rules/stats —
+// an admin-granted exemption always wins.
+export function getProjectTypeEligibility(
+  type: ProjectType,
+  rules: ProjectTypeAccessRule[] | undefined,
+  stats: MyEligibilityStats | undefined,
+  isExempt?: boolean
+): ProjectTypeEligibility | undefined {
+  if (isExempt) return { eligible: true, reasons: [] };
+  if (!rules || !stats) return undefined;
+
+  const rule = rules.find((r) => r.project_type === type);
+  if (!rule) return { eligible: true, reasons: [] };
+
+  const reasons: string[] = [];
+
+  if (stats.follower_count < rule.min_follower_count) {
+    reasons.push(
+      `You need at least ${rule.min_follower_count} followers (you have ${stats.follower_count}).`
+    );
+  }
+  if (stats.account_age_days < rule.min_account_age_days) {
+    reasons.push(
+      `Your account needs to be at least ${rule.min_account_age_days} days old (it's ${stats.account_age_days}).`
+    );
+  }
+  if (stats.total_engagement < rule.min_total_engagement) {
+    reasons.push(
+      `You need at least ${rule.min_total_engagement} total engagement across your posts (you have ${stats.total_engagement}).`
+    );
+  }
+
+  return { eligible: reasons.length === 0, reasons };
+}
+
+// Combines everything above into the actual list CreateProject's
+// picker should render: personal/page split, admin on/off, and
+// per-type hide-vs-show-locked for users who don't qualify yet.
+// Returns `allowedTypes` unfiltered by eligibility while rules/stats
+// are still loading, so the picker doesn't flicker between two
+// different lists on first render.
+export function getVisibleProjectTypes(
+  mode: "personal" | "page",
+  typeSettings: ProjectTypeActiveSetting[] | undefined,
+  rules: ProjectTypeAccessRule[] | undefined,
+  stats: MyEligibilityStats | undefined,
+  isExempt?: boolean
+): ProjectType[] {
+  return getAllowedProjectTypes(mode).filter((type) => {
+    const setting = typeSettings?.find((s) => s.project_type === type);
+    if (setting && !setting.is_active) return false;
+    if (isExempt || !setting?.hide_when_ineligible) return true;
+
+    const eligibility = getProjectTypeEligibility(type, rules, stats, isExempt);
+    // Unknown yet → don't hide it prematurely.
+    return eligibility ? eligibility.eligible : true;
+  });
+}
+
 export interface Project {
   id: string;
   owner_id: string;
