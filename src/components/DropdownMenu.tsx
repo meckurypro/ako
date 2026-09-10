@@ -1,6 +1,7 @@
 // src/components/DropdownMenu.tsx
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode, type RefObject } from "react";
 import { useBackDismiss, runAfterDismiss } from "../hooks/useBackDismiss";
+import { useScrollLock } from "../hooks/useScrollLock";
 import { Portal } from "./Portal";
 
 export interface DropdownMenuItem {
@@ -55,6 +56,7 @@ const VIEWPORT_MARGIN = 8;
  */
 export function DropdownMenu({ anchorRef, items, onClose, widthClass = "w-56" }: DropdownMenuProps) {
   useBackDismiss(onClose);
+  useScrollLock();
   const panelRef = useRef<HTMLDivElement>(null);
   const [style, setStyle] = useState<React.CSSProperties | null>(null);
 
@@ -110,7 +112,7 @@ export function DropdownMenu({ anchorRef, items, onClose, widthClass = "w-56" }:
           (see ConfirmDialog, ReactionMoreSheet) — a kebab menu is
           still a modal interaction, it just anchors near the trigger
           instead of centering, so it gets the same backdrop. */}
-      <div className="fixed inset-0 z-50 bg-canvas/70 backdrop-blur-sm" onClick={onClose} />
+      <div className="fixed inset-0 z-50 bg-canvas/70 backdrop-blur-overlay" onClick={onClose} />
       <div
         ref={panelRef}
         style={style ?? { position: "fixed", opacity: 0 }}
