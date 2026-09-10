@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "../lib/supabase";
 import { useAuth } from "./useAuth";
+import type { ProjectType } from "./useProjects";
 
 /**
  * Checks admin status by querying admin_roles directly. This works
@@ -318,5 +319,240 @@ export function useDismissReport() {
       if (error) throw error;
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["pending-reports"] }),
+  });
+}
+
+// ------------------------------------------------------------
+// Project types — per-type on/off switch, matching ako_admin_
+// project_type_controls_migration.sql. Public-read table, so the
+// picker in CreateProject can filter to enabled types too (see
+// useProjectTypeSettings in useProjects.ts) — these admin hooks just
+// add the write side.
+// ------------------------------------------------------------
+export interface ProjectTypeSetting {
+  project_type: ProjectType;
+  is_active: boolean;
+  hide_when_ineligible: boolean;
+  updated_at: string;
+}
+
+export function useAdminProjectTypeSettings() {
+  return useQuery({
+    queryKey: ["admin-project-type-settings"],
+    queryFn: async (): Promise<ProjectTypeSetting[]> => {
+      const { data, error } = await supabase
+        .from("project_type_settings")
+        .select("*")
+        .order("project_type");
+      if (error) throw error;
+      return data;
+    },
+  });
+}
+
+export function useToggleProjectTypeActive() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ project_type, is_active }: { project_type: ProjectType; is_active: boolean }) => {
+      const { error } = await supabase
+        .from("project_type_settings")
+        .update({ is_active, updated_at: new Date().toISOString() })
+        .eq("project_type", project_type);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["admin-project-type-settings"] });
+      queryClient.invalidateQueries({ queryKey: ["project-type-settings"] });
+    },
+  });
+}
+
+// Whether a type stays visible-but-locked or disappears entirely for
+// users who don't meet its access rule — see project_type_settings'
+// hide_when_ineligible column.
+export function useToggleHideWhenIneligible() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({
+      project_type,
+      hide_when_ineligible,
+    }: {
+      project_type: ProjectType;
+      hide_when_ineligible: boolean;
+    }) => {
+      const { error } = await supabase
+        .from("project_type_settings")
+        .update({ hide_when_ineligible, updated_at: new Date().toISOString() })
+        .eq("project_type", project_type);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["admin-project-type-settings"] });
+      queryClient.invalidateQueries({ queryKey: ["project-type-settings"] });
+    },
+  });
+}
+
+// ------------------------------------------------------------
+// Achievement-based access rules per project type — followers,
+// account age, total engagement. All three default to 0 (no
+// restriction) until an admin sets them.
+// ------------------------------------------------------------
+export interface ProjectTypeAccessRule {
+  project_type: ProjectType;
+  min_follower_count: number;
+  min_account_age_days: number;
+  min_total_engagement: number;
+  updated_at: string;
+}
+
+export function useAdminAccessRules() {
+  return useQuery({
+    queryKey: ["admin-access-rules"],
+    queryFn: async (): Promise<ProjectTypeAccessRule[]> => {
+      const { data, error } = await supabase
+        .from("project_type_access_rules")
+        .select("*")
+        .order("project_type");
+      if (error) throw error;
+      return data;
+    },
+  });
+}
+
+export function useUpdateAccessRule() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: {
+      project_type: ProjectType;
+      min_follower_count: number;
+      min_account_age_days: number;
+      min_total_engagement: number;
+    }) => {
+      const { project_type, ...rest } = input;
+      const { error } = await supabase
+        .from("project_type_access_rules")
+        .update({ ...rest, updated_at: new Date().toISOString() })
+        .eq("project_type", project_type);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["admin-access-rules"] });
+      queryClient.invalidateQueries({ queryKey: ["project-type-access-rules"] });
+    },
+  });
+}
+
+// ------------------------------------------------------------
+// Global AI content moderation toggle — single row, admin-only read
+// and write (edge functions read it with the service role key, which
+// bypasses RLS entirely).
+// ------------------------------------------------------------
+export interface ModerationSettings {
+  ai_moderation_enabled: boolean;
+  updated_at: string;
+}
+
+export function useModerationSettings() {
+  return useQuery({
+    queryKey: ["admin-moderation-settings"],
+    queryFn: async (): Promise<ModerationSettings> => {
+      const { data, error } = await supabase
+        .from("moderation_settings")
+        .select("ai_moderation_enabled, updated_at")
+        .single();
+      if (error) throw error;
+      return data;
+    },
+  });
+}
+
+export function useToggleAiModeration() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (ai_moderation_enabled: boolean) => {
+      const { error } = await supabase
+        .from("moderation_settings")
+        .update({ ai_moderation_enabled, updated_at: new Date().toISOString() })
+        .eq("id", true);
+      if (error) throw error;
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["admin-moderation-settings"] }),
+  });
+}
+
+// ------------------------------------------------------------
+// Account exemptions — admin grants a specific user a full pass on
+// project_type_access_rules (see project_type_rule_exemptions in
+// ako_admin_project_type_controls_migration.sql). Search is a plain
+// ilike on username/display_name — no social-graph scoring like
+// useSearchPeople, since an admin's own follow relationships to the
+// searched account aren't relevant here.
+// ------------------------------------------------------------
+export interface AdminAccountSearchResult {
+  id: string;
+  username: string;
+  display_name: string;
+  avatar_url: string | null;
+  follower_count: number;
+  created_at: string;
+  is_exempt: boolean;
+}
+
+export function useAdminSearchAccounts(query: string) {
+  return useQuery({
+    queryKey: ["admin-search-accounts", query],
+    queryFn: async (): Promise<AdminAccountSearchResult[]> => {
+      const { data: profiles, error } = await supabase
+        .from("profiles")
+        .select("id, username, display_name, avatar_url, follower_count, created_at")
+        .eq("is_deleted", false)
+        .or(`username.ilike.%${query}%,display_name.ilike.%${query}%`)
+        .order("follower_count", { ascending: false })
+        .limit(20);
+      if (error) throw error;
+      if (!profiles || profiles.length === 0) return [];
+
+      const { data: exemptions, error: exemptionsError } = await supabase
+        .from("project_type_rule_exemptions")
+        .select("user_id")
+        .in(
+          "user_id",
+          profiles.map((p) => p.id)
+        );
+      if (exemptionsError) throw exemptionsError;
+      const exemptIds = new Set((exemptions ?? []).map((e) => e.user_id));
+
+      return profiles.map((p) => ({ ...p, is_exempt: exemptIds.has(p.id) }));
+    },
+    enabled: query.trim().length > 1,
+  });
+}
+
+export function useGrantProjectTypeExemption() {
+  const { user } = useAuth();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (targetUserId: string) => {
+      const { error } = await supabase
+        .from("project_type_rule_exemptions")
+        .insert({ user_id: targetUserId, granted_by: user?.id });
+      if (error) throw error;
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["admin-search-accounts"] }),
+  });
+}
+
+export function useRevokeProjectTypeExemption() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (targetUserId: string) => {
+      const { error } = await supabase
+        .from("project_type_rule_exemptions")
+        .delete()
+        .eq("user_id", targetUserId);
+      if (error) throw error;
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["admin-search-accounts"] }),
   });
 }
