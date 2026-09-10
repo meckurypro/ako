@@ -12,6 +12,25 @@ export interface ConversationSummary {
   last_message_at: string;
   pinned_at: string | null;
   archived_at: string | null;
+  // True for a page's team chat (see team_group_chat_migration.sql).
+  // Nothing else sets is_group today — team chats are the only kind
+  // of group conversation this covers.
+  is_group: boolean;
+  // Populated only when is_group — this is what the list/header show
+  // instead of other_participant: the page's own name/avatar/type,
+  // not a mashup of member names. Null for an ordinary 1:1.
+  team_page: {
+    id: string;
+    username: string;
+    name: string;
+    avatar_url: string | null;
+    page_type: "organization" | "brand";
+    is_verified: boolean;
+  } | null;
+  // For a group conversation this still resolves to SOME other
+  // member (whichever the batched lookup below happens to keep) —
+  // callers that care about groups should check is_group/team_page
+  // first and only fall back to this for the 1:1 case.
   other_participant: {
     id: string;
     username: string;
@@ -206,7 +225,7 @@ export function useConversations() {
     queryFn: async (): Promise<ConversationSummary[]> => {
       const { data: myParticipation, error } = await supabase
         .from("conversation_participants")
-        .select("conversation_id, last_read_at, archived_at, pinned_at, hidden_at")
+        .select("conversation_id, last_read_at, archived_at, pinned_at, hidden_at, left_at")
         .eq("user_id", user!.id);
 
       if (error) throw error;
@@ -223,10 +242,18 @@ export function useConversations() {
       const conversationIds = visible.map((p) => p.conversation_id);
       const readMap = new Map(visible.map((p) => [p.conversation_id, p.last_read_at]));
       const pinMap = new Map(visible.map((p) => [p.conversation_id, p.pinned_at]));
+      // Set once someone's removed from a team they were active on (see
+      // team_group_chat_migration.sql) — they keep the thread as
+      // history but stop generating unread badges/notifications for it,
+      // same as a muted/archived chat would, without actually hiding it
+      // from the list the way archived_at does.
+      const leftMap = new Map(visible.map((p) => [p.conversation_id, !!p.left_at]));
 
       const { data: conversations, error: convError } = await supabase
         .from("conversations")
-        .select("id, last_message_at")
+        .select(
+          "id, last_message_at, is_group, team_page:pages!conversations_team_page_id_fkey(id, username, name, avatar_url, page_type, is_verified)"
+        )
         .in("id", conversationIds)
         .order("last_message_at", { ascending: false });
 
@@ -248,7 +275,12 @@ export function useConversations() {
 
       for (const conv of conversations) {
         const otherParticipant = otherParticipants.get(conv.id);
-        if (!otherParticipant) continue;
+        // A 1:1 row with no resolvable other participant is broken
+        // data — skip it as before. A group conversation always has
+        // its own identity via team_page regardless of whether
+        // batchGetOtherParticipants found anyone (it will, but
+        // shouldn't be load-bearing for groups).
+        if (!conv.is_group && !otherParticipant) continue;
 
         const lastMessage = lastMessages.get(conv.id) ?? null;
         if (lastMessage && lastMessage.sender_id !== user!.id && !lastMessage.delivered_at) {
@@ -258,14 +290,18 @@ export function useConversations() {
         // Our own sent messages must never flip a conversation back to
         // unread — batchGetUnreadCounts already only counts the OTHER
         // participant's messages, so "unread" falls straight out of it.
-        const unreadCount = unreadCounts.get(conv.id) ?? 0;
+        // A conversation left via left_at never contributes a badge,
+        // regardless of what's actually unread in it.
+        const unreadCount = leftMap.get(conv.id) ? 0 : unreadCounts.get(conv.id) ?? 0;
 
         results.push({
           id: conv.id,
           last_message_at: conv.last_message_at,
           pinned_at: pinMap.get(conv.id) ?? null,
           archived_at: null, // archived ones are already filtered out above
-          other_participant: otherParticipant,
+          is_group: conv.is_group,
+          team_page: (conv as any).team_page ?? null,
+          other_participant: otherParticipant!,
           last_message: lastMessage
             ? {
                 content: lastMessage.content,
@@ -1257,7 +1293,7 @@ export function useMyParticipantState(conversationId: string) {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("conversation_participants")
-        .select("is_request, pinned_at, archived_at")
+        .select("is_request, pinned_at, archived_at, left_at")
         .eq("conversation_id", conversationId)
         .eq("user_id", user!.id)
         .maybeSingle();
