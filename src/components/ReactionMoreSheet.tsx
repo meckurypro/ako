@@ -1,5 +1,5 @@
 // src/components/ReactionMoreSheet.tsx
-import { useBackDismiss } from "../hooks/useBackDismiss";
+import { useBackDismiss, runAfterDismiss } from "../hooks/useBackDismiss";
 import { Portal } from "./Portal";
 import type { EngagementAction } from "./ReactionTray";
 
@@ -30,14 +30,12 @@ export function ReactionMoreSheet({ actions, onClose }: ReactionMoreSheetProps) 
               <button
                 key={action.key}
                 onClick={(e) => {
-                  // Same ordering fix as DropdownMenu: close (and let
-                  // useBackDismiss's dummy history entry pop) before
-                  // running an action that might itself navigate (e.g.
-                  // the owner's Edit) — otherwise that navigation's push
-                  // lands on top of the dummy entry and the pending
-                  // history.back() reverts it instead.
-                  onClose();
-                  setTimeout(() => action.onClick(e), 0);
+                  // See runAfterDismiss (useBackDismiss.ts) — waits for
+                  // the actual popstate from this sheet's dismiss
+                  // instead of racing it with a blind setTimeout(fn, 0),
+                  // which is what made these icons "try to do something"
+                  // and then silently revert.
+                  runAfterDismiss(onClose, () => action.onClick(e));
                 }}
                 className="flex flex-col items-center gap-1.5 text-ink"
               >
