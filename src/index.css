@@ -94,6 +94,64 @@
 }
 
 /*
+  Page-mode palette — applied via a `.page-mode` class on <html>
+  alongside (not instead of) `.dark`, toggled by usePageThemeSync.ts
+  whenever useActiveIdentity() reports mode === "page". Same technique
+  as .dark: every component already reads bg-accent/text-accent/
+  bg-canvas/etc rather than a raw palette color, so this one class
+  reskins the whole app with zero component changes — switching
+  identity turns the whole UI orange, not just a badge somewhere.
+
+  Design intent (see the logo: sage green for the personal "à" half,
+  this same burnt-orange for the "ó" half) — a page is a DIFFERENT
+  kind of actor from a personal account, so switching into one should
+  feel like walking into a different, still-clearly-Akọ room: warm
+  ivory/near-black backgrounds shifted a few degrees toward the same
+  warm-orange undertone (never an orange background itself — the ask
+  was "orange design", not "orange wallpaper"), text nudged the same
+  direction, and the accent itself a muted burnt orange/terracotta —
+  deliberately NOT the bright neon-orange of --color-tick-read, which
+  stays reserved for its one existing job (read receipts) in every
+  mode so it doesn't lose meaning by becoming "just the page color".
+  Contrast-checked against both canvas and dark canvas — see the
+  python snippet in the PR notes; light accent is 4.99:1, dark accent
+  6.20:1 against their respective canvases, both comfortably AA.
+
+  --color-danger/--color-pushback are semantic (destructive actions,
+  Pushback stance) and unrelated to identity — deliberately left
+  unchanged here so their meaning stays constant across both modes.
+*/
+.page-mode {
+  --color-canvas: #F9F1E6;        /* warm ivory-peach — NOT orange itself, just warmer than personal's #F7F4EF */
+  --color-surface: #FCF6EC;
+  --color-ink: #241C15;           /* near-black nudged warmer/browner than personal's #1F1D1A */
+  --color-ink-muted: #7C6A57;     /* warm taupe-grey, replaces the cooler warm-grey used in personal mode */
+  --color-accent: #A8501F;        /* muted burnt orange/terracotta — ~19° hue, sits clearly between --color-danger's ~7° and --color-pushback's ~38° so none of the three get confused for each other */
+  --color-accent-hover: #7E3B16;  /* darker on press, same "hover is darker in light mode" convention as the green palette */
+  --color-accent-soft: #F0DCC9;   /* pale peach tint for badges/pills, analogous role to the green's #E3E9E1 */
+  --color-border: #EDDFCB;
+  --color-highlight: #F0C08A;     /* saturated peach — unread rows / jump-to-comment flash, analogous to the green's #BFE6C6 */
+
+  --shadow-ink-rgb: 36, 28, 21;   /* == --color-ink here */
+  --accent-rgb: 168, 80, 31;      /* == --color-accent here */
+}
+
+.dark.page-mode {
+  --color-canvas: #100B08;        /* near-black with the same warm undertone, not neutral black like personal dark mode */
+  --color-surface: #17110C;
+  --color-ink: #F8F1E8;
+  --color-ink-muted: #BBA895;
+  --color-accent: #D9773D;        /* mild warm orange — deliberately NOT as bright as it could go; "mild but clear against near-black" per the brief, similar territory to GitHub's dark-mode orange */
+  --color-accent-hover: #EF9159;  /* lighter on press, same "hover is brighter in dark mode" convention as the green palette */
+  --color-accent-soft: #2B1912;
+  --color-border: #2E2015;
+  --color-highlight: #5C3018;
+
+  --shadow-ink-rgb: 0, 0, 0;
+  --accent-rgb: 217, 119, 61;
+}
+
+/*
   iOS Safari samples <html>'s background for the bottom overscroll/
   toolbar safe-area strip, not <body>'s — so without this rule that
   strip stays whatever the browser's default (white) is, regardless of
@@ -258,108 +316,8 @@ body {
   transition: none;
 }
 
-/*
-  Like heart — a quick overshoot "pop" plus a small burst of sparks radiating
-  outward, both firing only on the false→true transition (see LikeHeart.tsx).
-  Un-liking never animates; only the moment of liking is a "reward" worth
-  calling out. Sparks use currentColor so they always match the heart's own
-  color (text-danger red on posts/projects, whatever CommentThread sets).
-*/
-@keyframes ako-like-pop {
-  0% { transform: scale(1); }
-  35% { transform: scale(1.32); }
-  60% { transform: scale(0.94); }
-  100% { transform: scale(1); }
-}
-.ako-like-pop {
-  display: inline-flex;
-  animation: ako-like-pop 380ms cubic-bezier(0.34, 1.56, 0.64, 1);
-}
-@keyframes ako-like-spark {
-  0% { transform: translate(0, 0) scale(1); opacity: 1; }
-  100% { transform: translate(var(--ako-spark-x), var(--ako-spark-y)) scale(0); opacity: 0; }
-}
-.ako-like-spark {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  width: 5px;
-  height: 5px;
-  margin: -2.5px 0 0 -2.5px;
-  border-radius: 999px;
-  background: currentColor;
-  animation: ako-like-spark 480ms ease-out forwards;
-  pointer-events: none;
-}
-
-/*
-  Follow → Following / Requested pill — a soft scale+fade "arrival" the
-  instant the pill first appears (not on every re-render), so gaining a
-  follow reads as a small confirmed event rather than a silent text swap.
-  See FollowButton.tsx's usePillJustAppeared.
-*/
-@keyframes ako-pill-in {
-  0% { transform: scale(0.85); opacity: 0; }
-  60% { transform: scale(1.05); opacity: 1; }
-  100% { transform: scale(1); }
-}
-.ako-pill-in {
-  animation: ako-pill-in 260ms cubic-bezier(0.34, 1.56, 0.64, 1);
-}
-
-/*
-  Gift sent — the button itself pops, and a single gift glyph rises and
-  fades above it. This is the emotional-peak interaction (see GiftPicker.tsx)
-  so it gets the most motion of any of these, deliberately.
-*/
-@keyframes ako-gift-pop {
-  0% { transform: scale(1); }
-  40% { transform: scale(1.25) rotate(-8deg); }
-  70% { transform: scale(0.95) rotate(4deg); }
-  100% { transform: scale(1) rotate(0deg); }
-}
-.ako-gift-pop {
-  display: inline-flex;
-  animation: ako-gift-pop 420ms cubic-bezier(0.34, 1.56, 0.64, 1);
-}
-@keyframes ako-gift-rise {
-  0% { transform: translateY(0) scale(0.9); opacity: 0; }
-  20% { opacity: 1; }
-  100% { transform: translateY(-38px) scale(1.15); opacity: 0; }
-}
-.ako-gift-rise {
-  position: absolute;
-  left: 50%;
-  bottom: 100%;
-  transform: translateX(-50%);
-  animation: ako-gift-rise 700ms ease-out forwards;
-  pointer-events: none;
-}
-
-/*
-  Unlock reveal — a purchased/unlocked project's content goes from
-  blurred-and-dim to sharp-and-full-opacity instead of just popping in,
-  so paying for something reads as a distinct "reveal" moment rather than
-  a content refresh. See UnlockReveal.tsx.
-*/
-@keyframes ako-unlock-reveal {
-  0% { filter: blur(14px); opacity: 0.4; transform: scale(1.02); }
-  100% { filter: blur(0); opacity: 1; transform: scale(1); }
-}
-.ako-unlock-reveal {
-  animation: ako-unlock-reveal 520ms cubic-bezier(0.22, 1, 0.36, 1);
-}
-
 @media (prefers-reduced-motion: reduce) {
   .ako-tab-indicator {
     transition: none;
-  }
-  .ako-like-pop,
-  .ako-like-spark,
-  .ako-pill-in,
-  .ako-gift-pop,
-  .ako-gift-rise,
-  .ako-unlock-reveal {
-    animation: none !important;
   }
 }
