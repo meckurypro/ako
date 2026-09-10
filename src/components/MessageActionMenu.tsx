@@ -1,7 +1,8 @@
 // src/components/MessageActionMenu.tsx
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useLayoutEffect, useRef, useState } from "react";
 import { Copy, Trash2, Redo2, MoreHorizontal, Star, Pin, Plus, X, Reply, Forward, EyeOff, CheckSquare } from "lucide-react";
 import { useBackDismiss } from "../hooks/useBackDismiss";
+import { useScrollLock } from "../hooks/useScrollLock";
 import { DropdownMenu, type DropdownMenuItem } from "./DropdownMenu";
 
 interface MessageActionMenuProps {
@@ -103,12 +104,7 @@ export function MessageActionMenu({
     ready: false,
   });
 
-  useEffect(() => {
-    document.body.style.overflow = "hidden";
-    return () => {
-      document.body.style.overflow = "";
-    };
-  }, []);
+  useScrollLock();
 
   // Reaction pill sits above the bubble; if there isn't room (bubble
   // near the top of the viewport, under the top action bar), it flips
