@@ -15,6 +15,7 @@ import {
   Quote,
   Redo2,
   Users,
+  Tag,
 } from "lucide-react";
 import { useNotifications, useMarkNotificationRead, useMarkAllRead } from "../hooks/useNotifications";
 import {
@@ -26,6 +27,7 @@ import { usePageById, useActiveIdentity } from "../hooks/usePages";
 import { Avatar } from "../components/Avatar";
 import { BottomNav } from "../components/BottomNav";
 import { PageInviteResponseModal } from "../components/PageInviteResponseModal";
+import { CollaborationInviteResponseModal } from "../components/CollaborationInviteResponseModal";
 import type { NotificationWithActor } from "../hooks/useNotifications";
 
 const TYPE_CONFIG: Record<string, { icon: typeof Heart; verb: string }> = {
@@ -59,6 +61,11 @@ const TYPE_CONFIG: Record<string, { icon: typeof Heart; verb: string }> = {
   page_role_invite: { icon: Users, verb: "invited you to join their team" },
   page_role_accepted: { icon: UserCheck, verb: "accepted your team invite" },
   page_role_declined: { icon: UserX, verb: "declined your team invite" },
+  post_tagged: { icon: Tag, verb: "tagged you in a post" },
+  project_tagged: { icon: Tag, verb: "tagged you in a project" },
+  collaboration_invite: { icon: Users, verb: "invited you to collaborate" },
+  collaboration_accepted: { icon: UserCheck, verb: "accepted your collaboration invite" },
+  collaboration_declined: { icon: UserX, verb: "declined your collaboration invite" },
 };
 
 function timeAgo(dateString: string): string {
@@ -89,6 +96,7 @@ function timeAgo(dateString: string): string {
 function notificationLink(n: NotificationWithActor): string {
   if (n.type === "follow_request") return "/requests";
   if (n.target_type === "post" && n.target_id) return `/post/${n.target_id}`;
+  if (n.target_type === "project" && n.target_id) return `/projects/${n.target_id}`;
   if (n.target_type === "comment" && n.target_id) {
     // comment_post_id can be null if it couldn't be resolved (e.g. the
     // comment was since deleted) — nothing sensible to link to then.
@@ -159,10 +167,12 @@ function NotificationRow({
   n,
   onRead,
   onOpenInvite,
+  onOpenCollaborationInvite,
 }: {
   n: NotificationWithActor;
   onRead: () => void;
   onOpenInvite: (pageId: string) => void;
+  onOpenCollaborationInvite: (target: "post" | "project", targetId: string) => void;
 }) {
   const config = TYPE_CONFIG[n.type] ?? TYPE_CONFIG.system;
 
@@ -182,6 +192,24 @@ function NotificationRow({
 
   if (n.type === "page_role_accepted" || n.type === "page_role_declined") {
     return <PageResponseRow n={n} onRead={onRead} />;
+  }
+
+  // Same "needs a synchronous accept/decline step, not a plain link"
+  // case as page_role_invite above — the actual response UI lives in
+  // CollaborationInviteResponseModal.
+  if (n.type === "collaboration_invite" && n.target_id && (n.target_type === "post" || n.target_type === "project")) {
+    const target = n.target_type;
+    return (
+      <button
+        onClick={() => {
+          onRead();
+          onOpenCollaborationInvite(target, n.target_id!);
+        }}
+        className={ROW_CLASS(!n.read_at)}
+      >
+        <NotificationRowContent n={n} config={config} />
+      </button>
+    );
   }
 
   return (
@@ -211,6 +239,9 @@ export function Notifications() {
   const markAllRead = isPageMode ? markAllReadPage : markAllReadPersonal;
 
   const [openInvitePageId, setOpenInvitePageId] = useState<string | null>(null);
+  const [openCollaborationInvite, setOpenCollaborationInvite] = useState<
+    { target: "post" | "project"; targetId: string } | null
+  >(null);
 
   const hasUnread = notifications?.some((n) => !n.read_at);
 
@@ -242,6 +273,7 @@ export function Notifications() {
               n={n}
               onRead={() => !n.read_at && markRead.mutate(n.id)}
               onOpenInvite={setOpenInvitePageId}
+              onOpenCollaborationInvite={(target, targetId) => setOpenCollaborationInvite({ target, targetId })}
             />
           ))
         )}
@@ -251,6 +283,14 @@ export function Notifications() {
         <PageInviteResponseModal
           pageId={openInvitePageId}
           onClose={() => setOpenInvitePageId(null)}
+        />
+      )}
+
+      {openCollaborationInvite && (
+        <CollaborationInviteResponseModal
+          target={openCollaborationInvite.target}
+          targetId={openCollaborationInvite.targetId}
+          onClose={() => setOpenCollaborationInvite(null)}
         />
       )}
 
