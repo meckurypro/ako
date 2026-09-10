@@ -1120,7 +1120,9 @@ export function useArchivedConversations() {
 
       const { data: conversations, error: convError } = await supabase
         .from("conversations")
-        .select("id, last_message_at")
+        .select(
+          "id, last_message_at, is_group, team_page:pages!conversations_team_page_id_fkey(id, username, name, avatar_url, page_type, is_verified)"
+        )
         .in("id", conversationIds)
         .order("last_message_at", { ascending: false });
 
@@ -1156,6 +1158,8 @@ export function useArchivedConversations() {
           pinned_at: null,
           archived_at: conv.last_message_at, // presence in this list already implies archived; exact value isn't read by the UI
           is_request: requestMap.get(conv.id) ?? false,
+          is_group: conv.is_group,
+          team_page: (conv as any).team_page ?? null,
           other_participant: otherParticipant,
           last_message: lastMessage
             ? {
