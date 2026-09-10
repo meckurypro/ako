@@ -21,7 +21,7 @@ function readStoredSetting(): ThemeSetting {
 
 function applyResolvedTheme(resolved: ResolvedTheme) {
   document.documentElement.classList.toggle("dark", resolved === "dark");
-  applyThemeColorMeta(resolved);
+  syncThemeColorMeta();
 }
 
 // Colors Safari's address-bar/toolbar chrome (and Android's status bar) to
@@ -29,9 +29,26 @@ function applyResolvedTheme(resolved: ResolvedTheme) {
 // in src/index.css (topnav/bottomnav color) for each theme — index.html sets
 // this same tag synchronously on load so there's no flash of the wrong
 // chrome color before React mounts; this keeps it in sync afterward.
-function applyThemeColorMeta(resolved: ResolvedTheme) {
+//
+// Reads .dark/.page-mode directly off <html> rather than taking params, so
+// both this file's own theme toggle AND usePageThemeSync.ts's identity-mode
+// toggle can call the same function after changing their one class each,
+// with neither one clobbering the other's change on the next call — there's
+// exactly one source of truth (the DOM classes themselves) instead of two
+// independent callers racing to compute the "current" color from partial
+// state.
+export function syncThemeColorMeta() {
+  const isDark = document.documentElement.classList.contains("dark");
+  const isPageMode = document.documentElement.classList.contains("page-mode");
   const meta = document.querySelector('meta[name="theme-color"]');
-  meta?.setAttribute("content", resolved === "dark" ? "#131311" : "#FDFBF6");
+  const color = isPageMode
+    ? isDark
+      ? "#17110C" // .dark.page-mode --color-surface
+      : "#FCF6EC" // .page-mode --color-surface
+    : isDark
+      ? "#131311" // .dark --color-surface
+      : "#FDFBF6"; // default --color-surface
+  meta?.setAttribute("content", color);
 }
 
 interface ThemeContextValue {
