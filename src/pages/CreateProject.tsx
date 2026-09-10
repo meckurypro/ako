@@ -8,7 +8,12 @@ import {
   useCreateProject,
   PROJECT_TYPE_LABELS,
   PROJECT_TYPE_HINTS,
-  getAllowedProjectTypes,
+  useActiveProjectTypes,
+  useProjectTypeAccessRules,
+  useMyEligibilityStats,
+  useMyProjectTypeExemption,
+  getProjectTypeEligibility,
+  getVisibleProjectTypes,
   type ProjectType,
 } from "../hooks/useProjects";
 import { useActiveIdentity } from "../hooks/usePages";
@@ -60,19 +65,38 @@ export function CreateProject() {
   // no chance of a type picked for one identity ending up attributed
   // to the other mid-draft.
   const postingAsPage = identity?.mode === "page" ? identity.page : null;
-  const allowedTypes = getAllowedProjectTypes(postingAsPage ? "page" : "personal");
+
+  // Admin can switch a type off entirely (project_type_settings), and
+  // separately choose whether a type a user doesn't qualify for
+  // (project_type_access_rules) disappears from the list or stays
+  // visible-but-locked — see getVisibleProjectTypes.
+  const { data: typeSettings } = useActiveProjectTypes();
+  const { data: accessRules } = useProjectTypeAccessRules();
+  const { data: myStats } = useMyEligibilityStats();
+  const { data: isExempt } = useMyProjectTypeExemption();
+
+  const allowedTypes = getVisibleProjectTypes(
+    postingAsPage ? "page" : "personal",
+    typeSettings,
+    accessRules,
+    myStats,
+    isExempt
+  );
+
+  const eligibility = getProjectTypeEligibility(projectType, accessRules, myStats, isExempt);
 
   // The type picker only ever shows allowedTypes (below), but the
   // initial "file" default is personal-only — if identity resolves to
-  // page mode after that default was set, correct it to the first
-  // type that's actually valid rather than leaving an invalid
-  // selection sitting in a hidden option.
+  // page mode after that default was set, or a type gets switched off
+  // mid-session, correct it to the first type that's actually valid
+  // rather than leaving an invalid selection sitting in a hidden
+  // option.
   useEffect(() => {
-    if (!allowedTypes.includes(projectType)) {
+    if (allowedTypes.length > 0 && !allowedTypes.includes(projectType)) {
       setProjectType(allowedTypes[0]);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [postingAsPage?.id]);
+  }, [postingAsPage?.id, typeSettings, accessRules, myStats, isExempt]);
 
   // Type-specific state — only the block matching projectType is
   // read/validated/sent; switching types keeps the others' state
@@ -154,6 +178,14 @@ export function CreateProject() {
     const typeError = validateTypeSpecific();
     if (typeError) {
       setError(typeError);
+      return;
+    }
+
+    // Client-side gate for a clean error message — the server enforces
+    // the same rule regardless (enforce_project_type_rules trigger),
+    // so this is UX, not the real security boundary.
+    if (eligibility && !eligibility.eligible) {
+      setError(eligibility.reasons[0]);
       return;
     }
 
@@ -368,6 +400,19 @@ export function CreateProject() {
               ? " Event, Room, and Course are page-only — that's why some types you might expect aren't listed here."
               : " Gig, Meeting, Media, and File are personal-only — switch to a page to create an Event, Room, or Course."}
           </p>
+
+          {eligibility && !eligibility.eligible && (
+            <div className="mb-4 px-4 py-3 rounded-xl bg-danger/10 border border-danger/30">
+              <p className="text-sm font-medium text-danger mb-1">
+                You don't meet the requirements for {PROJECT_TYPE_LABELS[projectType]} yet:
+              </p>
+              <ul className="text-xs text-danger space-y-0.5 list-disc list-inside">
+                {eligibility.reasons.map((reason) => (
+                  <li key={reason}>{reason}</li>
+                ))}
+              </ul>
+            </div>
+          )}
 
           <div className="mb-4">
             <label className="block text-sm font-medium text-ink-muted mb-1.5">Description</label>
