@@ -2,6 +2,7 @@
 import { useEffect, useState } from "react";
 import { X } from "lucide-react";
 import { useBackDismiss } from "../hooks/useBackDismiss";
+import { useScrollLock } from "../hooks/useScrollLock";
 import { useAddAccount } from "../hooks/useAccountSwitcher";
 
 interface AddAccountModalProps {
@@ -23,18 +24,14 @@ export function AddAccountModal({ onClose, onAdded }: AddAccountModalProps) {
   const addAccount = useAddAccount();
 
   useBackDismiss(onClose);
+  useScrollLock();
 
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
       if (e.key === "Escape") onClose();
     }
     document.addEventListener("keydown", handleKeyDown);
-    const previousOverflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    return () => {
-      document.removeEventListener("keydown", handleKeyDown);
-      document.body.style.overflow = previousOverflow;
-    };
+    return () => document.removeEventListener("keydown", handleKeyDown);
   }, [onClose]);
 
   async function handleSubmit(e: React.FormEvent) {
@@ -50,7 +47,7 @@ export function AddAccountModal({ onClose, onAdded }: AddAccountModalProps) {
 
   return (
     <div
-      className="fixed inset-0 bg-canvas/70 backdrop-blur-sm z-50 overflow-y-auto px-4 py-10"
+      className="fixed inset-0 bg-canvas/70 backdrop-blur-overlay z-50 overflow-y-auto px-4 py-10"
       onClick={onClose}
       role="dialog"
       aria-modal="true"
