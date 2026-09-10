@@ -3,6 +3,7 @@ import { X, Delete } from "lucide-react";
 import { EMOJI_CATEGORIES } from "../lib/emojiData";
 import { useRecentEmojis } from "../hooks/useMessageReactions";
 import { useBackDismiss } from "../hooks/useBackDismiss";
+import { useScrollLock } from "../hooks/useScrollLock";
 
 interface EmojiPickerSheetProps {
   onSelect: (emoji: string) => void;
@@ -52,6 +53,7 @@ export function EmojiPickerSheet({ onSelect, onClose, mode, content = "", onBack
   // Only "reaction" mode is a real full-screen modal — "input" mode is
   // inline under the compose bar and shouldn't touch browser history.
   useBackDismiss(onClose ?? (() => {}), mode === "reaction");
+  useScrollLock(mode === "reaction");
   const recents = useRecentEmojis(36);
   const sections = [
     ...(recents.length
@@ -113,7 +115,7 @@ export function EmojiPickerSheet({ onSelect, onClose, mode, content = "", onBack
 
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center">
-      <div className="absolute inset-0 bg-canvas/70 backdrop-blur-sm" onClick={onClose} />
+      <div className="absolute inset-0 bg-canvas/70 backdrop-blur-overlay" onClick={onClose} />
       <div className="relative w-full max-w-xl bg-surface rounded-t-2xl border-t border-border max-h-[70vh] flex flex-col">
         <div className="flex items-center justify-between px-4 pt-4 pb-2">
           <h3 className="font-medium text-ink text-sm">React</h3>
