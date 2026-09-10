@@ -7,6 +7,7 @@ import { X, Image as ImageIcon } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "../lib/supabase";
 import { useUpdatePost, canEditPost } from "../hooks/usePosts";
+import { useCollaborators } from "../hooks/useCollaboration";
 import { useUploadPostMedia, isVideoUrl } from "../hooks/useUploadPostMedia";
 import { useAuth } from "../hooks/useAuth";
 import { MentionTextarea } from "../components/MentionTextarea";
@@ -39,6 +40,11 @@ export function EditPost() {
   const { user } = useAuth();
   const { data: post, isLoading } = usePostForEdit(postId!);
   const updatePost = useUpdatePost();
+  // Same "accepted only" rule as PostCard/PostCollaboratorsBadge —
+  // backstops the menu-level block in PostCard for anyone who lands
+  // here directly (a stale link, browser back, etc.).
+  const { data: collaborators } = useCollaborators("post", postId);
+  const hasAcceptedCollaborators = (collaborators ?? []).some((c) => c.status === "accepted");
   const uploadMedia = useUploadPostMedia();
 
   const [heading, setHeading] = useState("");
@@ -125,6 +131,17 @@ export function EditPost() {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-canvas px-4 text-center gap-2">
         <p className="text-ink">The 15-minute edit window for this post has passed.</p>
+        <button onClick={smartBack} className="text-accent text-sm font-medium">
+          Go back
+        </button>
+      </div>
+    );
+  }
+
+  if (hasAcceptedCollaborators) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center bg-canvas px-4 text-center gap-2">
+        <p className="text-ink">Posts with a collaborator can't be edited — you can still delete it instead.</p>
         <button onClick={smartBack} className="text-accent text-sm font-medium">
           Go back
         </button>
