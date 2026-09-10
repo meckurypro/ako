@@ -8,6 +8,7 @@ import { usePageByUsername, usePageMembers, useUpdatePage } from "../hooks/usePa
 import { useCategories } from "../hooks/useCategories";
 import { useUploadAvatar } from "../hooks/useUploadAvatar";
 import { Avatar } from "../components/Avatar";
+import { MentionTextarea } from "../components/MentionTextarea";
 
 // /page/:username/edit — admin-only. Everything a page can change about
 // itself: name, tagline, bio, avatar, cover, website, category. Reuses
@@ -209,9 +210,9 @@ export function EditPage() {
 
           <div>
             <label className="block text-xs font-medium text-ink-muted mb-1">Bio</label>
-            <textarea
+            <MentionTextarea
               value={bio}
-              onChange={(e) => setBio(e.target.value)}
+              onChange={setBio}
               maxLength={280}
               rows={3}
               className="w-full bg-surface rounded-xl px-4 py-3 text-sm text-ink placeholder:text-ink-muted resize-none"
