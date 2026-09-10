@@ -18,6 +18,7 @@ import { ProjectCard } from "../components/ProjectCard";
 import { ArchivedPostModal } from "../components/ArchivedPostModal";
 import { ConfirmDialog } from "../components/ConfirmDialog";
 import { useBackDismiss } from "../hooks/useBackDismiss";
+import { useScrollLock } from "../hooks/useScrollLock";
 import { BottomNav } from "../components/BottomNav";
 import { isPlainReshare, isQuote, type PostWithAuthor } from "../types/database";
 
@@ -129,6 +130,7 @@ export function Archive() {
   // accordion below. ---
   const [actionTarget, setActionTarget] = useState<ArchivedConversationSummary | null>(null);
   useBackDismiss(() => setActionTarget(null), !!actionTarget);
+  useScrollLock(!!actionTarget);
   const longPressTimers = useRef<Record<string, ReturnType<typeof setTimeout> | null>>({});
   const longPressStart = useRef<Record<string, { x: number; y: number }>>({});
   const longPressFired = useRef<Record<string, boolean>>({});
@@ -421,7 +423,7 @@ export function Archive() {
 
       {actionTarget && (
         <div className="fixed inset-0 z-50 flex items-end justify-center">
-          <div className="absolute inset-0 bg-canvas/70 backdrop-blur-sm" onClick={() => setActionTarget(null)} />
+          <div className="absolute inset-0 bg-canvas/70 backdrop-blur-overlay" onClick={() => setActionTarget(null)} />
           <div className="relative w-full max-w-xl bg-surface rounded-t-2xl border-t border-border pb-[env(safe-area-inset-bottom)]">
             <p className="px-4 pt-4 pb-2 text-xs text-ink-muted truncate">{actionTarget.other_participant.display_name}</p>
 
