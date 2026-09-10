@@ -92,7 +92,7 @@ export function TagPeopleSheet({
           title="Tag people"
           subtitle="They'll be notified they were tagged."
           confirmLabel="Save tags"
-          initialSelected={(tagged ?? []).map((t) => t.user)}
+          initialSelected={(tagged ?? []).map((t) => ({ ...t.user, kind: "profile" as const }))}
           onConfirm={handleConfirm}
           onClose={() => setShowPicker(false)}
         />
