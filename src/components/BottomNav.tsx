@@ -3,6 +3,7 @@ import { NavLink, useMatch } from "react-router-dom";
 import { Search, Activity as ActivityIcon, MessageCircle, User } from "lucide-react";
 import { useAuth } from "../hooks/useAuth";
 import { useUnreadConversationCount } from "../hooks/useMessaging";
+import { usePageInboxUnreadCount } from "../hooks/usePageInbox";
 import { useActiveIdentity } from "../hooks/usePages";
 
 // Lucide's Home icon always draws a door line as part of the glyph —
@@ -49,8 +50,11 @@ function NavIcon({ Icon, isActive }: { Icon: ComponentType<IconProps>; isActive:
 
 export function BottomNav() {
   const { user, profile } = useAuth();
-  const unreadCount = useUnreadConversationCount();
   const { data: identity } = useActiveIdentity();
+  const activePageId = identity?.mode === "page" ? identity.page.id : undefined;
+  const personalUnread = useUnreadConversationCount();
+  const pageUnread = usePageInboxUnreadCount(activePageId);
+  const unreadCount = activePageId ? pageUnread : personalUnread;
 
   // Compare the :username in the URL to OUR OWN username — not a path
   // prefix match — so this is only active on our own profile, never
@@ -64,6 +68,13 @@ export function BottomNav() {
   const isOwnProfileActive =
     (!!profile?.username && profileMatch?.params.username === profile.username) ||
     (identity?.mode === "page" && pageMatch?.params.username === identity.page.username);
+
+  // Same idea for Messages: /inbox redirects to /page-inbox while
+  // acting as a page instead of /messages (see MyInboxRedirect) — match
+  // both so the tab still lights up regardless of which one it landed on.
+  const messagesMatch = useMatch("/messages/*");
+  const pageInboxMatch = useMatch("/page-inbox/*");
+  const isMessagesActive = !!messagesMatch || !!pageInboxMatch;
 
   const linkClass = ({ isActive }: { isActive: boolean }) =>
     `flex flex-col items-center gap-1 w-14 text-[11px] font-medium transition-colors ${
@@ -93,20 +104,16 @@ export function BottomNav() {
           )}
         </NavLink>
 
-        <NavLink to="/messages" replace className={linkClass}>
-          {({ isActive }) => (
-            <>
-              <div className="relative">
-                <NavIcon Icon={MessageCircle} isActive={isActive} />
-                {unreadCount > 0 && (
-                  <span className="absolute -top-1 -right-1 bg-danger text-canvas text-[10px] font-medium rounded-full w-4 h-4 flex items-center justify-center">
-                    {unreadCount > 9 ? "9+" : unreadCount}
-                  </span>
-                )}
-              </div>
-              Messages
-            </>
-          )}
+        <NavLink to="/inbox" replace className={() => linkClass({ isActive: isMessagesActive })}>
+          <div className="relative">
+            <NavIcon Icon={MessageCircle} isActive={isMessagesActive} />
+            {unreadCount > 0 && (
+              <span className="absolute -top-1 -right-1 bg-danger text-canvas text-[10px] font-medium rounded-full w-4 h-4 flex items-center justify-center">
+                {unreadCount > 9 ? "9+" : unreadCount}
+              </span>
+            )}
+          </div>
+          Messages
         </NavLink>
 
         <NavLink
