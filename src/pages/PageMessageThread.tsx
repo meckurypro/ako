@@ -44,10 +44,11 @@ export function PageMessageThread() {
 
   const handleListScroll = useCallback((e: React.UIEvent<HTMLDivElement>) => {
     const el = e.currentTarget;
+    const containerTop = el.getBoundingClientRect().top;
     const separators = el.querySelectorAll<HTMLElement>("[data-day-separator]");
     let currentLabel: string | null = null;
     for (const sep of separators) {
-      if (sep.offsetTop <= el.scrollTop + 8) {
+      if (sep.getBoundingClientRect().top <= containerTop + 1) {
         currentLabel = sep.dataset.dayLabel ?? currentLabel;
       } else {
         break;
