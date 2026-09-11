@@ -64,40 +64,92 @@ export function useSendCollaborationRequest(target: CollaborationTarget) {
   });
 }
 
+export interface PendingPostCollaborationInvite {
+  post_id: string;
+  invited_by: string;
+  invited_at: string;
+  inviter: { id: string; username: string; display_name: string; avatar_url: string | null };
+  // Null when the post has been deleted since the invite was sent —
+  // the row itself survives (FK has no cascade delete here), so this
+  // is the expected shape for "no longer available", not an error case.
+  post: {
+    id: string;
+    content: string;
+    media_urls: string[];
+    created_at: string;
+    is_archived: boolean;
+    author: { id: string; username: string; display_name: string; avatar_url: string | null };
+  } | null;
+}
+
+export interface PendingProjectCollaborationInvite {
+  project_id: string;
+  invited_by: string;
+  invited_at: string;
+  inviter: { id: string; username: string; display_name: string; avatar_url: string | null };
+  project: {
+    id: string;
+    title: string;
+    description: string | null;
+    thumbnail_url: string | null;
+    project_type: string;
+    created_at: string;
+  } | null;
+}
+
 /** Pending collaboration invites addressed to the current user, across both posts and projects. */
 export function useMyPendingCollaborationInvites() {
   const { user } = useAuth();
 
   return useQuery({
     queryKey: ["my-collaboration-invites", user?.id],
-    queryFn: async () => {
+    queryFn: async (): Promise<{
+      posts: PendingPostCollaborationInvite[];
+      projects: PendingProjectCollaborationInvite[];
+    }> => {
       if (!user) return { posts: [], projects: [] };
       const [postsRes, projectsRes] = await Promise.all([
         supabase
           .from("post_collaborators")
-          .select("post_id, invited_by, invited_at, inviter:profiles!post_collaborators_invited_by_fkey(id, username, display_name, avatar_url)")
+          .select(
+            `post_id, invited_by, invited_at,
+             inviter:profiles!post_collaborators_invited_by_fkey(id, username, display_name, avatar_url),
+             post:posts!post_collaborators_post_id_fkey(id, content, media_urls, created_at, is_archived, author:profiles!posts_author_id_fkey(id, username, display_name, avatar_url))`
+          )
           .eq("user_id", user.id)
           .eq("status", "invited"),
         supabase
           .from("project_collaborators")
-          .select("project_id, invited_by, invited_at, inviter:profiles!project_collaborators_invited_by_fkey(id, username, display_name, avatar_url)")
+          .select(
+            `project_id, invited_by, invited_at,
+             inviter:profiles!project_collaborators_invited_by_fkey(id, username, display_name, avatar_url),
+             project:projects!project_collaborators_project_id_fkey(id, title, description, thumbnail_url, project_type, created_at)`
+          )
           .eq("user_id", user.id)
           .eq("status", "invited"),
       ]);
       if (postsRes.error) throw postsRes.error;
       if (projectsRes.error) throw projectsRes.error;
 
-      // Supabase's generated types can't tell this FK embed is to-one,
-      // so it infers `inviter` as an array even though the DB returns
-      // a single row. Unwrap it here so every consumer gets a plain object.
-      const unwrapInviter = <T extends { inviter: unknown }>(row: T) => ({
-        ...row,
-        inviter: Array.isArray(row.inviter) ? row.inviter[0] : row.inviter,
-      });
+      // Supabase's generated types can't tell these FK embeds are
+      // to-one, so it infers them as arrays even though the DB
+      // returns a single row (or null, for `post`/`project`, when the
+      // referenced row was hard-deleted). Unwrap every such field here
+      // so every consumer gets a plain object/null.
+      const unwrap = <T extends Record<string, unknown>>(row: T, keys: (keyof T)[]) => {
+        const out = { ...row };
+        for (const key of keys) {
+          const value = out[key];
+          (out as any)[key] = Array.isArray(value) ? (value[0] ?? null) : value;
+        }
+        return out;
+      };
 
       return {
-        posts: (postsRes.data ?? []).map(unwrapInviter),
-        projects: (projectsRes.data ?? []).map(unwrapInviter),
+        posts: (postsRes.data ?? []).map((row: any) => unwrap(row, ["inviter", "post"])) as PendingPostCollaborationInvite[],
+        projects: (projectsRes.data ?? []).map((row: any) =>
+          unwrap(row, ["inviter", "project"])
+        ) as PendingProjectCollaborationInvite[],
       };
     },
     enabled: !!user,
