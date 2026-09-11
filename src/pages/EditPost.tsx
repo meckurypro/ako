@@ -194,7 +194,7 @@ export function EditPost() {
           <input
             ref={fileInputRef}
             type="file"
-            accept="image/jpeg,image/png,image/webp,image/gif,video/mp4,video/quicktime"
+            accept="image/jpeg,image/png,image/webp,image/gif"
             multiple
             onChange={handleFileSelect}
             className="hidden"
@@ -205,7 +205,7 @@ export function EditPost() {
             className="flex items-center gap-1.5 text-sm text-accent font-medium disabled:opacity-50"
           >
             <ImageIcon size={18} />
-            {uploadMedia.isPending ? "Uploading…" : "Add photo/video"}
+            {uploadMedia.isPending ? "Uploading…" : mediaUrls.length > 0 ? "Add another slide" : "Add photos"}
           </button>
           <span
             className={`text-xs ${contentCounterClass(content.length)}`}
