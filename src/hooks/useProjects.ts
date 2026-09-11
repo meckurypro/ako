@@ -635,6 +635,7 @@ export function useCreatePitchProject() {
 }
 
 
+interface UpdateProjectInput {
   id: string;
   title?: string;
   description?: string | null;
