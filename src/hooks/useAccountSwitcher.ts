@@ -33,6 +33,26 @@ export function useSavedAccounts() {
   return { accounts, refresh };
 }
 
+// Errors that genuinely mean "this refresh token is dead, there is no
+// path back" — Supabase's own wording for a rotated/revoked/expired
+// refresh token. Matched loosely (case-insensitive substring) since
+// the exact message has drifted across supabase-js versions and we'd
+// rather under-match (keep an account around one extra failed attempt)
+// than over-match (permanently forget an account over what might be a
+// transient network/rate-limit blip).
+const TERMINAL_AUTH_ERROR_PATTERNS = [
+  "invalid refresh token",
+  "refresh token not found",
+  "refresh token already used",
+  "session not found",
+  "jwt expired",
+];
+
+function isTerminalAuthError(message: string): boolean {
+  const lower = message.toLowerCase();
+  return TERMINAL_AUTH_ERROR_PATTERNS.some((pattern) => lower.includes(pattern));
+}
+
 /**
  * Swaps the live Supabase session to a saved account's cached tokens —
  * no re-entering a password, no network round trip beyond Supabase's
@@ -44,6 +64,21 @@ export function useSavedAccounts() {
  * account switch is rare enough that paying for a full refetch is a
  * much smaller risk than one overlooked query silently showing the
  * previous account's cached data under the new one.
+ *
+ * Item 13 hardening: a setSession failure used to be treated as
+ * unconditionally terminal — ANY error immediately forgot the saved
+ * account and told the person their session "expired", even if the
+ * real cause was a transient network hiccup or rate limit that a
+ * retry would clear. That's very likely what "account switching
+ * should always work... unless removed by logging out" was actually
+ * hitting: a recoverable failure being treated as permanent. Now:
+ * only errors that match a known "this refresh token is genuinely
+ * dead" signature remove the saved account; anything else surfaces
+ * the error but leaves the account in place so the person can just
+ * try again. If switching still reliably fails for a specific
+ * account, the next useful step is capturing that error's exact
+ * message/status here — this list can only cover known Supabase
+ * wording, not guess at ones we haven't seen yet.
  */
 export function useSwitchAccount() {
   const queryClient = useQueryClient();
@@ -69,14 +104,21 @@ export function useSwitchAccount() {
         refresh_token: account.refresh_token,
       });
       if (error) {
-        // The saved refresh token has already been rotated/invalidated —
-        // most commonly because this account kept refreshing in the
-        // background before useAuth's sync existed, or its saved copy
-        // just never got updated. Drop it so it doesn't keep failing the
-        // same way forever; the caller re-prompts sign-in instead.
-        removeSavedAccountFromStorage(account.user_id);
+        if (isTerminalAuthError(error.message)) {
+          // The saved refresh token is genuinely dead — most commonly
+          // because this account kept refreshing in the background
+          // before useAuth's sync existed, or its saved copy just
+          // never got updated. Drop it so it doesn't keep failing the
+          // same way forever; the caller re-prompts sign-in instead.
+          removeSavedAccountFromStorage(account.user_id);
+          throw new Error(
+            `Your session for ${account.display_name} has expired — sign in again to switch to it.`
+          );
+        }
+        // Anything else (network error, rate limit, transient server
+        // error) — keep the saved account, let the person retry.
         throw new Error(
-          `Your session for ${account.display_name} has expired — sign in again to switch to it.`
+          `Couldn't switch to ${account.display_name} right now — check your connection and try again.`
         );
       }
 
