@@ -157,19 +157,21 @@ export function GiftPicker({
                       key={gift.id}
                       onClick={() => handleSelect(gift)}
                       aria-label={`${gift.name}, $${gift.cost_usd.toFixed(2)}`}
-                      className="flex flex-col items-center gap-1.5 bg-canvas rounded-xl border border-border p-3"
+                      className="flex flex-col items-center gap-1.5"
                     >
-                      {/* Image + price, no name — name only shows on the
-                          confirm step. p-2 + object-contain (not
-                          object-cover in a circle) so the artifact
+                      {/* Single box — no nested accent-soft square inside a
+                          bordered card. p-2 keeps a small margin so the
+                          artifact doesn't touch the box edge; object-contain
+                          (not object-cover in a circle) so the artifact
                           renders whole — a staff or shield silhouette
                           shouldn't get corner-cropped by a circular mask
-                          the way a generic icon could. */}
-                      <div className="w-14 h-14 rounded-2xl bg-accent-soft flex items-center justify-center overflow-hidden p-2">
+                          the way a generic icon could. Price sits outside
+                          the box, not inside a card. */}
+                      <div className="w-20 h-20 rounded-2xl bg-canvas border border-border flex items-center justify-center overflow-hidden p-2">
                         {gift.icon_url ? (
                           <img src={gift.icon_url} alt="" className="w-full h-full object-contain" />
                         ) : (
-                          <span className="text-lg">🎁</span>
+                          <span className="text-2xl">🎁</span>
                         )}
                       </div>
                       <span className="text-xs text-ink-muted">${gift.cost_usd.toFixed(2)}</span>
@@ -182,7 +184,7 @@ export function GiftPicker({
 
           {step === "confirm" && selected && (
             <div className="flex flex-col items-center text-center gap-4 py-2">
-              <div className="w-20 h-20 rounded-2xl bg-accent-soft flex items-center justify-center overflow-hidden p-3">
+              <div className="w-20 h-20 rounded-2xl bg-canvas border border-border flex items-center justify-center overflow-hidden p-3">
                 {selected.icon_url ? (
                   <img src={selected.icon_url} alt="" className="w-full h-full object-contain" />
                 ) : (
@@ -221,7 +223,7 @@ export function GiftPicker({
 
           {step === "sent" && selected && (
             <div className="flex flex-col items-center text-center gap-3 py-8">
-              <div className="relative w-16 h-16 rounded-2xl bg-accent-soft flex items-center justify-center overflow-hidden p-2.5 ako-gift-pop">
+              <div className="relative w-16 h-16 rounded-2xl bg-canvas border border-border flex items-center justify-center overflow-hidden p-2.5 ako-gift-pop">
                 {selected.icon_url ? (
                   <img src={selected.icon_url} alt="" className="w-full h-full object-contain" />
                 ) : (
@@ -274,14 +276,22 @@ export function GiftPicker({
 
       {/* Insufficient-balance notice — sits above everything, including
           the sheet. Tap anywhere to dismiss. Reuses the sheet's overlay
-          treatment, stacked, for a darker/blurrier feel over a plain,
-          friendly message with no card/border. */}
+          treatment, stacked, for a darker/blurrier feel. Now shows the
+          gift itself (bold, centered, single box matching the catalog
+          treatment) above the message instead of text alone. */}
       {insufficientGift && (
         <div
-          className="fixed inset-0 z-[70] flex items-center justify-center px-10 bg-canvas/70 backdrop-blur-overlay"
+          className="fixed inset-0 z-[70] flex flex-col items-center justify-center gap-4 px-10 bg-canvas/70 backdrop-blur-overlay"
           onClick={() => setInsufficientGift(null)}
           role="alert"
         >
+          <div className="w-24 h-24 rounded-2xl bg-canvas border border-border flex items-center justify-center overflow-hidden p-3">
+            {insufficientGift.icon_url ? (
+              <img src={insufficientGift.icon_url} alt="" className="w-full h-full object-contain" />
+            ) : (
+              <span className="text-4xl">🎁</span>
+            )}
+          </div>
           <p className="text-ink text-center text-base font-medium max-w-xs">
             Insufficient balance to gift {article(insufficientGift.name)} {insufficientGift.name}. Please fund your
             wallet.
@@ -291,4 +301,4 @@ export function GiftPicker({
     </div>
     </Portal>
   );
-}
+                }
