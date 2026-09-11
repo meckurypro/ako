@@ -3,9 +3,8 @@ import { useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useSmartBack } from "../hooks/useSmartBack";
 import { ArrowLeft } from "lucide-react";
-import { useCreatePage } from "../hooks/usePages";
+import { useCreatePage, useMyPages, usePageById } from "../hooks/usePages";
 import { useCategories } from "../hooks/useCategories";
-import { useMyPages } from "../hooks/usePages";
 import type { PageType } from "../types/database";
 
 const TYPES: { value: PageType; label: string; hint: string }[] = [
@@ -29,6 +28,12 @@ export function CreatePage() {
   // (see ProfilePage.tsx) passes ?type=... to preselect it — someone
   // starting from a blank /pages/new just gets the default below.
   const requestedType = searchParams.get("type");
+  // Arriving from an existing page's "…" menu "Add Subsidiary" row
+  // (see PagePage.tsx) passes ?parent=<page id> instead — that page
+  // becomes a fixed, non-editable parent rather than something picked
+  // from the dropdown below (skipped entirely in that case).
+  const presetParentId = searchParams.get("parent");
+  const { data: presetParent } = usePageById(presetParentId ?? "", !!presetParentId);
   const [pageType, setPageType] = useState<PageType>(requestedType === "organization" ? "organization" : "brand");
   const [name, setName] = useState("");
   const [username, setUsername] = useState("");
@@ -39,7 +44,11 @@ export function CreatePage() {
   const [parentOrgId, setParentOrgId] = useState("");
   const [error, setError] = useState<string | null>(null);
 
-  const myOrganizations = (myPages ?? []).filter((p) => p.page_type === "organization" && p.my_is_admin);
+  // Any page you admin can host a Subsidiary, and a Subsidiary can be
+  // either page type — no longer restricted to "brand under an
+  // organization you run" (see ako_pages_v2_subsidiaries.sql for the
+  // server-side rule this now actually depends on).
+  const myAdminPages = (myPages ?? []).filter((p) => p.my_is_admin);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -59,7 +68,7 @@ export function CreatePage() {
         tagline: tagline.trim() || undefined,
         bio: bio.trim() || undefined,
         category_id: categoryId || undefined,
-        parent_organization_id: pageType === "brand" && parentOrgId ? parentOrgId : undefined,
+        parent_organization_id: presetParentId || parentOrgId || undefined,
       });
       navigate(`/page/${page.username}`);
     } catch (err: any) {
@@ -74,7 +83,7 @@ export function CreatePage() {
           <button onClick={smartBack} className="text-ink-muted">
             <ArrowLeft size={22} />
           </button>
-          <h2 className="font-display text-xl text-ink">Create a page</h2>
+          <h2 className="font-display text-xl text-ink">{presetParentId ? "Add a Subsidiary" : "Create a page"}</h2>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-5">
@@ -175,24 +184,33 @@ export function CreatePage() {
             </div>
           )}
 
-          {pageType === "brand" && myOrganizations.length > 0 && (
-            <div>
-              <label className="block text-xs font-medium text-ink-muted mb-1">
-                Part of an organisation you manage? (optional)
-              </label>
-              <select
-                value={parentOrgId}
-                onChange={(e) => setParentOrgId(e.target.value)}
-                className="w-full bg-surface rounded-xl px-4 py-3 text-sm text-ink"
-              >
-                <option value="">None</option>
-                {myOrganizations.map((org) => (
-                  <option key={org.id} value={org.id}>
-                    {org.name}
-                  </option>
-                ))}
-              </select>
-            </div>
+          {presetParentId ? (
+            presetParent && (
+              <div className="rounded-xl bg-surface px-4 py-3 flex items-center gap-2.5">
+                <span className="text-sm text-ink-muted">Subsidiary of</span>
+                <span className="text-sm font-medium text-ink truncate">{presetParent.name}</span>
+              </div>
+            )
+          ) : (
+            myAdminPages.length > 0 && (
+              <div>
+                <label className="block text-xs font-medium text-ink-muted mb-1">
+                  Make this a Subsidiary of a page you manage? (optional)
+                </label>
+                <select
+                  value={parentOrgId}
+                  onChange={(e) => setParentOrgId(e.target.value)}
+                  className="w-full bg-surface rounded-xl px-4 py-3 text-sm text-ink"
+                >
+                  <option value="">None</option>
+                  {myAdminPages.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )
           )}
 
           {error && <p className="text-sm text-danger">{error}</p>}
@@ -202,7 +220,7 @@ export function CreatePage() {
             disabled={createPage.isPending}
             className="w-full bg-accent text-canvas rounded-xl py-3 text-sm font-medium disabled:opacity-60"
           >
-            {createPage.isPending ? "Creating…" : `Create ${pageType}`}
+            {createPage.isPending ? "Creating…" : presetParentId ? "Add Subsidiary" : `Create ${pageType}`}
           </button>
         </form>
       </div>
