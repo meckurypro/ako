@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "../lib/supabase";
 import { useAuth } from "./useAuth";
 import { useSound } from "./useSound";
+import { useActiveIdentity } from "./usePages";
 import { PROFILE_ROLES_SELECT, toProfileRoles } from "../lib/profileRoles";
 import type { Profile, ProfileWithRoles } from "../types/database";
 
@@ -112,6 +113,19 @@ export function useIsFollowedByUser(targetUserId: string) {
   });
 }
 
+/**
+ * Toggles a follow on/off for the SIGNED-IN PERSON — always writes to
+ * `follows`, never page_follows_target. Deliberately does not brand
+ * -switch on active identity: this hook backs the full Follow/Unfollow
+ * button on ProfilePage, which is unambiguously "you, the person,
+ * follow this profile" regardless of what you're currently posting
+ * as. See useToggleFollowAsActiveIdentity below for the version
+ * FollowButton (the compact one embedded in post/project cards)
+ * should use instead, which DOES branch on Page mode — that's the one
+ * item 7 was actually about: a team member acting as a page liking/
+ * following things from inside a card while in Page mode, and it
+ * silently landing on their own personal account.
+ */
 export function useToggleFollow(targetUserId: string) {
   const { user } = useAuth();
   const queryClient = useQueryClient();
@@ -143,6 +157,115 @@ export function useToggleFollow(targetUserId: string) {
       queryClient.invalidateQueries({ queryKey: ["profile"] });
       queryClient.invalidateQueries({ queryKey: ["followers"] });
       queryClient.invalidateQueries({ queryKey: ["following"] });
+    },
+  });
+}
+
+/**
+ * Follow-state check that's aware of the CURRENT acting identity —
+ * personal account, or a page. Reads the matching table so a page's
+ * own follow button state doesn't show "Following" just because the
+ * team member behind it personally follows that profile (or vice
+ * versa). See sql/29_page_identity_engagement.sql for page_follows_target.
+ */
+export function useIsFollowingAsActiveIdentity(targetUserId: string) {
+  const { user } = useAuth();
+  const { data: identity } = useActiveIdentity();
+  const actingAsPageId = identity?.mode === "page" ? identity.page.id : null;
+
+  return useQuery({
+    queryKey: ["is-following-as-identity", targetUserId, user?.id, actingAsPageId],
+    queryFn: async () => {
+      if (!user) return false;
+
+      if (actingAsPageId) {
+        const { data } = await supabase
+          .from("page_follows_target")
+          .select("page_id")
+          .eq("page_id", actingAsPageId)
+          .eq("followed_profile_id", targetUserId)
+          .maybeSingle();
+        return !!data;
+      }
+
+      const { data } = await supabase
+        .from("follows")
+        .select("follower_id")
+        .eq("follower_id", user.id)
+        .eq("following_id", targetUserId)
+        .maybeSingle();
+      return !!data;
+    },
+    enabled: !!user && !!targetUserId,
+  });
+}
+
+/**
+ * Toggles a follow as whichever identity is currently active — the
+ * signed-in person if in Personal mode, or the page if in Page mode.
+ * This is the fix for item 7: previously every follow, everywhere in
+ * the app (including from inside a post/project card while acting as
+ * a page), went through useToggleFollow above and landed on the
+ * team member's own personal `follows` row no matter what. Card-level
+ * follow affordances (see FollowButton.tsx) should call this one
+ * instead; the full ProfilePage Follow/Unfollow button intentionally
+ * keeps using the always-personal useToggleFollow above (see its own
+ * comment).
+ */
+export function useToggleFollowAsActiveIdentity(targetUserId: string) {
+  const { user } = useAuth();
+  const { data: identity } = useActiveIdentity();
+  const actingAsPageId = identity?.mode === "page" ? identity.page.id : null;
+  const queryClient = useQueryClient();
+  const { play } = useSound();
+
+  return useMutation({
+    mutationFn: async (currentlyFollowing: boolean) => {
+      if (!user) throw new Error("Not signed in");
+
+      if (actingAsPageId) {
+        if (currentlyFollowing) {
+          const { error } = await supabase
+            .from("page_follows_target")
+            .delete()
+            .eq("page_id", actingAsPageId)
+            .eq("followed_profile_id", targetUserId);
+          if (error) throw error;
+        } else {
+          const { error } = await supabase
+            .from("page_follows_target")
+            .insert({ page_id: actingAsPageId, followed_profile_id: targetUserId });
+          if (error) throw error;
+        }
+        return;
+      }
+
+      if (currentlyFollowing) {
+        const { error } = await supabase
+          .from("follows")
+          .delete()
+          .eq("follower_id", user.id)
+          .eq("following_id", targetUserId);
+        if (error) throw error;
+      } else {
+        const { error } = await supabase
+          .from("follows")
+          .insert({ follower_id: user.id, following_id: targetUserId });
+        if (error) throw error;
+      }
+    },
+    onSuccess: (_data, currentlyFollowing) => {
+      if (!currentlyFollowing) play("follow");
+
+      queryClient.invalidateQueries({ queryKey: ["is-following-as-identity", targetUserId] });
+      queryClient.invalidateQueries({ queryKey: ["is-following", targetUserId] });
+      queryClient.invalidateQueries({ queryKey: ["profile"] });
+      queryClient.invalidateQueries({ queryKey: ["followers"] });
+      queryClient.invalidateQueries({ queryKey: ["following"] });
+      if (actingAsPageId) {
+        queryClient.invalidateQueries({ queryKey: ["page", actingAsPageId] });
+        queryClient.invalidateQueries({ queryKey: ["my-pages"] });
+      }
     },
   });
 }
