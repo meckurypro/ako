@@ -9,15 +9,6 @@ import { Portal } from "./Portal";
 import { Avatar } from "./Avatar";
 import type { GiftType } from "../types/database";
 
-// Combined platform share (Google Play + Akọ) vs. what the creator
-// keeps. Display-only — process-gift/process_gift() computes the
-// real platform_fee/net_amount server-side; this only drives the
-// "Creator receives $X" preview shown before sending.
-const GIFT_FEE_SPLIT = {
-  platform: 0.4, // Google Play + Akọ combined
-  creator: 0.6,
-};
-
 interface GiftPickerProps {
   recipientId: string;
   recipientName: string;
@@ -83,7 +74,6 @@ export function GiftPicker({
     }
   }
 
-  const creatorReceives = selected ? selected.cost_usd * GIFT_FEE_SPLIT.creator : 0;
   const insufficientBalance = !!selected && balance < selected.cost_usd;
 
   return (
@@ -132,11 +122,11 @@ export function GiftPicker({
                       key={gift.id}
                       onClick={() => handleSelect(gift)}
                       aria-label={`${gift.name}, $${gift.cost_usd.toFixed(2)}`}
-                      className="flex items-center justify-center bg-canvas rounded-xl border border-border p-3"
+                      className="flex flex-col items-center gap-1.5 bg-canvas rounded-xl border border-border p-3"
                     >
-                      {/* Image-only tile — name and price now live on the
-                          confirm step, not here. p-2 + object-contain
-                          (not object-cover in a circle) so the artifact
+                      {/* Image + price, no name — name only shows on the
+                          confirm step. p-2 + object-contain (not
+                          object-cover in a circle) so the artifact
                           renders whole — a staff or shield silhouette
                           shouldn't get corner-cropped by a circular mask
                           the way a generic icon could. */}
@@ -147,6 +137,7 @@ export function GiftPicker({
                           <span className="text-lg">🎁</span>
                         )}
                       </div>
+                      <span className="text-xs text-ink-muted">${gift.cost_usd.toFixed(2)}</span>
                     </button>
                   ))}
                 </div>
@@ -177,17 +168,9 @@ export function GiftPicker({
                   <span className="text-ink-muted">Gift value</span>
                   <span className="text-ink font-medium">${selected.cost_usd.toFixed(2)}</span>
                 </div>
-                <div className="flex items-center justify-between mt-1.5">
-                  <span className="text-ink-muted">Creator receives</span>
-                  <span className="text-accent font-medium">${creatorReceives.toFixed(2)}</span>
-                </div>
                 <div className="border-t border-border mt-3 pt-3 flex items-center justify-between">
                   <span className="text-ink-muted">Your balance</span>
                   <span className="text-ink">${balance.toFixed(2)}</span>
-                </div>
-                <div className="flex items-center justify-between mt-1">
-                  <span className="text-ink-muted">After gifting</span>
-                  <span className="text-ink">${Math.max(balance - selected.cost_usd, 0).toFixed(2)}</span>
                 </div>
               </div>
 
