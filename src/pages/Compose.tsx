@@ -3,7 +3,7 @@
 import { useRef, useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { useSmartBack } from "../hooks/useSmartBack";
-import { X, Image as ImageIcon, ChevronDown, ChevronRight } from "lucide-react";
+import { X, Image as ImageIcon, ChevronDown, ChevronRight, Link2 } from "lucide-react";
 import { useCreatePost } from "../hooks/usePosts";
 import { useCategories } from "../hooks/useCategories";
 import { useUploadPostMedia, isVideoUrl } from "../hooks/useUploadPostMedia";
@@ -11,6 +11,7 @@ import { useActiveIdentity } from "../hooks/usePages";
 import { useMyProfile } from "../hooks/useProfile";
 import { Avatar } from "../components/Avatar";
 import { MentionTextarea } from "../components/MentionTextarea";
+import { TagProjectPicker } from "../components/TagProjectPicker";
 import { CONTENT_LIMIT, contentCounterClass } from "../lib/textLimits";
 
 const HEADING_LIMIT = 50;
@@ -26,6 +27,12 @@ export function Compose() {
   const [mediaUrls, setMediaUrls] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [uploadError, setUploadError] = useState<string | null>(null);
+  // Item 10: tag one of your own projects into the post — stored as
+  // just the id (what actually gets posted) plus a title snapshot
+  // (so the picker pill below can show something without waiting on
+  // a fresh fetch of the project itself).
+  const [taggedProject, setTaggedProject] = useState<{ id: string; title: string } | null>(null);
+  const [showProjectPicker, setShowProjectPicker] = useState(false);
   const createPost = useCreatePost();
   const uploadMedia = useUploadPostMedia();
   const { data: categories } = useCategories();
@@ -79,6 +86,7 @@ export function Compose() {
         category_id: categoryId ?? undefined,
         media_urls: mediaUrls,
         posted_as_page_id: postingAsPage?.id,
+        tagged_project_id: taggedProject?.id,
       });
       navigate(postingAsPage ? `/page/${postingAsPage.username}` : "/feed");
     } catch (err) {
@@ -151,6 +159,39 @@ export function Compose() {
                 </button>
               </div>
             ))}
+          </div>
+        )}
+
+        {/* Item 10 — tagged project pill, shown once picked. Only
+            offered in Personal mode for now: a page's own projects
+            aren't fetched by useUserProjects the way a person's are
+            (that hook takes a profile id, not a page id) — tagging a
+            page's project from Page mode is a reasonable follow-up,
+            not done here since it needs its own query, not just this
+            button reused. */}
+        {!postingAsPage && (
+          <div className="mt-3">
+            {taggedProject ? (
+              <div className="inline-flex items-center gap-1.5 rounded-full border border-border bg-surface pl-3 pr-1.5 py-1 text-sm text-ink">
+                <Link2 size={13} className="text-ink-muted" />
+                <span className="truncate max-w-[220px]">{taggedProject.title}</span>
+                <button
+                  onClick={() => setTaggedProject(null)}
+                  className="p-1 text-ink-muted"
+                  aria-label="Remove tagged project"
+                >
+                  <X size={13} />
+                </button>
+              </div>
+            ) : (
+              <button
+                onClick={() => setShowProjectPicker(true)}
+                className="flex items-center gap-1.5 text-sm text-accent font-medium"
+              >
+                <Link2 size={15} />
+                Tag a project
+              </button>
+            )}
           </div>
         )}
 
@@ -238,6 +279,17 @@ export function Compose() {
           {createPost.isPending ? "Posting…" : "Post"}
         </button>
       </div>
+
+      {showProjectPicker && me && (
+        <TagProjectPicker
+          userId={me.id}
+          onSelect={(id, title) => {
+            setTaggedProject({ id, title });
+            setShowProjectPicker(false);
+          }}
+          onClose={() => setShowProjectPicker(false)}
+        />
+      )}
     </div>
   );
 }
