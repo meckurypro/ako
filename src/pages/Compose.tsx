@@ -1,17 +1,21 @@
 // src/pages/Compose.tsx
 
-import { useRef, useState } from "react";
-import { useNavigate, Link } from "react-router-dom";
+import { useRef, useState, useEffect } from "react";
+import { useNavigate, useLocation, Link } from "react-router-dom";
 import { useSmartBack } from "../hooks/useSmartBack";
-import { X, Image as ImageIcon, ChevronDown, ChevronRight, Link2 } from "lucide-react";
-import { useCreatePost } from "../hooks/usePosts";
+import { X, Image as ImageIcon, ChevronDown, ChevronRight, Link2, MoreHorizontal } from "lucide-react";
+import { useCreatePost, useDeleteDraftOrScheduledPost } from "../hooks/usePosts";
 import { useCategories } from "../hooks/useCategories";
 import { useUploadPostMedia, isVideoUrl } from "../hooks/useUploadPostMedia";
 import { useActiveIdentity } from "../hooks/usePages";
 import { useMyProfile } from "../hooks/useProfile";
+import { supabase } from "../lib/supabase";
 import { Avatar } from "../components/Avatar";
 import { MentionTextarea } from "../components/MentionTextarea";
 import { TagProjectPicker } from "../components/TagProjectPicker";
+import { DropdownMenu, type DropdownMenuItem } from "../components/DropdownMenu";
+import { Modal } from "../components/Modal";
+import { useToast } from "../components/Toast";
 import { CONTENT_LIMIT, contentCounterClass } from "../lib/textLimits";
 
 const HEADING_LIMIT = 50;
@@ -19,6 +23,7 @@ const MAX_MEDIA_FILES = 4;
 
 export function Compose() {
   const navigate = useNavigate();
+  const location = useLocation();
   const smartBack = useSmartBack();
   const [heading, setHeading] = useState("");
   const [content, setContent] = useState("");
@@ -34,11 +39,48 @@ export function Compose() {
   const [taggedProject, setTaggedProject] = useState<{ id: string; title: string } | null>(null);
   const [showProjectPicker, setShowProjectPicker] = useState(false);
   const createPost = useCreatePost();
+  const deleteDraftOrScheduled = useDeleteDraftOrScheduledPost();
   const uploadMedia = useUploadPostMedia();
   const { data: categories } = useCategories();
   const { data: identity } = useActiveIdentity();
   const { data: me } = useMyProfile();
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const moreButtonRef = useRef<HTMLButtonElement>(null);
+  const [moreMenuOpen, setMoreMenuOpen] = useState(false);
+  const [scheduleModalOpen, setScheduleModalOpen] = useState(false);
+  const [scheduleValue, setScheduleValue] = useState("");
+  const toast = useToast();
+
+  // Resuming a draft (see DraftPosts.tsx's "Resume" button) — loaded
+  // directly rather than through create-post's edge function, since
+  // this is just reading the author's own unpublished row back, not
+  // creating or moderating anything. Kept in a ref (not state) since
+  // it's read once, at submit time, to know which row to clean up —
+  // re-fetching it or reacting to it changing isn't needed.
+  const resumingDraftId = (location.state as { draftId?: string } | null)?.draftId ?? null;
+  const resumedDraftIdRef = useRef(resumingDraftId);
+
+  useEffect(() => {
+    if (!resumingDraftId) return;
+    (async () => {
+      const { data, error: fetchError } = await supabase
+        .from("posts")
+        .select("heading, content, category_id, media_urls")
+        .eq("id", resumingDraftId)
+        .single();
+      if (fetchError || !data) {
+        toast("Couldn't load that draft.", { variant: "error" });
+        return;
+      }
+      setHeading(data.heading ?? "");
+      setContent(data.content ?? "");
+      setCategoryId(data.category_id ?? null);
+      setMediaUrls(data.media_urls ?? []);
+    })();
+    // Only ever needs to run once, on mount — this is a one-time
+    // prefill, not a live sync with the draft row.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Who this post will be attributed to — set once, from whichever mode
   // was active when Compose opened (switching mid-draft would be
@@ -75,7 +117,7 @@ export function Compose() {
     setMediaUrls((prev) => prev.filter((u) => u !== url));
   }
 
-  async function handleSubmit() {
+  async function submitPost(status: "published" | "draft" | "scheduled", scheduledFor?: string) {
     if (!canPost) return;
     setError(null);
 
@@ -87,14 +129,66 @@ export function Compose() {
         media_urls: mediaUrls,
         posted_as_page_id: postingAsPage?.id,
         tagged_project_id: taggedProject?.id,
+        // Omitted entirely for the normal "Post now" path so a create-post
+        // deployment that predates the drafts/scheduling migration (see
+        // supabase-fixes/) keeps working exactly as it always did —
+        // only a draft/scheduled save sends anything new.
+        ...(status !== "published" ? { status, scheduled_for: scheduledFor } : {}),
       });
-      navigate(postingAsPage ? `/page/${postingAsPage.username}` : "/feed");
+
+      if (status === "draft") {
+        toast("Saved to your drafts.", { variant: "success" });
+        if (resumedDraftIdRef.current) deleteDraftOrScheduled.mutate(resumedDraftIdRef.current);
+        navigate("/activity/drafts");
+      } else if (status === "scheduled") {
+        toast("Scheduled — it'll post automatically.", { variant: "success" });
+        if (resumedDraftIdRef.current) deleteDraftOrScheduled.mutate(resumedDraftIdRef.current);
+        navigate("/activity/scheduled");
+      } else {
+        if (resumedDraftIdRef.current) deleteDraftOrScheduled.mutate(resumedDraftIdRef.current);
+        navigate(postingAsPage ? `/page/${postingAsPage.username}` : "/feed");
+      }
     } catch (err) {
       // Moderation rejections and other edge-function errors surface here —
       // the message is already short and direct, no need to reword it.
-      setError(err instanceof Error ? err.message : "Couldn't post this.");
+      // Staying on this screen (no navigate() above the catch) is what
+      // puts the author right back in edit mode with everything they
+      // typed still intact, ready to change whatever bounced.
+      const message = err instanceof Error ? err.message : "Couldn't post this.";
+      setError(message);
+      toast(message, { variant: "error" });
     }
   }
+
+  function handleSubmit() {
+    void submitPost("published");
+  }
+
+  function handleSaveDraft() {
+    void submitPost("draft");
+  }
+
+  function handleConfirmSchedule() {
+    if (!scheduleValue) return;
+    const iso = new Date(scheduleValue).toISOString();
+    setScheduleModalOpen(false);
+    void submitPost("scheduled", iso);
+  }
+
+  const moreMenuItems: DropdownMenuItem[] = [
+    {
+      key: "draft",
+      label: "Save as draft",
+      onSelect: handleSaveDraft,
+      disabled: !canPost,
+    },
+    {
+      key: "schedule",
+      label: "Schedule…",
+      onSelect: () => setScheduleModalOpen(true),
+      disabled: !canPost,
+    },
+  ];
 
   return (
     <div className="min-h-screen bg-canvas">
@@ -271,13 +365,24 @@ export function Compose() {
         <button onClick={smartBack} className="text-ink-muted p-1" aria-label="Close">
           <X size={22} />
         </button>
-        <button
-          onClick={handleSubmit}
-          disabled={!canPost || createPost.isPending}
-          className="bg-accent text-canvas px-5 py-2 rounded-full text-sm font-medium disabled:opacity-50"
-        >
-          {createPost.isPending ? "Posting…" : "Post"}
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            ref={moreButtonRef}
+            onClick={() => setMoreMenuOpen(true)}
+            disabled={!canPost || createPost.isPending}
+            className="text-ink-muted p-2 disabled:opacity-40"
+            aria-label="More posting options"
+          >
+            <MoreHorizontal size={20} />
+          </button>
+          <button
+            onClick={handleSubmit}
+            disabled={!canPost || createPost.isPending}
+            className="bg-accent text-canvas px-5 py-2 rounded-full text-sm font-medium disabled:opacity-50"
+          >
+            {createPost.isPending ? "Posting…" : "Post"}
+          </button>
+        </div>
       </div>
 
       {showProjectPicker && me && (
@@ -289,6 +394,47 @@ export function Compose() {
           }}
           onClose={() => setShowProjectPicker(false)}
         />
+      )}
+
+      {moreMenuOpen && (
+        <DropdownMenu
+          anchorRef={moreButtonRef}
+          items={moreMenuItems}
+          onClose={() => setMoreMenuOpen(false)}
+          widthClass="w-48"
+        />
+      )}
+
+      {scheduleModalOpen && (
+        <Modal onClose={() => setScheduleModalOpen(false)} ariaLabel="Schedule post">
+          <h2 className="font-display text-lg text-ink mb-1">Schedule this post</h2>
+          <p className="text-sm text-ink-muted mb-4">
+            It'll post automatically at the time you pick — you can find it under Activity →
+            Scheduled until then.
+          </p>
+          <input
+            type="datetime-local"
+            value={scheduleValue}
+            min={new Date(Date.now() + 5 * 60 * 1000).toISOString().slice(0, 16)}
+            onChange={(e) => setScheduleValue(e.target.value)}
+            className="w-full bg-surface rounded-xl px-4 py-3 text-sm text-ink border border-border"
+          />
+          <div className="flex items-center gap-2 mt-5">
+            <button
+              onClick={() => setScheduleModalOpen(false)}
+              className="flex-1 py-2.5 rounded-full border border-border text-sm font-medium text-ink"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={handleConfirmSchedule}
+              disabled={!scheduleValue}
+              className="flex-1 py-2.5 rounded-full bg-accent text-canvas text-sm font-medium disabled:opacity-50"
+            >
+              Schedule
+            </button>
+          </div>
+        </Modal>
       )}
     </div>
   );
