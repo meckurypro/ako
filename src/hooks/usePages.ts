@@ -52,6 +52,27 @@ export function usePageByUsername(username: string) {
   });
 }
 
+/** Child pages attached under this one — the reverse of
+ * parent_organization_id, powers the "Subsidiaries" rail on PagePage.
+ * Active pages only, same as any other public listing (a deactivated
+ * subsidiary shouldn't show up as if it still exists). */
+export function usePageSubsidiaries(pageId: string | undefined) {
+  return useQuery({
+    queryKey: ["page-subsidiaries", pageId],
+    queryFn: async (): Promise<PageSummary[]> => {
+      const { data, error } = await supabase
+        .from("pages")
+        .select("id, username, name, avatar_url, page_type, is_verified")
+        .eq("parent_organization_id", pageId)
+        .eq("is_active", true)
+        .order("created_at", { ascending: true });
+      if (error) throw error;
+      return data as PageSummary[];
+    },
+    enabled: !!pageId,
+  });
+}
+
 /**
  * Pages the signed-in user can currently switch into — every page
  * where they have an ACTIVE role. Powers the mode switcher and the
