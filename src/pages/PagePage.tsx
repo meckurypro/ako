@@ -2,7 +2,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useParams, Link, useNavigate } from "react-router-dom";
 import { useSmartBack } from "../hooks/useSmartBack";
-import { ArrowLeft, ArrowLeftRight, BadgeCheck, Check, ChevronDown, Globe, MoreHorizontal, Pencil, Redo2, Users, UserCog } from "lucide-react";
+import { ArrowLeft, ArrowLeftRight, BadgeCheck, Building2, Check, ChevronDown, Globe, MoreHorizontal, Pencil, Redo2, Users, UserCog } from "lucide-react";
 import { useAuth } from "../hooks/useAuth";
 import { useMyProfile } from "../hooks/useProfile";
 import { Avatar } from "../components/Avatar";
@@ -13,9 +13,11 @@ import {
   useIsFollowingPage,
   useTogglePageFollow,
   usePageMembers,
+  usePageSubsidiaries,
   useMyPages,
   useActiveIdentity,
   useSwitchActiveMode,
+  usePageById,
 } from "../hooks/usePages";
 import { usePagePosts } from "../hooks/usePosts";
 import { pageModeLabel } from "../lib/pageRoles";
@@ -60,6 +62,11 @@ export function PagePage() {
   const switchMode = useSwitchActiveMode();
   const isFollowingQuery = useIsFollowingPage(page?.id ?? "");
   const toggleFollow = useTogglePageFollow(page?.id ?? "");
+  // "A Subsidiary of {name}" line, and this page's own Subsidiaries
+  // rail — see ako_pages_v2_subsidiaries.sql for what actually governs
+  // this relationship server-side.
+  const { data: parentPage } = usePageById(page?.parent_organization_id ?? "", !!page?.parent_organization_id);
+  const { data: subsidiaries } = usePageSubsidiaries(page?.id);
 
   const isFollowing = !!isFollowingQuery.data;
   const myMembership = members?.find((m) => m.user_id === user?.id && m.status === "active");
@@ -234,6 +241,17 @@ export function PagePage() {
                     Manage team
                   </Link>
                 )}
+
+                {isAdmin && (
+                  <Link
+                    to={`/pages/new?parent=${page.id}`}
+                    onClick={() => setMenuOpen(false)}
+                    className="flex items-center gap-2.5 px-4 py-2.5 text-sm text-ink hover:bg-surface"
+                  >
+                    <Building2 size={16} />
+                    Add Subsidiary
+                  </Link>
+                )}
               </div>
             )}
           </div>
@@ -280,6 +298,14 @@ export function PagePage() {
                 {pageModeLabel(page.page_type)} · @{page.username}
               </p>
               {page.tagline && <p className="text-sm text-ink mt-1">{page.tagline}</p>}
+              {parentPage && (
+                <p className="text-xs text-ink-muted mt-1">
+                  A Subsidiary of{" "}
+                  <Link to={`/page/${parentPage.username}`} className="text-accent font-medium">
+                    {parentPage.name}
+                  </Link>
+                </p>
+              )}
             </div>
           </div>
 
@@ -330,6 +356,24 @@ export function PagePage() {
                   >
                     <Avatar src={m.profile.avatar_url} name={m.profile.display_name} size="md" />
                     <span className="text-[11px] text-ink-muted truncate w-full">{m.role_label}</span>
+                  </Link>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {subsidiaries && subsidiaries.length > 0 && (
+            <div className="mt-5">
+              <p className="text-xs font-medium text-ink-muted uppercase tracking-wide mb-2">Subsidiaries</p>
+              <div className="flex gap-3 overflow-x-auto no-scrollbar">
+                {subsidiaries.map((s) => (
+                  <Link
+                    key={s.id}
+                    to={`/page/${s.username}`}
+                    className="flex flex-col items-center gap-1 flex-shrink-0 w-16 text-center"
+                  >
+                    <Avatar src={s.avatar_url} name={s.name} size="md" />
+                    <span className="text-[11px] text-ink-muted truncate w-full">{s.name}</span>
                   </Link>
                 ))}
               </div>
