@@ -11,6 +11,7 @@ import {
   type ProjectStatus,
 } from "../hooks/useProjects";
 import { useEventDetails, useMeetingDetails, useMediaDetails, useGigDetails, useGigSamples, usePitchDetails } from "../hooks/useProjectTypeDetails";
+import { useRoomDetails } from "../hooks/useRoom";
 import { supabase } from "../lib/supabase";
 import { useUploadProjectThumbnail } from "../hooks/useUploadProjectThumbnail";
 import { FormField } from "../components/FormField";
@@ -31,6 +32,7 @@ import {
   type MediaFieldsValue,
 } from "../components/project-types/MediaFields";
 import { GigFields, EMPTY_GIG_FIELDS, type GigFieldsValue } from "../components/project-types/GigFields";
+import { RoomFields, EMPTY_ROOM_FIELDS, type RoomFieldsValue } from "../components/project-types/RoomFields";
 import { PitchFields, EMPTY_PITCH_FIELDS, type PitchFieldsValue } from "../components/project-types/PitchFields";
 
 // 'cancelled' is deliberately not offered here — it only happens
@@ -61,6 +63,7 @@ export function EditProject() {
   const { data: existingGigDetails } = useGigDetails(project?.project_type === "gig" ? projectId : undefined);
   const { data: existingGigSamples } = useGigSamples(project?.project_type === "gig" ? projectId : undefined);
   const { data: existingPitchDetails } = usePitchDetails(project?.project_type === "pitch" ? projectId : undefined);
+  const { data: existingRoomDetails } = useRoomDetails(project?.project_type === "room" ? projectId : undefined);
   const updateProject = useUpdateProject();
   const uploadThumbnail = useUploadProjectThumbnail();
 
@@ -86,6 +89,7 @@ export function EditProject() {
   const [meetingFields, setMeetingFields] = useState<MeetingFieldsValue>(EMPTY_MEETING_FIELDS);
   const [gigFields, setGigFields] = useState<GigFieldsValue>(EMPTY_GIG_FIELDS);
   const [pitchFields, setPitchFields] = useState<PitchFieldsValue>(EMPTY_PITCH_FIELDS);
+  const [roomFields, setRoomFields] = useState<RoomFieldsValue>(EMPTY_ROOM_FIELDS);
   const [typeDetailsHydrated, setTypeDetailsHydrated] = useState(false);
 
   const thumbnailInputRef = useRef<HTMLInputElement>(null);
@@ -197,7 +201,18 @@ export function EditProject() {
       // not something the creator manages from this form.
       setPitchFields({ goal_amount_usd: String(existingPitchDetails.goal_amount_usd) });
       setTypeDetailsHydrated(true);
-    } else if (!["event", "meeting", "media", "gig", "pitch"].includes(project.project_type)) {
+    } else if (project.project_type === "room" && existingRoomDetails !== undefined) {
+      // existingRoomDetails is `undefined` while the query is still
+      // loading and `null` if the row genuinely doesn't exist yet
+      // (shouldn't happen — useCreateProject always creates one — but
+      // falling back to empty rather than getting stuck is safer than
+      // the alternative of never hydrating at all).
+      setRoomFields({
+        start_date: existingRoomDetails?.start_date?.slice(0, 16) ?? "",
+        end_date: existingRoomDetails?.end_date?.slice(0, 16) ?? "",
+      });
+      setTypeDetailsHydrated(true);
+    } else if (!["event", "meeting", "media", "gig", "pitch", "room"].includes(project.project_type)) {
       setTypeDetailsHydrated(true);
     }
   }, [
@@ -208,6 +223,7 @@ export function EditProject() {
     existingGigDetails,
     existingGigSamples,
     existingPitchDetails,
+    existingRoomDetails,
     typeDetailsHydrated,
   ]);
 
@@ -252,6 +268,14 @@ export function EditProject() {
       if (!pitchFields.goal_amount_usd.trim() || Number.isNaN(goal) || goal <= 0) {
         return "Set a fundraising goal above $0.";
       }
+    }
+    if (
+      project.project_type === "room" &&
+      roomFields.start_date &&
+      roomFields.end_date &&
+      new Date(roomFields.end_date) <= new Date(roomFields.start_date)
+    ) {
+      return "End date needs to be after the start date.";
     }
     return null;
   }
@@ -394,6 +418,14 @@ export function EditProject() {
           .eq("project_id", projectId);
         if (detailsError) throw detailsError;
       }
+      if (project.project_type === "room") {
+        const { error: detailsError } = await supabase.from("project_room_details").upsert({
+          project_id: projectId,
+          start_date: roomFields.start_date ? new Date(roomFields.start_date).toISOString() : null,
+          end_date: roomFields.end_date ? new Date(roomFields.end_date).toISOString() : null,
+        });
+        if (detailsError) throw detailsError;
+      }
 
       navigate(-1);
     } catch (err) {
@@ -516,9 +548,12 @@ export function EditProject() {
             <MeetingFields value={meetingFields} onChange={setMeetingFields} />
           )}
           {project.project_type === "room" && (
-            <p className="text-xs text-ink-muted mb-4">
-              Manage announcements, meetings, and assignments from the room itself.
-            </p>
+            <>
+              <RoomFields value={roomFields} onChange={setRoomFields} />
+              <p className="text-xs text-ink-muted mb-4 -mt-2">
+                Manage lectures, chat, meetings, and assignments from the cohort itself.
+              </p>
+            </>
           )}
           {project.project_type === "course" && (
             <p className="text-xs text-ink-muted mb-4">
