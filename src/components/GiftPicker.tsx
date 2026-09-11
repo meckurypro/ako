@@ -159,15 +159,12 @@ export function GiftPicker({
                       aria-label={`${gift.name}, $${gift.cost_usd.toFixed(2)}`}
                       className="flex flex-col items-center gap-1.5"
                     >
-                      {/* Single box — no nested accent-soft square inside a
-                          bordered card. p-2 keeps a small margin so the
-                          artifact doesn't touch the box edge; object-contain
-                          (not object-cover in a circle) so the artifact
-                          renders whole — a staff or shield silhouette
-                          shouldn't get corner-cropped by a circular mask
-                          the way a generic icon could. Price sits outside
-                          the box, not inside a card. */}
-                      <div className="w-20 h-20 rounded-2xl bg-canvas border border-border flex items-center justify-center overflow-hidden p-2">
+                      {/* No box — the artifact sits directly on the sheet
+                          background. object-contain (not object-cover in a
+                          circle) so it renders whole — a staff or shield
+                          silhouette shouldn't get corner-cropped the way a
+                          generic icon could. */}
+                      <div className="w-20 h-20 flex items-center justify-center">
                         {gift.icon_url ? (
                           <img src={gift.icon_url} alt="" className="w-full h-full object-contain" />
                         ) : (
@@ -184,7 +181,7 @@ export function GiftPicker({
 
           {step === "confirm" && selected && (
             <div className="flex flex-col items-center text-center gap-4 py-2">
-              <div className="w-20 h-20 rounded-2xl bg-canvas border border-border flex items-center justify-center overflow-hidden p-3">
+              <div className="w-20 h-20 flex items-center justify-center">
                 {selected.icon_url ? (
                   <img src={selected.icon_url} alt="" className="w-full h-full object-contain" />
                 ) : (
@@ -223,7 +220,7 @@ export function GiftPicker({
 
           {step === "sent" && selected && (
             <div className="flex flex-col items-center text-center gap-3 py-8">
-              <div className="relative w-16 h-16 rounded-2xl bg-canvas border border-border flex items-center justify-center overflow-hidden p-2.5 ako-gift-pop">
+              <div className="relative w-16 h-16 flex items-center justify-center ako-gift-pop">
                 {selected.icon_url ? (
                   <img src={selected.icon_url} alt="" className="w-full h-full object-contain" />
                 ) : (
@@ -275,21 +272,19 @@ export function GiftPicker({
       </div>
 
       {/* Insufficient-balance notice — sits above everything, including
-          the sheet. Tap anywhere to dismiss. Reuses the sheet's overlay
-          treatment, stacked, for a darker/blurrier feel. Now shows the
-          gift itself (bold, centered, single box matching the catalog
-          treatment) above the message instead of text alone. */}
+          the sheet. Tap anywhere to dismiss. No box around the icon —
+          it's shown large and unboxed above the message. */}
       {insufficientGift && (
         <div
           className="fixed inset-0 z-[70] flex flex-col items-center justify-center gap-4 px-10 bg-canvas/70 backdrop-blur-overlay"
           onClick={() => setInsufficientGift(null)}
           role="alert"
         >
-          <div className="w-24 h-24 rounded-2xl bg-canvas border border-border flex items-center justify-center overflow-hidden p-3">
+          <div className="w-44 h-44 flex items-center justify-center">
             {insufficientGift.icon_url ? (
               <img src={insufficientGift.icon_url} alt="" className="w-full h-full object-contain" />
             ) : (
-              <span className="text-4xl">🎁</span>
+              <span className="text-8xl">🎁</span>
             )}
           </div>
           <p className="text-ink text-center text-base font-medium max-w-xs">
@@ -301,4 +296,4 @@ export function GiftPicker({
     </div>
     </Portal>
   );
-                }
+          }
