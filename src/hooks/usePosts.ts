@@ -17,11 +17,17 @@ const AUTHOR_SELECT = `id, username, display_name, avatar_url, tier, is_private,
 // published in Page mode. PostCard should prefer this over `author`
 // for byline/avatar whenever it's non-null.
 const PAGE_SELECT = `posted_as_page:pages(id, username, name, avatar_url, page_type, is_verified)`;
+// Item 10 — the tagged project's card-preview fields only (not `*`):
+// this rides along on every single post fetch in the feed, so keeping
+// it to what TaggedProjectEmbed.tsx actually renders (thumbnail,
+// title, type, price, status, owner byline) matters for payload size
+// on a feed page of 15 posts.
+const TAGGED_PROJECT_SELECT = `tagged_project:projects!posts_tagged_project_id_fkey(id, title, thumbnail_url, project_type, price_usd, promo_price_usd, status, owner:profiles!projects_owner_id_fkey(username, display_name))`;
 
 // One level deep: the embedded reshared_post carries its own author but
 // not a further-nested reshared_post, so repost-of-a-repost links to the
 // immediate parent rather than recursing indefinitely.
-const FEED_SELECT = `*, author:profiles!posts_author_id_fkey(${AUTHOR_SELECT}), ${PAGE_SELECT}, reshared_post(*, author:profiles!posts_author_id_fkey(${AUTHOR_SELECT}))`;
+const FEED_SELECT = `*, author:profiles!posts_author_id_fkey(${AUTHOR_SELECT}), ${PAGE_SELECT}, ${TAGGED_PROJECT_SELECT}, reshared_post(*, author:profiles!posts_author_id_fkey(${AUTHOR_SELECT}))`;
 
 export function canEditPost(post: Pick<PostWithAuthor, "created_at">): boolean {
   return Date.now() - new Date(post.created_at).getTime() <= POST_EDIT_WINDOW_MS;
@@ -55,6 +61,12 @@ interface CreatePostInput {
   // instead of create-post, and attributes the post to the page. See
   // useActiveIdentity in hooks/usePages.ts for where this comes from.
   posted_as_page_id?: string;
+  // Item 10 — the id of a project being tagged into this post. See
+  // sql/30_post_project_tag.sql: the create-post / create-page-post
+  // edge functions need to start persisting this field, same as they
+  // already persist media_urls/category_id — not something this repo
+  // can change directly.
+  tagged_project_id?: string;
 }
 
 /**
