@@ -1,3 +1,4 @@
+// src/hooks/useWallet.ts
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "../lib/supabase";
 import { useAuth } from "./useAuth";
@@ -34,6 +35,38 @@ export function useGiftTypes() {
       return data;
     },
     staleTime: 5 * 60 * 1000,
+  });
+}
+
+// The current user's most-frequently-sent gift types, most-used first.
+// Backs GiftPicker's "top six used collect the top two rows" behavior —
+// derived client-side from the `gifts` table (sender_id, gift_type_id)
+// rather than a dedicated aggregate table, since gift-sending volume per
+// user is low enough that this is cheap and always accurate.
+export function useTopGiftTypeIds(limit = 6) {
+  const { user } = useAuth();
+
+  return useQuery({
+    queryKey: ["top-gift-types", user?.id],
+    queryFn: async (): Promise<string[]> => {
+      const { data, error } = await supabase
+        .from("gifts")
+        .select("gift_type_id")
+        .eq("sender_id", user!.id);
+      if (error) throw error;
+
+      const counts = new Map<string, number>();
+      for (const row of data) {
+        counts.set(row.gift_type_id, (counts.get(row.gift_type_id) ?? 0) + 1);
+      }
+
+      return [...counts.entries()]
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, limit)
+        .map(([id]) => id);
+    },
+    enabled: !!user,
+    staleTime: 60 * 1000,
   });
 }
 
