@@ -10,10 +10,10 @@ import { useSavedAccounts, useSwitchAccount } from "../hooks/useAccountSwitcher"
 // Tapping your own display name on your profile opens this — same
 // "tap the name to switch" gesture as the organisation/brand switcher
 // on PagePage, just scoped to personal accounts saved on this device
-// instead of pages you run. Only rendered by the caller when there's
-// something to switch between or add — see ProfilePage.tsx, which
-// skips straight to /login?add=1 instead of opening this when there
-// are no other accounts saved yet.
+// instead of pages you run. Always opened by the caller (ProfilePage.tsx)
+// regardless of whether there's anyone else saved yet — this already
+// renders "You" plus an "Add account" row unconditionally below, so
+// there's nothing left for the caller to gate on.
 export function AccountSwitcher({ onClose }: { onClose: () => void }) {
   const navigate = useNavigate();
   const { user } = useAuth();
