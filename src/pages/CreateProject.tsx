@@ -27,7 +27,7 @@ import { FormatToolbar } from "../components/FormatToolbar";
 import { CONTENT_LIMIT, contentCounterClass } from "../lib/textLimits";
 import { EventFields, EMPTY_EVENT_FIELDS, type EventFieldsValue } from "../components/project-types/EventFields";
 import { MeetingFields, EMPTY_MEETING_FIELDS, type MeetingFieldsValue } from "../components/project-types/MeetingFields";
-import { RoomFields } from "../components/project-types/RoomFields";
+import { RoomFields, EMPTY_ROOM_FIELDS, type RoomFieldsValue } from "../components/project-types/RoomFields";
 import { CourseFields } from "../components/project-types/CourseFields";
 import { FileFields, EMPTY_FILE_FIELDS, type FileFieldsValue } from "../components/project-types/FileFields";
 import { UrlFields, EMPTY_URL_FIELDS, type UrlFieldsValue } from "../components/project-types/UrlFields";
@@ -117,6 +117,7 @@ export function CreateProject() {
   const [meetingFields, setMeetingFields] = useState<MeetingFieldsValue>(EMPTY_MEETING_FIELDS);
   const [gigFields, setGigFields] = useState<GigFieldsValue>(EMPTY_GIG_FIELDS);
   const [pitchFields, setPitchFields] = useState<PitchFieldsValue>(EMPTY_PITCH_FIELDS);
+  const [roomFields, setRoomFields] = useState<RoomFieldsValue>(EMPTY_ROOM_FIELDS);
 
   const thumbnailInputRef = useRef<HTMLInputElement>(null);
 
@@ -175,6 +176,14 @@ export function CreateProject() {
       if (!pitchFields.goal_amount_usd.trim() || Number.isNaN(goal) || goal <= 0) {
         return "Set a fundraising goal above $0.";
       }
+    }
+    if (
+      projectType === "room" &&
+      roomFields.start_date &&
+      roomFields.end_date &&
+      new Date(roomFields.end_date) <= new Date(roomFields.start_date)
+    ) {
+      return "End date needs to be after the start date.";
     }
     return null;
   }
@@ -330,6 +339,13 @@ export function CreateProject() {
                         .map((f) => ({ question: f.question.trim(), answer: f.answer.trim() }))
                         .filter((f) => f.question && f.answer)
                     : undefined,
+              }
+            : undefined,
+        room_details:
+          projectType === "room"
+            ? {
+                start_date: roomFields.start_date ? new Date(roomFields.start_date).toISOString() : undefined,
+                end_date: roomFields.end_date ? new Date(roomFields.end_date).toISOString() : undefined,
               }
             : undefined,
       });
@@ -491,7 +507,7 @@ export function CreateProject() {
           {projectType === "url" && <UrlFields value={urlFields} onChange={setUrlFields} />}
           {projectType === "event" && <EventFields value={eventFields} onChange={setEventFields} />}
           {projectType === "meeting" && <MeetingFields value={meetingFields} onChange={setMeetingFields} />}
-          {projectType === "room" && <RoomFields />}
+          {projectType === "room" && <RoomFields value={roomFields} onChange={setRoomFields} />}
           {projectType === "course" && <CourseFields />}
           {projectType === "gig" && <GigFields value={gigFields} onChange={setGigFields} />}
           {projectType === "pitch" && <PitchFields value={pitchFields} onChange={setPitchFields} />}
