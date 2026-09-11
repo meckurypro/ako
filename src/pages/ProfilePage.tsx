@@ -23,7 +23,6 @@ import { useUserProjects } from "../hooks/useProjects";
 import { useRecordProfileVisit, useProfileVisitCount } from "../hooks/useProfileVisits";
 import { Avatar } from "../components/Avatar";
 import { AccountSwitcher } from "../components/AccountSwitcher";
-import { useSavedAccounts } from "../hooks/useAccountSwitcher";
 import { ImageLightbox } from "../components/ImageLightbox";
 import { TierBadge } from "../components/TierBadge";
 import { RoleTags } from "../components/RoleTags";
@@ -74,15 +73,16 @@ export function ProfilePage() {
   // the only account on the device, tapping the name should skip
   // straight to adding one instead of opening a dropdown with just
   // "You" and an "Add account" row in it.
-  const { accounts: savedAccounts } = useSavedAccounts();
-  const hasOtherAccounts = savedAccounts.some((a) => a.user_id !== user?.id);
-
+  // Always opens the same AccountSwitcher dropdown now, regardless of
+  // whether there's anyone else saved yet — it already renders "You"
+  // plus an "Add account" row unconditionally (see AccountSwitcher.tsx),
+  // so there was never a real need to skip past it. Jumping straight
+  // to the full /login?add=1 page when this is the only account on the
+  // device read as an unexplained forced logout; a small, familiar
+  // dropdown with an explicit "Add account" row makes what's about to
+  // happen obvious before it happens.
   function handleAccountNameClick() {
-    if (hasOtherAccounts) {
-      setAccountSwitcherOpen((o) => !o);
-    } else {
-      navigate("/login?add=1");
-    }
+    setAccountSwitcherOpen((o) => !o);
   }
   // Account-mode: the org/brand (if any) this user runs, shown as
   // switch-into rows in the owner menu below (see handleModeMenuClick).
