@@ -1,3 +1,4 @@
+// src/hooks/useGifting.ts
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "../lib/supabase";
 import { useSound } from "./useSound";
@@ -29,6 +30,9 @@ export function useSendGift() {
       queryClient.invalidateQueries({ queryKey: ["wallet"] });
       queryClient.invalidateQueries({ queryKey: ["wallet-transactions"] });
       queryClient.invalidateQueries({ queryKey: ["feed-posts"] });
+      // Keeps GiftPicker's "top 6 used" grid ordering fresh right after
+      // a send, so a newly-frequent gift can move up on next open.
+      queryClient.invalidateQueries({ queryKey: ["top-gift-types"] });
       play("gift-sent");
     },
   });
