@@ -56,6 +56,11 @@ export function GiftPicker({
 
   const balance = Number(wallet?.balance ?? 0);
 
+  // Cheapest first, filling the grid left-to-right / top-to-bottom —
+  // independent of admin-set sort_order, which still governs the
+  // AdminGiftTypes list.
+  const sortedGiftTypes = giftTypes ? [...giftTypes].sort((a, b) => a.cost_usd - b.cost_usd) : giftTypes;
+
   function handleSelect(gift: GiftType) {
     setSelected(gift);
     setError(null);
@@ -118,21 +123,23 @@ export function GiftPicker({
             <>
               {loadingGifts ? (
                 <p className="text-ink-muted text-sm text-center py-10">Loading gifts…</p>
-              ) : !giftTypes || giftTypes.length === 0 ? (
+              ) : !sortedGiftTypes || sortedGiftTypes.length === 0 ? (
                 <p className="text-ink-muted text-sm text-center py-10">No gifts available right now.</p>
               ) : (
                 <div className="grid grid-cols-3 gap-3">
-                  {giftTypes.map((gift) => (
+                  {sortedGiftTypes.map((gift) => (
                     <button
                       key={gift.id}
                       onClick={() => handleSelect(gift)}
-                      className="flex flex-col items-center gap-1.5 bg-canvas rounded-xl border border-border p-3"
+                      aria-label={`${gift.name}, $${gift.cost_usd.toFixed(2)}`}
+                      className="flex items-center justify-center bg-canvas rounded-xl border border-border p-3"
                     >
-                      {/* p-2 + object-contain (not object-cover in a
-                          circle) so the artifact renders whole — a
-                          staff or shield silhouette shouldn't get
-                          corner-cropped by a circular mask the way a
-                          generic icon could. */}
+                      {/* Image-only tile — name and price now live on the
+                          confirm step, not here. p-2 + object-contain
+                          (not object-cover in a circle) so the artifact
+                          renders whole — a staff or shield silhouette
+                          shouldn't get corner-cropped by a circular mask
+                          the way a generic icon could. */}
                       <div className="w-14 h-14 rounded-2xl bg-accent-soft flex items-center justify-center overflow-hidden p-2">
                         {gift.icon_url ? (
                           <img src={gift.icon_url} alt="" className="w-full h-full object-contain" />
@@ -140,8 +147,6 @@ export function GiftPicker({
                           <span className="text-lg">🎁</span>
                         )}
                       </div>
-                      <span className="text-xs font-medium text-ink text-center leading-tight">{gift.name}</span>
-                      <span className="text-xs text-ink-muted">${gift.cost_usd.toFixed(2)}</span>
                     </button>
                   ))}
                 </div>
