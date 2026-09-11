@@ -62,3 +62,41 @@ export function useProfileVisitCount(profileId: string | undefined, enabled: boo
     enabled: enabled && !!profileId,
   });
 }
+
+/**
+ * Logs a click-through from a post's byline (avatar or name) to the
+ * poster's profile — a post engagement metric distinct from the
+ * profile-owner-facing 30-day stat above. Fire-and-forget, same as
+ * useRecordProfileVisit: called from an onClick, not an effect,
+ * because "visited from this specific post" only makes sense as a
+ * discrete event, not something to log on every render/mount.
+ *
+ * No-ops for self-clicks (own post) and while signed out — an
+ * anonymous click can't be attributed to a visitor_id, and a post's
+ * profile_visit_count shouldn't count its own author clicking their
+ * own byline. See sql/27_post_profile_visits.sql for the table,
+ * unique-per-(post, visitor) upsert target, and the trigger that
+ * keeps posts.profile_visit_count in sync.
+ *
+ * Only call this for a profile destination — a post byline that
+ * routes to a page (posted_as_page_id set) isn't a profile visit at
+ * all and has nowhere to log this against yet; callers should check
+ * that before invoking (see PostCard.tsx).
+ */
+export function recordProfileVisitFromPost(
+  postId: string,
+  visitedProfileId: string,
+  visitorId: string
+): void {
+  if (visitorId === visitedProfileId) return;
+
+  supabase
+    .from("post_profile_visits")
+    .upsert(
+      { post_id: postId, visited_profile_id: visitedProfileId, visitor_id: visitorId },
+      { onConflict: "post_id,visitor_id", ignoreDuplicates: true }
+    )
+    .then(({ error }) => {
+      if (error) console.error("Failed to record post-sourced profile visit:", error.message);
+    });
+}
