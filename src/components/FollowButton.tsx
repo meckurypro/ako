@@ -1,6 +1,6 @@
 // src/components/FollowButton.tsx
 import { useEffect, useRef, useState } from "react";
-import { useIsFollowing, useIsFollowedByUser, useToggleFollow } from "../hooks/useProfile";
+import { useIsFollowingAsActiveIdentity, useIsFollowedByUser, useToggleFollowAsActiveIdentity } from "../hooks/useProfile";
 import { useHasPendingFollowRequest, useSendFollowRequest } from "../hooks/useFollowRequests";
 
 interface FollowButtonProps {
@@ -19,12 +19,28 @@ interface FollowButtonProps {
  * ProfilePage button, where it's a deliberate, harder-to-miss action.
  *
  * PostCard is responsible for not rendering this at all on your own posts.
+ *
+ * Uses the active-identity-aware follow hooks (useIsFollowingAsActiveIdentity
+ * / useToggleFollowAsActiveIdentity), NOT the plain personal ones — this is
+ * the control most likely to get tapped while acting as a page (liking/
+ * following straight from a card in the feed), so it's the one that most
+ * needed the item 7 fix: previously this always wrote to the tapping
+ * person's own `follows` row regardless of Page mode.
+ *
+ * useIsFollowedByUser (the "do they already follow ME" check for the
+ * Friends/"Follow back" distinction) intentionally stays personal-only —
+ * a page doesn't have a "Friends" concept the way a person does, and
+ * private-account follow REQUESTS (useHasPendingFollowRequest /
+ * useSendFollowRequest below) aren't identity-aware yet either. Flagging
+ * that as a follow-up rather than silently leaving it half-done: a page
+ * sending a follow request to a private account will currently still
+ * send it as the acting person, not the page.
  */
 export function FollowButton({ authorId, isPrivate }: FollowButtonProps) {
-  const isFollowingQuery = useIsFollowing(authorId);
+  const isFollowingQuery = useIsFollowingAsActiveIdentity(authorId);
   const isFollowedByUserQuery = useIsFollowedByUser(authorId);
   const hasPendingQuery = useHasPendingFollowRequest(authorId);
-  const toggleFollow = useToggleFollow(authorId);
+  const toggleFollow = useToggleFollowAsActiveIdentity(authorId);
   const sendRequest = useSendFollowRequest(authorId);
 
   const isFollowing = !!isFollowingQuery.data;
