@@ -37,7 +37,7 @@ export const PROJECT_TYPE_LABELS: Record<ProjectType, string> = {
   file: "File",
   url: "URL",
   course: "Course",
-  room: "Room",
+  room: "Cohort",
   meeting: "Meeting",
   gig: "Gig",
   pitch: "Pitch",
@@ -61,7 +61,7 @@ export const PROJECT_TYPE_OPTIONS: ProjectType[] = [
 export const PROJECT_TYPE_HINTS: Record<ProjectType, string> = {
   event: "Sell tickets to something happening in person or online.",
   meeting: "A single scheduled live session people buy access to join.",
-  room: "An ongoing paid group — announcements, live meetings, assignments.",
+  room: "A structured learning group with a start and end date — lectures, live meetings, assignments, and its own chat.",
   course: "Structured modules and lessons. Build it, then publish when ready.",
   media: "Audio, video, or both. Link out (Spotify, YouTube) or upload to stream here.",
   file: "A file you upload and host here — visitors download it with one click.",
@@ -477,6 +477,11 @@ interface GigDetailsInput {
   faq?: { question: string; answer: string }[];
 }
 
+interface RoomDetailsInput {
+  start_date?: string;
+  end_date?: string;
+}
+
 interface CreateProjectInput {
   title: string;
   description?: string;
@@ -501,6 +506,7 @@ interface CreateProjectInput {
   meeting_details?: MeetingDetailsInput;
   media_details?: MediaDetailsInput;
   gig_details?: GigDetailsInput;
+  room_details?: RoomDetailsInput;
 }
 
 export function useCreateProject() {
@@ -515,6 +521,7 @@ export function useCreateProject() {
       meeting_details,
       media_details,
       gig_details,
+      room_details,
       ...input
     }: CreateProjectInput) => {
       if (!user) throw new Error("Not signed in");
@@ -571,6 +578,16 @@ export function useCreateProject() {
           const { error: samplesError } = await supabase.from("project_gig_samples").insert(rows);
           if (samplesError) throw samplesError;
         }
+      }
+      if (input.project_type === "room") {
+        // Always create the details row, even with no dates set yet —
+        // it's also where the group chat's conversation_id and
+        // moderation toggles live, so a Cohort should never be
+        // without one.
+        const { error: detailsError } = await supabase
+          .from("project_room_details")
+          .insert({ project_id: data.id, ...room_details });
+        if (detailsError) throw detailsError;
       }
 
       return data;
