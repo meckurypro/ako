@@ -612,20 +612,53 @@ export function useUserPostsWithArchived(userId: string, includeArchived: boolea
   return useQuery({
     queryKey: ["user-posts", userId, "with-archived", includeArchived],
     queryFn: async (): Promise<PostWithAuthor[]> => {
-      let query = supabase
+      let authoredQuery = supabase
         .from("posts")
         .select(FEED_SELECT)
         .eq("author_id", userId)
         .eq("is_deleted", false);
-
       if (!includeArchived) {
-        query = query.eq("is_archived", false);
+        authoredQuery = authoredQuery.eq("is_archived", false);
       }
 
-      const { data, error } = await query.order("created_at", { ascending: false });
-      if (error) throw error;
-      return (data as any[]).map(normalizePost);
+      // A profile's post grid is everything the user authored, PLUS
+      // anything they're an accepted collaborator on — a collaborator
+      // should see the post on their own profile the same as the
+      // author does, not just be reachable via the original author's
+      // page. See post_collaborators / useCollaboration.ts.
+      const [authoredRes, collaboratedRes] = await Promise.all([
+        authoredQuery.order("created_at", { ascending: false }),
+        supabase
+          .from("post_collaborators")
+          .select(`post:posts!post_collaborators_post_id_fkey(${FEED_SELECT})`)
+          .eq("user_id", userId)
+          .eq("status", "accepted"),
+      ]);
+      if (authoredRes.error) throw authoredRes.error;
+      if (collaboratedRes.error) throw collaboratedRes.error;
+
+      const authored = (authoredRes.data as any[]).map(normalizePost);
+
+      // Same to-one-embedded-as-array quirk as elsewhere in this
+      // codebase (see useCollaboration.ts) — `post` comes back as an
+      // array even though the FK is to a single row; also null when
+      // the post itself was hard-deleted, so it's filtered out here
+      // rather than reaching normalizePost with nothing to normalize.
+      const collaborated = (collaboratedRes.data ?? [])
+        .map((row: any) => (Array.isArray(row.post) ? row.post[0] : row.post))
+        .filter((post: any) => post && !post.is_deleted && (includeArchived || !post.is_archived))
+        .map(normalizePost);
+
+      // A post could theoretically show up in both lists (shouldn't
+      // happen — the author isn't normally also their own
+      // collaborator — but de-duping by id keeps that safe either way).
+      const byId = new Map<string, PostWithAuthor>();
+      for (const post of [...authored, ...collaborated]) byId.set(post.id, post);
+
+      return Array.from(byId.values()).sort(
+        (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+      );
     },
     enabled: !!userId,
   });
-                                                          }
+}
