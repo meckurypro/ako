@@ -1,10 +1,32 @@
 <!-- README.md -->
 # Akọ — "A Reason to Reason"
 
-Akọ is a social app with a built-in creator-monetization layer: a feed
-(posts, follows, gifting) plus a **Projects marketplace** where
-creators sell access to seven different kinds of content and
-experiences.
+*Akọ* is the Igbo word for discernment — good sense, sound judgment.
+The app is built on the belief that a social platform can be more
+than a feed to scroll: it can be a place where thought turns into
+something made, taught, hosted, or shared.
+
+Akọ is a social network for people who have something to say, make,
+teach, host, or share. The core loop:
+
+**say it → discuss it → gather people around it → build it → let
+people pay to participate.**
+
+Concretely, that's a familiar social layer (posts, follows, gifting)
+wrapped around a **Projects marketplace** — the mechanism that lets a
+post become a course, a meeting, a room, an event, or a sellable
+file, instead of just words that scroll away.
+
+| Layer | What it's for |
+|---|---|
+| Feed | expression |
+| Following | relationships |
+| Projects | creation |
+| Events / Meetings / Rooms | participation |
+| Courses | learning |
+| Audio / Video / Files / URLs | distribution |
+| Gifting | appreciation & support |
+| Creator monetization | economic value |
 
 Stack: React 19 + TypeScript + Vite + Tailwind, on Supabase (Postgres
 + Auth + Storage + Edge Functions).
