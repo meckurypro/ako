@@ -176,6 +176,12 @@ export interface Post {
   // the human who posted it, but display/attribution should prefer the
   // page (see posted_as_page below) whenever this is non-null.
   posted_as_page_id: string | null;
+  // Requires supabase-fixes/add_post_drafts_and_scheduling.sql —
+  // absent from the live schema until that migration runs, at which
+  // point every row backfills to "published" by the column's own
+  // DEFAULT. See useMyDraftPosts/useMyScheduledPosts in usePosts.ts.
+  status?: "draft" | "scheduled" | "published";
+  scheduled_for?: string | null;
 }
 
 // Joined shape used when rendering a feed card — the post plus
