@@ -67,6 +67,15 @@ interface CreatePostInput {
   // already persist media_urls/category_id — not something this repo
   // can change directly.
   tagged_project_id?: string;
+  // Defaults to "published" server-side when omitted — only send this
+  // for a draft or scheduled save. See
+  // supabase-fixes/add_post_drafts_and_scheduling.sql: requires that
+  // migration AND the corresponding create-post edge function change
+  // to actually take effect; the request shape here is ready for it,
+  // but the insert itself is out of this repo's reach until then.
+  status?: "draft" | "scheduled" | "published";
+  // Required iff status === "scheduled".
+  scheduled_for?: string;
 }
 
 /**
@@ -286,6 +295,79 @@ export function useCreatePost() {
       if (variables.posted_as_page_id) {
         queryClient.invalidateQueries({ queryKey: ["page-posts", variables.posted_as_page_id] });
       }
+      if (variables.status === "draft") {
+        queryClient.invalidateQueries({ queryKey: ["my-draft-posts"] });
+      } else if (variables.status === "scheduled") {
+        queryClient.invalidateQueries({ queryKey: ["my-scheduled-posts"] });
+      }
+    },
+  });
+}
+
+/**
+ * Requires supabase-fixes/add_post_drafts_and_scheduling.sql to be
+ * applied — posts.status doesn't exist until then, and this query
+ * will 400 against the live schema in the meantime. Written ahead of
+ * that migration so the Activity "Drafts" row (see Activity.tsx) has
+ * real data the moment it lands, instead of needing a second pass.
+ */
+export function useMyDraftPosts() {
+  const { user } = useAuth();
+
+  return useQuery({
+    queryKey: ["my-draft-posts", user?.id],
+    queryFn: async (): Promise<PostWithAuthor[]> => {
+      const { data, error } = await supabase
+        .from("posts")
+        .select(FEED_SELECT)
+        .eq("author_id", user!.id)
+        .eq("status", "draft")
+        .eq("is_deleted", false)
+        .order("created_at", { ascending: false });
+      if (error) throw error;
+      return (data ?? []).map(normalizePost);
+    },
+    enabled: !!user,
+  });
+}
+
+/** See useMyDraftPosts above — same migration dependency. */
+export function useMyScheduledPosts() {
+  const { user } = useAuth();
+
+  return useQuery({
+    queryKey: ["my-scheduled-posts", user?.id],
+    queryFn: async (): Promise<PostWithAuthor[]> => {
+      const { data, error } = await supabase
+        .from("posts")
+        .select(FEED_SELECT)
+        .eq("author_id", user!.id)
+        .eq("status", "scheduled")
+        .eq("is_deleted", false)
+        .order("scheduled_for", { ascending: true })
+        .returns<any[]>();
+      if (error) throw error;
+      return (data ?? []).map(normalizePost);
+    },
+    enabled: !!user,
+  });
+}
+
+/** Deletes a draft or scheduled post outright — "discard", not
+ *  "archive"; drafts/scheduled posts were never published, so there's
+ *  nothing for a soft-delete/is_deleted flag to hide from anyone
+ *  else's view the way it matters for a real published post. */
+export function useDeleteDraftOrScheduledPost() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (postId: string) => {
+      const { error } = await supabase.from("posts").delete().eq("id", postId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["my-draft-posts"] });
+      queryClient.invalidateQueries({ queryKey: ["my-scheduled-posts"] });
     },
   });
 }
