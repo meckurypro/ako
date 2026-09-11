@@ -26,31 +26,41 @@ file, instead of just words that scroll away.
 | Courses | learning |
 | Audio / Video / Files / URLs | distribution |
 | Gifting | appreciation & support |
-| Creator monetization | economic value |
+| Monetization | economic value |
 
 Stack: React 19 + TypeScript + Vite + Tailwind, on Supabase (Postgres
 + Auth + Storage + Edge Functions).
 
 ## Projects marketplace
 
-A project is one of seven types, each with its own access model and,
-where it needs one, its own dedicated page:
+A project is one of nine types (`hooks/useProjects.ts`), each with its
+own access model and, where it needs one, its own dedicated page:
 
 | Type | What it is | Where it lives |
 |---|---|---|
 | **Event** | Ticketed — real-world or online, buyer enters an email (their own or someone else's), gets an emailed + downloadable ticket | `pages/TicketView.tsx` |
 | **Meeting** | A single scheduled live session; buyers see a countdown, then join | `pages/MeetingRoom.tsx` |
-| **Room** | An ongoing paid group — host announcements, scheduled meetings w/ recordings, assignments; members can stream but not download | `pages/Room.tsx` |
+| **Room** *(labeled "Cohort" in the UI)* | A structured group with an optional start/end date — lectures, scheduled meetings w/ recordings, assignments, its own chat; open-ended if no end date is set | `pages/Room.tsx` |
 | **Course** | Structured modules/lessons; built as a draft, can't be purchased until the host publishes it | `pages/Course.tsx` |
-| **Audio / Video / File** | A single deliverable — link or upload, gated by price | `components/project-types/DeliverableFields.tsx` (shared form), unlocked inline from `ProjectCard` |
+| **Media** | Audio and/or video, each channel a link (Spotify, YouTube) or a hosted upload | `components/project-types/MediaFields.tsx`, unlocked inline from `ProjectCard` |
+| **File** | A file uploaded and hosted here; one-click download once unlocked | `components/project-types/FileFields.tsx`, unlocked inline from `ProjectCard` |
+| **URL** | A bare link being sold access to (a WhatsApp group, a gated page, anything) | `components/project-types/UrlFields.tsx`, unlocked inline from `ProjectCard` |
+| **Gig** | A skill or service offered — tagline, deliverables, delivery estimate, revisions, FAQ, sample work; buyers message/book rather than "unlock" | `components/project-types/GigFields.tsx` |
+| **Pitch** | Support-based fundraising — no price tag, no unlock; supporters back it for any amount and the creator keeps whatever's raised whether or not the goal is hit | `components/project-types/PitchFields.tsx` |
 
-All seven share the same base fields (title, thumbnail, description,
-topics, price/promo) from `pages/CreateProject.tsx`, which switches in
+All nine share the same base fields (title, thumbnail, description,
+topics, price/promo — Pitch excepted, which carries a fundraising goal
+instead of a price) from `pages/CreateProject.tsx`, which switches in
 the right type-specific fields from `components/project-types/`.
+Which identity can post which type — personal profile, a Page, or
+either — is enforced per type (`PROJECT_TYPE_ACCESS` in
+`hooks/useProjects.ts`).
 
 **Access model:** every project can be viewed freely; unlocking the
 actual content (file, link, ticket, room, course) costs the price the
-host set, or is free if price is 0. Every unlock — paid or free — is
+host set, or is free if price is 0. Gig and Pitch sit outside this
+unlock model — a Gig is booked/messaged rather than unlocked, and a
+Pitch has no lock to begin with. Every unlock — paid or free — is
 logged to `project_access_events` and surfaced as a public count on
 `ProjectCard` and `ProjectDetail` (see `hooks/useProjectAccess.ts`).
 Users can also save any project for later (`hooks/useSavedProjects.ts`,
