@@ -1,7 +1,7 @@
 // src/components/GiftPicker.tsx
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { X, ArrowLeft } from "lucide-react";
-import { useGiftTypes, useWallet } from "../hooks/useWallet";
+import { useGiftTypes, useWallet, useTopGiftTypeIds } from "../hooks/useWallet";
 import { useSendGift } from "../hooks/useGifting";
 import { useBackDismiss } from "../hooks/useBackDismiss";
 import { useScrollLock } from "../hooks/useScrollLock";
@@ -20,6 +20,11 @@ interface GiftPickerProps {
 
 type Step = "catalog" | "confirm" | "sent";
 
+// "a" vs "an" for the insufficient-balance message.
+function article(word: string) {
+  return /^[aeiou]/i.test(word) ? "an" : "a";
+}
+
 // Portaled to document.body (see Portal.tsx) — opened from PostCard's
 // Gift action while PostCard is rendered inside SwipeableTabs'
 // translateX'd pane (Feed/ProfilePage/SavedHub/LikedHub). A transformed
@@ -37,22 +42,52 @@ export function GiftPicker({
   const [step, setStep] = useState<Step>("catalog");
   const [selected, setSelected] = useState<GiftType | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // Set when the user taps a gift they can't afford — shows a
+  // dismissible full-screen notice instead of advancing to confirm.
+  const [insufficientGift, setInsufficientGift] = useState<GiftType | null>(null);
 
   const { data: giftTypes, isLoading: loadingGifts } = useGiftTypes();
   const { data: wallet } = useWallet();
+  const { data: topGiftTypeIds } = useTopGiftTypeIds(6);
   const sendGift = useSendGift();
 
-  useBackDismiss(step === "confirm" ? () => setStep("catalog") : onClose);
+  useBackDismiss(
+    insufficientGift
+      ? () => setInsufficientGift(null)
+      : step === "confirm"
+        ? () => setStep("catalog")
+        : onClose
+  );
   useScrollLock();
 
   const balance = Number(wallet?.balance ?? 0);
 
-  // Cheapest first, filling the grid left-to-right / top-to-bottom —
-  // independent of admin-set sort_order, which still governs the
-  // AdminGiftTypes list.
-  const sortedGiftTypes = giftTypes ? [...giftTypes].sort((a, b) => a.cost_usd - b.cost_usd) : giftTypes;
+  // Default arrangement: most expensive first, cheapest last. Once the
+  // user has sent gifts, their top 6 most-used gift types (by send
+  // count, from useTopGiftTypeIds) take over the first two rows of the
+  // 3-column grid, in usage order — everything else fills in behind
+  // them, still most-expensive-first.
+  const sortedGiftTypes = useMemo(() => {
+    if (!giftTypes) return giftTypes;
+
+    const byId = new Map(giftTypes.map((g) => [g.id, g]));
+    const topUsed = (topGiftTypeIds ?? [])
+      .map((id) => byId.get(id))
+      .filter((g): g is GiftType => !!g);
+
+    const usedIds = new Set(topUsed.map((g) => g.id));
+    const rest = giftTypes
+      .filter((g) => !usedIds.has(g.id))
+      .sort((a, b) => b.cost_usd - a.cost_usd);
+
+    return [...topUsed, ...rest];
+  }, [giftTypes, topGiftTypeIds]);
 
   function handleSelect(gift: GiftType) {
+    if (balance < gift.cost_usd) {
+      setInsufficientGift(gift);
+      return;
+    }
     setSelected(gift);
     setError(null);
     setStep("confirm");
@@ -236,6 +271,23 @@ export function GiftPicker({
           </div>
         )}
       </div>
+
+      {/* Insufficient-balance notice — sits above everything, including
+          the sheet. Tap anywhere to dismiss. Reuses the sheet's overlay
+          treatment, stacked, for a darker/blurrier feel over a plain,
+          friendly message with no card/border. */}
+      {insufficientGift && (
+        <div
+          className="fixed inset-0 z-[70] flex items-center justify-center px-10 bg-canvas/70 backdrop-blur-overlay"
+          onClick={() => setInsufficientGift(null)}
+          role="alert"
+        >
+          <p className="text-ink text-center text-base font-medium max-w-xs">
+            Insufficient balance to gift {article(insufficientGift.name)} {insufficientGift.name}. Please fund your
+            wallet.
+          </p>
+        </div>
+      )}
     </div>
     </Portal>
   );
