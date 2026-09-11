@@ -34,6 +34,7 @@ import { ReshareSheet } from "./ReshareSheet";
 import { GiftPicker } from "./GiftPicker";
 import { RepostEmbed } from "./RepostEmbed";
 import { RepostBadge } from "./RepostBadge";
+import { TaggedProjectEmbed } from "./TaggedProjectEmbed";
 import { ConfirmDialog } from "./ConfirmDialog";
 import { TagPeopleSheet } from "./TagPeopleSheet";
 import { CollaboratorsSheet } from "./CollaboratorsSheet";
@@ -41,6 +42,7 @@ import { PostCollaboratorsBadge } from "./PostCollaboratorsBadge";
 import { useAuth } from "../hooks/useAuth";
 import { useIsBookmarked, useToggleBookmark } from "../hooks/useBookmarks";
 import { useMyReaction, useToggleReaction } from "../hooks/useReactions";
+import { recordProfileVisitFromPost } from "../hooks/useProfileVisits";
 import { useEngagementOrder, type SecondaryActionKey } from "../hooks/useEngagementOrder";
 import { useCollaborators } from "../hooks/useCollaboration";
 import {
@@ -494,7 +496,15 @@ export function PostCard({
       className="bg-surface dark:bg-[#121114] rounded-2xl p-4 mb-4 relative shadow-[0_0_0_1px_rgba(var(--shadow-ink-rgb),0.07),0_10px_24px_-6px_rgba(var(--shadow-ink-rgb),0.16)]"
     >
       <div className="flex items-start gap-3">
-        <Link to={identityHref} className="relative">
+        <Link
+          to={identityHref}
+          className="relative"
+          onClick={() => {
+            if (!postedAsPage && user) {
+              recordProfileVisitFromPost(post.id, post.author.id, user.id);
+            }
+          }}
+        >
           <Avatar src={identityAvatar} name={identityName} size="md" />
           <PostCollaboratorsBadge target="post" targetId={post.id} />
         </Link>
@@ -504,6 +514,11 @@ export function PostCard({
             <Link
               to={identityHref}
               className="font-display font-semibold text-[17px] leading-5 text-ink hover:underline"
+              onClick={() => {
+                if (!postedAsPage && user) {
+                  recordProfileVisitFromPost(post.id, post.author.id, user.id);
+                }
+              }}
             >
               {postedAsPage ? identityName : shortDisplayName(identityName)}
             </Link>
@@ -589,6 +604,12 @@ export function PostCard({
           links to the original post with the original creator's own
           details, regardless of whether it's still reachable. */}
       {(plainReshare || quotePost) && <RepostEmbed source={original} />}
+
+      {/* Item 10 — subtle project tag at the bottom of the post.
+          post.tagged_project needs to be selected alongside the post
+          (see usePosts.ts — FEED_SELECT needs the join added) for
+          this to ever be non-null. */}
+      <TaggedProjectEmbed project={(post as any).tagged_project} />
 
       {/* Time · date · views — only on the expanded (comments-visible) post,
           matching X's post-detail formatting. Feed cards don't show this. */}
