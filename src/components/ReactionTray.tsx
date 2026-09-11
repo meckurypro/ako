@@ -152,7 +152,7 @@ export function ReactionTray({
   const middleItemWidth = 100 / Math.max(middleActions.length, 1);
 
   return (
-    <div className="flex items-start mt-4 pt-4 pb-1 w-full">
+    <div className="flex items-start mt-4 pt-4 pb-1 w-full" data-swipeable-ignore>
       <div className="flex flex-col items-center flex-shrink-0" style={{ width: `${leftActions.length * slotPct}%` }}>
         <div className="flex w-full">
           {leftActions.map((action) => (
