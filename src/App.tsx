@@ -76,6 +76,8 @@ import { MeetingRoom } from "./pages/MeetingRoom";
 import { TicketView } from "./pages/TicketView";
 import { EventCheckIn } from "./pages/EventCheckIn";
 import { Activity } from "./pages/Activity";
+import { DraftPosts } from "./pages/DraftPosts";
+import { ScheduledPosts } from "./pages/ScheduledPosts";
 import { CreateChoice } from "./pages/CreateChoice";
 import { SavedHub } from "./pages/SavedHub";
 import { LikedHub } from "./pages/LikedHub";
@@ -640,6 +642,22 @@ function AppRoutes() {
               element={
                 <RequireAuth>
                   <LikedHub />
+                </RequireAuth>
+              }
+            />
+            <Route
+              path="/activity/drafts"
+              element={
+                <RequireAuth>
+                  <DraftPosts />
+                </RequireAuth>
+              }
+            />
+            <Route
+              path="/activity/scheduled"
+              element={
+                <RequireAuth>
+                  <ScheduledPosts />
                 </RequireAuth>
               }
             />
