@@ -128,7 +128,14 @@ function CommentItem({
             {renderFormattedText(comment.content, "c")}
           </p>
 
-          <div className="flex items-center gap-5 mt-2.5">
+          {/* flex-wrap + smaller row/column gaps (was a rigid
+              gap-5, no-wrap row) — five items (like, dislike, and
+              three full-word stance labels: Support/Disagree/
+              Pushback) don't fit on one line at mobile widths once a
+              reply's ml-6 + border-l + pl-4 indentation eats into the
+              available width, so the row was overflowing/clipping
+              instead of wrapping to a second line. See item 12. */}
+          <div className="flex items-center flex-wrap gap-x-4 gap-y-1.5 mt-2.5">
             <button
               onClick={() =>
                 onToggleReaction({ commentId: comment.id, type: "like", currentlyActive: isLiked })
