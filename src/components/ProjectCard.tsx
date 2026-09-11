@@ -29,6 +29,7 @@ import {
 } from "lucide-react";
 import { useAuth } from "../hooks/useAuth";
 import { LikeHeart } from "./LikeHeart";
+import { ConfirmDialog } from "./ConfirmDialog";
 import { UnlockReveal } from "./UnlockReveal";
 import { renderFormattedText } from "../lib/formatText";
 import {
@@ -208,6 +209,7 @@ export function ProjectCard({
   const menuButtonRef = useRef<HTMLButtonElement>(null);
   const [manageAccessOpen, setManageAccessOpen] = useState(false);
   const [supportSheetOpen, setSupportSheetOpen] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [audioSrc, setAudioSrc] = useState<string | null>(null);
   const [videoSrc, setVideoSrc] = useState<string | null>(null);
   const [imageSrc, setImageSrc] = useState<string | null>(null);
@@ -471,9 +473,21 @@ export function ProjectCard({
     setMenuOpen(false);
   }
 
-  async function handleDelete() {
+  function handleDelete() {
     setMenuOpen(false);
-    if (!window.confirm("Delete this project? This can't be undone.")) return;
+    setShowDeleteConfirm(true);
+  }
+
+  // Routed through the app's own ConfirmDialog instead of
+  // window.confirm — native confirm()/alert() don't work in this
+  // app's WebView, so the old handleDelete's confirm() call silently
+  // returned without ever prompting, and the function returned early
+  // every time. Same fix already applied to every other destructive
+  // action (chat delete, message delete, post delete) — this was the
+  // one spot that hadn't been moved over yet, which is why "delete
+  // project" specifically looked broken.
+  async function handleConfirmDelete() {
+    setShowDeleteConfirm(false);
     try {
       await deleteProject.mutateAsync(project.id);
     } catch (err) {
@@ -1086,6 +1100,16 @@ export function ProjectCard({
           projectTitle={project.title}
           onClose={() => setSupportSheetOpen(false)}
           onSupported={handleSupported}
+        />
+      )}
+
+      {showDeleteConfirm && (
+        <ConfirmDialog
+          title="Delete this project?"
+          description="This can't be undone."
+          confirmLabel={deleteProject.isPending ? "Deleting…" : "Delete"}
+          onConfirm={handleConfirmDelete}
+          onCancel={() => setShowDeleteConfirm(false)}
         />
       )}
     </div>
