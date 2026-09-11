@@ -33,6 +33,7 @@ export function CollaborationInviteResponseModal({
 
   const list = target === "post" ? invites?.posts : invites?.projects;
   const invite = list?.find((i: any) => (target === "post" ? i.post_id : i.project_id) === targetId);
+  const previewContent = target === "post" ? (invite as any)?.post : (invite as any)?.project;
 
   function handleRespond(accept: boolean) {
     setError(null);
@@ -78,6 +79,71 @@ export function CollaborationInviteResponseModal({
                   </p>
                 </div>
               </div>
+
+              {/* What you're being asked to collaborate on — shown so
+                  the decision isn't made blind. `previewContent` is
+                  null when the post/project was deleted after the
+                  invite was sent (the invite row itself survives). */}
+              {target === "post" ? (
+                !previewContent ? (
+                  <div className="mt-3 rounded-xl border border-border bg-canvas px-3.5 py-3 text-sm text-ink-muted">
+                    This post is no longer available.
+                  </div>
+                ) : previewContent.is_archived ? (
+                  <div className="mt-3 rounded-xl border border-border bg-canvas px-3.5 py-3 text-sm text-ink-muted">
+                    This post has been archived by its author.
+                  </div>
+                ) : (
+                  <div className="mt-3 rounded-xl border border-border bg-canvas px-3.5 py-3">
+                    <div className="flex items-center gap-2">
+                      <Avatar
+                        src={previewContent.author.avatar_url}
+                        name={previewContent.author.display_name}
+                        size="sm"
+                      />
+                      <span className="font-display font-semibold text-sm text-ink truncate">
+                        {previewContent.author.display_name}
+                      </span>
+                    </div>
+                    {previewContent.content && (
+                      <p className="text-sm text-ink mt-1.5 whitespace-pre-wrap break-words line-clamp-4">
+                        {previewContent.content}
+                      </p>
+                    )}
+                    {previewContent.media_urls?.length > 0 && (
+                      <div className="mt-2 w-full h-32 rounded-lg overflow-hidden bg-surface border border-border">
+                        <img src={previewContent.media_urls[0]} alt="" className="w-full h-full object-cover" />
+                      </div>
+                    )}
+                  </div>
+                )
+              ) : !previewContent ? (
+                <div className="mt-3 rounded-xl border border-border bg-canvas px-3.5 py-3 text-sm text-ink-muted">
+                  This project is no longer available.
+                </div>
+              ) : (
+                <div className="mt-3 rounded-xl border border-border bg-canvas px-3.5 py-3">
+                  <div className="flex items-center gap-3">
+                    {previewContent.thumbnail_url ? (
+                      <img
+                        src={previewContent.thumbnail_url}
+                        alt=""
+                        className="w-12 h-12 rounded-lg object-cover flex-shrink-0 border border-border"
+                      />
+                    ) : (
+                      <div className="w-12 h-12 rounded-lg flex-shrink-0 bg-surface border border-border" />
+                    )}
+                    <div className="min-w-0">
+                      <p className="font-display font-semibold text-sm text-ink truncate">
+                        {previewContent.title}
+                      </p>
+                      {previewContent.description && (
+                        <p className="text-xs text-ink-muted truncate">{previewContent.description}</p>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
 
               {error && <p className="text-sm text-danger mt-3">{error}</p>}
 
