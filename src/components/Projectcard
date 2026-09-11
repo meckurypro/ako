@@ -1,0 +1,1034 @@
+// src/components/ProjectCard.tsx
+import { useRef, useState } from "react";
+import { useNavigate } from "react-router-dom";
+import {
+  Lock,
+  Download,
+  ImageIcon,
+  MoreHorizontal,
+  Pencil,
+  Archive,
+  RotateCcw,
+  Send,
+  EyeOff,
+  Redo2,
+  Trash2,
+  Bookmark,
+  Ticket,
+  Users,
+  Video,
+  Music,
+  BookOpen,
+  Eye,
+  Link as LinkIcon,
+  Briefcase,
+  MessageCircle,
+  Copy,
+  Check,
+} from "lucide-react";
+import { useAuth } from "../hooks/useAuth";
+import { LikeHeart } from "./LikeHeart";
+import { UnlockReveal } from "./UnlockReveal";
+import { renderFormattedText } from "../lib/formatText";
+import {
+  useHasPurchased,
+  usePurchaseProject,
+  useBookGig,
+  useGetProjectFile,
+  useSetProjectStatus,
+  useDeleteProject,
+  getEffectivePrice,
+  isProjectFree,
+  hasActivePromo,
+  PROJECT_TYPE_LABELS,
+  type Project,
+} from "../hooks/useProjects";
+import { useMediaDetails } from "../hooks/useProjectTypeDetails";
+import { MediaPreviewPlayer } from "./MediaPreviewPlayer";
+import { useIsProjectSaved, useToggleSavedProject } from "../hooks/useSavedProjects";
+import { useProjectAccessCount, useLogFreeProjectAccess } from "../hooks/useProjectAccess";
+import { useMyReaction, useToggleReaction } from "../hooks/useReactions";
+import { useStartConversation } from "../hooks/useMessaging";
+import { ReactionTray, type EngagementAction } from "./ReactionTray";
+import { ReactionMoreSheet } from "./ReactionMoreSheet";
+import { DropdownMenu, type DropdownMenuItem } from "./DropdownMenu";
+import { ManageAccessSheet } from "./ManageAccessSheet";
+import { PrivateProjectNotice } from "./PrivateProjectNotice";
+import { useToast } from "./Toast";
+import { useIsProjectMember } from "../hooks/useProjectMembers";
+
+// File and URL keep the original single-link/download "unlock"
+// pattern inline in the action row. Media gets its own block above
+// that row (it can show up to two rows — audio and video — so it
+// doesn't fit the single-line pattern). Event/Meeting/Course each
+// unlock into their own dedicated page instead — see TYPE_ROUTE. Room
+// used to be here too, but its "enter" action now lives in the Join
+// engagement icon below (see middleActions) instead of a text link,
+// since membership is an ongoing engagement state like Like/Save
+// rather than a one-off unlock.
+const INLINE_TYPES: Project["project_type"][] = ["file", "url"];
+
+const TYPE_ROUTE: Partial<Record<Project["project_type"], (id: string) => string>> = {
+  event: (id) => `/projects/${id}/ticket`,
+  meeting: (id) => `/meetings/${id}`,
+  course: (id) => `/courses/${id}`,
+};
+
+const TYPE_ICON: Partial<Record<Project["project_type"], typeof Ticket>> = {
+  event: Ticket,
+  meeting: Video,
+  room: Users,
+  course: BookOpen,
+  gig: Briefcase,
+};
+
+const TYPE_ACTION_LABEL: Partial<Record<Project["project_type"], string>> = {
+  event: "View ticket",
+  meeting: "Go to meeting",
+  course: "Continue course",
+};
+
+// --------------------------------------------------------
+// Owner-only status actions, shown from the kebab menu depending on
+// the project's current status, plus a real hard-delete via the
+// delete-project edge function. Delete only succeeds when nobody has
+// purchased the project (purchases.project_id references it, so a
+// purchased project can't be removed without breaking purchase
+// history) — the edge function catches that FK violation and
+// returns a friendly message pointing the owner at Archive instead.
+// --------------------------------------------------------
+
+// One Media audio/video channel's unlocked state — a preview player
+// (if an upload exists), a "go to the full thing" link (if a redirect
+// URL exists), both, or neither's sibling never renders this at all
+// (mediaFieldsAreValid requires at least one). Not exported; the
+// image channel is different enough (no link, plus its own
+// download/copy actions) that it stays inline in ProjectCard below.
+function MediaChannelBlock({
+  icon: Icon,
+  label,
+  hasPreview,
+  hasLink,
+  linkUrl,
+  linkLabel,
+  previewSrc,
+  previewKind,
+  onLoadPreview,
+  isLoadingPreview,
+}: {
+  icon: typeof Music;
+  label: string;
+  hasPreview: boolean;
+  hasLink: boolean;
+  linkUrl: string | null;
+  linkLabel: string;
+  previewSrc: string | null;
+  previewKind: "audio" | "video";
+  onLoadPreview: () => void;
+  isLoadingPreview: boolean;
+}) {
+  return (
+    <div className="flex flex-col gap-2">
+      {hasPreview &&
+        (previewSrc ? (
+          <MediaPreviewPlayer kind={previewKind} src={previewSrc} />
+        ) : (
+          <button
+            type="button"
+            onClick={onLoadPreview}
+            disabled={isLoadingPreview}
+            className="flex items-center gap-1.5 text-sm text-accent font-medium disabled:opacity-50"
+          >
+            <Icon size={15} />
+            {isLoadingPreview ? "Loading…" : `Play ${label.toLowerCase()} preview`}
+          </button>
+        ))}
+      {hasLink && (
+        <a
+          href={linkUrl ?? undefined}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="flex items-center gap-1.5 text-sm text-accent font-medium"
+        >
+          <Icon size={15} />
+          {linkLabel}
+        </a>
+      )}
+    </div>
+  );
+}
+
+export function ProjectCard({
+  project,
+  isOwnerView,
+}: {
+  project: Project;
+  // Explicit owner-view flag from the caller (e.g. ProfilePage's
+  // "viewing as visitor" toggle). Falls back to the plain owner check
+  // for every other call site that doesn't pass it, so this stays a
+  // no-op everywhere except the profile page's visitor-preview mode.
+  isOwnerView?: boolean;
+}) {
+  const { user } = useAuth();
+  const navigate = useNavigate();
+  const isOwner = isOwnerView ?? user?.id === project.owner_id;
+  const isFree = isProjectFree(project);
+  const showPromo = hasActivePromo(project);
+  const effectivePrice = getEffectivePrice(project);
+  const isCourseUnpublished = project.project_type === "course" && !project.published_at;
+
+  const hasPurchasedQuery = useHasPurchased(project.id);
+  const purchaseProject = usePurchaseProject();
+  const bookGig = useBookGig();
+  const getFileDownload = useGetProjectFile();
+  const getAudioStream = useGetProjectFile();
+  const getVideoStream = useGetProjectFile();
+  const getImageStream = useGetProjectFile();
+  const setStatus = useSetProjectStatus();
+  const deleteProject = useDeleteProject();
+  const isSavedQuery = useIsProjectSaved(project.id);
+  const toggleSaved = useToggleSavedProject(project.id);
+  const isLikedQuery = useMyReaction(project.id, "project", "like");
+  const toggleLike = useToggleReaction(project.id, "project", "like");
+  const toast = useToast();
+  const accessCountQuery = useProjectAccessCount(project.id);
+  const logFreeAccess = useLogFreeProjectAccess();
+  const { data: mediaDetails } = useMediaDetails(project.project_type === "media" ? project.id : undefined);
+  const startConversation = useStartConversation();
+
+  const [error, setError] = useState<string | null>(null);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [showMoreActions, setShowMoreActions] = useState(false);
+  const menuButtonRef = useRef<HTMLButtonElement>(null);
+  const [manageAccessOpen, setManageAccessOpen] = useState(false);
+  const [audioSrc, setAudioSrc] = useState<string | null>(null);
+  const [videoSrc, setVideoSrc] = useState<string | null>(null);
+  const [imageSrc, setImageSrc] = useState<string | null>(null);
+  const [linkCopied, setLinkCopied] = useState(false);
+  const [imageLinkCopied, setImageLinkCopied] = useState(false);
+  const hasPurchased = !!hasPurchasedQuery.data;
+  // Rooms are the one project type where "free" isn't self-granting:
+  // membership lives in room_members, and that row only gets created
+  // by actually calling process_project_purchase() (see purchase-project
+  // edge function) — even at $0. Every other type is fully unlocked by
+  // isFree alone, no server round-trip needed.
+  const isRoom = project.project_type === "room";
+  const isMemberQuery = useIsProjectMember(project.id, project.is_private);
+  const isMember = isMemberQuery.data === true;
+  // Privacy is a separate gate from payment: a private project's
+  // content/actions are hidden from anyone who isn't the owner or an
+  // explicitly-added member, regardless of price — a free private
+  // project still isn't accessible off the strength of its link alone
+  // (see ako_projects_v4_private_membership.sql). Folding it into
+  // hasAccess itself means every existing hasAccess check below
+  // automatically respects it without touching each one individually.
+  const privacyBlocked = project.is_private && !isOwner && !isMember;
+  const hasAccess = !privacyBlocked && (isOwner || hasPurchased || (isFree && !isRoom));
+  const isSaved = !!isSavedQuery.data;
+  const isLiked = !!isLikedQuery.data;
+
+  // Outside-click / back-dismiss for the kebab menu is handled
+  // internally by <DropdownMenu> now.
+
+  async function handleBuy() {
+    if (!user) {
+      navigate(`/login?redirect=${encodeURIComponent(`/projects/${project.id}`)}`);
+      return;
+    }
+    setError(null);
+    try {
+      await purchaseProject.mutateAsync(project.id);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Purchase failed.");
+    }
+  }
+
+  // Room membership is an ongoing engagement state (like Like/Save),
+  // not a one-off unlock — so Join lives as a tray icon rather than a
+  // text link. Once a member (hasAccess), the same icon acts as
+  // "Enter room" instead. Free rooms still go through handleBuy for
+  // the $0 purchase — see the isRoom comment above hasAccess — same
+  // as before, just reached from the icon now instead of a pill.
+  function handleJoinRoom() {
+    if (hasAccess) {
+      navigate(`/rooms/${project.id}`);
+      return;
+    }
+    void handleBuy();
+  }
+
+  // Booking a gig pays the deposit AND drops the buyer straight into a
+  // conversation with the host — book-gig hands back the conversation
+  // id for exactly that, unlike handleBuy above.
+  async function handleBookGig() {
+    if (!user) {
+      navigate(`/login?redirect=${encodeURIComponent(`/projects/${project.id}`)}`);
+      return;
+    }
+    setError(null);
+    try {
+      const { conversationId } = await bookGig.mutateAsync(project.id);
+      navigate(`/messages/${conversationId}`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Booking failed.");
+    }
+  }
+
+  // Gigs are lead-gen first — Message is always available regardless
+  // of whether a booking fee has been paid, unlike the buy/unlock CTAs
+  // for every other type.
+  async function handleMessage() {
+    if (!user) {
+      navigate(`/login?redirect=${encodeURIComponent(`/projects/${project.id}`)}`);
+      return;
+    }
+    setError(null);
+    try {
+      const conversationId = await startConversation.mutateAsync(project.owner_id);
+      navigate(`/messages/${conversationId}`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Couldn't start conversation.");
+    }
+  }
+
+  // The only way into a private project — opens (or resumes) a
+  // conversation with the owner, with an editable draft message
+  // prefilled rather than sent automatically, so it's genuinely the
+  // visitor's own customised ask rather than a canned auto-message.
+  // See MessageThread's draftMessage nav-state handling.
+  async function handleRequestAccess() {
+    if (!user) {
+      navigate(`/login?redirect=${encodeURIComponent(`/projects/${project.id}`)}`);
+      return;
+    }
+    setError(null);
+    try {
+      const conversationId = await startConversation.mutateAsync(project.owner_id);
+      navigate(`/messages/${conversationId}`, {
+        state: { draftMessage: `Hi! I'd like access to "${project.title}".` },
+      });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Couldn't start conversation.");
+    }
+  }
+
+  async function handleShare() {
+    setMenuOpen(false);
+    // Always share a link BACK TO the project's own dedicated page on
+    // Ako — never project.external_url, which points AWAY from Ako to
+    // wherever the project itself links out to. Those are two
+    // different things and only one of them is "sharing the project."
+    const url = `${window.location.origin}/projects/${project.id}`;
+    if (navigator.share) {
+      try {
+        await navigator.share({ title: project.title, url });
+      } catch {
+        // User cancelled the native share sheet — nothing to do.
+      }
+    } else {
+      await navigator.clipboard.writeText(url);
+    }
+  }
+
+  // Paid access is already logged server-side by the purchase-project
+  // edge function (via the service role) at purchase time — logging it
+  // again here on every open/play would double-count it. Only a FREE,
+  // non-owner unlock needs this client-side log at all, since that's
+  // the one path nothing else records.
+  function logFreeAccessIfNeeded(accessType: "download" | "stream" | "link_click") {
+    if (isFree && !isOwner) {
+      logFreeAccess.mutate({ projectId: project.id, accessType });
+    }
+  }
+
+  async function handleOpenFile() {
+    if (!user) {
+      navigate(`/login?redirect=${encodeURIComponent(`/projects/${project.id}`)}`);
+      return;
+    }
+    setError(null);
+    // Open the tab synchronously, inside the click's own user-activation
+    // window. Safari (and most mobile browsers) silently block
+    // window.open() once it happens after an awaited network call — by
+    // then it's no longer considered user-initiated — so waiting for the
+    // signed URL before opening anything would make downloads randomly
+    // fail with no error at all. Open a blank tab now, point it at the
+    // real URL once we have it.
+    const tab = window.open("", "_blank");
+    try {
+      const url = await getFileDownload.mutateAsync({ projectId: project.id, kind: "file" });
+      if (tab) {
+        tab.location.href = url;
+      } else {
+        // The blank-tab open itself got blocked — fall back to
+        // navigating the current tab so the download still goes through.
+        window.location.href = url;
+      }
+      logFreeAccessIfNeeded("download");
+    } catch (err) {
+      tab?.close();
+      setError(err instanceof Error ? err.message : "Couldn't access file.");
+    }
+  }
+
+  // URL projects skip the edge function entirely (the link itself is
+  // already sitting on the project row, not behind a signed fetch), so
+  // this is the only place a free open ever gets recorded for them.
+  function handleOpenUrlLink() {
+    logFreeAccessIfNeeded("link_click");
+  }
+
+  async function handleCopyLink() {
+    if (!project.external_url) return;
+    setError(null);
+    try {
+      await navigator.clipboard.writeText(project.external_url);
+      setLinkCopied(true);
+      window.setTimeout(() => setLinkCopied(false), 2000);
+    } catch {
+      setError("Couldn't copy link.");
+    }
+  }
+
+  // Copies the signed URL currently loaded for the Media image
+  // channel. Note this is a time-limited link (get-project-file mints
+  // it with an expiry) rather than a permanent embed URL — fine for
+  // "grab it now and paste it somewhere," not for a durable embed.
+  async function handleCopyImageLink() {
+    if (!imageSrc) return;
+    setError(null);
+    try {
+      await navigator.clipboard.writeText(imageSrc);
+      setImageLinkCopied(true);
+      window.setTimeout(() => setImageLinkCopied(false), 2000);
+    } catch {
+      setError("Couldn't copy link.");
+    }
+  }
+
+  // Media streaming — deliberately sets the signed URL as playback
+  // src instead of window.open()-ing it: an uploaded audio/video
+  // channel streams in place, with no download or redirect at all.
+  async function handlePlayAudio() {
+    if (!user) {
+      navigate(`/login?redirect=${encodeURIComponent(`/projects/${project.id}`)}`);
+      return;
+    }
+    setError(null);
+    try {
+      const url = await getAudioStream.mutateAsync({ projectId: project.id, kind: "audio" });
+      setAudioSrc(url);
+      logFreeAccessIfNeeded("stream");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Couldn't load audio.");
+    }
+  }
+
+  async function handlePlayVideo() {
+    if (!user) {
+      navigate(`/login?redirect=${encodeURIComponent(`/projects/${project.id}`)}`);
+      return;
+    }
+    setError(null);
+    try {
+      const url = await getVideoStream.mutateAsync({ projectId: project.id, kind: "video" });
+      setVideoSrc(url);
+      logFreeAccessIfNeeded("stream");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Couldn't load video.");
+    }
+  }
+
+  async function handleViewImage() {
+    if (!user) {
+      navigate(`/login?redirect=${encodeURIComponent(`/projects/${project.id}`)}`);
+      return;
+    }
+    setError(null);
+    try {
+      const url = await getImageStream.mutateAsync({ projectId: project.id, kind: "image" });
+      setImageSrc(url);
+      logFreeAccessIfNeeded("stream");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Couldn't load image.");
+    }
+  }
+
+  function handleStatusChange(status: "active" | "draft" | "archived") {
+    setStatus.mutate({ id: project.id, status });
+    setMenuOpen(false);
+  }
+
+  async function handleDelete() {
+    setMenuOpen(false);
+    if (!window.confirm("Delete this project? This can't be undone.")) return;
+    try {
+      await deleteProject.mutateAsync(project.id);
+    } catch (err) {
+      // Most likely reason: purchases exist and the delete was
+      // refused server-side — surface that instead of failing silently.
+      setError(err instanceof Error ? err.message : "Couldn't delete this project.");
+    }
+  }
+
+  function handleToggleSaved() {
+    if (!user) {
+      navigate(`/login?redirect=${encodeURIComponent(`/projects/${project.id}`)}`);
+      return;
+    }
+    toggleSaved.mutate(isSaved);
+  }
+
+  function handleToggleLike() {
+    if (!user) {
+      navigate(`/login?redirect=${encodeURIComponent(`/projects/${project.id}`)}`);
+      return;
+    }
+    toggleLike.mutate(isLiked, {
+      onError: () => toast("Couldn't like this project. Try again in a moment.", { variant: "error" }),
+    });
+  }
+
+  // Engagement row — same ReactionTray component and left/middle/right
+  // shape as PostCard, for visual and interaction consistency across
+  // posts and projects: Like fixed left, Share fixed right, everything
+  // else (Save, and Join for rooms) in the middle. Like/Save don't make
+  // sense on your own project, same as PostCard hides its
+  // owner-irrelevant actions; Share and Join (as "Enter") stay
+  // available to the owner too.
+  const leftActions: EngagementAction[] = isOwner
+    ? []
+    : [
+        {
+          key: "like",
+          label: isLiked ? "Liked" : "Like",
+          icon: <LikeHeart active={isLiked} size={24} className="text-danger" />,
+          count: project.like_count > 0 ? project.like_count : null,
+          onClick: handleToggleLike,
+        },
+      ];
+
+  // Nothing pinned right anymore — Share used to be a fixed right slot,
+  // now it joins the middle group with everything else (see
+  // middleActions below). Only Like stays pinned left.
+  const rightActions: EngagementAction[] = [];
+
+  const middleActions: EngagementAction[] = [
+    ...(!isOwner
+      ? [
+          {
+            key: "save",
+            label: isSaved ? "Saved" : "Save",
+            icon: (
+              <Bookmark
+                size={24}
+                fill={isSaved ? "currentColor" : "none"}
+                className={isSaved ? "text-accent" : "text-ink"}
+              />
+            ),
+            count: null,
+            onClick: handleToggleSaved,
+          } satisfies EngagementAction,
+        ]
+      : []),
+    ...(isRoom
+      ? [
+          {
+            key: "join",
+            label: hasAccess ? "Enter cohort" : "Join cohort",
+            icon: (
+              <Users
+                size={24}
+                fill={hasAccess ? "currentColor" : "none"}
+                className={hasAccess ? "text-accent" : "text-ink"}
+              />
+            ),
+            count: null,
+            onClick: handleJoinRoom,
+          } satisfies EngagementAction,
+        ]
+      : []),
+    // Share always makes sense (owner or not), so it's unconditional —
+    // last in this list only because Save/Join are the two conditional
+    // ones above; there's no per-project usage signal to genuinely rank
+    // against yet, unlike PostCard's engagement-order-backed version.
+    {
+      key: "share",
+      label: "Share",
+      icon: <Redo2 size={24} className="text-ink" />,
+      count: null,
+      onClick: () => void handleShare(),
+    },
+  ];
+
+  const aspectRatio =
+    project.thumbnail_width && project.thumbnail_height
+      ? `${project.thumbnail_width} / ${project.thumbnail_height}`
+      : "16 / 9";
+
+  const TypeIcon = TYPE_ICON[project.project_type];
+  const isMedia = project.project_type === "media";
+  const showOwnerBadges = isOwner && (project.status !== "active" || project.is_private);
+
+  return (
+    <div className="bg-surface rounded-2xl border border-border mb-3 relative">
+      <div
+        style={{ aspectRatio }}
+        className="w-full bg-canvas flex items-center justify-center rounded-t-2xl overflow-hidden"
+      >
+        {project.thumbnail_url ? (
+          <img src={project.thumbnail_url} alt="" className="w-full h-full object-cover" />
+        ) : (
+          <ImageIcon size={32} className="text-ink-muted" />
+        )}
+      </div>
+
+      {/* Owner-only badges — visitors only ever see active, listed
+          projects at all, so neither badge would make sense to them. */}
+      {showOwnerBadges && (
+        <div className="absolute top-3 left-3 flex items-center gap-1.5">
+          {project.status !== "active" && (
+            <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-ink text-canvas">
+              {project.status === "draft"
+                ? "Draft"
+                : project.status === "cancelled"
+                  ? "Cancelled"
+                  : "Archived"}
+            </span>
+          )}
+          {project.is_private && (
+            <span className="flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full bg-ink/80 text-canvas">
+              <EyeOff size={10} />
+              Private
+            </span>
+          )}
+        </div>
+      )}
+
+      {isOwner && (
+        <div className="absolute top-3 right-3 flex items-center gap-1.5">
+          <button
+            ref={menuButtonRef}
+            onClick={() => setMenuOpen((o) => !o)}
+            className="p-1.5 rounded-full bg-canvas/90 text-ink-muted"
+            aria-label="Project options"
+          >
+            <MoreHorizontal size={16} />
+          </button>
+
+          {menuOpen && (
+            <DropdownMenu
+              anchorRef={menuButtonRef}
+              onClose={() => setMenuOpen(false)}
+              widthClass="w-56"
+              items={(() => {
+                const menuItems: (DropdownMenuItem | "divider")[] = [
+                  {
+                    key: "edit",
+                    label: "Edit",
+                    icon: <Pencil />,
+                    onSelect: () => navigate(`/projects/${project.id}/edit`),
+                  },
+                  { key: "share", label: "Share", icon: <Redo2 />, onSelect: handleShare },
+                ];
+                if (project.is_private) {
+                  menuItems.push({
+                    key: "manage-access",
+                    label: "Manage access",
+                    icon: <Users />,
+                    onSelect: () => setManageAccessOpen(true),
+                  });
+                }
+                if (project.status !== "active" && project.status !== "cancelled") {
+                  menuItems.push({
+                    key: "publish",
+                    label: "Publish",
+                    icon: <Send />,
+                    onSelect: () => handleStatusChange("active"),
+                  });
+                }
+                if (project.status === "active") {
+                  menuItems.push({
+                    key: "unpublish",
+                    label: "Unpublish",
+                    icon: <EyeOff />,
+                    onSelect: () => handleStatusChange("draft"),
+                  });
+                }
+                if (project.status !== "archived") {
+                  menuItems.push({
+                    key: "archive",
+                    label: "Archive",
+                    icon: <Archive />,
+                    variant: "danger",
+                    onSelect: () => handleStatusChange("archived"),
+                  });
+                }
+                if (project.status === "archived") {
+                  menuItems.push({
+                    key: "restore",
+                    label: "Restore",
+                    icon: <RotateCcw />,
+                    onSelect: () => handleStatusChange("draft"),
+                  });
+                }
+                menuItems.push(
+                  "divider",
+                  {
+                    key: "delete",
+                    label: deleteProject.isPending ? "Deleting…" : "Delete",
+                    icon: <Trash2 />,
+                    variant: "danger",
+                    disabled: deleteProject.isPending,
+                    onSelect: handleDelete,
+                  }
+                );
+                return menuItems;
+              })()}
+            />
+          )}
+        </div>
+      )}
+
+      <div className="p-4">
+        <div className="flex items-start justify-between gap-2">
+          <div className="min-w-0">
+            <h3 className="font-display text-lg text-ink truncate">{project.title}</h3>
+            <span className="flex items-center gap-2 text-xs text-ink-muted">
+              {PROJECT_TYPE_LABELS[project.project_type]}
+              {/* Access count — paid or free, per-type wording kept
+                  generic ("accessed") since download/stream/ticket/join
+                  all count toward the same number. */}
+              {(accessCountQuery.data ?? 0) > 0 && (
+                <span className="flex items-center gap-1">
+                  <Eye size={11} />
+                  {accessCountQuery.data}
+                </span>
+              )}
+            </span>
+          </div>
+
+          <div className="flex-shrink-0 text-right">
+            {isFree && project.project_type === "gig" ? (
+              <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-accent-soft text-accent">
+                Message to inquire
+              </span>
+            ) : isFree ? (
+              <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-accent-soft text-accent">
+                Free
+              </span>
+            ) : showPromo ? (
+              <span className="flex items-center gap-1.5">
+                <span className="text-xs text-ink-muted line-through">${project.price_usd.toFixed(2)}</span>
+                <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-accent-soft text-accent">
+                  ${effectivePrice.toFixed(2)}
+                </span>
+              </span>
+            ) : (
+              <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-surface border border-border text-ink">
+                ${project.price_usd.toFixed(2)}
+              </span>
+            )}
+          </div>
+        </div>
+
+        {privacyBlocked ? (
+          <PrivateProjectNotice onMessage={() => void handleRequestAccess()} messagePending={startConversation.isPending} />
+        ) : (
+          <UnlockReveal unlocked={hasAccess}>
+        {project.description && (
+          <p className="text-sm text-ink-muted mt-1 whitespace-pre-wrap break-words">
+            {renderFormattedText(project.description, "d")}
+          </p>
+        )}
+
+        {error && <p className="text-danger text-sm mt-2">{error}</p>}
+
+        {/* Media gets its own block above the action row — it can
+            show up to two channel rows (audio, video), so it doesn't
+            fit the single-line pattern the other inline types use. */}
+        {isMedia && mediaDetails && (
+          <div className="flex flex-col gap-3 mt-3">
+            {/* Audio/video — a preview player (if an upload exists), a
+                "go to the full thing" link (if a redirect URL exists),
+                or both at once. Which of the two show up is driven
+                entirely by which of {*_file_path, *_url} are set —
+                see the hybrid-model comment on MediaDetails. */}
+            {mediaDetails.has_audio && (
+              <div>
+                {!hasAccess ? (
+                  <span className="flex items-center gap-1.5 text-sm text-ink-muted">
+                    <Lock size={15} />
+                    Audio locked
+                  </span>
+                ) : (
+                  <MediaChannelBlock
+                    icon={Music}
+                    label="Audio"
+                    hasPreview={!!mediaDetails.audio_file_path}
+                    hasLink={!!mediaDetails.audio_url}
+                    linkUrl={mediaDetails.audio_url}
+                    linkLabel="Go to full track"
+                    previewSrc={audioSrc}
+                    previewKind="audio"
+                    onLoadPreview={handlePlayAudio}
+                    isLoadingPreview={getAudioStream.isPending}
+                  />
+                )}
+              </div>
+            )}
+
+            {mediaDetails.has_video && (
+              <div>
+                {!hasAccess ? (
+                  <span className="flex items-center gap-1.5 text-sm text-ink-muted">
+                    <Lock size={15} />
+                    Video locked
+                  </span>
+                ) : (
+                  <MediaChannelBlock
+                    icon={Video}
+                    label="Video"
+                    hasPreview={!!mediaDetails.video_file_path}
+                    hasLink={!!mediaDetails.video_url}
+                    linkUrl={mediaDetails.video_url}
+                    linkLabel="Go to full video"
+                    previewSrc={videoSrc}
+                    previewKind="video"
+                    onLoadPreview={handlePlayVideo}
+                    isLoadingPreview={getVideoStream.isPending}
+                  />
+                )}
+              </div>
+            )}
+
+            {/* Image — always upload-only, never a redirect (see
+                MediaFields). Shown in full once loaded, plus an
+                explicit Download and Copy link, same pattern as
+                File/URL — on top of, not instead of, the ordinary
+                right-click-to-save every <img> already supports. */}
+            {mediaDetails.has_image && (
+              <div>
+                {!hasAccess ? (
+                  <span className="flex items-center gap-1.5 text-sm text-ink-muted">
+                    <Lock size={15} />
+                    Image locked
+                  </span>
+                ) : imageSrc ? (
+                  <div className="flex flex-col gap-2">
+                    <img src={imageSrc} alt="" className="w-full rounded-lg max-h-72 object-contain" />
+                    <div className="flex items-center gap-3">
+                      <a
+                        href={imageSrc}
+                        download
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex items-center gap-1.5 text-sm text-accent font-medium"
+                      >
+                        <Download size={15} />
+                        Download
+                      </a>
+                      <button
+                        type="button"
+                        onClick={handleCopyImageLink}
+                        className="flex items-center gap-1.5 text-sm text-ink-muted font-medium"
+                      >
+                        {imageLinkCopied ? (
+                          <>
+                            <Check size={15} className="text-accent" />
+                            Copied
+                          </>
+                        ) : (
+                          <>
+                            <Copy size={15} />
+                            Copy link
+                          </>
+                        )}
+                      </button>
+                    </div>
+                    <p className="text-xs text-ink-muted">Link expires after a while — copy again if it stops working.</p>
+                  </div>
+                ) : (
+                  <button
+                    onClick={handleViewImage}
+                    disabled={getImageStream.isPending}
+                    className="flex items-center gap-1.5 text-sm text-accent font-medium disabled:opacity-50"
+                  >
+                    <ImageIcon size={15} />
+                    {getImageStream.isPending ? "Loading…" : "View image"}
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+
+        <div className="flex items-center gap-2 mt-3">
+          {/* File — hosted download, no external link ever stored. */}
+          {project.project_type === "file" &&
+            (hasAccess ? (
+              <button
+                onClick={handleOpenFile}
+                disabled={getFileDownload.isPending}
+                className="flex items-center gap-1.5 text-sm text-accent font-medium disabled:opacity-50"
+              >
+                <Download size={15} />
+                {getFileDownload.isPending ? "Preparing…" : "Download"}
+              </button>
+            ) : (
+              <span className="flex items-center gap-1.5 text-sm text-ink-muted">
+                <Lock size={15} />
+                Locked
+              </span>
+            ))}
+
+          {/* URL — a single link the host is selling/gating access to.
+              "Open link" navigates there directly; "Copy" hands the
+              visitor the raw URL instead, for pasting into another app
+              (e.g. the WhatsApp invite this often is) rather than
+              opening it inside the in-app browser. */}
+          {project.project_type === "url" &&
+            (hasAccess ? (
+              <div className="flex items-center gap-3">
+                <a
+                  href={project.external_url ?? undefined}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  onClick={handleOpenUrlLink}
+                  className="flex items-center gap-1.5 text-sm text-accent font-medium"
+                >
+                  <LinkIcon size={15} />
+                  Open link
+                </a>
+                <button
+                  type="button"
+                  onClick={handleCopyLink}
+                  className="flex items-center gap-1.5 text-sm text-ink-muted font-medium"
+                >
+                  {linkCopied ? (
+                    <>
+                      <Check size={15} className="text-accent" />
+                      Copied
+                    </>
+                  ) : (
+                    <>
+                      <Copy size={15} />
+                      Copy
+                    </>
+                  )}
+                </button>
+              </div>
+            ) : (
+              <span className="flex items-center gap-1.5 text-sm text-ink-muted">
+                <Lock size={15} />
+                Locked
+              </span>
+            ))}
+
+          {/* Event/Meeting/Course — once unlocked, hand off to their
+              own dedicated page rather than a link/download here. An
+              event's owner never buys their own ticket, so they get
+              the door-scanner page here instead of "View ticket". */}
+          {!INLINE_TYPES.includes(project.project_type) &&
+            !isMedia &&
+            hasAccess &&
+            TYPE_ROUTE[project.project_type] && (
+              <button
+                onClick={() =>
+                  navigate(
+                    project.project_type === "event" && isOwner
+                      ? `/projects/${project.id}/checkin`
+                      : TYPE_ROUTE[project.project_type]!(project.id)
+                  )
+                }
+                className="flex items-center gap-1.5 text-sm text-accent font-medium"
+              >
+                {TypeIcon && <TypeIcon size={15} />}
+                {project.project_type === "event" && isOwner ? "Scan tickets" : TYPE_ACTION_LABEL[project.project_type]}
+              </button>
+            )}
+
+          {!INLINE_TYPES.includes(project.project_type) &&
+            !isMedia &&
+            project.project_type !== "gig" &&
+            !hasAccess &&
+            !isCourseUnpublished && (
+              <span className="flex items-center gap-1.5 text-sm text-ink-muted">
+                <Lock size={15} />
+                Locked
+              </span>
+            )}
+
+          {isCourseUnpublished && isOwner && (
+            <span className="text-sm text-ink-muted">Not published yet</span>
+          )}
+
+          {/* Gig — Message is always available (lead-gen first), plus an
+              optional "Book for $X" once a booking fee is set and hasn't
+              been paid yet. Independent of hasAccess/isFree, unlike every
+              other type's CTA. */}
+          {project.project_type === "gig" && !isOwner && (
+            <button
+              onClick={handleMessage}
+              disabled={startConversation.isPending}
+              className="flex items-center gap-1.5 text-sm text-accent font-medium disabled:opacity-50"
+            >
+              <MessageCircle size={15} />
+              {startConversation.isPending ? "Opening…" : "Message"}
+            </button>
+          )}
+
+          {project.project_type === "gig" && !isOwner && !isFree && hasPurchased && (
+            <span className="flex items-center gap-1.5 text-sm text-ink-muted ml-2">
+              Booked ✓
+            </span>
+          )}
+
+          {/* Buy/Book pill for everything except Room, which now joins
+              via the Join engagement icon below instead — price is
+              still visible up top in the badge next to the title. */}
+          {project.project_type !== "room" && !hasAccess && !isCourseUnpublished && (
+            <button
+              onClick={project.project_type === "gig" ? handleBookGig : handleBuy}
+              disabled={project.project_type === "gig" ? bookGig.isPending : purchaseProject.isPending}
+              className="ml-auto bg-accent text-canvas px-4 py-1.5 rounded-full text-sm font-medium disabled:opacity-50"
+            >
+              {project.project_type === "gig"
+                ? bookGig.isPending
+                  ? "Booking…"
+                  : `Book for $${effectivePrice.toFixed(2)}`
+                : purchaseProject.isPending
+                  ? "Purchasing…"
+                  : project.project_type === "event"
+                    ? `Buy ticket $${effectivePrice.toFixed(2)}`
+                    : project.project_type === "url"
+                      ? `Get access for $${effectivePrice.toFixed(2)}`
+                      : `Buy for $${effectivePrice.toFixed(2)}`}
+            </button>
+          )}
+        </div>
+
+        <ReactionTray
+          leftActions={leftActions}
+          middleActions={middleActions}
+          rightActions={rightActions}
+          onOpenMore={() => setShowMoreActions(true)}
+        />
+
+        {showMoreActions && (
+          <ReactionMoreSheet actions={middleActions} onClose={() => setShowMoreActions(false)} />
+        )}
+          </UnlockReveal>
+        )}
+      </div>
+
+      {manageAccessOpen && (
+        <ManageAccessSheet
+          projectId={project.id}
+          projectTitle={project.title}
+          onClose={() => setManageAccessOpen(false)}
+        />
+      )}
+    </div>
+  );
+}
