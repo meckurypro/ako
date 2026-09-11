@@ -3,10 +3,11 @@ import { supabase } from "../lib/supabase";
 import { useAuth } from "./useAuth";
 
 const MAX_FILE_SIZE = 50 * 1024 * 1024; // matches the 50MB post-media bucket limit
-const ALLOWED_TYPES = [
-  "image/jpeg", "image/png", "image/webp", "image/gif",
-  "video/mp4", "video/quicktime",
-];
+// Video removed from posts — item 4: posts are text, images, or slides
+// (multiple images) only, going forward. isVideoUrl below is kept:
+// posts uploaded before this restriction may still carry a video URL
+// in media_urls, and those need to keep rendering correctly.
+const ALLOWED_TYPES = ["image/jpeg", "image/png", "image/webp", "image/gif"];
 
 export function useUploadPostMedia() {
   const { user } = useAuth();
@@ -16,7 +17,7 @@ export function useUploadPostMedia() {
       if (!user) throw new Error("Not signed in");
 
       if (!ALLOWED_TYPES.includes(file.type)) {
-        throw new Error("Please choose a JPEG, PNG, WebP, GIF image, or MP4/MOV video.");
+        throw new Error("Please choose a JPEG, PNG, WebP, or GIF image.");
       }
       if (file.size > MAX_FILE_SIZE) {
         throw new Error("File must be under 50MB.");
