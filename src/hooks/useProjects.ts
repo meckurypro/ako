@@ -388,22 +388,38 @@ export function useProject(projectId: string | undefined) {
 // management view" — the same view that's allowed to see drafts and
 // archived projects is the one allowed to see private ones too, so a
 // visitor (or the owner previewing their profile as a visitor) never
-// sees either. Direct access by id/URL (useProject, useProjectDetail)
-// is intentionally NOT filtered by is_private — privacy only affects
-// what gets listed, never what a held link can open.
+// sees either... EXCEPT (item 5) when that visitor has a concrete
+// access grant on a specific private project (bought it, was added
+// as a member, joined its room, holds a live ticket) — previously
+// this branch's flat `.eq("is_private", false)` hid those from the
+// profile's Projects tab unconditionally, so the only way to reach a
+// private project you already had access to was the direct URL. Now
+// routed through get_profile_projects (sql/28_profile_projects_visibility.sql),
+// which folds that access check in server-side. Direct access by
+// id/URL (useProject, useProjectDetail) was already, and still is,
+// NOT filtered by is_private — privacy only affects what gets listed.
 export function useUserProjects(userId: string, includeAllStatuses: boolean) {
-  return useQuery({
-    queryKey: ["user-projects", userId, includeAllStatuses],
-    queryFn: async (): Promise<Project[]> => {
-      let query = supabase.from("projects").select("*").eq("owner_id", userId);
+  const { user: viewer } = useAuth();
 
-      if (!includeAllStatuses) {
-        query = query.eq("status", "active").eq("is_private", false);
+  return useQuery({
+    queryKey: ["user-projects", userId, includeAllStatuses, includeAllStatuses ? undefined : viewer?.id],
+    queryFn: async (): Promise<Project[]> => {
+      if (includeAllStatuses) {
+        const { data, error } = await supabase
+          .from("projects")
+          .select("*")
+          .eq("owner_id", userId)
+          .order("created_at", { ascending: false });
+        if (error) throw error;
+        return data;
       }
 
-      const { data, error } = await query.order("created_at", { ascending: false });
+      const { data, error } = await supabase.rpc("get_profile_projects", {
+        p_profile_id: userId,
+        p_viewer_id: viewer?.id ?? null,
+      });
       if (error) throw error;
-      return data;
+      return (data ?? []) as Project[];
     },
     enabled: !!userId,
   });
