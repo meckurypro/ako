@@ -561,7 +561,7 @@ export function ProjectCard({
       ? [
           {
             key: "join",
-            label: hasAccess ? "Enter room" : "Join room",
+            label: hasAccess ? "Enter cohort" : "Join cohort",
             icon: (
               <Users
                 size={24}
