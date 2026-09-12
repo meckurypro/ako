@@ -10,7 +10,7 @@ import { AuthPattern } from "../../components/AuthPattern";
 
 // Lands here from the link in the signup-confirmation or password-reset
 // email. We don't route straight to a protected page (e.g.
-// /onboarding/interests) because supabase-js processes the auth token in
+// /onboarding/welcome) because supabase-js processes the auth token in
 // the URL asynchronously — a protected route's session check can run
 // before that finishes and bounce the user to /login. Instead we wait
 // for the specific auth event, then navigate ourselves.
@@ -73,7 +73,14 @@ export function AuthCallback() {
         }
 
         queryClient.clear();
-        navigate("/onboarding/interests", { replace: true });
+        // New signups always start onboarding at Welcome. A returning
+        // user completing a password-reset link (not signup) who
+        // somehow lands here mid-onboarding still resolves correctly —
+        // RequireAuth's own onboarding check will bounce /feed back to
+        // whichever step is actually appropriate, so sending everyone
+        // to Welcome here is safe rather than trying to branch on
+        // "is this a signup or a reset" ourselves.
+        navigate("/onboarding/welcome", { replace: true });
       }
     });
 
