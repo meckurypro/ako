@@ -135,6 +135,7 @@ export interface AdminGiftType {
   id: string;
   name: string;
   cost_usd: number;
+  icon_url: string | null;
   is_active: boolean;
   sort_order: number;
 }
@@ -153,8 +154,35 @@ export function useAdminGiftTypes() {
 export function useCreateGiftType() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async (input: { name: string; cost_usd: number; sort_order: number }) => {
+    mutationFn: async (input: { name: string; cost_usd: number; icon_url?: string; sort_order: number }) => {
       const { error } = await supabase.from("gift_types").insert(input);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["admin-gift-types"] });
+      queryClient.invalidateQueries({ queryKey: ["gift-types"] });
+    },
+  });
+}
+
+export function useUpdateGiftType() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({
+      id,
+      name,
+      cost_usd,
+      icon_url,
+    }: {
+      id: string;
+      name: string;
+      cost_usd: number;
+      icon_url: string | null;
+    }) => {
+      const { error } = await supabase
+        .from("gift_types")
+        .update({ name, cost_usd, icon_url: icon_url || null })
+        .eq("id", id);
       if (error) throw error;
     },
     onSuccess: () => {
@@ -444,13 +472,17 @@ export function useUpdateAccessRule() {
 }
 
 // ------------------------------------------------------------
-// Global AI content moderation toggle — single row, admin-only read
-// and write (edge functions read it with the service role key, which
-// bypasses RLS entirely).
+// Global AI content moderation toggle — moderation_settings is a
+// plain key/value table (key text primary key, value text), not a
+// dedicated boolean column, so this reads/writes the 'ai_moderation_enabled'
+// row as the string 'true'/'false' rather than a real boolean. Admin-only
+// read and write; edge functions read it with the service role key,
+// which bypasses RLS entirely.
 // ------------------------------------------------------------
+const AI_MODERATION_KEY = "ai_moderation_enabled";
+
 export interface ModerationSettings {
   ai_moderation_enabled: boolean;
-  updated_at: string;
 }
 
 export function useModerationSettings() {
@@ -459,10 +491,14 @@ export function useModerationSettings() {
     queryFn: async (): Promise<ModerationSettings> => {
       const { data, error } = await supabase
         .from("moderation_settings")
-        .select("ai_moderation_enabled, updated_at")
-        .single();
+        .select("value")
+        .eq("key", AI_MODERATION_KEY)
+        .maybeSingle();
       if (error) throw error;
-      return data;
+      // No row yet defaults to on, matching the toggle's own ?? true
+      // fallback and the "screens by default" behavior this is meant
+      // to guard.
+      return { ai_moderation_enabled: data ? data.value === "true" : true };
     },
   });
 }
@@ -473,8 +509,7 @@ export function useToggleAiModeration() {
     mutationFn: async (ai_moderation_enabled: boolean) => {
       const { error } = await supabase
         .from("moderation_settings")
-        .update({ ai_moderation_enabled, updated_at: new Date().toISOString() })
-        .eq("id", true);
+        .upsert({ key: AI_MODERATION_KEY, value: ai_moderation_enabled ? "true" : "false" });
       if (error) throw error;
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["admin-moderation-settings"] }),
