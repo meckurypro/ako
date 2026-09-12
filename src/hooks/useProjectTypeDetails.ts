@@ -290,3 +290,90 @@ export function useSupportPitch(projectId: string) {
     },
   });
 }
+
+// A 'book' project's content lives in one of three shapes — see the
+// header comment on ako_projects_v9_book_type.sql for the full
+// rationale. external_url/file_path are only ever set for their
+// matching content_source; page_count is a display estimate, not the
+// live source of truth (see BookReader/book_reading_progress for
+// that). Publicly readable — browsing info, not the gated content
+// itself (book_chapters, unlike this table, IS gated — see below).
+export interface BookDetails {
+  project_id: string;
+  book_type: "book" | "article";
+  content_source: "link" | "upload" | "authored";
+  author_name: string | null;
+  is_own_work: boolean;
+  source_credit: string | null;
+  external_url: string | null;
+  file_path: string | null;
+  allow_download: boolean;
+  allow_read_in_app: boolean;
+  page_count: number | null;
+}
+
+export function useBookDetails(projectId: string | undefined) {
+  return useQuery({
+    queryKey: ["project-book-details", projectId],
+    queryFn: async (): Promise<BookDetails | null> => {
+      const { data, error } = await supabase
+        .from("project_book_details")
+        .select("*")
+        .eq("project_id", projectId)
+        .maybeSingle();
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!projectId,
+  });
+}
+
+// PDF-mode reading position (content_source 'link'/'upload', opened
+// via BookReader's page-image renderer) — the current_page/total_pages
+// half of book_reading_progress. Authored books use the
+// current_chapter_id/scroll_fraction half instead — see
+// useBookProgress/useSaveBookProgress in useBookBuilder.ts.
+export interface PdfReadingProgress {
+  current_page: number;
+  total_pages: number | null;
+}
+
+export function usePdfReadingProgress(projectId: string | undefined, userId: string | undefined) {
+  return useQuery({
+    queryKey: ["pdf-reading-progress", projectId, userId],
+    queryFn: async (): Promise<PdfReadingProgress | null> => {
+      const { data, error } = await supabase
+        .from("book_reading_progress")
+        .select("current_page, total_pages")
+        .eq("project_id", projectId)
+        .eq("user_id", userId)
+        .maybeSingle();
+      if (error) {
+        console.warn("book_reading_progress unavailable — has the migration run yet?", error);
+        return null;
+      }
+      return data && data.current_page != null ? (data as PdfReadingProgress) : null;
+    },
+    enabled: !!projectId && !!userId,
+  });
+}
+
+// Debounced by BookReader — not meant to write on every single page
+// turn while someone's rapidly flipping through.
+export function useSavePdfReadingProgress(projectId: string, userId: string | undefined) {
+  return useMutation({
+    mutationFn: async ({ currentPage, totalPages }: { currentPage: number; totalPages: number }) => {
+      if (!userId) return;
+      const { error } = await supabase.from("book_reading_progress").upsert(
+        {
+          project_id: projectId,
+          user_id: userId,
+          current_page: currentPage,
+          total_pages: totalPages,
+        },
+        { onConflict: "user_id,project_id" }
+      );
+      if (error) throw error;
+    },
+  });
+}
