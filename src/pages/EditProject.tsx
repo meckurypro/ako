@@ -10,7 +10,7 @@ import {
   PROJECT_TYPE_LABELS,
   type ProjectStatus,
 } from "../hooks/useProjects";
-import { useEventDetails, useMeetingDetails, useMediaDetails, useGigDetails, useGigSamples, usePitchDetails } from "../hooks/useProjectTypeDetails";
+import { useEventDetails, useMeetingDetails, useMediaDetails, useGigDetails, useGigSamples, usePitchDetails, useBookDetails } from "../hooks/useProjectTypeDetails";
 import { useRoomDetails } from "../hooks/useRoom";
 import { supabase } from "../lib/supabase";
 import { useUploadProjectThumbnail } from "../hooks/useUploadProjectThumbnail";
@@ -34,6 +34,7 @@ import {
 import { GigFields, EMPTY_GIG_FIELDS, type GigFieldsValue } from "../components/project-types/GigFields";
 import { RoomFields, EMPTY_ROOM_FIELDS, type RoomFieldsValue } from "../components/project-types/RoomFields";
 import { PitchFields, EMPTY_PITCH_FIELDS, type PitchFieldsValue } from "../components/project-types/PitchFields";
+import { BookFields, EMPTY_BOOK_FIELDS, type BookFieldsValue } from "../components/project-types/BookFields";
 
 // 'cancelled' is deliberately not offered here — it only happens
 // through the (not-yet-built) Event/Meeting cancellation flow, which
@@ -64,6 +65,7 @@ export function EditProject() {
   const { data: existingGigSamples } = useGigSamples(project?.project_type === "gig" ? projectId : undefined);
   const { data: existingPitchDetails } = usePitchDetails(project?.project_type === "pitch" ? projectId : undefined);
   const { data: existingRoomDetails } = useRoomDetails(project?.project_type === "room" ? projectId : undefined);
+  const { data: existingBookDetails } = useBookDetails(project?.project_type === "book" ? projectId : undefined);
   const updateProject = useUpdateProject();
   const uploadThumbnail = useUploadProjectThumbnail();
 
@@ -90,7 +92,22 @@ export function EditProject() {
   const [gigFields, setGigFields] = useState<GigFieldsValue>(EMPTY_GIG_FIELDS);
   const [pitchFields, setPitchFields] = useState<PitchFieldsValue>(EMPTY_PITCH_FIELDS);
   const [roomFields, setRoomFields] = useState<RoomFieldsValue>(EMPTY_ROOM_FIELDS);
+  const [bookFields, setBookFields] = useState<BookFieldsValue>(EMPTY_BOOK_FIELDS);
   const [typeDetailsHydrated, setTypeDetailsHydrated] = useState(false);
+
+  // Same lock as CreateProject — crediting someone else's book can
+  // never carry a price, kept in sync here too so an existing priced
+  // book can't be edited to flip is_own_work off while quietly
+  // keeping its old price (the server trigger would reject the save
+  // anyway, but this keeps the form honest about it beforehand).
+  useEffect(() => {
+    if (project?.project_type === "book" && !bookFields.is_own_work && priceUsd !== "0") {
+      setPriceUsd("0");
+      setShowPromo(false);
+      setPromoPriceUsd("");
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [project?.project_type, bookFields.is_own_work]);
 
   const thumbnailInputRef = useRef<HTMLInputElement>(null);
 
@@ -212,7 +229,26 @@ export function EditProject() {
         end_date: existingRoomDetails?.end_date?.slice(0, 16) ?? "",
       });
       setTypeDetailsHydrated(true);
-    } else if (!["event", "meeting", "media", "gig", "pitch", "room"].includes(project.project_type)) {
+    } else if (project.project_type === "book" && existingBookDetails !== undefined) {
+      // Same undefined-while-loading / null-if-missing reasoning as
+      // Room above — useCreateProject always creates this row too
+      // (even for "authored", metadata-only), so null shouldn't
+      // happen in practice, but the fallback keeps hydration from
+      // getting stuck if it ever does.
+      setBookFields({
+        book_type: existingBookDetails?.book_type ?? "book",
+        content_source: existingBookDetails?.content_source ?? "upload",
+        url: existingBookDetails?.external_url ?? "",
+        file_path: existingBookDetails?.file_path ?? null,
+        file_name: null,
+        allow_download: existingBookDetails?.allow_download ?? false,
+        allow_read_in_app: existingBookDetails?.allow_read_in_app ?? true,
+        is_own_work: existingBookDetails?.is_own_work ?? true,
+        author_name: existingBookDetails?.author_name ?? "",
+        source_credit: existingBookDetails?.source_credit ?? "",
+      });
+      setTypeDetailsHydrated(true);
+    } else if (!["event", "meeting", "media", "gig", "pitch", "room", "book"].includes(project.project_type)) {
       setTypeDetailsHydrated(true);
     }
   }, [
@@ -224,6 +260,7 @@ export function EditProject() {
     existingGigSamples,
     existingPitchDetails,
     existingRoomDetails,
+    existingBookDetails,
     typeDetailsHydrated,
   ]);
 
@@ -276,6 +313,26 @@ export function EditProject() {
       new Date(roomFields.end_date) <= new Date(roomFields.start_date)
     ) {
       return "End date needs to be after the start date.";
+    }
+    // Authored content is managed entirely in the Book builder, not
+    // here — same reasoning as skipping validation for Course.
+    if (project.project_type === "book" && bookFields.content_source !== "authored") {
+      if (bookFields.content_source === "link" && !bookFields.url.trim()) {
+        return "Add the link to the book or article.";
+      }
+      if (bookFields.content_source === "upload" && !bookFields.file_path) {
+        return "Upload a PDF to continue.";
+      }
+      if (
+        bookFields.content_source === "upload" &&
+        !bookFields.allow_download &&
+        !bookFields.allow_read_in_app
+      ) {
+        return "Allow download, in-app reading, or both.";
+      }
+      if (!bookFields.is_own_work && !bookFields.source_credit.trim()) {
+        return "Credit the original author or source.";
+      }
     }
     return null;
   }
@@ -426,6 +483,27 @@ export function EditProject() {
         });
         if (detailsError) throw detailsError;
       }
+      if (project.project_type === "book") {
+        // Upsert, not update — same reasoning as Media/Room: every
+        // book project gets a row at creation (even "authored", as
+        // metadata-only), but upsert is the safe choice regardless.
+        // external_url/file_path are only ever sent for their
+        // matching content_source, mirroring the content-matches-
+        // source check on the table itself.
+        const { error: detailsError } = await supabase.from("project_book_details").upsert({
+          project_id: projectId,
+          book_type: bookFields.book_type,
+          content_source: bookFields.content_source,
+          author_name: bookFields.author_name.trim() || null,
+          is_own_work: bookFields.is_own_work,
+          source_credit: bookFields.is_own_work ? null : bookFields.source_credit.trim() || null,
+          external_url: bookFields.content_source === "link" ? bookFields.url.trim() : null,
+          file_path: bookFields.content_source === "upload" ? bookFields.file_path : null,
+          allow_download: bookFields.content_source === "upload" ? bookFields.allow_download : false,
+          allow_read_in_app: bookFields.content_source === "upload" ? bookFields.allow_read_in_app : true,
+        });
+        if (detailsError) throw detailsError;
+      }
 
       navigate(-1);
     } catch (err) {
@@ -566,6 +644,16 @@ export function EditProject() {
           {project.project_type === "pitch" && (
             <PitchFields value={pitchFields} onChange={setPitchFields} />
           )}
+          {project.project_type === "book" && (
+            <>
+              <BookFields value={bookFields} onChange={setBookFields} onError={setError} />
+              {bookFields.content_source === "authored" && (
+                <p className="text-xs text-ink-muted mb-4 -mt-2">
+                  Manage chapters from the book builder.
+                </p>
+              )}
+            </>
+          )}
           {/* ---- end type-specific block ---- */}
 
           {/* Pitch never carries a price tag — see CreateProject for
@@ -582,16 +670,20 @@ export function EditProject() {
                   onChange={(e) => setPriceUsd(e.target.value)}
                   min={0}
                   step="0.01"
+                  disabled={project.project_type === "book" && !bookFields.is_own_work}
                   className="w-full px-4 py-3 rounded-xl border border-border bg-canvas text-ink
-                    focus:outline-none focus:ring-2 focus:ring-accent/40 focus:border-accent"
+                    focus:outline-none focus:ring-2 focus:ring-accent/40 focus:border-accent disabled:opacity-50"
                 />
                 <p className="text-xs text-ink-muted mt-1">
                   {project.project_type === "gig"
                     ? "Set to 0 to keep this message-only. Add an amount to also let people pay a booking fee to secure a slot."
-                    : "Set to 0 for a free project."}
+                    : project.project_type === "book" && !bookFields.is_own_work
+                      ? "Crediting someone else's work — this has to stay free."
+                      : "Set to 0 for a free project."}
                 </p>
               </div>
 
+              {!(project.project_type === "book" && !bookFields.is_own_work) && (
               <div className="mb-6">
                 <label className="flex items-center gap-2 text-sm font-medium text-ink-muted mb-2">
                   <input
@@ -623,6 +715,7 @@ export function EditProject() {
                   </>
                 )}
               </div>
+              )}
             </>
           )}
 
