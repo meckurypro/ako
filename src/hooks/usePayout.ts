@@ -1,3 +1,4 @@
+// src/hooks/usePayout.ts
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "../lib/supabase";
 import { useAuth } from "./useAuth";
@@ -17,7 +18,7 @@ export interface Withdrawal {
   amount_usd: number;
   amount_local: number;
   currency: string;
-  status: "processing" | "completed" | "failed" | "reversed";
+  status: "pending" | "processing" | "completed" | "failed" | "reversed";
   failure_reason: string | null;
   created_at: string;
   completed_at: string | null;
@@ -96,10 +97,16 @@ interface WithdrawInput {
 }
 
 /**
- * Calls process-withdrawal — debits the wallet ledger immediately,
- * then initiates the Paystack transfer. Status stays 'processing'
- * until the paystack-transfer-webhook confirms success or failure.
- * See edge_functions/process-withdrawal/index.ts.
+ * Calls process-withdrawal, which now only ever CREATES a request —
+ * it no longer talks to Paystack directly. Requests are accepted
+ * Fridays only (enforced server-side), debit the wallet immediately
+ * (status starts 'pending'), and stay 'pending' until Saturday's
+ * admin-run payout batch (process-saturday-payouts) picks them up,
+ * transitions them to 'processing', and initiates the actual
+ * Paystack transfer. paystack-transfer-webhook then confirms each
+ * one to 'completed' or 'failed'.
+ * See edge_functions/process-withdrawal/index.ts and
+ * edge_functions/process-saturday-payouts/index.ts.
  */
 export function useWithdraw() {
   const queryClient = useQueryClient();
