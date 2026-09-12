@@ -581,10 +581,20 @@ export function useDeletePost() {
         .eq("id", postId);
       if (error) throw error;
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["feed-posts"] });
-      queryClient.invalidateQueries({ queryKey: ["user-posts"] });
-      queryClient.invalidateQueries({ queryKey: ["page-posts"] });
+    // Awaited (not fire-and-forget) so LoadingOverlay — which is
+    // driven off this mutation's pending state, see meta.blocking —
+    // stays up until these refetches actually land, not just until
+    // they're requested. invalidateQueries' returned promise resolves
+    // once the matching active queries finish refetching, so without
+    // this await the overlay could close while the deleted post is
+    // still sitting in the list for another moment, reading as
+    // "nothing happened" until the background refetch catches up.
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["feed-posts"] }),
+        queryClient.invalidateQueries({ queryKey: ["user-posts"] }),
+        queryClient.invalidateQueries({ queryKey: ["page-posts"] }),
+      ]);
     },
   });
 }
@@ -593,6 +603,11 @@ export function useSetPostArchived() {
   const queryClient = useQueryClient();
 
   return useMutation({
+    // Same reasoning as useDeletePost's onSuccess above — archiving/
+    // restoring a post needs the same "stay blocking until the item
+    // has actually left (or rejoined) the list" treatment, which it
+    // was missing entirely before (no meta.blocking at all).
+    meta: { blocking: true },
     mutationFn: async ({ postId, archived }: { postId: string; archived: boolean }) => {
       const { error } = await supabase
         .from("posts")
@@ -600,10 +615,12 @@ export function useSetPostArchived() {
         .eq("id", postId);
       if (error) throw error;
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["feed-posts"] });
-      queryClient.invalidateQueries({ queryKey: ["user-posts"] });
-      queryClient.invalidateQueries({ queryKey: ["page-posts"] });
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["feed-posts"] }),
+        queryClient.invalidateQueries({ queryKey: ["user-posts"] }),
+        queryClient.invalidateQueries({ queryKey: ["page-posts"] }),
+      ]);
     },
   });
 }
