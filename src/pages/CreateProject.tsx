@@ -39,6 +39,7 @@ import {
 } from "../components/project-types/MediaFields";
 import { GigFields, EMPTY_GIG_FIELDS, type GigFieldsValue } from "../components/project-types/GigFields";
 import { PitchFields, EMPTY_PITCH_FIELDS, type PitchFieldsValue } from "../components/project-types/PitchFields";
+import { BookFields, EMPTY_BOOK_FIELDS, type BookFieldsValue } from "../components/project-types/BookFields";
 import { useCreatePitchProject } from "../hooks/useProjects";
 
 export function CreateProject() {
@@ -118,6 +119,20 @@ export function CreateProject() {
   const [gigFields, setGigFields] = useState<GigFieldsValue>(EMPTY_GIG_FIELDS);
   const [pitchFields, setPitchFields] = useState<PitchFieldsValue>(EMPTY_PITCH_FIELDS);
   const [roomFields, setRoomFields] = useState<RoomFieldsValue>(EMPTY_ROOM_FIELDS);
+  const [bookFields, setBookFields] = useState<BookFieldsValue>(EMPTY_BOOK_FIELDS);
+
+  // A book credited to someone else can never be sold — mirrors the
+  // server-side trigger (trg_enforce_book_no_monetization), kept in
+  // sync here so the price field itself reflects it rather than
+  // letting the host set a price that will just fail to save.
+  useEffect(() => {
+    if (projectType === "book" && !bookFields.is_own_work && priceUsd !== "0") {
+      setPriceUsd("0");
+      setShowPromo(false);
+      setPromoPriceUsd("");
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [projectType, bookFields.is_own_work]);
 
   const thumbnailInputRef = useRef<HTMLInputElement>(null);
 
@@ -184,6 +199,27 @@ export function CreateProject() {
       new Date(roomFields.end_date) <= new Date(roomFields.start_date)
     ) {
       return "End date needs to be after the start date.";
+    }
+    // Authored books have nothing to validate here — they're created
+    // as an empty draft (like Course) and built afterward in the
+    // Book builder page.
+    if (projectType === "book" && bookFields.content_source !== "authored") {
+      if (bookFields.content_source === "link" && !bookFields.url.trim()) {
+        return "Add the link to the book or article.";
+      }
+      if (bookFields.content_source === "upload" && !bookFields.file_path) {
+        return "Upload a PDF to continue.";
+      }
+      if (
+        bookFields.content_source === "upload" &&
+        !bookFields.allow_download &&
+        !bookFields.allow_read_in_app
+      ) {
+        return "Allow download, in-app reading, or both.";
+      }
+      if (!bookFields.is_own_work && !bookFields.source_credit.trim()) {
+        return "Credit the original author or source.";
+      }
     }
     return null;
   }
@@ -271,9 +307,16 @@ export function CreateProject() {
         price_usd: price,
         promo_price_usd: promoPrice,
         is_private: isPrivate,
-        // Course always starts as a draft, no matter what — it can't
-        // be purchased until the host publishes it from the builder.
-        status: projectType === "course" ? "draft" : undefined,
+        // Course and an authored Book both start as a draft, no
+        // matter what — neither can be purchased until the host
+        // publishes it from its builder. A link/upload Book is
+        // complete the moment it's created, so it's left undefined
+        // (falls back to the server default) just like every other
+        // simple type.
+        status:
+          projectType === "course" || (projectType === "book" && bookFields.content_source === "authored")
+            ? "draft"
+            : undefined,
         topic_ids: Array.from(topicIds),
         event_details:
           projectType === "event"
@@ -346,6 +389,27 @@ export function CreateProject() {
             ? {
                 start_date: roomFields.start_date ? new Date(roomFields.start_date).toISOString() : undefined,
                 end_date: roomFields.end_date ? new Date(roomFields.end_date).toISOString() : undefined,
+              }
+            : undefined,
+        // Always created, even for an authored book with no content
+        // yet — project_book_details is metadata (type, attribution)
+        // separate from the actual content, which for an authored
+        // book lives entirely in book_chapters, built afterward in
+        // the Book builder. The content-matches-source check on the
+        // table is why external_url/file_path are both left
+        // undefined for "authored" rather than the row being skipped.
+        book_details:
+          projectType === "book"
+            ? {
+                book_type: bookFields.book_type,
+                content_source: bookFields.content_source,
+                author_name: bookFields.author_name.trim() || undefined,
+                is_own_work: bookFields.is_own_work,
+                source_credit: bookFields.is_own_work ? undefined : bookFields.source_credit.trim() || undefined,
+                external_url: bookFields.content_source === "link" ? bookFields.url.trim() : undefined,
+                file_path: bookFields.content_source === "upload" ? bookFields.file_path ?? undefined : undefined,
+                allow_download: bookFields.content_source === "upload" ? bookFields.allow_download : undefined,
+                allow_read_in_app: bookFields.content_source === "upload" ? bookFields.allow_read_in_app : undefined,
               }
             : undefined,
       });
@@ -511,6 +575,7 @@ export function CreateProject() {
           {projectType === "course" && <CourseFields />}
           {projectType === "gig" && <GigFields value={gigFields} onChange={setGigFields} />}
           {projectType === "pitch" && <PitchFields value={pitchFields} onChange={setPitchFields} />}
+          {projectType === "book" && <BookFields value={bookFields} onChange={setBookFields} onError={setError} />}
           {/* ---- end type-specific block ---- */}
 
           {/* Pitch never carries a price tag — it's support-based
@@ -529,18 +594,22 @@ export function CreateProject() {
                   onChange={(e) => setPriceUsd(e.target.value)}
                   min={0}
                   step="0.01"
+                  disabled={projectType === "book" && !bookFields.is_own_work}
                   className="w-full px-4 py-3 rounded-xl border border-border bg-canvas text-ink
-                    focus:outline-none focus:ring-2 focus:ring-accent/40 focus:border-accent"
+                    focus:outline-none focus:ring-2 focus:ring-accent/40 focus:border-accent disabled:opacity-50"
                 />
                 <p className="text-xs text-ink-muted mt-1">
                   {projectType === "gig"
                     ? "Set to 0 to keep this message-only — people reach out, no payment upfront. Add an amount to also let people pay a booking fee to secure a slot."
-                    : "Set to 0 for a free project."}
+                    : projectType === "book" && !bookFields.is_own_work
+                      ? "Crediting someone else's work — this has to stay free."
+                      : "Set to 0 for a free project."}
                 </p>
               </div>
 
               {/* Promo price — optional. Leaving it off shows only the
                   main price with no strikethrough, exactly as before. */}
+              {!(projectType === "book" && !bookFields.is_own_work) && (
               <div className="mb-6">
                 <label className="flex items-center gap-2 text-sm font-medium text-ink-muted mb-2">
                   <input
@@ -573,6 +642,7 @@ export function CreateProject() {
                   </>
                 )}
               </div>
+              )}
             </>
           )}
 
@@ -588,7 +658,11 @@ export function CreateProject() {
             type="submit"
             loading={projectType === "pitch" ? createPitchProject.isPending : createProject.isPending}
           >
-            {projectType === "course" ? "Create draft" : projectType === "pitch" ? "Publish pitch" : "Publish project"}
+            {projectType === "course" || (projectType === "book" && bookFields.content_source === "authored")
+              ? "Create draft"
+              : projectType === "pitch"
+                ? "Publish pitch"
+                : "Publish project"}
           </Button>
         </form>
       </div>
