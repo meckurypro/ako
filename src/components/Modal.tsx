@@ -22,6 +22,18 @@ interface ModalProps {
    *  border/background/padding and would look double-boxed inside
    *  another card). */
   bare?: boolean;
+  /** Override the default z-[60]. Every other modal wants to sit
+   *  above the z-50 bottom sheets it might be opened from (see the
+   *  z-50-vs-z-[60] bug this class fixed, described below) — but
+   *  ArchivedPostModal is the inverse case: it wraps a full PostCard,
+   *  which can itself spawn z-50 bottom sheets (ReactionMoreSheet,
+   *  GiftPicker, ReshareSheet, StanceComposer) from inside it. Those
+   *  need to render ABOVE the modal that contains them, not under
+   *  it — z-index compares by explicit value regardless of DOM/mount
+   *  order, so at the default z-[60] they'd pop up but stay hidden
+   *  behind the modal's own backdrop. ArchivedPostModal passes
+   *  "z-40" here for exactly this reason. */
+  zIndexClass?: string;
 }
 
 /**
@@ -66,6 +78,7 @@ export function Modal({
   ariaLabel,
   maxWidthClass = "max-w-sm",
   bare = false,
+  zIndexClass = "z-[60]",
 }: ModalProps) {
   useBackDismiss(onClose);
   useScrollLock();
@@ -80,7 +93,7 @@ export function Modal({
 
   return (
     <Portal>
-      <div className="fixed inset-0 z-[60] flex items-center justify-center px-6" role={role} aria-modal="true" aria-label={ariaLabel}>
+      <div className={`fixed inset-0 ${zIndexClass} flex items-center justify-center px-6`} role={role} aria-modal="true" aria-label={ariaLabel}>
         <div className="absolute inset-0 bg-canvas/70 backdrop-blur-overlay" onClick={onClose} />
         <div
           className={
