@@ -145,6 +145,19 @@ export function PostCard({
   const isOwner = isOwnerView || user?.id === post.author.id;
   const HIDDEN_FOR_OWNER: SecondaryActionKey[] = ["disagree", "pushback", "gift", "dislike"];
 
+  // Archived content's engagement state is frozen — liking/disliking/
+  // gifting something that's hidden from everyone else (and whose own
+  // reaction/comment counts stopped meaning anything the moment it was
+  // pulled from public view) doesn't make sense. This only ever
+  // applies to the owner viewing their own archived post from the
+  // Archive screen (non-owners never see archived posts at all), so
+  // it's gated on isOwner defensively even though that's already true
+  // by construction. Restore/Delete move to their own always-usable
+  // icons — see the archived-actions bar rendered near the top of the
+  // card below — since the long-press sheet that used to hold them is
+  // now unreachable while the tray is frozen.
+  const isArchivedFrozen = isOwner && post.is_archived;
+
   // Page-mode post: byline shows the organisation/brand instead of the
   // human who clicked post — same idea as a LinkedIn/Facebook Page post.
   // author_id/isOwner above are deliberately left keyed on the real
@@ -512,6 +525,33 @@ export function PostCard({
       data-owner-view={isOwner}
       className="bg-surface dark:bg-[#121114] rounded-2xl p-4 mb-4 relative shadow-[0_0_0_1px_rgba(var(--shadow-ink-rgb),0.07),0_10px_24px_-6px_rgba(var(--shadow-ink-rgb),0.16)]"
     >
+      {/* Restore/Delete for archived content — pulled out of the
+          long-press "more" sheet into their own always-usable icons,
+          since the tray below is frozen (see isArchivedFrozen) and
+          that sheet is unreachable while it's archived. Top-right,
+          above everything else on the card, matching the "Close"
+          pill's positioning convention in ArchivedPostModal. */}
+      {isArchivedFrozen && (
+        <div className="absolute top-3 right-3 z-10 flex items-center gap-2">
+          <button
+            onClick={handleToggleArchive}
+            aria-label="Restore"
+            className="flex items-center gap-1.5 text-xs font-medium text-canvas bg-ink/70 rounded-full px-3 py-1.5"
+          >
+            <RotateCcw size={14} />
+            Restore
+          </button>
+          <button
+            onClick={handleDelete}
+            aria-label="Delete"
+            className="flex items-center gap-1.5 text-xs font-medium text-canvas bg-danger/85 rounded-full px-3 py-1.5"
+          >
+            <Trash2 size={14} />
+            Delete
+          </button>
+        </div>
+      )}
+
       <div className="flex items-start gap-3">
         <Link
           to={identityHref}
@@ -648,11 +688,12 @@ export function PostCard({
         leftActions={leftActions}
         middleActions={middleActions}
         rightActions={rightActions}
-        onOpenMore={() => setShowMoreActions(true)}
+        onOpenMore={isArchivedFrozen ? undefined : () => setShowMoreActions(true)}
         belowLeftLabel={{ text: `Comments: ${post.comment_count}`, onClick: handleCommentTap }}
+        disabled={isArchivedFrozen}
       />
 
-      {showMoreActions && (
+      {showMoreActions && !isArchivedFrozen && (
         <ReactionMoreSheet actions={moreActions} onClose={() => setShowMoreActions(false)} />
       )}
 
