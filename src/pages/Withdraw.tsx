@@ -1,7 +1,8 @@
+// src/pages/Withdraw.tsx
 import { useState, useEffect, type FormEvent } from "react";
 import { useNavigate } from "react-router-dom";
 import { useSmartBack } from "../hooks/useSmartBack";
-import { ArrowLeft, Plus } from "lucide-react";
+import { ArrowLeft, Plus, CalendarClock } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "../lib/supabase";
 import {
@@ -11,8 +12,10 @@ import {
   useWithdraw,
 } from "../hooks/usePayout";
 import { useWallet } from "../hooks/useWallet";
+import { useExchangeRates, useWithdrawalEligibility, useBusinessWeekday } from "../hooks/useWalletRates";
 import { Button } from "../components/Button";
 import { FormField } from "../components/FormField";
+import { formatNgn, formatUsd } from "../lib/money";
 
 const MINIMUM_WITHDRAWAL_USD = 10;
 
@@ -71,7 +74,20 @@ function useResolvedAccountName(bankCode: string, accountNumber: string) {
   return { resolvedName, resolving, resolveError };
 }
 
+/** Next Friday's date in the business timezone, for the "come back on…" message. Display only. */
+function useNextFridayLabel(): string {
+  const lagosNow = new Date(
+    new Date().toLocaleString("en-US", { timeZone: "Africa/Lagos" })
+  );
+  const dow = lagosNow.getDay(); // 0=Sun..6=Sat
+  const daysUntilFriday = (5 - dow + 7) % 7 || 7;
+  const nextFriday = new Date(lagosNow);
+  nextFriday.setDate(lagosNow.getDate() + daysUntilFriday);
+  return nextFriday.toLocaleDateString("en-US", { weekday: "long", month: "short", day: "numeric" });
+}
+
 const STATUS_STYLES: Record<string, string> = {
+  pending: "text-ink-muted bg-canvas border border-border",
   processing: "text-accent bg-accent-soft",
   completed: "text-accent bg-accent-soft",
   failed: "text-danger bg-danger/10",
@@ -85,8 +101,14 @@ export function Withdraw() {
   const { data: payoutAccounts, isLoading: accountsLoading } = usePayoutAccounts();
   const { data: withdrawals } = useWithdrawals();
   const { data: banks, isLoading: banksLoading } = useBankList();
+  const { data: rates } = useExchangeRates();
+  const { data: eligibility } = useWithdrawalEligibility();
+  const weekday = useBusinessWeekday();
+  const nextFridayLabel = useNextFridayLabel();
   const addAccount = useAddPayoutAccount();
   const withdraw = useWithdraw();
+
+  const isWithdrawalDay = weekday === "Friday";
 
   const [showAddAccount, setShowAddAccount] = useState(false);
   const [selectedAccountId, setSelectedAccountId] = useState<string | null>(null);
@@ -107,6 +129,9 @@ export function Withdraw() {
   }, [banks, bankCode]);
 
   const activeAccounts = payoutAccounts?.filter((a) => a.is_verified) ?? [];
+  const amountUsd = parseFloat(amount) || 0;
+  const previewNgn = rates?.withdrawal && amountUsd ? amountUsd * rates.withdrawal : null;
+  const availableToRequest = eligibility?.available_to_request ?? null;
 
   async function handleAddAccount(e: FormEvent) {
     e.preventDefault();
@@ -137,22 +162,31 @@ export function Withdraw() {
 
   async function handleWithdraw() {
     setError(null);
-    const amountUsd = parseFloat(amount);
 
     if (!selectedAccountId) {
       setError("Choose a bank account first.");
       return;
     }
     if (!amountUsd || amountUsd < MINIMUM_WITHDRAWAL_USD) {
-      setError(`Minimum withdrawal is $${MINIMUM_WITHDRAWAL_USD}.`);
+      setError(`Minimum withdrawal is ${formatUsd(MINIMUM_WITHDRAWAL_USD)}.`);
       return;
     }
     if (wallet && amountUsd > Number(wallet.balance)) {
       setError("That's more than your available balance.");
       return;
     }
+    if (availableToRequest !== null && amountUsd > availableToRequest) {
+      setError(
+        `You can request up to ${formatUsd(availableToRequest)} this week (max 50% of your balance).`
+      );
+      return;
+    }
 
     try {
+      // Real enforcement of the Friday-only rule and the 50% cap
+      // happens server-side in process-withdrawal — the checks
+      // above are just so the user doesn't wait for a round trip to
+      // find out.
       await withdraw.mutateAsync({ amount_usd: amountUsd, payout_account_id: selectedAccountId });
       setAmount("");
       navigate("/wallet");
@@ -169,9 +203,24 @@ export function Withdraw() {
         </button>
 
         <h2 className="font-display text-2xl text-ink mb-1">Withdraw</h2>
-        <p className="text-ink-muted text-sm mb-6">
-          Available balance: ${Number(wallet?.balance ?? 0).toFixed(2)}
+        <p className="text-ink-muted text-sm mb-1">
+          Available balance: {formatUsd(wallet?.balance ?? 0)}
         </p>
+        {availableToRequest !== null && (
+          <p className="text-ink-muted text-xs mb-6">
+            Up to {formatUsd(availableToRequest)} available to request this week (50% weekly limit)
+          </p>
+        )}
+
+        {!isWithdrawalDay && (
+          <div className="flex gap-2 bg-accent-soft text-accent text-sm rounded-xl p-3 mb-6">
+            <CalendarClock size={18} className="flex-shrink-0 mt-0.5" />
+            <p>
+              Withdrawal requests open on Fridays. Next window opens {nextFridayLabel}. Deposits and
+              gifting are available every day.
+            </p>
+          </div>
+        )}
 
         <h3 className="text-sm font-medium text-ink-muted mb-2">Payout account</h3>
 
@@ -263,15 +312,33 @@ export function Withdraw() {
           placeholder="10.00"
           min={MINIMUM_WITHDRAWAL_USD}
           step="0.01"
-          className="w-full px-4 py-3 rounded-xl border border-border bg-canvas text-ink mb-4
-            focus:outline-none focus:ring-2 focus:ring-accent/40 focus:border-accent"
+          disabled={!isWithdrawalDay}
+          className="w-full px-4 py-3 rounded-xl border border-border bg-canvas text-ink mb-2
+            focus:outline-none focus:ring-2 focus:ring-accent/40 focus:border-accent disabled:opacity-50"
         />
+
+        {previewNgn !== null && (
+          <p className="text-xs text-ink-muted mb-4">
+            You'll receive {formatNgn(previewNgn)}
+            {rates?.withdrawal ? ` (rate: $1 = ${formatNgn(rates.withdrawal)})` : ""}
+          </p>
+        )}
 
         {error && <p className="text-danger text-sm mb-4">{error}</p>}
 
-        <Button onClick={handleWithdraw} loading={withdraw.isPending} disabled={activeAccounts.length === 0}>
-          Withdraw
+        <Button
+          onClick={handleWithdraw}
+          loading={withdraw.isPending}
+          disabled={!isWithdrawalDay || activeAccounts.length === 0}
+        >
+          {isWithdrawalDay ? "Request withdrawal" : "Withdrawals open on Fridays"}
         </Button>
+
+        {isWithdrawalDay && (
+          <p className="text-xs text-ink-muted text-center mt-3">
+            Requests submitted today are paid out in Saturday's payout run.
+          </p>
+        )}
 
         {withdrawals && withdrawals.length > 0 && (
           <>
@@ -281,7 +348,7 @@ export function Withdraw() {
                 <div key={w.id} className="flex items-center justify-between py-3 border-b border-border">
                   <div>
                     <p className="text-sm text-ink">
-                      ${Number(w.amount_usd).toFixed(2)} → {w.currency} {Number(w.amount_local).toFixed(2)}
+                      {formatUsd(w.amount_usd)} → {w.currency} {Number(w.amount_local).toFixed(2)}
                     </p>
                     <p className="text-xs text-ink-muted">
                       {new Date(w.created_at).toLocaleDateString()}
