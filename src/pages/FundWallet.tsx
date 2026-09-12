@@ -1,96 +1,70 @@
-import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+// src/pages/FundWallet.tsx
+import { useState, useMemo } from "react";
+import { ArrowLeft, AlertCircle, Loader2 } from "lucide-react";
 import { useSmartBack } from "../hooks/useSmartBack";
-import { ArrowLeft, AlertCircle } from "lucide-react";
-import { supabase } from "../lib/supabase";
-import { useAuth } from "../hooks/useAuth";
+import { useExchangeRates } from "../hooks/useWalletRates";
+import { useInitiateDeposit } from "../hooks/useDeposits";
+import { formatNgn, formatUsd } from "../lib/money";
 
-// Must match PRODUCT_CREDIT_MAP in edge_functions/verify-iap-receipt/index.ts —
-// these are the actual App Store Connect / Play Console product IDs once
-// they're configured there.
-const PACKAGES = [
-  { productId: "ako_credit_1", label: "$1", usd: 1 },
-  { productId: "ako_credit_5", label: "$5", usd: 5 },
-  { productId: "ako_credit_10", label: "$10", usd: 10 },
-  { productId: "ako_credit_25", label: "$25", usd: 25 },
-  { productId: "ako_credit_50", label: "$50", usd: 50 },
-];
+// Deposits used to be Apple/Google in-app purchases (verify-iap-receipt).
+// That path never worked outside a native app shell, and per product
+// decision, it's been fully replaced with Paystack — NGN in, USD out,
+// available every day at any time, no App Store/Play Console setup
+// required. verify-iap-receipt and the IAP product IDs are no longer
+// referenced from this page.
+const PRESET_AMOUNTS = [5, 10, 25, 50, 100];
+const MINIMUM_DEPOSIT_USD = 1;
 
-/**
- * IMPORTANT — this is a WEB page, and Apple/Google in-app purchases
- * only exist inside their native app runtimes (StoreKit on iOS,
- * Play Billing on Android). A pure web page cannot legally or
- * technically trigger a real IAP purchase — that only works once
- * this app is wrapped natively (e.g. via Capacitor) and the native
- * purchase SDKs are wired up to call this same verify-iap-receipt
- * function with a real receipt.
- *
- * This page is intentionally left functional in structure (real
- * fetch to verify-iap-receipt) so the plumbing is provably correct,
- * but it WILL fail here because there's no real receipt to send —
- * exactly the known gap flagged when this was built.
- */
 export function FundWallet() {
-  const navigate = useNavigate();
   const smartBack = useSmartBack();
-  const { user } = useAuth();
-  const [selectedProduct, setSelectedProduct] = useState<string | null>(null);
-  const [status, setStatus] = useState<"idle" | "processing" | "error">("idle");
+  const { data: rates } = useExchangeRates();
+  const initiateDeposit = useInitiateDeposit();
+
+  const [selectedPreset, setSelectedPreset] = useState<number | null>(10);
+  const [customAmount, setCustomAmount] = useState("");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
-  const isNativeShell = typeof (window as any).Capacitor !== "undefined";
+  const amountUsd = customAmount ? Number(customAmount) : selectedPreset ?? 0;
 
-  // Real platform detection via Capacitor's API once wrapped natively —
-  // this only resolves meaningfully inside isNativeShell, which is
-  // exactly when it's used below.
-  function detectProvider(): "apple_iap" | "google_play" {
-    const platform = (window as any).Capacitor?.getPlatform?.();
-    return platform === "android" ? "google_play" : "apple_iap";
+  // Display-only preview — the real NGN amount charged is always
+  // recomputed server-side by initiate-deposit at the moment of
+  // payment, via convert_currency(). This is just so the user isn't
+  // surprised by what Paystack shows them next.
+  const previewNgn = useMemo(() => {
+    if (!rates?.deposit || !amountUsd) return null;
+    return amountUsd * rates.deposit;
+  }, [rates?.deposit, amountUsd]);
+
+  function selectPreset(usd: number) {
+    setSelectedPreset(usd);
+    setCustomAmount("");
+    setErrorMessage(null);
   }
 
-  async function handlePurchase(productId: string) {
-    setSelectedProduct(productId);
-    setStatus("processing");
+  function handleCustomChange(value: string) {
+    // Digits and a single decimal point only.
+    if (value === "" || /^\d*\.?\d{0,2}$/.test(value)) {
+      setCustomAmount(value);
+      setSelectedPreset(null);
+      setErrorMessage(null);
+    }
+  }
+
+  async function handleContinue() {
     setErrorMessage(null);
 
-    if (!isNativeShell) {
-      // No native purchase SDK available in a plain web context —
-      // this is the expected, documented gap. Don't fake a receipt;
-      // that would just fail against Apple/Google's real servers
-      // anyway, and a fake success would be worse (silently wrong).
-      setStatus("error");
-      setErrorMessage(
-        "In-app purchases require the iOS or Android app. This web preview can't complete a real purchase yet."
-      );
+    if (!amountUsd || amountUsd < MINIMUM_DEPOSIT_USD) {
+      setErrorMessage(`Minimum deposit is ${formatUsd(MINIMUM_DEPOSIT_USD)}.`);
       return;
     }
 
-    // --------------------------------------------------------
-    // Real path once wrapped natively: the native purchase SDK
-    // (StoreKit / Play Billing) returns a receipt after a successful
-    // purchase, which gets sent here for verification + wallet credit.
-    // --------------------------------------------------------
     try {
-      // const receipt = await NativeIAP.purchase(productId); // native bridge call
-      const receipt = null; // placeholder until native bridge exists
-
-      const { data, error } = await supabase.functions.invoke("verify-iap-receipt", {
-        body: {
-          user_id: user!.id,
-          provider: detectProvider(),
-          receipt_data: receipt,
-          product_id: productId,
-        },
-      });
-
-      if (error || data?.error) {
-        throw new Error(data?.error ?? error?.message ?? "Verification failed");
-      }
-
-      navigate("/wallet");
+      const result = await initiateDeposit.mutateAsync(amountUsd);
+      // Paystack's hosted checkout — handles card / bank transfer /
+      // USSD itself, then redirects back to /wallet/deposit/callback.
+      window.location.href = result.authorization_url;
     } catch (err) {
-      setStatus("error");
-      setErrorMessage(err instanceof Error ? err.message : "Purchase failed.");
+      setErrorMessage(err instanceof Error ? err.message : "Couldn't start payment.");
     }
   }
 
@@ -103,34 +77,98 @@ export function FundWallet() {
 
         <h2 className="font-display text-2xl text-ink mb-2">Fund your wallet</h2>
         <p className="text-ink-muted text-sm mb-6">
-          Choose an amount to add. Payment is handled by the App Store / Google Play.
+          Add money to your Akọ wallet via card, bank transfer, or USSD — powered by Paystack.
+          Available any time, every day.
         </p>
 
-        {!isNativeShell && (
-          <div className="flex gap-2 bg-accent-soft text-accent text-sm rounded-xl p-3 mb-6">
-            <AlertCircle size={18} className="flex-shrink-0 mt-0.5" />
-            <p>
-              You're viewing this in a web browser. Real purchases only work inside the
-              published iOS/Android app once App Store and Play Console products are set up.
-            </p>
+        <div className="grid grid-cols-3 gap-3 mb-4">
+          {PRESET_AMOUNTS.map((usd) => (
+            <button
+              key={usd}
+              onClick={() => selectPreset(usd)}
+              className={`rounded-xl py-4 text-center border transition-colors ${
+                selectedPreset === usd
+                  ? "border-accent bg-accent-soft"
+                  : "border-border bg-surface hover:border-accent/50"
+              }`}
+            >
+              <p className="font-display text-xl text-ink">{formatUsd(usd)}</p>
+            </button>
+          ))}
+
+          <button
+            onClick={() => {
+              setSelectedPreset(null);
+              setErrorMessage(null);
+            }}
+            className={`rounded-xl py-4 text-center border transition-colors ${
+              selectedPreset === null
+                ? "border-accent bg-accent-soft"
+                : "border-border bg-surface hover:border-accent/50"
+            }`}
+          >
+            <p className="font-display text-sm text-ink">Custom</p>
+          </button>
+        </div>
+
+        {selectedPreset === null && (
+          <div className="mb-6">
+            <label className="text-sm text-ink-muted mb-1.5 block">Amount (USD)</label>
+            <div className="flex items-center bg-surface border border-border rounded-xl px-4">
+              <span className="text-ink-muted mr-1">$</span>
+              <input
+                type="text"
+                inputMode="decimal"
+                value={customAmount}
+                onChange={(e) => handleCustomChange(e.target.value)}
+                placeholder="0.00"
+                className="flex-1 bg-transparent py-3 text-ink outline-none"
+                autoFocus
+              />
+            </div>
           </div>
         )}
 
-        <div className="grid grid-cols-2 gap-3">
-          {PACKAGES.map((pkg) => (
-            <button
-              key={pkg.productId}
-              onClick={() => handlePurchase(pkg.productId)}
-              disabled={status === "processing" && selectedProduct === pkg.productId}
-              className="bg-surface border border-border rounded-xl py-5 text-center hover:border-accent/50 disabled:opacity-50"
-            >
-              <p className="font-display text-2xl text-ink">{pkg.label}</p>
-            </button>
-          ))}
-        </div>
+        {amountUsd > 0 && (
+          <div className="bg-surface border border-border rounded-xl p-4 mb-6">
+            <div className="flex justify-between text-sm mb-1">
+              <span className="text-ink-muted">Add to wallet</span>
+              <span className="text-ink font-medium">{formatUsd(amountUsd)}</span>
+            </div>
+            <div className="flex justify-between text-sm">
+              <span className="text-ink-muted">You'll be charged</span>
+              <span className="text-ink font-medium">
+                {previewNgn !== null ? formatNgn(previewNgn) : "…"}
+              </span>
+            </div>
+            {rates?.deposit ? (
+              <p className="text-xs text-ink-muted mt-2">
+                Rate: $1 = {formatNgn(rates.deposit)}
+              </p>
+            ) : null}
+          </div>
+        )}
 
-        {status === "error" && errorMessage && (
-          <p className="text-danger text-sm mt-5 text-center">{errorMessage}</p>
+        <button
+          onClick={handleContinue}
+          disabled={initiateDeposit.isPending || !amountUsd}
+          className="w-full bg-accent text-canvas font-medium rounded-xl py-3.5 disabled:opacity-50 flex items-center justify-center gap-2"
+        >
+          {initiateDeposit.isPending ? (
+            <>
+              <Loader2 size={18} className="animate-spin" />
+              Starting payment…
+            </>
+          ) : (
+            "Continue to payment"
+          )}
+        </button>
+
+        {errorMessage && (
+          <div className="flex gap-2 bg-danger/10 text-danger text-sm rounded-xl p-3 mt-4">
+            <AlertCircle size={18} className="flex-shrink-0 mt-0.5" />
+            <p>{errorMessage}</p>
+          </div>
         )}
       </div>
     </div>
