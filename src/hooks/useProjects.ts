@@ -762,13 +762,24 @@ export function useSetProjectStatus() {
   const queryClient = useQueryClient();
 
   return useMutation({
+    // Drives LoadingOverlay (see meta.blocking there) — was missing
+    // entirely before, so archiving/restoring a project via the
+    // kebab menu gave no loading feedback at all, on top of the
+    // premature-settle issue fixed by the awaited onSuccess below.
+    meta: { blocking: true },
     mutationFn: async ({ id, status }: { id: string; status: ProjectStatus }) => {
       const { error } = await supabase.from("projects").update({ status }).eq("id", id);
       if (error) throw error;
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["user-projects"] });
-      queryClient.invalidateQueries({ queryKey: ["project"] });
+    // Awaited so the mutation (and therefore the overlay) doesn't
+    // settle until the list that's supposed to lose/gain this project
+    // has actually refetched — see useDeletePost's onSuccess in
+    // usePosts.ts for the full reasoning; same fix, same bug.
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["user-projects"] }),
+        queryClient.invalidateQueries({ queryKey: ["project"] }),
+      ]);
     },
   });
 }
@@ -793,8 +804,11 @@ export function useDeleteProject() {
       if (error) throw error;
       if (data?.error) throw new Error(data.error);
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["user-projects"] });
+    // Awaited — same reasoning as useSetProjectStatus/useDeletePost:
+    // without this, the overlay could close a beat before the
+    // deleted project actually drops out of the list.
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["user-projects"] });
     },
   });
 }
