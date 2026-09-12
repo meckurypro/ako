@@ -1,5 +1,6 @@
+// src/pages/admin/AdminHome.tsx
 import { Link } from "react-router-dom";
-import { Tag, Gift, Flag, ShieldAlert, Mail, Send, MailPlus, Bell, ToggleLeft, ShieldCheck, UserCheck } from "lucide-react";
+import { Tag, Gift, Flag, ShieldAlert, Mail, Send, MailPlus, Bell, ToggleLeft, ShieldCheck, UserCheck, Landmark, Wallet, Users } from "lucide-react";
 import { usePendingReports } from "../../hooks/useAdmin";
 
 const SECTIONS = [
@@ -9,6 +10,15 @@ const SECTIONS = [
   { to: "/admin/project-types", icon: ToggleLeft, label: "Project types" },
   { to: "/admin/account-exemptions", icon: UserCheck, label: "Account exemptions" },
   { to: "/admin/moderation", icon: ShieldCheck, label: "Content moderation" },
+];
+
+const INSIGHTS_SECTIONS = [
+  { to: "/admin/analytics", icon: Users, label: "User growth" },
+];
+
+const WALLET_SECTIONS = [
+  { to: "/admin/exchange-rates", icon: Landmark, label: "Exchange rates" },
+  { to: "/admin/payouts", icon: Wallet, label: "Saturday payouts" },
 ];
 
 const COMMS_SECTIONS = [
@@ -57,6 +67,34 @@ export function AdminHome() {
         <p className="text-xs text-ink-muted mt-4 mb-6">
           Interests are managed inline under each category.
         </p>
+
+        <h2 className="font-display text-lg text-ink mb-3">Insights</h2>
+        <div className="space-y-2 mb-6">
+          {INSIGHTS_SECTIONS.map(({ to, icon: Icon, label }) => (
+            <Link
+              key={to}
+              to={to}
+              className="flex items-center gap-3 bg-surface rounded-xl p-4 border border-border"
+            >
+              <Icon size={20} className="text-ink-muted" />
+              <span className="font-medium text-ink">{label}</span>
+            </Link>
+          ))}
+        </div>
+
+        <h2 className="font-display text-lg text-ink mb-3">Wallet</h2>
+        <div className="space-y-2 mb-6">
+          {WALLET_SECTIONS.map(({ to, icon: Icon, label }) => (
+            <Link
+              key={to}
+              to={to}
+              className="flex items-center gap-3 bg-surface rounded-xl p-4 border border-border"
+            >
+              <Icon size={20} className="text-ink-muted" />
+              <span className="font-medium text-ink">{label}</span>
+            </Link>
+          ))}
+        </div>
 
         <h2 className="font-display text-lg text-ink mb-3">Communications</h2>
         <div className="space-y-2">
