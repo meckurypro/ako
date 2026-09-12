@@ -112,7 +112,7 @@ export function BookReader() {
       setError(null);
       try {
         const url = await getBookFile.mutateAsync({ projectId: projectId!, kind: "book", action: "stream" });
-        const doc = await pdfjsLib.getDocument(url).promise;
+        const doc = await pdfjsLib.getDocument({ url }).promise;
         if (cancelled) return;
         setPdf(doc);
         setNumPages(doc.numPages);
@@ -161,7 +161,7 @@ export function BookReader() {
     canvas.style.width = `${viewport.width / (window.devicePixelRatio || 1)}px`;
     canvas.style.height = `${viewport.height / (window.devicePixelRatio || 1)}px`;
 
-    await page.render({ canvasContext: ctx, viewport }).promise;
+    await page.render({ canvasContext: ctx, viewport, canvas }).promise;
   }, [pdf, pageNum]);
 
   useEffect(() => {
