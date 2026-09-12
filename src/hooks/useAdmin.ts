@@ -591,3 +591,139 @@ export function useRevokeProjectTypeExemption() {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["admin-search-accounts"] }),
   });
 }
+
+// ------------------------------------------------------------
+// Suggested profiles — admin-curated pool that feeds into
+// get_onboarding_recommendations (see
+// sql/31_onboarding_recommendations.sql) as one ranking signal
+// alongside interest overlap, per NewUserOnboarding.md §10/§11.
+// Search reuses the same username/display_name ilike as
+// useAdminSearchAccounts above.
+// ------------------------------------------------------------
+export interface AdminSuggestibleAccount {
+  id: string;
+  username: string;
+  display_name: string;
+  avatar_url: string | null;
+  follower_count: number;
+  is_suggested: boolean;
+}
+
+export function useAdminSearchSuggestibleAccounts(query: string) {
+  return useQuery({
+    queryKey: ["admin-search-suggestible-accounts", query],
+    queryFn: async (): Promise<AdminSuggestibleAccount[]> => {
+      const { data: profiles, error } = await supabase
+        .from("profiles")
+        .select("id, username, display_name, avatar_url, follower_count")
+        .eq("is_deleted", false)
+        .or(`username.ilike.%${query}%,display_name.ilike.%${query}%`)
+        .order("follower_count", { ascending: false })
+        .limit(20);
+      if (error) throw error;
+      if (!profiles || profiles.length === 0) return [];
+
+      const { data: suggested, error: suggestedError } = await supabase
+        .from("suggested_profiles")
+        .select("profile_id")
+        .in(
+          "profile_id",
+          profiles.map((p) => p.id)
+        );
+      if (suggestedError) throw suggestedError;
+      const suggestedIds = new Set((suggested ?? []).map((s) => s.profile_id));
+
+      return profiles.map((p) => ({ ...p, is_suggested: suggestedIds.has(p.id) }));
+    },
+    enabled: query.trim().length > 1,
+  });
+}
+
+export interface AdminSuggestedProfile {
+  id: string;
+  profile_id: string;
+  is_active: boolean;
+  priority: number;
+  created_at: string;
+  profile: {
+    username: string;
+    display_name: string;
+    avatar_url: string | null;
+  };
+}
+
+export function useAdminSuggestedProfilesList() {
+  return useQuery({
+    queryKey: ["admin-suggested-profiles"],
+    queryFn: async (): Promise<AdminSuggestedProfile[]> => {
+      const { data, error } = await supabase
+        .from("suggested_profiles")
+        .select(
+          `id, profile_id, is_active, priority, created_at, profile:profiles!suggested_profiles_profile_id_fkey(username, display_name, avatar_url)`
+        )
+        .order("priority", { ascending: false })
+        .order("created_at", { ascending: false });
+      if (error) throw error;
+      return (data ?? []) as unknown as AdminSuggestedProfile[];
+    },
+  });
+}
+
+export function useAddSuggestedProfile() {
+  const { user } = useAuth();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (profileId: string) => {
+      const { error } = await supabase
+        .from("suggested_profiles")
+        .insert({ profile_id: profileId, added_by: user?.id });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["admin-search-suggestible-accounts"] });
+      queryClient.invalidateQueries({ queryKey: ["admin-suggested-profiles"] });
+    },
+  });
+}
+
+export function useRemoveSuggestedProfile() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (profileId: string) => {
+      const { error } = await supabase.from("suggested_profiles").delete().eq("profile_id", profileId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["admin-search-suggestible-accounts"] });
+      queryClient.invalidateQueries({ queryKey: ["admin-suggested-profiles"] });
+    },
+  });
+}
+
+export function useSetSuggestedProfileActive() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ profileId, isActive }: { profileId: string; isActive: boolean }) => {
+      const { error } = await supabase
+        .from("suggested_profiles")
+        .update({ is_active: isActive })
+        .eq("profile_id", profileId);
+      if (error) throw error;
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["admin-suggested-profiles"] }),
+  });
+}
+
+export function useSetSuggestedProfilePriority() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ profileId, priority }: { profileId: string; priority: number }) => {
+      const { error } = await supabase
+        .from("suggested_profiles")
+        .update({ priority })
+        .eq("profile_id", profileId);
+      if (error) throw error;
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["admin-suggested-profiles"] }),
+  });
+}
