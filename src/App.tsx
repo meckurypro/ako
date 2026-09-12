@@ -76,6 +76,8 @@ import { EditProject } from "./pages/EditProject";
 import { ProjectDetail } from "./pages/ProjectDetail";
 import { Room } from "./pages/Room";
 import { Course } from "./pages/Course";
+import { Book } from "./pages/Book";
+import { BookReader } from "./pages/BookReader";
 import { MeetingRoom } from "./pages/MeetingRoom";
 import { TicketView } from "./pages/TicketView";
 import { EventCheckIn } from "./pages/EventCheckIn";
@@ -653,6 +655,18 @@ function AppRoutes() {
                 link should load for a logged-out visitor, who then just
                 sees the "buy to unlock" state Course.tsx already handles. */}
             <Route path="/courses/:projectId" element={<Course />} />
+            {/* Public — same reasoning as Course: a shared book link
+                should load for a logged-out visitor, who then sees
+                Book.tsx's own "buy to unlock" state. */}
+            <Route path="/books/:projectId" element={<Book />} />
+            <Route
+              path="/projects/:projectId/read"
+              element={
+                <RequireAuth>
+                  <BookReader />
+                </RequireAuth>
+              }
+            />
             <Route
               path="/meetings/:projectId"
               element={
