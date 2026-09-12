@@ -177,6 +177,14 @@ export function ProjectCard({
   const { user } = useAuth();
   const navigate = useNavigate();
   const isOwner = isOwnerView ?? user?.id === project.owner_id;
+  // Same reasoning as PostCard's isArchivedFrozen — an archived
+  // project's engagement is frozen (only ever relevant to the owner,
+  // viewing their own archived project from the Archive screen). The
+  // top-right "..." menu (Restore/Delete/Edit/etc., a few lines below)
+  // is a separate control from this tray and stays fully usable —
+  // it's already positioned at the top of the card, so nothing needs
+  // to move for it the way PostCard needed a new bar added.
+  const isArchivedFrozen = isOwner && project.status === "archived";
   const isFree = isProjectFree(project);
   const showPromo = hasActivePromo(project);
   const effectivePrice = getEffectivePrice(project);
@@ -1195,10 +1203,11 @@ export function ProjectCard({
           leftActions={leftActions}
           middleActions={middleActions}
           rightActions={rightActions}
-          onOpenMore={() => setShowMoreActions(true)}
+          onOpenMore={isArchivedFrozen ? undefined : () => setShowMoreActions(true)}
+          disabled={isArchivedFrozen}
         />
 
-        {showMoreActions && (
+        {showMoreActions && !isArchivedFrozen && (
           <ReactionMoreSheet actions={middleActions} onClose={() => setShowMoreActions(false)} />
         )}
           </UnlockReveal>
