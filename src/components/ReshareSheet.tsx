@@ -46,6 +46,7 @@ export function ReshareSheet({ postId, source, onClose }: ReshareSheetProps) {
   }
 
   async function handleQuoteSubmit() {
+    if (!caption.trim()) return;
     setError(null);
     try {
       await createReshare.mutateAsync({ originalPostId: postId, caption });
@@ -114,7 +115,7 @@ export function ReshareSheet({ postId, source, onClose }: ReshareSheetProps) {
             <span className="text-xs text-ink-muted">{caption.length}/1000</span>
             <button
               onClick={handleQuoteSubmit}
-              disabled={createReshare.isPending}
+              disabled={createReshare.isPending || !caption.trim()}
               className="px-5 py-2 rounded-full text-sm font-medium bg-accent text-canvas disabled:opacity-50 transition-colors duration-150"
             >
               {createReshare.isPending ? "Posting…" : "Quote"}
