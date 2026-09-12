@@ -38,6 +38,7 @@ import { EditPage } from "./pages/EditPage";
 import { WalletPage } from "./pages/Wallet";
 import { FundWallet } from "./pages/FundWallet";
 import { Withdraw } from "./pages/Withdraw";
+import { DepositCallback } from "./pages/DepositCallback";
 
 import { Notifications } from "./pages/Notifications";
 import { FollowRequests } from "./pages/FollowRequests";
@@ -54,7 +55,10 @@ import { RequireAdmin } from "./components/RequireAdmin";
 import { AdminLogin } from "./pages/admin/AdminLogin";
 import { AdminHome } from "./pages/admin/AdminHome";
 import { AdminCategories } from "./pages/admin/AdminCategories";
+import { AdminUserAnalytics } from "./pages/admin/AdminUserAnalytics";
 import { AdminGiftTypes } from "./pages/admin/AdminGiftTypes";
+import { AdminExchangeRates } from "./pages/admin/AdminExchangeRates";
+import { AdminPayouts } from "./pages/admin/AdminPayouts";
 import { AdminReportReasons } from "./pages/admin/AdminReportReasons";
 import { AdminProjectTypes } from "./pages/admin/AdminProjectTypes";
 import { AdminAccountExemptions } from "./pages/admin/AdminAccountExemptions";
@@ -76,8 +80,6 @@ import { MeetingRoom } from "./pages/MeetingRoom";
 import { TicketView } from "./pages/TicketView";
 import { EventCheckIn } from "./pages/EventCheckIn";
 import { Activity } from "./pages/Activity";
-import { DraftPosts } from "./pages/DraftPosts";
-import { ScheduledPosts } from "./pages/ScheduledPosts";
 import { CreateChoice } from "./pages/CreateChoice";
 import { SavedHub } from "./pages/SavedHub";
 import { LikedHub } from "./pages/LikedHub";
@@ -318,6 +320,14 @@ function AppRoutes() {
                 </RequireAuth>
               }
             />
+            <Route
+              path="/wallet/deposit/callback"
+              element={
+                <RequireAuth>
+                  <DepositCallback />
+                </RequireAuth>
+              }
+            />
 
             {/* Notifications, bookmarks, messaging */}
             <Route
@@ -433,6 +443,16 @@ function AppRoutes() {
               }
             />
             <Route
+              path="/admin/analytics"
+              element={
+                <RequireAuth>
+                  <RequireAdmin>
+                    <AdminUserAnalytics />
+                  </RequireAdmin>
+                </RequireAuth>
+              }
+            />
+            <Route
               path="/admin/categories"
               element={
                 <RequireAuth>
@@ -448,6 +468,26 @@ function AppRoutes() {
                 <RequireAuth>
                   <RequireAdmin>
                     <AdminGiftTypes />
+                  </RequireAdmin>
+                </RequireAuth>
+              }
+            />
+            <Route
+              path="/admin/exchange-rates"
+              element={
+                <RequireAuth>
+                  <RequireAdmin>
+                    <AdminExchangeRates />
+                  </RequireAdmin>
+                </RequireAuth>
+              }
+            />
+            <Route
+              path="/admin/payouts"
+              element={
+                <RequireAuth>
+                  <RequireAdmin>
+                    <AdminPayouts />
                   </RequireAdmin>
                 </RequireAuth>
               }
@@ -642,22 +682,6 @@ function AppRoutes() {
               element={
                 <RequireAuth>
                   <LikedHub />
-                </RequireAuth>
-              }
-            />
-            <Route
-              path="/activity/drafts"
-              element={
-                <RequireAuth>
-                  <DraftPosts />
-                </RequireAuth>
-              }
-            />
-            <Route
-              path="/activity/scheduled"
-              element={
-                <RequireAuth>
-                  <ScheduledPosts />
                 </RequireAuth>
               }
             />
