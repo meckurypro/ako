@@ -1,3 +1,4 @@
+// src/types/database.ts
 // Hand-maintained types matching the SQL schema (00_foundation.sql
 // through 22_profile_roles.sql). Once the schema stabilizes, consider
 // generating these automatically via:
@@ -176,12 +177,6 @@ export interface Post {
   // the human who posted it, but display/attribution should prefer the
   // page (see posted_as_page below) whenever this is non-null.
   posted_as_page_id: string | null;
-  // Requires supabase-fixes/add_post_drafts_and_scheduling.sql —
-  // absent from the live schema until that migration runs, at which
-  // point every row backfills to "published" by the column's own
-  // DEFAULT. See useMyDraftPosts/useMyScheduledPosts in usePosts.ts.
-  status?: "draft" | "scheduled" | "published";
-  scheduled_for?: string | null;
 }
 
 // Joined shape used when rendering a feed card — the post plus
@@ -264,4 +259,38 @@ export interface UserEmojiUsage {
   emoji: string;
   use_count: number;
   last_used_at: string;
+}
+
+export type ExchangeRateKind = "deposit" | "withdrawal";
+
+export interface ExchangeRate {
+  kind: ExchangeRateKind;
+  rate: number;
+  updated_at: string;
+  updated_by: string | null;
+}
+
+export interface Deposit {
+  id: string;
+  user_id: string;
+  amount_usd: number;
+  amount_ngn: number;
+  exchange_rate: number;
+  paystack_reference: string;
+  status: "pending" | "success" | "failed";
+  wallet_transaction_id: string | null;
+  created_at: string;
+  verified_at: string | null;
+}
+
+export interface PayoutBatch {
+  id: string;
+  run_date: string;
+  status: "processing" | "completed";
+  total_usd: number;
+  total_ngn: number;
+  withdrawal_count: number;
+  started_by: string | null;
+  started_at: string;
+  completed_at: string | null;
 }
