@@ -191,7 +191,11 @@ export function PostCard({
   function handleContentTap() {
     const now = Date.now();
     if (now - lastTapRef.current < DOUBLE_TAP_WINDOW_MS) {
-      if (!isLiked) toggleLike.mutate(false);
+      // Same pending-guard as the Like button itself (see leftActions
+      // below) — without it, a double-tap on the image right as a
+      // separate tap on the Like icon is still in flight could fire
+      // this on a stale `isLiked` read too.
+      if (!isLiked && !toggleLike.isPending) toggleLike.mutate(false);
     }
     lastTapRef.current = now;
   }
@@ -395,7 +399,20 @@ export function PostCard({
         <LikeHeart active={isLiked} size={24} className="text-danger" />
       ),
       count: post.like_count > 0 ? post.like_count : null,
-      onClick: () => toggleLike.mutate(isLiked),
+      // Guards against the classic optimistic-UI double-tap trap: this
+      // onClick closes over `isLiked` from render time, so two taps
+      // landing close enough together both read the SAME (stale)
+      // value once React's re-render from the first tap's optimistic
+      // update hasn't painted yet — tap-tap fires mutate(false) then
+      // mutate(true) (or vice versa), which looks exactly like "I
+      // liked it and it instantly undid itself." Ignoring a second tap
+      // while the first is still in flight closes that window; a
+      // genuine second tap AFTER the first settles still toggles
+      // normally, since isPending is false again by then.
+      onClick: () => {
+        if (toggleLike.isPending) return;
+        toggleLike.mutate(isLiked);
+      },
     },
   ];
 
