@@ -70,7 +70,7 @@ import { AdminSuggestedProfiles } from "./pages/admin/AdminSuggestedProfiles";
 import { AdminModeration } from "./pages/admin/AdminModeration";
 import { AdminReports } from "./pages/admin/AdminReports";
 import { AdminSmtpSettings } from "./pages/admin/AdminSmtpSettings";
-import { AdminEmailTemplates } from "./pages/admin/AdminEmailTemplateEditor";
+import { AdminEmailTemplates } from "./pages/admin/AdminEmailTemplates";
 import { AdminEmailTemplateEditor } from "./pages/admin/AdminEmailTemplateEditor";
 import { AdminEmailCampaigns } from "./pages/admin/AdminEmailCampaigns";
 import { AdminEmailCampaignEditor } from "./pages/admin/AdminEmailCampaignEditor";
