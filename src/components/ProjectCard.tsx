@@ -552,6 +552,13 @@ export function ProjectCard({
       navigate(`/login?redirect=${encodeURIComponent(`/projects/${project.id}`)}`);
       return;
     }
+    // Same double-tap race guard as PostCard's Like button — this
+    // closes over `isLiked` from render time, so two taps landing
+    // close together can both read the same stale value and fire
+    // mutate(false) then mutate(true) (or vice versa) — liking, then
+    // instantly undoing itself. Ignoring a second tap while the first
+    // is still in flight closes that window.
+    if (toggleLike.isPending) return;
     toggleLike.mutate(isLiked, {
       onError: () => toast("Couldn't like this project. Try again in a moment.", { variant: "error" }),
     });
