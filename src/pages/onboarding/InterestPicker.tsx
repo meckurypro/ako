@@ -1,8 +1,7 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useCategories } from "../../hooks/useCategories";
-import { useAuth } from "../../hooks/useAuth";
-import { supabase } from "../../lib/supabase";
+import { useMyInterestIds, useSaveInterests } from "../../hooks/useOnboarding";
 import { Wordmark } from "../../components/Wordmark";
 import { Button } from "../../components/Button";
 
@@ -10,10 +9,24 @@ const MIN_INTERESTS = 3;
 
 export function InterestPicker() {
   const navigate = useNavigate();
-  const { user } = useAuth();
   const { data: categories, isLoading, error } = useCategories();
+  const { data: existingInterestIds, isLoading: existingLoading } = useMyInterestIds();
+  const saveInterests = useSaveInterests();
+
   const [selected, setSelected] = useState<Set<string>>(new Set());
-  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const prefilled = useRef(false);
+
+  // Seed selections from whatever's already saved (resume case) —
+  // once only, so it doesn't clobber the user's in-progress toggling
+  // on a background refetch.
+  useEffect(() => {
+    if (prefilled.current || !existingInterestIds) return;
+    if (existingInterestIds.length > 0) {
+      setSelected(new Set(existingInterestIds));
+    }
+    prefilled.current = true;
+  }, [existingInterestIds]);
 
   function toggleInterest(interestId: string) {
     setSelected((prev) => {
@@ -28,28 +41,19 @@ export function InterestPicker() {
   }
 
   async function handleContinue() {
-    if (!user || selected.size < MIN_INTERESTS) return;
+    if (selected.size < MIN_INTERESTS) return;
+    setSaveError(null);
 
-    setSaving(true);
-
-    const rows = Array.from(selected).map((interest_id) => ({
-      user_id: user.id,
-      interest_id,
-    }));
-
-    const { error: insertError } = await supabase.from("user_interests").insert(rows);
-
-    setSaving(false);
-
-    if (insertError) {
-      console.error("Failed to save interests:", insertError);
-      return;
+    try {
+      await saveInterests.mutateAsync(Array.from(selected));
+      navigate("/onboarding/people");
+    } catch (err) {
+      console.error("Failed to save interests:", err);
+      setSaveError("Couldn't save your interests. Check your connection and try again.");
     }
-
-    navigate("/feed");
   }
 
-  if (isLoading) {
+  if (isLoading || existingLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-canvas">
         <p className="text-ink-muted">Loading topics…</p>
@@ -74,11 +78,17 @@ export function InterestPicker() {
           <Wordmark size="sm" showTagline={false} />
         </div>
 
-        <h2 className="font-display text-2xl text-ink mb-2">What's on your mind?</h2>
+        <h2 className="font-display text-2xl text-ink mb-2">What do you reason about?</h2>
         <p className="text-ink-muted mb-8">
-          Pick at least {MIN_INTERESTS} topics. This shapes what shows up in your feed —
-          you can change it anytime.
+          Pick at least {MIN_INTERESTS} topics. We'll use them to help you find relevant people and
+          shape your Akọ — you can change it anytime.
         </p>
+
+        {saveError && (
+          <p className="text-danger text-sm mb-4" role="alert">
+            {saveError}
+          </p>
+        )}
 
         <div className="space-y-8">
           {categories?.map((category) => (
@@ -108,8 +118,6 @@ export function InterestPicker() {
         </div>
       </div>
 
-      {/* Fixed bottom bar — keeps the continue action reachable without
-          scrolling back up, standard pattern for long selection screens */}
       <div className="fixed bottom-0 left-0 right-0 bg-canvas border-t border-border px-6 py-4">
         <div className="max-w-2xl mx-auto flex items-center justify-between gap-4">
           <p className="text-sm text-ink-muted">
@@ -120,7 +128,7 @@ export function InterestPicker() {
             <Button
               onClick={handleContinue}
               disabled={selected.size < MIN_INTERESTS}
-              loading={saving}
+              loading={saveInterests.isPending}
             >
               Continue
             </Button>
