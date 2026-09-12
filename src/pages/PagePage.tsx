@@ -194,7 +194,7 @@ export function PagePage() {
                     className="w-full flex items-center gap-2.5 text-left px-4 py-2.5 text-sm text-ink hover:bg-surface"
                   >
                     <ArrowLeftRight size={16} />
-                    Switch to personal
+                    Switch to {me?.display_name ?? "personal"}
                   </button>
                 )}
 
