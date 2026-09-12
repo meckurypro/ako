@@ -328,8 +328,16 @@ export function useToggleCommentReaction(postId: string) {
     onError: (err, _vars, context) => {
       // Roll back to whatever the cache held before the optimistic
       // update so a failed request doesn't leave a button stuck
-      // showing a reaction that was never actually saved.
-      if (context?.previous) queryClient.setQueryData(queryKey, context.previous);
+      // showing a reaction that was never actually saved. Check
+      // `context` itself, not `context.previous` — onMutate always
+      // returns a `{ previous }` object even when `previous` is
+      // undefined (e.g. the initial fetch never populated the
+      // cache), and `context?.previous` being falsy in that case
+      // used to skip the rollback entirely, leaving a phantom
+      // optimistic reaction that a failed request could never
+      // correct (see useToggleReaction's onError above for the
+      // version that gets this right).
+      if (context) queryClient.setQueryData(queryKey, context.previous);
       // A reaction that reliably reverts the instant it's tapped means
       // the insert/delete itself is being rejected server-side (a
       // trigger error or constraint), not a flaky network blip — this
