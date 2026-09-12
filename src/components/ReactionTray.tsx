@@ -31,6 +31,17 @@ interface ReactionTrayProps {
    *  PostCard/ProjectCard open a sheet listing every action in
    *  response. Long-press does nothing if omitted. */
   onOpenMore?: () => void;
+  /** Freezes the entire tray — every icon, the long-press "more" sheet,
+   *  and belowLeftLabel all become inert and visually dimmed. For
+   *  archived content: once something is archived its engagement
+   *  state shouldn't be touchable (liking/disliking/gifting archived
+   *  posts/projects doesn't make sense while they're hidden from
+   *  everyone else), so the owner viewing it from the Archive screen
+   *  gets a read-only tray. Restore/Delete move out of the long-press
+   *  sheet into their own always-reachable icons for this case — see
+   *  ArchivedActionsBar in PostCard.tsx/ProjectCard.tsx — since the
+   *  sheet that used to hold them is now unreachable by design. */
+  disabled?: boolean;
 }
 
 // Exactly 4 equal-width slots now: Like (left, pinned) + everything
@@ -55,17 +66,19 @@ function ActionButton({
   action,
   widthPercent,
   onOpenMore,
+  disabled,
 }: {
   action: EngagementAction;
   widthPercent: number;
   onOpenMore?: () => void;
+  disabled?: boolean;
 }) {
   const pressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const longPressed = useRef(false);
   const pressStart = useRef<{ x: number; y: number } | null>(null);
 
   function startPress(x: number, y: number) {
-    if (!onOpenMore) return;
+    if (!onOpenMore || disabled) return;
     longPressed.current = false;
     pressStart.current = { x, y };
     pressTimer.current = setTimeout(() => {
@@ -96,6 +109,7 @@ function ActionButton({
   }
 
   function handleClick(e: MouseEvent) {
+    if (disabled) return;
     // The long-press timer already fired onOpenMore — don't also fire
     // the tap action once the finger lifts.
     if (longPressed.current) {
@@ -109,6 +123,7 @@ function ActionButton({
     <button
       onClick={handleClick}
       onPointerDown={(e: PointerEvent) => {
+        if (disabled) return;
         e.currentTarget.setPointerCapture(e.pointerId);
         startPress(e.clientX, e.clientY);
       }}
@@ -117,8 +132,12 @@ function ActionButton({
       onPointerLeave={cancelPress}
       onPointerCancel={cancelPress}
       onContextMenu={(e) => e.preventDefault()}
+      disabled={disabled}
       aria-label={action.label}
-      className="flex flex-row items-center justify-center gap-2 py-1.5 flex-shrink-0 text-ink select-none"
+      aria-disabled={disabled}
+      className={`flex flex-row items-center justify-center gap-2 py-1.5 flex-shrink-0 text-ink select-none ${
+        disabled ? "opacity-40" : ""
+      }`}
       style={{ width: `${widthPercent}%`, touchAction: "manipulation", WebkitTouchCallout: "none" }}
     >
       {action.icon}
@@ -141,6 +160,7 @@ export function ReactionTray({
   rightActions,
   onOpenMore,
   belowLeftLabel,
+  disabled,
 }: ReactionTrayProps) {
   const slotPct = 100 / VISIBLE_SLOTS;
   // Reserved by capacity, not by middleActions.length — keeps a caller's
@@ -156,7 +176,7 @@ export function ReactionTray({
       <div className="flex flex-col items-center flex-shrink-0" style={{ width: `${leftActions.length * slotPct}%` }}>
         <div className="flex w-full">
           {leftActions.map((action) => (
-            <ActionButton key={action.key} action={action} widthPercent={100 / leftActions.length} onOpenMore={onOpenMore} />
+            <ActionButton key={action.key} action={action} widthPercent={100 / leftActions.length} onOpenMore={onOpenMore} disabled={disabled} />
           ))}
         </div>
 
@@ -172,13 +192,13 @@ export function ReactionTray({
 
       <div className="flex flex-shrink-0" style={{ width: `${middleSlotCount * slotPct}%` }}>
         {middleActions.map((action) => (
-          <ActionButton key={action.key} action={action} widthPercent={middleItemWidth} onOpenMore={onOpenMore} />
+          <ActionButton key={action.key} action={action} widthPercent={middleItemWidth} onOpenMore={onOpenMore} disabled={disabled} />
         ))}
       </div>
 
       <div className="flex flex-shrink-0" style={{ width: `${rightActions.length * slotPct}%` }}>
         {rightActions.map((action) => (
-          <ActionButton key={action.key} action={action} widthPercent={100 / rightActions.length} onOpenMore={onOpenMore} />
+          <ActionButton key={action.key} action={action} widthPercent={100 / rightActions.length} onOpenMore={onOpenMore} disabled={disabled} />
         ))}
       </div>
     </div>
