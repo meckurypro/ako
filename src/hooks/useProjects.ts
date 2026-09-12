@@ -29,7 +29,8 @@ export type ProjectType =
   | "room"
   | "meeting"
   | "gig"
-  | "pitch";
+  | "pitch"
+  | "book";
 
 export const PROJECT_TYPE_LABELS: Record<ProjectType, string> = {
   event: "Event",
@@ -41,6 +42,7 @@ export const PROJECT_TYPE_LABELS: Record<ProjectType, string> = {
   meeting: "Meeting",
   gig: "Gig",
   pitch: "Pitch",
+  book: "Book",
 };
 
 // Order to show in the type picker.
@@ -51,6 +53,7 @@ export const PROJECT_TYPE_OPTIONS: ProjectType[] = [
   "meeting",
   "room",
   "course",
+  "book",
   "media",
   "file",
   "url",
@@ -69,6 +72,7 @@ export const PROJECT_TYPE_HINTS: Record<ProjectType, string> = {
   gig: "A skill or service you offer. Show proof of work, get messaged or booked.",
   pitch:
     "Share an idea and let people support it — not an investment, just backing. No price tag; supporters back it for any amount and keep whatever's raised regardless of the goal.",
+  book: "A book or article. Link out, upload a PDF for download, or let people read it right here.",
 };
 
 // Which posting identity each type is restricted to — see
@@ -92,6 +96,9 @@ export const PROJECT_TYPE_ACCESS: Record<ProjectType, ProjectAccess> = {
   media: "personal",
   file: "personal",
   pitch: "personal",
+  // Either — a personal author and a publisher/organization page can
+  // both reasonably post a book.
+  book: "either",
   // Either.
   url: "either",
 };
@@ -482,6 +489,30 @@ interface RoomDetailsInput {
   end_date?: string;
 }
 
+// A 'book' offers a link, an uploaded PDF, or is written entirely
+// in-app (content_source picks exactly one, mirroring media's
+// link-or-upload split — see project_book_details_content_matches_source
+// in the migration). allow_download / allow_read_in_app are only
+// meaningful when content_source = 'upload'. is_own_work = false means
+// the host is publishing someone else's work with credit — the
+// server (trg_enforce_book_no_monetization) rejects any nonzero price
+// in that case, not just this form. 'authored' books are created here
+// as an empty draft (same as course) and built afterward in the Book
+// builder (useBookBuilder.ts) — this input just reserves book_type/
+// is_own_work/author fields for them.
+interface BookDetailsInput {
+  book_type: "book" | "article";
+  content_source: "link" | "upload" | "authored";
+  author_name?: string;
+  is_own_work: boolean;
+  source_credit?: string;
+  external_url?: string;
+  file_path?: string;
+  allow_download?: boolean;
+  allow_read_in_app?: boolean;
+  page_count?: number;
+}
+
 interface CreateProjectInput {
   title: string;
   description?: string;
@@ -507,6 +538,7 @@ interface CreateProjectInput {
   media_details?: MediaDetailsInput;
   gig_details?: GigDetailsInput;
   room_details?: RoomDetailsInput;
+  book_details?: BookDetailsInput;
 }
 
 export function useCreateProject() {
@@ -522,6 +554,7 @@ export function useCreateProject() {
       media_details,
       gig_details,
       room_details,
+      book_details,
       ...input
     }: CreateProjectInput) => {
       if (!user) throw new Error("Not signed in");
@@ -587,6 +620,12 @@ export function useCreateProject() {
         const { error: detailsError } = await supabase
           .from("project_room_details")
           .insert({ project_id: data.id, ...room_details });
+        if (detailsError) throw detailsError;
+      }
+      if (input.project_type === "book" && book_details) {
+        const { error: detailsError } = await supabase
+          .from("project_book_details")
+          .insert({ project_id: data.id, ...book_details });
         if (detailsError) throw detailsError;
       }
 
@@ -840,21 +879,30 @@ export function useBookGig() {
  *  - "audio" → project_media_details.audio_file_path
  *  - "video" → project_media_details.video_file_path
  *  - "image" → project_media_details.image_file_path
+ *  - "book"  → project_book_details.file_path (content_source='upload' Book projects)
  * Defaults to "file" for existing call sites. NOTE: the deployed
  * get-project-file function needs to be updated to branch on this —
  * see the note in project-types/MediaFields.tsx / README.
+ *
+ * `action` only matters for kind: "book" — a book's uploaded PDF can
+ * be allowed for download, in-app reading, both, or neither
+ * (allow_download / allow_read_in_app), independently. The edge
+ * function checks the matching column for whichever action was
+ * requested, in addition to the usual owner/free/purchased gate.
  */
 export function useGetProjectFile() {
   return useMutation({
     mutationFn: async ({
       projectId,
       kind = "file",
+      action = "download",
     }: {
       projectId: string;
-      kind?: "file" | "audio" | "video" | "image";
+      kind?: "file" | "audio" | "video" | "image" | "book";
+      action?: "download" | "stream";
     }): Promise<string> => {
       const { data, error } = await supabase.functions.invoke("get-project-file", {
-        body: { project_id: projectId, kind },
+        body: { project_id: projectId, kind, action },
       });
       if (error) throw error;
       if (data?.error) throw new Error(data.error);
