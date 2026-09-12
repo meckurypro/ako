@@ -1,7 +1,7 @@
 // src/types/database.ts
 // Hand-maintained types matching the SQL schema (00_foundation.sql
-// through 22_profile_roles.sql). Once the schema stabilizes, consider
-// generating these automatically via:
+// through 31_onboarding_recommendations.sql). Once the schema
+// stabilizes, consider generating these automatically via:
 //   npx supabase gen types typescript --project-id <ref> > database.ts
 // For now, hand-maintained keeps us honest about what's actually built
 // vs. planned.
@@ -41,6 +41,10 @@ export interface Profile {
   // Null = acting as yourself. Set = you're currently acting as one of
   // the pages you have an active role on (see /areas/account-mode).
   active_page_id: string | null;
+  // Added in 31_onboarding_recommendations.sql. Backfilled to true for
+  // every profile that existed before that migration ran — only
+  // genuinely new signups start out false. See useOnboardingStatus.
+  onboarding_completed: boolean;
 }
 
 // ------------------------------------------------------------
