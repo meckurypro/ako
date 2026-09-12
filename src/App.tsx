@@ -15,7 +15,11 @@ import { VerifyEmail } from "./pages/auth/VerifyEmail";
 import { ResetPassword } from "./pages/auth/ResetPassword";
 import { AuthCallback } from "./pages/auth/AuthCallback";
 
+import { Welcome } from "./pages/onboarding/Welcome";
 import { InterestPicker } from "./pages/onboarding/InterestPicker";
+import { FindPeople } from "./pages/onboarding/FindPeople";
+import { BuildingAko } from "./pages/onboarding/BuildingAko";
+import { OnboardingStepGuard } from "./pages/onboarding/OnboardingStepGuard";
 
 import { Feed } from "./pages/Feed";
 import { Compose } from "./pages/Compose";
@@ -62,10 +66,11 @@ import { AdminPayouts } from "./pages/admin/AdminPayouts";
 import { AdminReportReasons } from "./pages/admin/AdminReportReasons";
 import { AdminProjectTypes } from "./pages/admin/AdminProjectTypes";
 import { AdminAccountExemptions } from "./pages/admin/AdminAccountExemptions";
+import { AdminSuggestedProfiles } from "./pages/admin/AdminSuggestedProfiles";
 import { AdminModeration } from "./pages/admin/AdminModeration";
 import { AdminReports } from "./pages/admin/AdminReports";
 import { AdminSmtpSettings } from "./pages/admin/AdminSmtpSettings";
-import { AdminEmailTemplates } from "./pages/admin/AdminEmailTemplates";
+import { AdminEmailTemplates } from "./pages/admin/AdminEmailTemplateEditor";
 import { AdminEmailTemplateEditor } from "./pages/admin/AdminEmailTemplateEditor";
 import { AdminEmailCampaigns } from "./pages/admin/AdminEmailCampaigns";
 import { AdminEmailCampaignEditor } from "./pages/admin/AdminEmailCampaignEditor";
@@ -150,12 +155,51 @@ function AppRoutes() {
                 on failure before ever reaching /admin. */}
             <Route path="/admin/login" element={<AdminLogin />} />
 
-            {/* Onboarding */}
+            {/* Onboarding — NewUserOnboarding.md. Every step routes
+                through RequireAuth with skipOnboardingCheck so a
+                signed-out visit still bounces to /login, but the
+                onboarding-incomplete redirect in RequireAuth itself
+                doesn't loop back here. OnboardingStepGuard is the
+                inverse: it sends someone who has ALREADY completed
+                onboarding away from these pages (e.g. browser
+                back/bookmark) to /feed instead. */}
+            <Route
+              path="/onboarding/welcome"
+              element={
+                <RequireAuth skipOnboardingCheck>
+                  <OnboardingStepGuard>
+                    <Welcome />
+                  </OnboardingStepGuard>
+                </RequireAuth>
+              }
+            />
             <Route
               path="/onboarding/interests"
               element={
-                <RequireAuth>
-                  <InterestPicker />
+                <RequireAuth skipOnboardingCheck>
+                  <OnboardingStepGuard>
+                    <InterestPicker />
+                  </OnboardingStepGuard>
+                </RequireAuth>
+              }
+            />
+            <Route
+              path="/onboarding/people"
+              element={
+                <RequireAuth skipOnboardingCheck>
+                  <OnboardingStepGuard>
+                    <FindPeople />
+                  </OnboardingStepGuard>
+                </RequireAuth>
+              }
+            />
+            <Route
+              path="/onboarding/building"
+              element={
+                <RequireAuth skipOnboardingCheck>
+                  <OnboardingStepGuard>
+                    <BuildingAko />
+                  </OnboardingStepGuard>
                 </RequireAuth>
               }
             />
@@ -530,6 +574,16 @@ function AppRoutes() {
                 <RequireAuth>
                   <RequireAdmin>
                     <AdminAccountExemptions />
+                  </RequireAdmin>
+                </RequireAuth>
+              }
+            />
+            <Route
+              path="/admin/suggested-profiles"
+              element={
+                <RequireAuth>
+                  <RequireAdmin>
+                    <AdminSuggestedProfiles />
                   </RequireAdmin>
                 </RequireAuth>
               }
