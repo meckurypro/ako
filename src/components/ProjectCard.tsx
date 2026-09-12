@@ -19,6 +19,7 @@ import {
   Video,
   Music,
   BookOpen,
+  BookText,
   Eye,
   Link as LinkIcon,
   Briefcase,
@@ -45,7 +46,7 @@ import {
   PROJECT_TYPE_LABELS,
   type Project,
 } from "../hooks/useProjects";
-import { useMediaDetails, usePitchDetails, usePitchRaised } from "../hooks/useProjectTypeDetails";
+import { useMediaDetails, usePitchDetails, usePitchRaised, useBookDetails } from "../hooks/useProjectTypeDetails";
 import { MediaPreviewPlayer } from "./MediaPreviewPlayer";
 import { useIsProjectSaved, useToggleSavedProject } from "../hooks/useSavedProjects";
 import { useProjectAccessCount, useLogFreeProjectAccess } from "../hooks/useProjectAccess";
@@ -201,6 +202,13 @@ export function ProjectCard({
   const isPitch = project.project_type === "pitch";
   const { data: pitchDetails } = usePitchDetails(isPitch ? project.id : undefined);
   const { data: pitchRaised } = usePitchRaised(isPitch ? project.id : undefined);
+  const isBook = project.project_type === "book";
+  const { data: bookDetails } = useBookDetails(isBook ? project.id : undefined);
+  const getBookDownload = useGetProjectFile();
+  // Same "built as a draft, can't be bought until published" shape as
+  // Course, but only for an authored book — a link/upload Book is
+  // complete the moment it's created, same as File/URL.
+  const isBookDraftUnpublished = isBook && bookDetails?.content_source === "authored" && !project.published_at;
   const startConversation = useStartConversation();
 
   const [error, setError] = useState<string | null>(null);
@@ -383,6 +391,40 @@ export function ProjectCard({
       tab?.close();
       setError(err instanceof Error ? err.message : "Couldn't access file.");
     }
+  }
+
+  function handleOpenBookLink() {
+    logFreeAccessIfNeeded("link_click");
+  }
+
+  async function handleDownloadBookFile() {
+    if (!user) {
+      navigate(`/login?redirect=${encodeURIComponent(`/projects/${project.id}`)}`);
+      return;
+    }
+    setError(null);
+    const tab = window.open("", "_blank");
+    try {
+      const url = await getBookDownload.mutateAsync({ projectId: project.id, kind: "book", action: "download" });
+      if (tab) {
+        tab.location.href = url;
+      } else {
+        window.location.href = url;
+      }
+      logFreeAccessIfNeeded("download");
+    } catch (err) {
+      tab?.close();
+      setError(err instanceof Error ? err.message : "Couldn't access file.");
+    }
+  }
+
+  function handleOpenBookReader() {
+    if (!user) {
+      navigate(`/login?redirect=${encodeURIComponent(`/projects/${project.id}`)}`);
+      return;
+    }
+    logFreeAccessIfNeeded("stream");
+    navigate(`/projects/${project.id}/read`);
   }
 
   // URL projects skip the edge function entirely (the link itself is
@@ -913,6 +955,66 @@ export function ProjectCard({
           </div>
         )}
 
+        {/* Book needs its own block above the action row too — its
+            three content_source values need completely different
+            actions, the same reasoning as Media above. */}
+        {isBook && bookDetails && hasAccess && (
+          <div className="flex flex-col gap-3 mt-3">
+            {bookDetails.content_source === "link" && (
+              <div className="flex items-center gap-3">
+                <a
+                  href={bookDetails.external_url ?? undefined}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  onClick={handleOpenBookLink}
+                  className="flex items-center gap-1.5 text-sm text-accent font-medium"
+                >
+                  <LinkIcon size={15} />
+                  Open link
+                </a>
+              </div>
+            )}
+            {bookDetails.content_source === "upload" && (
+              <div className="flex items-center gap-3">
+                {bookDetails.allow_read_in_app && (
+                  <button
+                    onClick={handleOpenBookReader}
+                    className="flex items-center gap-1.5 text-sm text-accent font-medium"
+                  >
+                    <BookText size={15} />
+                    Read
+                  </button>
+                )}
+                {bookDetails.allow_download && (
+                  <button
+                    onClick={handleDownloadBookFile}
+                    disabled={getBookDownload.isPending}
+                    className="flex items-center gap-1.5 text-sm text-accent font-medium disabled:opacity-50"
+                  >
+                    <Download size={15} />
+                    {getBookDownload.isPending ? "Preparing…" : "Download"}
+                  </button>
+                )}
+              </div>
+            )}
+            {bookDetails.content_source === "authored" && (
+              <button
+                onClick={() => navigate(`/books/${project.id}`)}
+                className="flex items-center gap-1.5 text-sm text-accent font-medium"
+              >
+                <BookOpen size={15} />
+                {isOwner && !project.published_at ? "Continue building" : "Read"}
+              </button>
+            )}
+          </div>
+        )}
+        {isBook && bookDetails && !hasAccess && !isOwner && (
+          <div className="flex items-center gap-1.5 text-sm text-ink-muted mt-3">
+            <Lock size={15} />
+            Locked
+          </div>
+        )}
+
         <div className="flex items-center gap-2 mt-3">
           {/* File — hosted download, no external link ever stored. */}
           {project.project_type === "file" &&
@@ -981,6 +1083,7 @@ export function ProjectCard({
               the door-scanner page here instead of "View ticket". */}
           {!INLINE_TYPES.includes(project.project_type) &&
             !isMedia &&
+            !isBook &&
             hasAccess &&
             TYPE_ROUTE[project.project_type] && (
               <button
@@ -1000,6 +1103,7 @@ export function ProjectCard({
 
           {!INLINE_TYPES.includes(project.project_type) &&
             !isMedia &&
+            !isBook &&
             project.project_type !== "gig" &&
             project.project_type !== "pitch" &&
             !hasAccess &&
@@ -1011,6 +1115,10 @@ export function ProjectCard({
             )}
 
           {isCourseUnpublished && isOwner && (
+            <span className="text-sm text-ink-muted">Not published yet</span>
+          )}
+
+          {isBookDraftUnpublished && isOwner && (
             <span className="text-sm text-ink-muted">Not published yet</span>
           )}
 
@@ -1051,7 +1159,11 @@ export function ProjectCard({
           {/* Buy/Book pill for everything except Room, which now joins
               via the Join engagement icon below instead — price is
               still visible up top in the badge next to the title. */}
-          {project.project_type !== "room" && project.project_type !== "pitch" && !hasAccess && !isCourseUnpublished && (
+          {project.project_type !== "room" &&
+            project.project_type !== "pitch" &&
+            !hasAccess &&
+            !isCourseUnpublished &&
+            !isBookDraftUnpublished && (
             <button
               onClick={project.project_type === "gig" ? handleBookGig : handleBuy}
               disabled={project.project_type === "gig" ? bookGig.isPending : purchaseProject.isPending}
