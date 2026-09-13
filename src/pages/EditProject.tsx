@@ -18,6 +18,7 @@ import { FormField } from "../components/FormField";
 import { Button } from "../components/Button";
 import { PrivacyToggle } from "../components/PrivacyToggle";
 import { ManageAccessSheet } from "../components/ManageAccessSheet";
+import { AffiliateProgramSheet } from "../components/AffiliateProgramSheet";
 import { TopicPicker, MAX_TOPICS } from "../components/TopicPicker";
 import { FormatToolbar } from "../components/FormatToolbar";
 import { CONTENT_LIMIT, contentCounterClass } from "../lib/textLimits";
@@ -53,6 +54,7 @@ export function EditProject() {
 
   const { data: project, isLoading } = useProject(projectId);
   const [manageAccessOpen, setManageAccessOpen] = useState(false);
+  const [affiliateSheetOpen, setAffiliateSheetOpen] = useState(false);
   const { data: existingTopicIds } = useProjectTopics(projectId);
   const { data: existingEventDetails } = useEventDetails(project?.project_type === "event" ? projectId : undefined);
   const { data: existingMeetingDetails } = useMeetingDetails(
@@ -719,6 +721,19 @@ export function EditProject() {
             </>
           )}
 
+          {/* Pitches route through add_supporter_to_pitch_room, not
+              process_project_purchase — there's no sale for a
+              commission to attach to, so no affiliate program for them. */}
+          {project.project_type !== "pitch" && (
+            <button
+              type="button"
+              onClick={() => setAffiliateSheetOpen(true)}
+              className="w-full text-left text-sm font-medium text-accent px-1 mb-6"
+            >
+              Affiliate program →
+            </button>
+          )}
+
           <PrivacyToggle checked={isPrivate} onChange={setIsPrivate} />
 
           {isPrivate && projectId && (
@@ -748,6 +763,14 @@ export function EditProject() {
           projectId={projectId}
           projectTitle={project.title}
           onClose={() => setManageAccessOpen(false)}
+        />
+      )}
+
+      {affiliateSheetOpen && projectId && project && (
+        <AffiliateProgramSheet
+          projectId={projectId}
+          projectTitle={project.title}
+          onClose={() => setAffiliateSheetOpen(false)}
         />
       )}
     </div>
