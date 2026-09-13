@@ -62,7 +62,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
             <div
               key={t.id}
               role="status"
-              className="pointer-events-auto max-w-sm w-full flex items-start gap-2.5 bg-ink text-canvas text-sm rounded-2xl shadow-lg px-4 py-3 animate-[toast-in_180ms_ease-out]"
+              className="pointer-events-auto max-w-sm w-full flex items-start gap-2.5 bg-canvas text-ink border border-border text-sm rounded-2xl shadow-lg px-4 py-3 animate-[toast-in_180ms_ease-out]"
             >
               {ICON_FOR[t.variant]}
               <span className="leading-snug">{t.message}</span>
