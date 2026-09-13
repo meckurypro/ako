@@ -270,6 +270,38 @@ export function usePagePosts(pageId: string, page = 0) {
   });
 }
 
+/**
+ * A single post by id, in the same fully-joined shape as the feed
+ * queries (author, posted_as_page, tagged_project, reshared_post) —
+ * a distinct query key from PostDetail.tsx's own local `usePost`
+ * (["post", id]), which only joins `author`. Sharing that key would
+ * mean whichever query happened to populate the cache first "wins"
+ * the shape for both call sites, even though the two select different
+ * columns — not worth the entanglement for what's otherwise an
+ * unrelated read. Currently used by Feed.tsx to pin a just-published
+ * post at the top of the "For You" list the instant it lands there
+ * (see justPostedId) — the ranked feed itself has no reason to
+ * surface a brand-new, zero-engagement post anywhere near the top
+ * (see get_ranked_feed: a fresh post scores 0 until it has
+ * engagement), so that placement is done here client-side rather than
+ * by waiting on the ranking algorithm to do it.
+ */
+export function usePostById(postId: string | null) {
+  return useQuery({
+    queryKey: ["post-full", postId],
+    queryFn: async (): Promise<PostWithAuthor> => {
+      const { data, error } = await supabase
+        .from("posts")
+        .select(FEED_SELECT)
+        .eq("id", postId)
+        .single();
+      if (error) throw error;
+      return normalizePost(data);
+    },
+    enabled: !!postId,
+  });
+}
+
 export function useCreatePost() {
   const queryClient = useQueryClient();
 
