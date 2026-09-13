@@ -98,7 +98,8 @@ function PageRuleFields({ rule }: { rule: PageCreationRule | null | undefined })
           Minimum distinct posts engaged with in the last 30 days
         </label>
         <p className="text-xs text-ink-muted mb-1">
-          Counts reactions, comments, bookmarks, and reshares — deduped per post. Own posts don't count toward
+          Counts reactions, comments, bookmarks, and reshares — deduped per post. Own posts, and anything done
+          while acting as a Page, don't count toward
           this.
         </p>
         <input
@@ -146,11 +147,17 @@ function PageRuleFields({ rule }: { rule: PageCreationRule | null | undefined })
 // /admin/account-exemptions, which grants a blanket pass on every
 // project-type rule at once. An override granted here only ever
 // affects create_page, nothing else.
+//
+// Each row keeps its own draft expiry date (yyyy-mm-dd, or "" for no
+// expiry/forever) so an admin can set how long a test grant should
+// last before flipping the switch on. Toggling off always revokes
+// immediately regardless of what expiry was set.
 function PageCapabilityOverrides() {
   const [query, setQuery] = useState("");
   const { data: results, isLoading, isFetching } = useAdminSearchAccountsForPageCapability(query);
   const grant = useGrantPageCreationOverride();
   const revoke = useRevokePageCreationOverride();
+  const [expiryDrafts, setExpiryDrafts] = useState<Record<string, string>>({});
 
   return (
     <div className="space-y-3">
@@ -180,28 +187,54 @@ function PageCapabilityOverrides() {
         <p className="text-ink-muted text-center py-6 text-sm">No accounts found.</p>
       ) : (
         <div className="space-y-2">
-          {results?.map((account) => (
-            <div key={account.id} className="flex items-center gap-3 bg-canvas rounded-xl p-3 border border-border">
-              <Avatar src={account.avatar_url} name={account.display_name} size="sm" />
-              <div className="flex-1 min-w-0">
-                <p className="font-medium text-ink truncate text-sm">{account.display_name}</p>
-                <p className="text-xs text-ink-muted truncate">
-                  @{account.username} · {account.follower_count} followers
-                </p>
+          {results?.map((account) => {
+            const draftExpiry = expiryDrafts[account.id] ?? "";
+            return (
+              <div key={account.id} className="bg-canvas rounded-xl p-3 border border-border space-y-2">
+                <div className="flex items-center gap-3">
+                  <Avatar src={account.avatar_url} name={account.display_name} size="sm" />
+                  <div className="flex-1 min-w-0">
+                    <p className="font-medium text-ink truncate text-sm">{account.display_name}</p>
+                    <p className="text-xs text-ink-muted truncate">
+                      @{account.username} · {account.follower_count} followers
+                    </p>
+                  </div>
+                  <ToggleSwitch
+                    checked={account.has_page_override}
+                    disabled={grant.isPending || revoke.isPending}
+                    onChange={(checked) => {
+                      if (checked) {
+                        grant.mutate({
+                          targetUserId: account.id,
+                          expiresAt: draftExpiry ? new Date(draftExpiry).toISOString() : null,
+                        });
+                      } else {
+                        revoke.mutate(account.id);
+                      }
+                    }}
+                  />
+                </div>
+
+                {account.has_page_override ? (
+                  <p className="text-xs text-ink-muted pl-11">
+                    {account.override_expires_at
+                      ? `Expires ${new Date(account.override_expires_at).toLocaleDateString()}`
+                      : "No expiry — active until manually revoked"}
+                  </p>
+                ) : (
+                  <div className="flex items-center gap-2 pl-11">
+                    <label className="text-xs text-ink-muted whitespace-nowrap">Expires (optional):</label>
+                    <input
+                      type="date"
+                      value={draftExpiry}
+                      onChange={(e) => setExpiryDrafts((d) => ({ ...d, [account.id]: e.target.value }))}
+                      className="px-2 py-1 rounded-lg border border-border bg-surface text-xs text-ink"
+                    />
+                  </div>
+                )}
               </div>
-              <ToggleSwitch
-                checked={account.has_page_override}
-                disabled={grant.isPending || revoke.isPending}
-                onChange={(checked) => {
-                  if (checked) {
-                    grant.mutate(account.id);
-                  } else {
-                    revoke.mutate(account.id);
-                  }
-                }}
-              />
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
     </div>
