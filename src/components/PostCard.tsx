@@ -585,6 +585,11 @@ export function PostCard({
       <div className="flex items-start gap-3">
         <Link
           to={identityHref}
+          // Only a real profile destination (not a Page) gets the
+          // "came from this post" marker — see ProfilePage's
+          // fromFeedPost, which powers the "Back to post" FAB shown
+          // there. Pages don't have that FAB at all.
+          state={!postedAsPage ? { fromFeedPost: { id: post.id } } : undefined}
           className="relative"
           onClick={() => {
             if (!postedAsPage && user) {
@@ -600,6 +605,7 @@ export function PostCard({
           <div className="flex items-center gap-1.5 flex-wrap">
             <Link
               to={identityHref}
+              state={!postedAsPage ? { fromFeedPost: { id: post.id } } : undefined}
               className="font-display font-semibold text-[17px] leading-5 text-ink hover:underline"
               onClick={() => {
                 if (!postedAsPage && user) {
