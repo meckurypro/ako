@@ -25,6 +25,7 @@ import { Feed } from "./pages/Feed";
 import { Compose } from "./pages/Compose";
 import { EditPost } from "./pages/EditPost";
 import { PostDetail } from "./pages/PostDetail";
+import { PromoteComposer } from "./pages/PromoteComposer";
 import { HashtagFeed } from "./pages/HashtagFeed";
 import { Discover } from "./pages/Discover";
 
@@ -72,6 +73,7 @@ import { AdminSuggestedProfiles } from "./pages/admin/AdminSuggestedProfiles";
 import { AdminModeration } from "./pages/admin/AdminModeration";
 import { AdminPageSettings } from "./pages/admin/AdminPageSettings";
 import { AdminReports } from "./pages/admin/AdminReports";
+import { AdminPromotions } from "./pages/admin/AdminPromotions";
 import { AdminSmtpSettings } from "./pages/admin/AdminSmtpSettings";
 import { AdminEmailTemplates } from "./pages/admin/AdminEmailTemplates";
 import { AdminEmailTemplateEditor } from "./pages/admin/AdminEmailTemplateEditor";
@@ -246,6 +248,14 @@ function AppRoutes() {
               element={
                 <RequireAuth>
                   <EditPost />
+                </RequireAuth>
+              }
+            />
+            <Route
+              path="/promote/:postId"
+              element={
+                <RequireAuth>
+                  <PromoteComposer />
                 </RequireAuth>
               }
             />
@@ -566,6 +576,16 @@ function AppRoutes() {
                 <RequireAuth>
                   <RequireAdmin>
                     <AdminReports />
+                  </RequireAdmin>
+                </RequireAuth>
+              }
+            />
+            <Route
+              path="/admin/promotions"
+              element={
+                <RequireAuth>
+                  <RequireAdmin>
+                    <AdminPromotions />
                   </RequireAdmin>
                 </RequireAuth>
               }
