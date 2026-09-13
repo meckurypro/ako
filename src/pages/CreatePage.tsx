@@ -4,7 +4,14 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import { useSmartBack } from "../hooks/useSmartBack";
 import { ArrowLeft } from "lucide-react";
 import { supabase } from "../lib/supabase";
-import { useCreatePage, useMyPages, usePageById, usePageRoleLabelSuggestions } from "../hooks/usePages";
+import {
+  useCreatePage,
+  useMyPages,
+  usePageById,
+  usePageRoleLabelSuggestions,
+  usePageCreationEligibility,
+  getPageCreationEligibilityReasons,
+} from "../hooks/usePages";
 import { useCategories } from "../hooks/useCategories";
 import { usePagesFeatureSettings } from "../hooks/useAdmin";
 import type { PageType } from "../types/database";
@@ -47,6 +54,13 @@ export function CreatePage() {
   const { data: categories } = useCategories();
   const { data: myPages } = useMyPages();
   const { data: pagesFeature, isLoading: loadingPagesFeature } = usePagesFeatureSettings();
+
+  // Server-computed progress toward the 30-posts / 30-distinct-
+  // engaged-posts requirement (see get_page_creation_eligibility()).
+  // Shown here purely for UX — create_page() independently re-checks
+  // the same rule server-side, so this can never be the actual gate.
+  const { data: pageEligibilityRaw } = usePageCreationEligibility();
+  const eligibility = getPageCreationEligibilityReasons(pageEligibilityRaw);
 
   // Arriving from an existing page's "…" menu "Add Subsidiary" row
   // (see PagePage.tsx) passes ?parent=<page id> — that page becomes a
@@ -125,6 +139,14 @@ export function CreatePage() {
 
     if (usernameStatus === "taken") {
       setError("That username is already taken.");
+      return;
+    }
+
+    // UX-only short-circuit — mirrors CreateProject's eligibility
+    // check. The real gate is create_page() itself, which will raise
+    // its own clear error even if this somehow gets bypassed.
+    if (eligibility && !eligibility.eligible) {
+      setError(eligibility.reasons[0]);
       return;
     }
 
@@ -211,6 +233,22 @@ export function CreatePage() {
               </button>
             ))}
           </div>
+
+          {eligibility && !eligibility.eligible && (
+            <div className="px-4 py-3 rounded-xl bg-danger/10 border border-danger/30">
+              <p className="text-sm font-medium text-danger mb-1">
+                Page creation isn't unlocked yet:
+              </p>
+              <ul className="text-xs text-danger space-y-0.5 list-disc list-inside">
+                {eligibility.reasons.map((reason) => (
+                  <li key={reason}>{reason}</li>
+                ))}
+              </ul>
+              <p className="text-xs text-danger/80 mt-1.5">
+                Keep posting and engaging with others' posts to unlock this.
+              </p>
+            </div>
+          )}
 
           <div>
             <label className="block text-xs font-medium text-ink-muted mb-1">{NAME_LABEL[pageType]}</label>
