@@ -214,6 +214,29 @@ export function MessageThread() {
     });
   }, [messages, userStates]);
 
+  // Which messages get the bubble entrance animation (see MessageBubble's
+  // `animateIn` / ako-bubble-in-* in index.css) — genuine new arrivals
+  // only: a message just sent, or a realtime INSERT landing while the
+  // thread is open. NOT the initial page load, and NOT loadOlder()
+  // paging older history into view — both would otherwise replay the
+  // animation for a whole screenful of already-read messages at once.
+  // `hasLoadedRef` gates the very first population; after that, any key
+  // not yet in `seenKeysRef` is new. Keyed by client_key (falling back
+  // to id) rather than id alone so the optimistic-send → real-row swap
+  // in useSendMessage — same message, new id — isn't mistaken for a
+  // second arrival and double-animated.
+  const hasLoadedRef = useRef(false);
+  const seenKeysRef = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    hasLoadedRef.current = false;
+    seenKeysRef.current = new Set();
+  }, [conversationId]);
+  useEffect(() => {
+    if (!visibleMessages) return;
+    for (const m of visibleMessages) seenKeysRef.current.add(m.client_key ?? m.id);
+    hasLoadedRef.current = true;
+  }, [visibleMessages]);
+
   // Prefilled from e.g. ProjectCard's "Message for access" — an
   // editable draft, not an auto-sent message, so a customised request
   // is still genuinely the visitor's own words. Consumed once via
@@ -995,9 +1018,11 @@ export function MessageThread() {
                 const dayKey = dayKeyFor(m.created_at);
                 const isNewDay = dayKey !== lastDayKey;
                 lastDayKey = dayKey;
+                const messageKey = m.client_key ?? m.id;
+                const animateIn = hasLoadedRef.current && !seenKeysRef.current.has(messageKey);
 
                 return (
-                  <Fragment key={m.id}>
+                  <Fragment key={messageKey}>
                     {isNewDay && (
                       <div
                         className="flex justify-center py-2 first:pt-0"
@@ -1021,6 +1046,7 @@ export function MessageThread() {
                       searchQuery={searchQuery}
                       dragOffset={dragOffsets[m.id] ?? 0}
                       isDraggingThis={activeDragId === m.id}
+                      animateIn={animateIn}
                       registerRef={registerRef}
                       onRowClick={onRowClick}
                       onPointerDown={handlePointerDown}
