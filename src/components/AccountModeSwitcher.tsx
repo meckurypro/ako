@@ -4,6 +4,7 @@ import { Check, Plus } from "lucide-react";
 import { Avatar } from "./Avatar";
 import { useActiveIdentity, useMyPages, useSwitchActiveMode } from "../hooks/usePages";
 import { useMyProfile } from "../hooks/useProfile";
+import { usePagesFeatureSettings } from "../hooks/useAdmin";
 import { pageModeLabel } from "../lib/pageRoles";
 
 // Lists "you" plus every page you have an active role on, with the
@@ -15,6 +16,7 @@ export function AccountModeSwitcher() {
   const { data: identity } = useActiveIdentity();
   const { data: pages } = useMyPages();
   const switchMode = useSwitchActiveMode();
+  const { data: pagesFeature } = usePagesFeatureSettings();
 
   const isPersonalActive = !identity || identity.mode === "personal";
 
@@ -56,12 +58,17 @@ export function AccountModeSwitcher() {
         );
       })}
 
-      <Link to="/pages/new" className="w-full flex items-center gap-3 p-4 text-accent">
-        <span className="w-9 h-9 rounded-full bg-accent-soft flex items-center justify-center flex-shrink-0">
-          <Plus size={18} />
-        </span>
-        <span className="text-sm font-medium">Create an organisation or brand</span>
-      </Link>
+      {/* Admin kill switch (see AdminPageSettings) — only ever hides
+          starting a NEW page. Everyone's existing pages above stay
+          fully switchable regardless of this setting. */}
+      {(pagesFeature?.pages_creation_enabled ?? true) && (
+        <Link to="/pages/new" className="w-full flex items-center gap-3 p-4 text-accent">
+          <span className="w-9 h-9 rounded-full bg-accent-soft flex items-center justify-center flex-shrink-0">
+            <Plus size={18} />
+          </span>
+          <span className="text-sm font-medium">Create a page</span>
+        </Link>
+      )}
     </div>
   );
 }
