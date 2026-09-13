@@ -352,6 +352,16 @@ export interface MessageWithSender {
   // Supabase used to return the embedded self-join — now populated by
   // a separate lookup instead (see useMessages below).
   reply_to: { id: string; content: string; sender_id: string; is_deleted: boolean }[] | null;
+  // Stable identity across the optimistic-send → real-row swap below.
+  // The optimistic row is keyed by a client-generated tempId; once the
+  // insert succeeds, `id` changes to the real row's id but `client_key`
+  // is carried forward as the same tempId — so anything keying off
+  // `client_key` (React's list `key`, MessageBubble's entrance-animation
+  // tracking in MessageThread) sees one continuous message, not a
+  // remove+add, and never replays the entrance animation for a message
+  // that's just getting its real id filled in. Absent on rows that were
+  // never optimistic (plain server fetches), where `id` alone is stable.
+  client_key?: string;
 }
 
 /** How many messages a single "page" covers, both for the initial load
@@ -589,6 +599,7 @@ export function useSendMessage(conversationId: string) {
         reply_to_message_id: replyToMessageId,
         is_deleted: false,
         reply_to: replyToSnippet ? [replyToSnippet] : null,
+        client_key: tempId,
       };
 
       for (const [key, existing] of previousQueries) {
@@ -608,12 +619,20 @@ export function useSendMessage(conversationId: string) {
       // we have it — no need to wait for the realtime INSERT event
       // (which will also arrive and no-op against an already-correct
       // cache) or to invalidate/re-fetch the whole page again.
+      // client_key carries the original tempId forward (see
+      // MessageWithSender) so this swap doesn't read as a new message
+      // to anything keying off it, e.g. MessageThread's entrance
+      // animation.
       if (context) {
         for (const [key, existing] of getMessagesQueries(queryClient, conversationId)) {
           if (!existing) continue;
           queryClient.setQueryData(
             key,
-            existing.map((m) => (m.id === context.tempId ? { ...(data as MessageWithSender), reply_to: m.reply_to } : m))
+            existing.map((m) =>
+              m.id === context.tempId
+                ? { ...(data as MessageWithSender), reply_to: m.reply_to, client_key: context.tempId }
+                : m
+            )
           );
         }
       }
@@ -720,6 +739,7 @@ export function useSendVoiceNote(conversationId: string) {
         reply_to_message_id: replyToMessageId ?? null,
         is_deleted: false,
         reply_to: replyToSnippet ? [replyToSnippet] : null,
+        client_key: tempId,
       };
 
       for (const [key, existing] of previousQueries) {
@@ -740,7 +760,11 @@ export function useSendVoiceNote(conversationId: string) {
           if (!existing) continue;
           queryClient.setQueryData(
             key,
-            existing.map((m) => (m.id === context.tempId ? { ...(data as MessageWithSender), reply_to: m.reply_to } : m))
+            existing.map((m) =>
+              m.id === context.tempId
+                ? { ...(data as MessageWithSender), reply_to: m.reply_to, client_key: context.tempId }
+                : m
+            )
           );
         }
       } else {
