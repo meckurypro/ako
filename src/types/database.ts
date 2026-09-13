@@ -52,7 +52,7 @@ export interface Profile {
 // membership that lets a personal account act as one.
 // ------------------------------------------------------------
 
-export type PageType = "organization" | "brand";
+export type PageType = "organization" | "brand" | "product";
 export type PageMemberStatus = "invited" | "active" | "declined" | "removed";
 
 export interface Page {
