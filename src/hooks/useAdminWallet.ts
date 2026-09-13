@@ -83,6 +83,7 @@ interface ProcessPayoutsResult {
   failed_immediately: number;
   total_usd: number;
   total_ngn: number;
+  total_fees_ngn: number;
   message: string;
 }
 
