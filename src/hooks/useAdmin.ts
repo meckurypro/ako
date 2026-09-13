@@ -472,6 +472,47 @@ export function useUpdateAccessRule() {
 }
 
 // ------------------------------------------------------------
+// AI content moderation kill switch — same moderation_settings
+// key/value table and on-by-default convention as the Pages toggle
+// above (usePagesFeatureSettings/useTogglePagesEnabled). Read by
+// moderate-content (the edge function that actually screens posts/
+// comments/reshares) and by AdminModeration.tsx here, which was
+// referencing these two hooks before they existed.
+// ------------------------------------------------------------
+const AI_MODERATION_ENABLED_KEY = "ai_moderation_enabled";
+
+export function useModerationSettings() {
+  return useQuery({
+    queryKey: ["admin-moderation-settings"],
+    queryFn: async (): Promise<{ ai_moderation_enabled: boolean }> => {
+      const { data, error } = await supabase
+        .from("moderation_settings")
+        .select("value")
+        .eq("key", AI_MODERATION_ENABLED_KEY)
+        .maybeSingle();
+      if (error) throw error;
+      // No row yet defaults to on, matching moderate-content's own
+      // fail-safe default so this toggle reads the same as what's
+      // actually enforced when it hasn't been explicitly turned off.
+      return { ai_moderation_enabled: data ? data.value === "true" : true };
+    },
+  });
+}
+
+export function useToggleAiModeration() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (ai_moderation_enabled: boolean) => {
+      const { error } = await supabase
+        .from("moderation_settings")
+        .upsert({ key: AI_MODERATION_ENABLED_KEY, value: ai_moderation_enabled ? "true" : "false" });
+      if (error) throw error;
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["admin-moderation-settings"] }),
+  });
+}
+
+// ------------------------------------------------------------
 // Site-wide kill switch for standing up new Pages (organisation,
 // brand, or product). Same moderation_settings key/value table as AI
 // moderation above — this only ever gates the "create a page" entry
