@@ -20,6 +20,7 @@ import {
   Tag,
   Users,
   Megaphone,
+  MoreHorizontal,
 } from "lucide-react";
 import { Avatar } from "./Avatar";
 import { LikeHeart } from "./LikeHeart";
@@ -442,7 +443,19 @@ export function PostCard({
   // ─── Right: nothing pinned anymore — Share used to live here fixed,
   // now it's ranked by usage in the middle group like everything else
   // (see secondaryDefs.share above). Only Like stays pinned.
-  const rightActions: EngagementAction[] = [];
+  // Fixed right slot: "···" opens the same ReactionMoreSheet as
+  // long-pressing any of the other 4 icons — a plain tap now, no hold
+  // required, always in the same place regardless of how the ranked
+  // middle actions reorder themselves.
+  const rightActions: EngagementAction[] = [
+    {
+      key: "more",
+      label: "More",
+      icon: <MoreHorizontal size={24} className="text-ink" />,
+      count: null,
+      onClick: () => setShowMoreActions(true),
+    },
+  ];
 
   // ─── The long-press sheet: literally everything — every secondary
   // action regardless of usage rank, plus own-post management folded in
