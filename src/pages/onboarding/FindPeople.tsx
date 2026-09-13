@@ -7,38 +7,57 @@ import { Avatar } from "../../components/Avatar";
 import { Wordmark } from "../../components/Wordmark";
 import { Button } from "../../components/Button";
 
+// Never more than five picks — this is meant to read as a short,
+// hand-curated shortlist rather than an open-ended directory. Passed
+// straight through as the RPC's own p_limit, so only five ever come
+// back over the wire.
+const MAX_SUGGESTIONS = 5;
+
 // Onboarding always runs in Personal mode (a brand-new account has no
 // pages yet, and there's no path to switch identity before this gate
 // clears) — so the plain, always-personal useToggleFollow is correct
 // here, not the page-identity-aware variant FollowButton uses elsewhere.
-function SuggestedPersonCard({ person }: { person: OnboardingRecommendation }) {
+function SuggestedPersonRow({ person }: { person: OnboardingRecommendation }) {
   const isFollowingQuery = useIsFollowing(person.id);
   const toggleFollow = useToggleFollow(person.id);
   const isFollowing = !!isFollowingQuery.data;
 
   return (
-    <div className="bg-surface rounded-2xl border border-border p-4 flex flex-col items-center text-center">
+    <div className="bg-surface rounded-2xl border border-border p-4 flex items-center gap-4 shadow-[0_1px_4px_-1px_rgba(var(--shadow-ink-rgb),0.06)]">
       <Avatar src={person.avatar_url} name={person.display_name} size="lg" />
-      <p className="font-medium text-ink mt-3 truncate w-full">{person.display_name}</p>
-      <p className="text-xs text-ink-muted truncate w-full">@{person.username}</p>
 
-      {person.bio && (
-        <p className="text-xs text-ink-muted mt-2 line-clamp-2">{person.bio}</p>
-      )}
-
-      {person.shared_interest_count > 0 && (
-        <p className="text-[11px] text-accent font-medium mt-2">
-          {person.shared_interest_count} shared interest{person.shared_interest_count > 1 ? "s" : ""}
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-1.5">
+          <p className="font-display text-base text-ink truncate">{person.display_name}</p>
+          {person.is_admin_suggested && (
+            <span className="text-[10px] font-medium text-accent bg-accent-soft px-2 py-0.5 rounded-full shrink-0">
+              Featured
+            </span>
+          )}
+        </div>
+        <p className="text-xs text-ink-muted truncate mt-0.5">
+          @{person.username}
+          {person.follower_count > 0 && ` · ${person.follower_count.toLocaleString()} followers`}
         </p>
-      )}
 
-      <div className="w-full mt-4">
+        {person.bio && (
+          <p className="text-xs text-ink-muted mt-1.5 line-clamp-1">{person.bio}</p>
+        )}
+
+        {person.shared_interest_count > 0 && (
+          <p className="text-[11px] text-accent font-medium mt-1.5">
+            {person.shared_interest_count} shared interest{person.shared_interest_count > 1 ? "s" : ""}
+          </p>
+        )}
+      </div>
+
+      <div className="w-24 shrink-0">
         <Button
           variant={isFollowing ? "secondary" : "primary"}
           onClick={() => toggleFollow.mutate(isFollowing)}
           disabled={isFollowingQuery.isLoading}
           loading={toggleFollow.isPending}
-          className="py-2"
+          className="py-2 text-sm"
         >
           {isFollowing ? "Following" : "Follow"}
         </Button>
@@ -49,7 +68,7 @@ function SuggestedPersonCard({ person }: { person: OnboardingRecommendation }) {
 
 export function FindPeople() {
   const navigate = useNavigate();
-  const { data: recommendations, isLoading, error, refetch } = useOnboardingRecommendations(12);
+  const { data: recommendations, isLoading, error, refetch } = useOnboardingRecommendations(MAX_SUGGESTIONS);
   const [followedCount, setFollowedCount] = useState(0);
 
   // Local-only tally for the "Continue · N following" copy — actual
@@ -62,14 +81,15 @@ export function FindPeople() {
 
   return (
     <div className="min-h-screen bg-canvas px-6 py-10 pb-28">
-      <div className="max-w-3xl mx-auto">
+      <div className="max-w-lg mx-auto">
         <div className="mb-8">
-          <Wordmark size="sm" showTagline={false} />
+          <Wordmark asIcon iconTagline={false} />
         </div>
 
         <h2 className="font-display text-2xl text-ink mb-2">Find your people</h2>
         <p className="text-ink-muted mb-8">
-          Based on what you're interested in, here are some people you might enjoy reasoning with.
+          A short, hand-picked list based on what you're interested in — people you might enjoy
+          reasoning with.
         </p>
 
         {isLoading ? (
@@ -92,7 +112,7 @@ export function FindPeople() {
           <div
             onClickCapture={(e) => {
               // Cheap way to catch every Follow-button click inside the
-              // grid without threading a callback through each card's
+              // list without threading a callback through each row's
               // own mutation — good enough since this only drives copy.
               const target = e.target as HTMLElement;
               if (target.tagName === "BUTTON") {
@@ -100,17 +120,17 @@ export function FindPeople() {
                 handleFollowToggled(wasFollowing);
               }
             }}
-            className="grid grid-cols-2 sm:grid-cols-3 gap-4"
+            className="space-y-3"
           >
-            {recommendations.map((person) => (
-              <SuggestedPersonCard key={person.id} person={person} />
+            {recommendations.slice(0, MAX_SUGGESTIONS).map((person) => (
+              <SuggestedPersonRow key={person.id} person={person} />
             ))}
           </div>
         )}
       </div>
 
       <div className="fixed bottom-0 left-0 right-0 bg-canvas border-t border-border px-6 py-4">
-        <div className="max-w-3xl mx-auto flex justify-end">
+        <div className="max-w-lg mx-auto flex justify-end">
           <div className="w-48">
             <Button onClick={() => navigate("/onboarding/building")}>
               {followedCount > 0 ? `Continue · ${followedCount} following` : "Continue"}
