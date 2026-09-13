@@ -61,7 +61,9 @@ export function Discover() {
 
   return (
     <div className="min-h-screen bg-canvas pb-24">
-      <TopHeader asIcon iconTagline={false} />
+      <div className="sticky top-0 z-20 bg-surface shadow-[0_2px_8px_-4px_rgba(var(--shadow-ink-rgb),0.10)]">
+        <TopHeader asIcon iconTagline={false} />
+      </div>
 
       <div className="max-w-xl mx-auto px-4 pt-4">
         {/* Search bar */}
