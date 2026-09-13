@@ -12,12 +12,16 @@ import {
   useWithdraw,
 } from "../hooks/usePayout";
 import { useWallet } from "../hooks/useWallet";
-import { useExchangeRates, useWithdrawalEligibility, useBusinessWeekday } from "../hooks/useWalletRates";
+import {
+  useExchangeRates,
+  useWithdrawalEligibility,
+  useBusinessWeekday,
+  usePayoutSettings,
+  useTransferFeePreview,
+} from "../hooks/useWalletRates";
 import { Button } from "../components/Button";
 import { FormField } from "../components/FormField";
 import { formatNgn, formatUsd } from "../lib/money";
-
-const MINIMUM_WITHDRAWAL_USD = 10;
 
 /**
  * Live bank list from Paystack, via the list-banks edge function —
@@ -104,6 +108,8 @@ export function Withdraw() {
   const { data: rates } = useExchangeRates();
   const { data: eligibility } = useWithdrawalEligibility();
   const weekday = useBusinessWeekday();
+  const { data: payoutSettings } = usePayoutSettings();
+  const minimumWithdrawalUsd = payoutSettings!.minimumWithdrawalUsd; // placeholderData guarantees this is always defined
   const nextFridayLabel = useNextFridayLabel();
   const addAccount = useAddPayoutAccount();
   const withdraw = useWithdraw();
@@ -130,7 +136,9 @@ export function Withdraw() {
 
   const activeAccounts = payoutAccounts?.filter((a) => a.is_verified) ?? [];
   const amountUsd = parseFloat(amount) || 0;
-  const previewNgn = rates?.withdrawal && amountUsd ? amountUsd * rates.withdrawal : null;
+  const grossNgn = rates?.withdrawal && amountUsd ? amountUsd * rates.withdrawal : null;
+  const { data: feeNgn } = useTransferFeePreview(grossNgn);
+  const netNgn = grossNgn !== null && feeNgn !== undefined ? grossNgn - feeNgn : null;
   const availableToRequest = eligibility?.available_to_request ?? null;
 
   async function handleAddAccount(e: FormEvent) {
@@ -167,8 +175,8 @@ export function Withdraw() {
       setError("Choose a bank account first.");
       return;
     }
-    if (!amountUsd || amountUsd < MINIMUM_WITHDRAWAL_USD) {
-      setError(`Minimum withdrawal is ${formatUsd(MINIMUM_WITHDRAWAL_USD)}.`);
+    if (!amountUsd || amountUsd < minimumWithdrawalUsd) {
+      setError(`Minimum withdrawal is ${formatUsd(minimumWithdrawalUsd)}.`);
       return;
     }
     if (wallet && amountUsd > Number(wallet.balance)) {
@@ -310,17 +318,18 @@ export function Withdraw() {
           value={amount}
           onChange={(e) => setAmount(e.target.value)}
           placeholder="10.00"
-          min={MINIMUM_WITHDRAWAL_USD}
+          min={minimumWithdrawalUsd}
           step="0.01"
           disabled={!isWithdrawalDay}
           className="w-full px-4 py-3 rounded-xl border border-border bg-canvas text-ink mb-2
             focus:outline-none focus:ring-2 focus:ring-accent/40 focus:border-accent disabled:opacity-50"
         />
 
-        {previewNgn !== null && (
+        {grossNgn !== null && (
           <p className="text-xs text-ink-muted mb-4">
-            You'll receive {formatNgn(previewNgn)}
-            {rates?.withdrawal ? ` (rate: $1 = ${formatNgn(rates.withdrawal)})` : ""}
+            You'll receive {netNgn !== null ? formatNgn(netNgn) : "…"}
+            {feeNgn ? ` (after a ${formatNgn(feeNgn)} Paystack transfer fee)` : ""}
+            {rates?.withdrawal ? ` — rate: $1 = ${formatNgn(rates.withdrawal)}` : ""}
           </p>
         )}
 
@@ -348,7 +357,10 @@ export function Withdraw() {
                 <div key={w.id} className="flex items-center justify-between py-3 border-b border-border">
                   <div>
                     <p className="text-sm text-ink">
-                      {formatUsd(w.amount_usd)} → {w.currency} {Number(w.amount_local).toFixed(2)}
+                      {formatUsd(w.amount_usd)} → {w.currency} {Number(w.net_amount_local).toFixed(2)}
+                      {Number(w.fee_local) > 0 && (
+                        <span className="text-ink-muted"> (after {w.currency} {Number(w.fee_local).toFixed(2)} fee)</span>
+                      )}
                     </p>
                     <p className="text-xs text-ink-muted">
                       {new Date(w.created_at).toLocaleDateString()}
