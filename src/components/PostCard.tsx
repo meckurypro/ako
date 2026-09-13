@@ -19,6 +19,7 @@ import {
   Rocket,
   Tag,
   Users,
+  Megaphone,
 } from "lucide-react";
 import { Avatar } from "./Avatar";
 import { LikeHeart } from "./LikeHeart";
@@ -473,6 +474,13 @@ export function PostCard({
                 } satisfies EngagementAction,
               ]
             : []),
+          {
+            key: "promote",
+            label: "Promote",
+            icon: <Megaphone size={24} className="text-ink" />,
+            count: null,
+            onClick: () => navigate(`/promote/${post.id}`),
+          },
           {
             key: "tag-people",
             label: "Tag people",
