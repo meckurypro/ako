@@ -27,6 +27,7 @@ import {
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "../lib/supabase";
 import { useAuth } from "../hooks/useAuth";
+import { removeSavedAccount } from "../lib/accountSessions";
 import { useUpdateProfile, useUpdateProfileRoles } from "../hooks/useProfile";
 import { useUploadAvatar } from "../hooks/useUploadAvatar";
 import { useRoles } from "../hooks/useRoles";
@@ -404,6 +405,7 @@ export function Settings() {
     setDeactivateError(null);
     try {
       await deactivate.mutateAsync();
+      if (user) removeSavedAccount(user.id);
       await supabase.auth.signOut();
       navigate("/login");
     } catch (err) {
@@ -414,6 +416,7 @@ export function Settings() {
 
   async function handleLogout() {
     setLoggingOut(true);
+    if (user) removeSavedAccount(user.id);
     await supabase.auth.signOut();
     navigate("/login");
   }
