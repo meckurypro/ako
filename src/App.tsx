@@ -68,6 +68,7 @@ import { AdminProjectTypes } from "./pages/admin/AdminProjectTypes";
 import { AdminAccountExemptions } from "./pages/admin/AdminAccountExemptions";
 import { AdminSuggestedProfiles } from "./pages/admin/AdminSuggestedProfiles";
 import { AdminModeration } from "./pages/admin/AdminModeration";
+import { AdminPageSettings } from "./pages/admin/AdminPageSettings";
 import { AdminReports } from "./pages/admin/AdminReports";
 import { AdminSmtpSettings } from "./pages/admin/AdminSmtpSettings";
 import { AdminEmailTemplates } from "./pages/admin/AdminEmailTemplates";
@@ -594,6 +595,16 @@ function AppRoutes() {
                 <RequireAuth>
                   <RequireAdmin>
                     <AdminModeration />
+                  </RequireAdmin>
+                </RequireAuth>
+              }
+            />
+            <Route
+              path="/admin/page-settings"
+              element={
+                <RequireAuth>
+                  <RequireAdmin>
+                    <AdminPageSettings />
                   </RequireAdmin>
                 </RequireAuth>
               }
