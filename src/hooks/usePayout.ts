@@ -17,6 +17,8 @@ export interface Withdrawal {
   id: string;
   amount_usd: number;
   amount_local: number;
+  fee_local: number;
+  net_amount_local: number;
   currency: string;
   status: "pending" | "processing" | "completed" | "failed" | "reversed";
   failure_reason: string | null;
@@ -82,7 +84,9 @@ export function useWithdrawals() {
     queryFn: async (): Promise<Withdrawal[]> => {
       const { data, error } = await supabase
         .from("withdrawals")
-        .select("id, amount_usd, amount_local, currency, status, failure_reason, created_at, completed_at")
+        .select(
+          "id, amount_usd, amount_local, fee_local, net_amount_local, currency, status, failure_reason, created_at, completed_at"
+        )
         .order("created_at", { ascending: false });
       if (error) throw error;
       return data;
