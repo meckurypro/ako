@@ -143,7 +143,7 @@ export function Compose() {
     setError(null);
 
     try {
-      await createPost.mutateAsync({
+      const createdPost = await createPost.mutateAsync({
         heading: heading.trim() || undefined,
         content,
         category_id: categoryId ?? undefined,
@@ -167,7 +167,15 @@ export function Compose() {
         navigate("/activity/scheduled");
       } else {
         if (resumedPostIdRef.current) deleteDraftOrScheduled.mutate(resumedPostIdRef.current);
-        navigate(postingAsPage ? `/page/${postingAsPage.username}` : "/feed");
+        // justPostedId lets Feed pin this exact post at the top of the
+        // "For You" list the instant it lands there — see usePostById
+        // and Feed.tsx's ForYouTab. Page-mode posts skip this: they
+        // land on the page's own profile feed (plain reverse-
+        // chronological already), which doesn't need the same pinning.
+        navigate(
+          postingAsPage ? `/page/${postingAsPage.username}` : "/feed",
+          postingAsPage ? undefined : { state: { justPostedId: (createdPost as { id: string }).id } }
+        );
       }
     } catch (err) {
       // Moderation rejections and other edge-function errors surface here —
