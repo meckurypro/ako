@@ -1,6 +1,7 @@
 // src/pages/ScheduledPosts.tsx
+import { useNavigate } from "react-router-dom";
 import { useSmartBack } from "../hooks/useSmartBack";
-import { ArrowLeft, Send, X } from "lucide-react";
+import { ArrowLeft, FileEdit, Send, X } from "lucide-react";
 import { useMyScheduledPosts, useDeleteDraftOrScheduledPost } from "../hooks/usePosts";
 import { useToast } from "../components/Toast";
 
@@ -18,14 +19,18 @@ function timeUntil(iso: string): string {
 /**
  * Scheduled posts get a countdown, not a static timestamp — "in 3
  * hours" is what actually matters to someone checking whether they
- * have time to still change their mind, not the raw date. No
- * "Resume"/edit here on purpose: editing a post that's already
- * queued and passed moderation would mean re-running moderation
- * before it publishes (see add_post_drafts_and_scheduling.sql) — out
- * of scope for this pass, so the only action is Cancel (discard
- * outright, same as a draft) rather than a half-working edit path.
+ * have time to still change their mind, not the raw date.
+ *
+ * "Resume" reuses Compose the same way DraftPosts' does (see that
+ * file): it's not a live in-place edit of the queued row, it's
+ * prefill-then-replace — Compose creates a fresh row (which re-enters
+ * moderation normally) and only deletes this scheduled one once that
+ * succeeds. That sidesteps needing a separate "update a queued post
+ * without re-moderating it" path, which is what ruled Resume out here
+ * before.
  */
 export function ScheduledPosts() {
+  const navigate = useNavigate();
   const smartBack = useSmartBack();
   const { data: scheduled, isLoading } = useMyScheduledPosts();
   const cancelScheduled = useDeleteDraftOrScheduledPost();
@@ -88,6 +93,16 @@ export function ScheduledPosts() {
                     })}
                   </p>
                 )}
+
+                <div className="flex items-center gap-2 mt-3">
+                  <button
+                    onClick={() => navigate("/compose", { state: { scheduledId: post.id } })}
+                    className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-full bg-accent text-canvas text-sm font-medium"
+                  >
+                    <FileEdit size={14} />
+                    Resume
+                  </button>
+                </div>
               </div>
             ))}
           </div>
