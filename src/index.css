@@ -493,6 +493,33 @@ body {
   animation: ako-unlock-reveal 520ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 
+/*
+  Message bubble entrance — a new bubble rises a few px and fades in
+  rather than just appearing, so a message reads as "arriving" into
+  the thread. Mine vs. theirs get opposite horizontal drift (mine
+  drifts in from the right where the bubble sits, theirs from the
+  left) so each side's motion agrees with where the bubble already
+  lives on screen, instead of both sliding the same direction. Applied
+  once, on genuine arrival only (new send, or a realtime INSERT) — see
+  MessageThread's animatedKeysRef — never on initial thread load or on
+  loadOlder() paging in history, both of which would otherwise replay
+  this for dozens of already-read messages at once.
+*/
+@keyframes ako-bubble-in-mine {
+  0% { opacity: 0; transform: translate(8px, 6px) scale(0.97); }
+  100% { opacity: 1; transform: translate(0, 0) scale(1); }
+}
+@keyframes ako-bubble-in-theirs {
+  0% { opacity: 0; transform: translate(-8px, 6px) scale(0.97); }
+  100% { opacity: 1; transform: translate(0, 0) scale(1); }
+}
+.ako-bubble-in-mine {
+  animation: ako-bubble-in-mine 220ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+.ako-bubble-in-theirs {
+  animation: ako-bubble-in-theirs 220ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
 @media (prefers-reduced-motion: reduce) {
   .ako-tab-indicator {
     transition: none;
@@ -502,7 +529,9 @@ body {
   .ako-pill-in,
   .ako-gift-pop,
   .ako-gift-rise,
-  .ako-unlock-reveal {
+  .ako-unlock-reveal,
+  .ako-bubble-in-mine,
+  .ako-bubble-in-theirs {
     animation: none !important;
   }
 }
