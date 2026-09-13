@@ -14,14 +14,13 @@ interface ReactionTrayProps {
   /** Like — always visible, fixed left. */
   leftActions: EngagementAction[];
   /** Top-ranked (most-used) secondary actions — fill the remaining
-   *  visible slots (4 total, minus however many leftActions/rightActions
+   *  visible slots (5 total, minus however many leftActions/rightActions
    *  take). Ranking comes from useEngagementOrder; see PostCard. */
   middleActions: EngagementAction[];
-  /** Optional fixed-right actions. Empty for both PostCard and
-   *  ProjectCard now — Share used to be pinned here but was moved into
-   *  middleActions so only Like stays pinned (see each card's comments).
-   *  Left in the props shape rather than removed in case a future caller
-   *  genuinely needs a pinned-right slot. */
+  /** Fixed-right actions — the "···" more button lives here for both
+   *  PostCard and ProjectCard now (see each card's rightActions), so it
+   *  always sits at the trailing edge next to whichever ranked action
+   *  landed there, rather than competing for a spot in the ranking. */
   rightActions: EngagementAction[];
   /** Small text row rendered directly under the left fixed group — used
    *  for the "Comments: N" label. Sits in the same column as Like, so it
@@ -44,12 +43,12 @@ interface ReactionTrayProps {
   disabled?: boolean;
 }
 
-// Exactly 4 equal-width slots now: Like (left, pinned) + everything
-// else ranked by usage filling the rest. No swiping, no overflow
-// window to manage — long-pressing ANY of the 4 opens a sheet listing
-// every action instead (see onOpenMore below), which is what replaced
-// the old horizontally-scrollable middle strip.
-const VISIBLE_SLOTS = 4;
+// 5 equal-width slots: Like (left, pinned) + 3 ranked-by-usage middle
+// actions + a fixed "···" more button (right, pinned) that opens the
+// same full-action sheet on a plain tap. Long-pressing any of the
+// other 4 also opens it (see onOpenMore below) — that gesture predates
+// the dedicated button and is kept as a fast-path, not the only way in.
+const VISIBLE_SLOTS = 5;
 
 // How long a press has to be held before it counts as "long" rather
 // than a tap — matches the feel of the message-bubble long-press menu
@@ -149,11 +148,12 @@ function ActionButton({
 }
 
 // Purely presentational, and much simpler than the tray this replaced:
-// 4 fixed, evenly-spaced slots (Like pinned left, the rest ranked by
-// usage), each bigger than before now that there's no overflow strip
-// competing for width. Long-pressing any of the 4 opens
-// ReactionMoreSheet (rendered by PostCard/ProjectCard) with the
-// complete action list — see moreActions above.
+// 5 fixed, evenly-spaced slots (Like pinned left, 3 ranked by usage,
+// "···" pinned right), each bigger than before now that there's no
+// overflow strip competing for width. Tapping "···" — or long-pressing
+// any of the other 4 — opens ReactionMoreSheet (rendered by
+// PostCard/ProjectCard) with the complete action list — see
+// moreActions above.
 export function ReactionTray({
   leftActions,
   middleActions,
