@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
-import { Link, useSearchParams } from "react-router-dom";
+import { Link, useSearchParams, useLocation } from "react-router-dom";
 import { X } from "lucide-react";
-import { useFeedPosts, useFollowingFeed, useTopDiscussionsFeed } from "../hooks/usePosts";
+import { useFeedPosts, useFollowingFeed, useTopDiscussionsFeed, usePostById } from "../hooks/usePosts";
 import { usePageRankedFeed, usePageFollowingFeed } from "../hooks/usePageFeed";
 import { useActiveIdentity } from "../hooks/usePages";
 import { useTabState } from "../hooks/useTabState";
@@ -51,7 +51,7 @@ function LoadMoreButton({ onClick }: { onClick: () => void }) {
   );
 }
 
-function ForYouTab({ interestId }: { interestId?: string }) {
+function ForYouTab({ interestId, justPostedId }: { interestId?: string; justPostedId?: string | null }) {
   const [page, setPage] = useState(0);
   const { data: identity } = useActiveIdentity();
   const activePageId = identity?.mode === "page" ? identity.page.id : undefined;
@@ -62,19 +62,32 @@ function ForYouTab({ interestId }: { interestId?: string }) {
   // when acting as a page. See usePageFeed.ts for why.
   const personal = useFeedPosts(interestId, page);
   const pageFeed = usePageRankedFeed(isPageMode ? activePageId : undefined, page);
-  const { data: pagePosts, isLoading, error } = isPageMode ? pageFeed : personal;
+  const { data: pagePosts, isLoading, isFetching, error } = isPageMode ? pageFeed : personal;
   const posts = useAccumulatedPages(pagePosts, page, interestId ?? (isPageMode ? activePageId : "personal"));
 
   useEffect(() => setPage(0), [interestId, isPageMode]);
 
-  if (isLoading && page === 0) return <p className="text-ink-muted text-center py-10">Loading your feed…</p>;
+  // Right after publishing, wait for BOTH the ranked feed's fresh
+  // refetch (triggered by useCreatePost's invalidate) and this one
+  // post's own fetch before showing anything — a single loading state
+  // that resolves once, into the final result, rather than flashing
+  // the pre-post feed and then reordering when the refetch lands.
+  // Only applies to page 0 of the plain, no-topic-filter "For You"
+  // list — the one Compose actually redirects to.
+  const pinning = !!justPostedId && page === 0 && !interestId && !isPageMode;
+  const { data: justPostedPost, isLoading: isLoadingJustPosted, isError: justPostedFailed } = usePostById(
+    pinning ? justPostedId : null
+  );
+  const waitingForFreshFeed = pinning && (isLoading || isFetching || (isLoadingJustPosted && !justPostedFailed));
+
+  if ((isLoading || waitingForFreshFeed) && page === 0) return <p className="text-ink-muted text-center py-10">Loading your feed…</p>;
   if (error) return (
     <p className="text-danger text-center py-10 px-4 text-sm break-words">
       Couldn't load the feed: {(error as any)?.message ?? String(error)}
       {(error as any)?.hint && <> — hint: {(error as any).hint}</>}
     </p>
   );
-  if (posts.length === 0 && page === 0) {
+  if (posts.length === 0 && page === 0 && !justPostedPost) {
     return (
       <div className="text-center py-16">
         <p className="text-ink-muted mb-4">No posts yet. Be the first to share a thought.</p>
@@ -85,9 +98,18 @@ function ForYouTab({ interestId }: { interestId?: string }) {
     );
   }
 
+  // The just-posted post is pinned first — the ranked feed itself has
+  // no reason to place a brand-new, zero-engagement post anywhere near
+  // the top (see usePostById's comment on get_ranked_feed) — with the
+  // rest of the ranked list following, minus that same id in case the
+  // algorithm also happened to surface it (avoids a duplicate card).
+  const displayedPosts = justPostedPost
+    ? [justPostedPost, ...posts.filter((p) => p.id !== justPostedPost.id)]
+    : posts;
+
   return (
     <>
-      {posts.map((post) => (
+      {displayedPosts.map((post) => (
         <PostCard key={post.id} post={post} />
       ))}
       {posts.length > 0 && <LoadMoreButton onClick={() => setPage((p) => p + 1)} />}
@@ -148,6 +170,21 @@ function TopDiscussionsTab() {
 export function Feed() {
   const [searchParams, setSearchParams] = useSearchParams();
   const interestId = searchParams.get("interest") ?? undefined;
+  const location = useLocation();
+
+  // Set by Compose right after publishing (see submitPost's navigate
+  // call) — captured once into state, independent of location.state's
+  // own lifetime, since the replaceState below clears it on this same
+  // history entry right after the first render. Mirrors MessageThread's
+  // draftMessage handling for the same reason: navigating back/forward
+  // through history afterward shouldn't keep re-triggering it.
+  const [justPostedId] = useState<string | null>(
+    () => (location.state as { justPostedId?: string } | null)?.justPostedId ?? null
+  );
+  useEffect(() => {
+    if (justPostedId) window.history.replaceState({}, "");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const [activeTab, setActiveTab] = useTabState<TabKey>(TAB_KEYS, "for-you");
   // Continuous tab position fed by SwipeableTabs' onProgress — e.g. 1.4
@@ -227,7 +264,7 @@ export function Feed() {
           }}
         >
           {[
-            <ForYouTab key="for-you" interestId={interestId} />,
+            <ForYouTab key="for-you" interestId={interestId} justPostedId={justPostedId} />,
             <TopDiscussionsTab key="top" />,
             <FollowingTab key="following" />,
           ]}
