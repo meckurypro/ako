@@ -129,6 +129,21 @@ export function useActiveIdentity() {
 
   return useQuery({
     queryKey: ["active-identity", user?.id],
+    // This drives MyProfileRedirect's navigation decision (personal vs
+    // page). Most stale-cache reads just mean a moment of slightly-old
+    // data on screen that quietly corrects itself — harmless. This one
+    // is different: MyProfileRedirect reads it once, picks a route, and
+    // is gone. If that one read got a stale snapshot (e.g. from right
+    // before a switch_active_mode elsewhere finished propagating), the
+    // person lands on the wrong profile entirely and the correction
+    // never reaches them — only their *next* visit reads it right. This
+    // is what produced "tap Profile once → my own profile, tap it again
+    // → the page" instead of the same result every time.
+    // refetchOnMount: "always" forces every mount (not just ones where
+    // the cache happens to already be stale) to await a real network
+    // round-trip before resolving, so the loading state below actually
+    // means something for this specific query.
+    refetchOnMount: "always",
     queryFn: async (): Promise<ActiveIdentity> => {
       const { data: profile, error } = await supabase
         .from("profiles")
