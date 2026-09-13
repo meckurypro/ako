@@ -472,51 +472,6 @@ export function useUpdateAccessRule() {
 }
 
 // ------------------------------------------------------------
-// Global AI content moderation toggle — moderation_settings is a
-// plain key/value table (key text primary key, value text), not a
-// dedicated boolean column, so this reads/writes the 'ai_moderation_enabled'
-// row as the string 'true'/'false' rather than a real boolean. Admin-only
-// read and write; edge functions read it with the service role key,
-// which bypasses RLS entirely.
-// ------------------------------------------------------------
-const AI_MODERATION_KEY = "ai_moderation_enabled";
-
-export interface ModerationSettings {
-  ai_moderation_enabled: boolean;
-}
-
-export function useModerationSettings() {
-  return useQuery({
-    queryKey: ["admin-moderation-settings"],
-    queryFn: async (): Promise<ModerationSettings> => {
-      const { data, error } = await supabase
-        .from("moderation_settings")
-        .select("value")
-        .eq("key", AI_MODERATION_KEY)
-        .maybeSingle();
-      if (error) throw error;
-      // No row yet defaults to on, matching the toggle's own ?? true
-      // fallback and the "screens by default" behavior this is meant
-      // to guard.
-      return { ai_moderation_enabled: data ? data.value === "true" : true };
-    },
-  });
-}
-
-export function useToggleAiModeration() {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: async (ai_moderation_enabled: boolean) => {
-      const { error } = await supabase
-        .from("moderation_settings")
-        .upsert({ key: AI_MODERATION_KEY, value: ai_moderation_enabled ? "true" : "false" });
-      if (error) throw error;
-    },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["admin-moderation-settings"] }),
-  });
-}
-
-// ------------------------------------------------------------
 // Site-wide kill switch for standing up new Pages (organisation,
 // brand, or product). Same moderation_settings key/value table as AI
 // moderation above — this only ever gates the "create a page" entry
@@ -552,6 +507,153 @@ export function useTogglePagesEnabled() {
       if (error) throw error;
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["admin-pages-feature-settings"] }),
+  });
+}
+
+// ------------------------------------------------------------
+// Page creation eligibility rule — 30 posts + 30 distinct engaged
+// posts in the trailing 30 days by default (see
+// capability_creation_rules / get_page_creation_eligibility() in the
+// migration, and create_page() which independently re-checks this
+// server-side — this is the write side for the one config row
+// keyed capability = 'create_page').
+// ------------------------------------------------------------
+export interface PageCreationRule {
+  capability: "create_page";
+  min_posts_30d: number;
+  min_distinct_engaged_posts_30d: number;
+  min_account_age_days: number;
+  is_active: boolean;
+  updated_at: string;
+}
+
+export function useAdminPageCreationRule() {
+  return useQuery({
+    queryKey: ["admin-page-creation-rule"],
+    queryFn: async (): Promise<PageCreationRule | null> => {
+      const { data, error } = await supabase
+        .from("capability_creation_rules")
+        .select("*")
+        .eq("capability", "create_page")
+        .maybeSingle();
+      if (error) throw error;
+      return data;
+    },
+  });
+}
+
+export function useUpdatePageCreationRule() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: {
+      min_posts_30d: number;
+      min_distinct_engaged_posts_30d: number;
+      min_account_age_days: number;
+      is_active: boolean;
+    }) => {
+      const { error } = await supabase
+        .from("capability_creation_rules")
+        .update({ ...input, updated_at: new Date().toISOString() })
+        .eq("capability", "create_page");
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["admin-page-creation-rule"] });
+      // The signed-in user's own progress display should reflect an
+      // admin's threshold change immediately, not just other admins'.
+      queryClient.invalidateQueries({ queryKey: ["page-creation-eligibility"] });
+    },
+  });
+}
+
+// Deliberately a SEPARATE table from project_type_rule_exemptions
+// (see capability_overrides in the migration): that table is a
+// blanket per-user pass on every project-type rule at once, keyed
+// only by user_id. An override here is scoped to the single
+// 'create_page' capability, so testing/granting Page access can
+// never accidentally also unlock every project type for that account.
+export interface AdminPageCapabilitySearchResult {
+  id: string;
+  username: string;
+  display_name: string;
+  avatar_url: string | null;
+  follower_count: number;
+  created_at: string;
+  has_page_override: boolean;
+}
+
+export function useAdminSearchAccountsForPageCapability(query: string) {
+  return useQuery({
+    queryKey: ["admin-search-accounts-page-capability", query],
+    queryFn: async (): Promise<AdminPageCapabilitySearchResult[]> => {
+      const { data: profiles, error } = await supabase
+        .from("profiles")
+        .select("id, username, display_name, avatar_url, follower_count, created_at")
+        .eq("is_deleted", false)
+        .or(`username.ilike.%${query}%,display_name.ilike.%${query}%`)
+        .order("follower_count", { ascending: false })
+        .limit(20);
+      if (error) throw error;
+      if (!profiles || profiles.length === 0) return [];
+
+      const { data: overrides, error: overridesError } = await supabase
+        .from("capability_overrides")
+        .select("user_id, revoked_at, expires_at")
+        .eq("capability", "create_page")
+        .in(
+          "user_id",
+          profiles.map((p) => p.id)
+        );
+      if (overridesError) throw overridesError;
+
+      const now = Date.now();
+      const activeOverrideIds = new Set(
+        (overrides ?? [])
+          .filter((o) => !o.revoked_at && (!o.expires_at || new Date(o.expires_at).getTime() > now))
+          .map((o) => o.user_id)
+      );
+
+      return profiles.map((p) => ({ ...p, has_page_override: activeOverrideIds.has(p.id) }));
+    },
+    enabled: query.trim().length > 1,
+  });
+}
+
+export function useGrantPageCreationOverride() {
+  const { user } = useAuth();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (targetUserId: string) => {
+      // Upsert so re-granting after a revoke clears revoked_at/expires_at
+      // rather than colliding with the (user_id, capability) primary key.
+      const { error } = await supabase.from("capability_overrides").upsert({
+        user_id: targetUserId,
+        capability: "create_page",
+        granted_by: user?.id,
+        reason: "Admin test override",
+        revoked_at: null,
+        revoked_by: null,
+        expires_at: null,
+      });
+      if (error) throw error;
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["admin-search-accounts-page-capability"] }),
+  });
+}
+
+export function useRevokePageCreationOverride() {
+  const { user } = useAuth();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (targetUserId: string) => {
+      const { error } = await supabase
+        .from("capability_overrides")
+        .update({ revoked_at: new Date().toISOString(), revoked_by: user?.id })
+        .eq("user_id", targetUserId)
+        .eq("capability", "create_page");
+      if (error) throw error;
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["admin-search-accounts-page-capability"] }),
   });
 }
 
