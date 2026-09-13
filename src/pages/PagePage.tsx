@@ -2,7 +2,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useParams, Link, useNavigate } from "react-router-dom";
 import { useSmartBack } from "../hooks/useSmartBack";
-import { ArrowLeft, ArrowLeftRight, BadgeCheck, Building2, Globe, MoreHorizontal, Pencil, Plus, Redo2, Users, UserCog } from "lucide-react";
+import { ArrowLeft, ArrowLeftRight, BadgeCheck, Building2, Globe, MoreHorizontal, Pencil, Plus, Redo2, Trash2, Users, UserCog } from "lucide-react";
 import { useAuth } from "../hooks/useAuth";
 import { useMyProfile } from "../hooks/useProfile";
 import { Avatar } from "../components/Avatar";
@@ -18,9 +18,12 @@ import {
   useActiveIdentity,
   useSwitchActiveMode,
   usePageById,
+  useResolvePageOwner,
+  useDeletePage,
 } from "../hooks/usePages";
 import { usePagePosts } from "../hooks/usePosts";
 import { pageModeLabel } from "../lib/pageRoles";
+import { ConfirmDialog } from "../components/ConfirmDialog";
 
 function getWebsiteHref(url: string): string {
   return /^https?:\/\//i.test(url) ? url : `https://${url}`;
@@ -43,6 +46,7 @@ export function PagePage() {
   const navigate = useNavigate();
   const smartBack = useSmartBack();
   const [menuOpen, setMenuOpen] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
   // Separate from the "…" menu above — tapping the page's own NAME
   // opens a quick switcher across every page you run (not just
@@ -72,6 +76,9 @@ export function PagePage() {
   const myMembership = members?.find((m) => m.user_id === user?.id && m.status === "active");
   const isMember = !!myMembership;
   const isAdmin = !!myMembership?.is_admin;
+  const { data: pageOwnerId } = useResolvePageOwner(page?.id ?? "", isAdmin);
+  const isOwnerOfPage = isAdmin && !!user && pageOwnerId === user.id;
+  const deletePage = useDeletePage();
   const activeMembers = (members ?? []).filter((m) => m.status === "active");
 
   // Am I currently acting AS this page? Drives whether the menu offers
@@ -254,11 +261,45 @@ export function PagePage() {
                     Add Subsidiary
                   </Link>
                 )}
+
+                {/* Only the resolved owner (see useResolvePageOwner —
+                    the creator, unless their account is gone, in which
+                    case whichever active admin has been here longest)
+                    sees this at all — showing it to every admin and
+                    letting the RPC reject the rest would just be a worse
+                    version of the same gate. */}
+                {isAdmin && isOwnerOfPage && (
+                  <button
+                    onClick={() => {
+                      setMenuOpen(false);
+                      setShowDeleteConfirm(true);
+                    }}
+                    className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-danger hover:bg-surface"
+                  >
+                    <Trash2 size={16} />
+                    Delete page
+                  </button>
+                )}
               </div>
             )}
           </div>
           </div>
         </div>
+
+        {showDeleteConfirm && (
+          <ConfirmDialog
+            title="Delete this page?"
+            description={`${page.name} will disappear from search and everyone's feed. This can't be undone from here.`}
+            confirmLabel="Delete"
+            onConfirm={() => {
+              deletePage.mutate(page.id, {
+                onSuccess: () => navigate("/pages"),
+              });
+              setShowDeleteConfirm(false);
+            }}
+            onCancel={() => setShowDeleteConfirm(false)}
+          />
+        )}
 
         <div className="px-4 pt-3 pb-4">
           <div className="flex items-start gap-4">
