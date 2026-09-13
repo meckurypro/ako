@@ -18,6 +18,31 @@ import type { PageType } from "../types/database";
 
 type UsernameStatus = "idle" | "checking" | "available" | "taken" | "error";
 
+// Visible progress toward one eligibility requirement — e.g. "22 / 30
+// posts". Purely a UI nicety on top of the reasons list below; the
+// numbers come straight from get_page_creation_eligibility() (see
+// usePageCreationEligibility in usePages.ts), never computed here.
+function EligibilityBar({ label, current, required }: { label: string; current: number; required: number }) {
+  const pct = required > 0 ? Math.min(100, Math.round((current / required) * 100)) : 100;
+  const met = current >= required;
+  return (
+    <div>
+      <div className="flex items-center justify-between text-xs text-ink-muted mb-1">
+        <span>{label}</span>
+        <span>
+          {current} / {required}
+        </span>
+      </div>
+      <div className="h-1.5 rounded-full bg-border overflow-hidden">
+        <div
+          className="h-full rounded-full bg-accent transition-all"
+          style={{ width: `${met ? 100 : pct}%`, opacity: met ? 1 : 0.7 }}
+        />
+      </div>
+    </div>
+  );
+}
+
 const TYPES: { value: PageType; label: string }[] = [
   { value: "organization", label: "Organisation" },
   { value: "brand", label: "Brand" },
@@ -235,16 +260,42 @@ export function CreatePage() {
           </div>
 
           {eligibility && !eligibility.eligible && (
-            <div className="px-4 py-3 rounded-xl bg-danger/10 border border-danger/30">
-              <p className="text-sm font-medium text-danger mb-1">
-                Page creation isn't unlocked yet:
-              </p>
-              <ul className="text-xs text-danger space-y-0.5 list-disc list-inside">
-                {eligibility.reasons.map((reason) => (
-                  <li key={reason}>{reason}</li>
-                ))}
-              </ul>
-              <p className="text-xs text-danger/80 mt-1.5">
+            <div className="px-4 py-3 rounded-xl bg-danger/10 border border-danger/30 space-y-3">
+              <div>
+                <p className="text-sm font-medium text-danger mb-1">Page creation isn't unlocked yet:</p>
+                <ul className="text-xs text-danger space-y-0.5 list-disc list-inside">
+                  {eligibility.reasons.map((reason) => (
+                    <li key={reason}>{reason}</li>
+                  ))}
+                </ul>
+              </div>
+
+              {pageEligibilityRaw && (
+                <div className="space-y-2.5 pt-1 border-t border-danger/20">
+                  <EligibilityBar
+                    label="Posts (last 30 days)"
+                    current={pageEligibilityRaw.posts_30d}
+                    required={pageEligibilityRaw.posts_required}
+                  />
+                  <EligibilityBar
+                    label="Distinct posts engaged with (last 30 days)"
+                    current={pageEligibilityRaw.distinct_engaged_30d}
+                    required={pageEligibilityRaw.distinct_engaged_required}
+                  />
+                  {/* Only shown when Admin has actually set an account-age
+                      requirement — most of the time this is 0 and would
+                      just be a meaningless always-full bar. */}
+                  {pageEligibilityRaw.account_age_required > 0 && (
+                    <EligibilityBar
+                      label="Account age (days)"
+                      current={pageEligibilityRaw.account_age_days}
+                      required={pageEligibilityRaw.account_age_required}
+                    />
+                  )}
+                </div>
+              )}
+
+              <p className="text-xs text-danger/80">
                 Keep posting and engaging with others' posts to unlock this.
               </p>
             </div>
