@@ -41,6 +41,7 @@ import { TagPeopleSheet } from "./TagPeopleSheet";
 import { CollaboratorsSheet } from "./CollaboratorsSheet";
 import { PostCollaboratorsBadge } from "./PostCollaboratorsBadge";
 import { useAuth } from "../hooks/useAuth";
+import { useActiveIdentity } from "../hooks/usePages";
 import { useIsBookmarked, useToggleBookmark } from "../hooks/useBookmarks";
 import { useMyReaction, useToggleReaction } from "../hooks/useReactions";
 import { recordProfileVisitFromPost } from "../hooks/useProfileVisits";
@@ -145,6 +146,13 @@ export function PostCard({
   // disabled.
   const isOwner = isOwnerView || user?.id === post.author.id;
   const HIDDEN_FOR_OWNER: SecondaryActionKey[] = ["disagree", "pushback", "gift", "dislike"];
+
+  // Pages can't send gifts (enforced server-side too, in process_gift —
+  // this is the UI half, not the only guard) — checked against the
+  // VIEWER's own active identity, unrelated to isOwner above (which is
+  // about this specific post's author).
+  const { data: viewerIdentity } = useActiveIdentity();
+  const viewingAsPage = viewerIdentity?.mode === "page";
 
   // Archived content's engagement state is frozen — liking/disliking/
   // gifting something that's hidden from everyone else (and whose own
@@ -389,6 +397,7 @@ export function PostCard({
   ).filter((k) => {
     if (isOwner && HIDDEN_FOR_OWNER.includes(k)) return false;
     if (k === "reshare" && (isOwner || hasReshared)) return false;
+    if (k === "gift" && viewingAsPage) return false;
     return true;
   });
 
