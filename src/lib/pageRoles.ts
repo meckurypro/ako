@@ -28,8 +28,10 @@ export function formatAffiliation(a: Pick<PageAffiliation, "role_label" | "page_
   return `${a.role_label} at ${a.page_name}`;
 }
 
-export function pageModeLabel(pageType: "organization" | "brand"): string {
-  return pageType === "organization" ? "Organisation" : "Brand";
+export function pageModeLabel(pageType: "organization" | "brand" | "product"): string {
+  if (pageType === "organization") return "Organisation";
+  if (pageType === "brand") return "Brand";
+  return "Product";
 }
 
 // Only page admins are allowed to post/manage as the page (mirrors the
