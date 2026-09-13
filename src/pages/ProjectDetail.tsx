@@ -17,6 +17,7 @@ import {
   Star,
   ChevronDown,
   RefreshCw,
+  TrendingUp,
 } from "lucide-react";
 import { useProjectDetail, useSimilarProjects, PROJECT_TYPE_LABELS, type Project } from "../hooks/useProjects";
 import { useEventDetails, useMeetingDetails, useGigDetails, useGigSamples } from "../hooks/useProjectTypeDetails";
@@ -37,6 +38,8 @@ import { RoleTags } from "../components/RoleTags";
 import { pageModeLabel } from "../lib/pageRoles";
 import { ProjectCard } from "../components/ProjectCard";
 import { BottomNav } from "../components/BottomNav";
+import { AffiliateShareSheet } from "../components/AffiliateShareSheet";
+import { useAffiliateProgram } from "../hooks/useAffiliates";
 
 // Compact, non-interactive project tile for the "similar projects"
 // rails — just enough to identify it and tap through. The full
@@ -335,6 +338,16 @@ export function ProjectDetail() {
   const isOwner = !!user && !!project && project.owner.id === user.id;
   const eventCountdownMs = useCountdown(project?.project_type === "event" ? eventDetails?.event_date : undefined);
 
+  // Affiliate forking — pitch projects don't route through
+  // process_project_purchase (see add_supporter_to_pitch_room) so
+  // there's nothing for a commission to attach to; excluded here
+  // rather than relying on the program just never having been enabled.
+  const { data: affiliateProgram } = useAffiliateProgram(
+    project && project.project_type !== "pitch" ? project.id : undefined
+  );
+  const [shareSheetOpen, setShareSheetOpen] = useState(false);
+  const canBecomeAffiliate = !!user && !!project && !isOwner && !!affiliateProgram?.enabled;
+
   // Powers the Activity hub's "History" tab (see useViewHistory) —
   // same idea as useMarkPostSeen for posts.
   useMarkProjectSeen(projectId!, project?.owner?.id);
@@ -351,6 +364,16 @@ export function ProjectDetail() {
         ) : (
           <>
             <ProjectCard project={project} />
+
+            {canBecomeAffiliate && (
+              <button
+                onClick={() => setShareSheetOpen(true)}
+                className="w-full flex items-center justify-center gap-2 bg-accent-soft text-accent py-3 rounded-xl font-medium text-sm -mt-2 mb-4"
+              >
+                <TrendingUp size={16} />
+                Share & earn a commission
+              </button>
+            )}
 
             {/* Event/Meeting browsing info — shown to everyone, purchase
                 is what unlocks the ticket/join page, not this block. */}
@@ -524,6 +547,14 @@ export function ProjectDetail() {
           </>
         )}
       </div>
+
+      {shareSheetOpen && project && (
+        <AffiliateShareSheet
+          projectId={project.id}
+          projectTitle={project.title}
+          onClose={() => setShareSheetOpen(false)}
+        />
+      )}
 
       <BottomNav />
     </div>
