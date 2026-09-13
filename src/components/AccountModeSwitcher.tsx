@@ -1,5 +1,5 @@
 // src/components/AccountModeSwitcher.tsx
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { Check, Plus } from "lucide-react";
 import { Avatar } from "./Avatar";
 import { useActiveIdentity, useMyPages, useSwitchActiveMode } from "../hooks/usePages";
@@ -10,8 +10,15 @@ import { pageModeLabel } from "../lib/pageRoles";
 // Lists "you" plus every page you have an active role on, with the
 // currently-acting-as identity checked. Tapping a row switches into
 // it (switch_active_mode RPC validates membership server-side too —
-// this UI just reflects what's already allowed).
+// this UI just reflects what's already allowed), then lands on /me —
+// same route the bottom nav's Profile tab uses, which already reads
+// the freshly-invalidated identity (see useSwitchActiveMode's
+// onSuccess) and resolves to that identity's own profile: PagePage
+// for a page, ProfilePage for personal. Without this, switching left
+// you stranded on this hub with the mode changed underneath you but
+// nothing on screen reflecting it.
 export function AccountModeSwitcher() {
+  const navigate = useNavigate();
   const { data: me } = useMyProfile();
   const { data: identity } = useActiveIdentity();
   const { data: pages } = useMyPages();
@@ -24,7 +31,7 @@ export function AccountModeSwitcher() {
     <div className="bg-surface rounded-2xl overflow-hidden divide-y divide-border">
       <button
         type="button"
-        onClick={() => !isPersonalActive && switchMode.mutate(null)}
+        onClick={() => !isPersonalActive && switchMode.mutate(null, { onSuccess: () => navigate("/me") })}
         disabled={switchMode.isPending}
         className="w-full flex items-center gap-3 p-4 text-left"
       >
@@ -42,7 +49,7 @@ export function AccountModeSwitcher() {
           <button
             key={page.id}
             type="button"
-            onClick={() => !isActive && switchMode.mutate(page.id)}
+            onClick={() => !isActive && switchMode.mutate(page.id, { onSuccess: () => navigate("/me") })}
             disabled={switchMode.isPending}
             className="w-full flex items-center gap-3 p-4 text-left"
           >
