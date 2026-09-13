@@ -41,10 +41,12 @@ import { GigFields, EMPTY_GIG_FIELDS, type GigFieldsValue } from "../components/
 import { PitchFields, EMPTY_PITCH_FIELDS, type PitchFieldsValue } from "../components/project-types/PitchFields";
 import { BookFields, EMPTY_BOOK_FIELDS, type BookFieldsValue } from "../components/project-types/BookFields";
 import { useCreatePitchProject } from "../hooks/useProjects";
+import { useToast } from "../components/Toast";
 
 export function CreateProject() {
   const navigate = useNavigate();
   const smartBack = useSmartBack();
+  const toast = useToast();
   const createProject = useCreateProject();
   // Pitch is created through its own RPC-backed hook, not the shared
   // createProject mutation — a Pitch is really two projects (the
@@ -268,6 +270,14 @@ export function CreateProject() {
         });
         if (postingAsPage) {
           navigate(`/page/${postingAsPage.username}`);
+        } else if (me?.username) {
+          // Straight to the Projects tab (see useTabState's ?tab=
+          // convention) — the new project is already the first card
+          // there (useUserProjects orders by created_at desc for the
+          // owner's own view), so no scroll/highlight logic is needed
+          // to bring it "into view".
+          navigate(`/profile/${me.username}?tab=projects`);
+          toast(`${title.trim()} created successfully.`, { variant: "success", duration: 2000 });
         } else {
           navigate(-1);
         }
@@ -415,6 +425,9 @@ export function CreateProject() {
       });
       if (postingAsPage) {
         navigate(`/page/${postingAsPage.username}`);
+      } else if (me?.username) {
+        navigate(`/profile/${me.username}?tab=projects`);
+        toast(`${title.trim()} created successfully.`, { variant: "success", duration: 2000 });
       } else {
         navigate(-1);
       }
