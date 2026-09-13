@@ -1,7 +1,8 @@
 // src/pages/admin/AdminHome.tsx
 import { Link } from "react-router-dom";
-import { Tag, Gift, Flag, ShieldAlert, Mail, Send, MailPlus, Bell, ToggleLeft, ShieldCheck, UserCheck, Sparkles, Landmark, Wallet, Users, Building2 } from "lucide-react";
+import { Tag, Gift, Flag, ShieldAlert, Mail, Send, MailPlus, Bell, ToggleLeft, ShieldCheck, UserCheck, Sparkles, Landmark, Wallet, Users, Building2, Megaphone } from "lucide-react";
 import { usePendingReports } from "../../hooks/useAdmin";
+import { usePendingPromotions } from "../../hooks/usePromotions";
 
 const SECTIONS = [
   { to: "/admin/categories", icon: Tag, label: "Categories" },
@@ -34,6 +35,9 @@ export function AdminHome() {
   const { data: reports } = usePendingReports();
   const pendingCount = reports?.length ?? 0;
 
+  const { data: pendingPromotions } = usePendingPromotions();
+  const pendingPromotionCount = pendingPromotions?.length ?? 0;
+
   return (
     <div className="min-h-screen bg-canvas px-4 pt-8 pb-10">
       <div className="max-w-md mx-auto">
@@ -50,6 +54,21 @@ export function AdminHome() {
           {pendingCount > 0 && (
             <span className="bg-danger text-canvas text-xs font-medium rounded-full w-6 h-6 flex items-center justify-center">
               {pendingCount}
+            </span>
+          )}
+        </Link>
+
+        <Link
+          to="/admin/promotions"
+          className="flex items-center justify-between bg-surface rounded-xl p-4 mb-4 border border-border"
+        >
+          <div className="flex items-center gap-3">
+            <Megaphone size={20} className="text-accent" />
+            <span className="font-medium text-ink">Promotion review</span>
+          </div>
+          {pendingPromotionCount > 0 && (
+            <span className="bg-danger text-canvas text-xs font-medium rounded-full w-6 h-6 flex items-center justify-center">
+              {pendingPromotionCount}
             </span>
           )}
         </Link>
