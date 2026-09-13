@@ -111,6 +111,11 @@ interface MessageBubbleProps {
   searchQuery: string;
   dragOffset: number;
   isDraggingThis: boolean;
+  /** Play the entrance animation once for this bubble — set by
+   *  MessageThread for a message it hasn't rendered before (a genuine
+   *  new send/arrival), never for the initial page load or loadOlder()
+   *  history. See ako-bubble-in-mine/-theirs in index.css. */
+  animateIn: boolean;
   registerRef: (id: string) => (el: HTMLDivElement | null) => void;
   onRowClick: (id: string) => void;
   onPointerDown: (m: MessageWithSender, e: ReactPointerEvent) => void;
@@ -144,6 +149,7 @@ function MessageBubbleImpl({
   searchQuery,
   dragOffset,
   isDraggingThis,
+  animateIn,
   registerRef,
   onRowClick,
   onPointerDown,
@@ -173,7 +179,12 @@ function MessageBubbleImpl({
   const ticks = isMine ? <MessageStatusTicks deliveredAt={m.delivered_at} readAt={m.read_at} size={14} /> : null;
 
   return (
-    <div className="flex items-center gap-2 mb-2 -mx-2 px-2 py-0.5" onClick={() => onRowClick(m.id)}>
+    <div
+      className={`flex items-center gap-2 mb-2 -mx-2 px-2 py-0.5 ${
+        animateIn ? (isMine ? "ako-bubble-in-mine" : "ako-bubble-in-theirs") : ""
+      }`}
+      onClick={() => onRowClick(m.id)}
+    >
       {selectMode && (
         <span
           className={`w-5 h-5 rounded-full border flex-shrink-0 flex items-center justify-center ${
