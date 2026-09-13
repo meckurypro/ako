@@ -43,6 +43,8 @@ import { WalletPage } from "./pages/Wallet";
 import { FundWallet } from "./pages/FundWallet";
 import { Withdraw } from "./pages/Withdraw";
 import { DepositCallback } from "./pages/DepositCallback";
+import { MyAffiliateLinks } from "./pages/MyAffiliateLinks";
+import { AffiliateRefCapture } from "./components/AffiliateRefCapture";
 
 import { Notifications } from "./pages/Notifications";
 import { FollowRequests } from "./pages/FollowRequests";
@@ -112,6 +114,7 @@ export default function App() {
           <BrowserRouter>
             <ScrollToTop />
             <PathHistoryTracker />
+            <AffiliateRefCapture />
             <AppRoutes />
           </BrowserRouter>
         </AuthProvider>
@@ -372,6 +375,14 @@ function AppRoutes() {
               element={
                 <RequireAuth>
                   <DepositCallback />
+                </RequireAuth>
+              }
+            />
+            <Route
+              path="/wallet/affiliate-links"
+              element={
+                <RequireAuth>
+                  <MyAffiliateLinks />
                 </RequireAuth>
               }
             />
