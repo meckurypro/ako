@@ -27,6 +27,7 @@ import {
   Copy,
   Check,
   Heart,
+  Megaphone,
 } from "lucide-react";
 import { useAuth } from "../hooks/useAuth";
 import { LikeHeart } from "./LikeHeart";
@@ -714,6 +715,24 @@ export function ProjectCard({
                   },
                   { key: "share", label: "Share", icon: <Redo2 />, onSelect: handleShare },
                 ];
+                // "Push" — jumps straight to Compose with this project
+                // pre-tagged, ready for the caption. Only offered for
+                // a published (active), non-private project: pushing a
+                // draft/archived project or a private one would tag
+                // something the eventual post's audience can't actually
+                // see (same "active + not private" rule TagProjectPicker
+                // already enforces for the other way into this same flow).
+                if (project.status === "active" && !project.is_private) {
+                  menuItems.push({
+                    key: "push",
+                    label: "Push",
+                    icon: <Megaphone />,
+                    onSelect: () =>
+                      navigate("/compose", {
+                        state: { taggedProject: { id: project.id, title: project.title } },
+                      }),
+                  });
+                }
                 if (project.is_private) {
                   menuItems.push({
                     key: "manage-access",
