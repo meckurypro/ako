@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link, useSearchParams, useLocation } from "react-router-dom";
 import { X } from "lucide-react";
 import { useFeedPosts, useFollowingFeed, useTopDiscussionsFeed, usePostById } from "../hooks/usePosts";
@@ -51,7 +51,52 @@ function LoadMoreButton({ onClick }: { onClick: () => void }) {
   );
 }
 
-function ForYouTab({ interestId, justPostedId }: { interestId?: string; justPostedId?: string | null }) {
+// Scrolls to and briefly flashes the post that sent a visitor off to a
+// profile they've now tapped "Back to post" to return from (see
+// ProfilePage's fromFeedPost / "Back to post" FAB, which navigates
+// here with location.state.scrollToPostId). Same scroll-into-view +
+// timed flash pattern as CommentThread's highlightId — see CommentItem
+// in CommentThread.tsx.
+//
+// Only wired into "For You" below — the tab a fresh /feed load always
+// lands on — not Following/Top Discussions, since there's no reliable
+// way to know which of the three tabs the originating post actually
+// came from.
+function FeedPostRow({ post, isTarget }: { post: any; isTarget: boolean }) {
+  const ref = useRef<HTMLDivElement>(null);
+  const [flashing, setFlashing] = useState(isTarget);
+
+  useEffect(() => {
+    if (!isTarget || !ref.current) return;
+    ref.current.scrollIntoView({ behavior: "smooth", block: "center" });
+    setFlashing(true);
+    const timeout = setTimeout(() => setFlashing(false), 2500);
+    return () => clearTimeout(timeout);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isTarget]);
+
+  return (
+    <div
+      id={`ako-feed-post-${post.id}`}
+      ref={ref}
+      className={`rounded-lg transition-colors duration-700 ${
+        flashing ? "bg-highlight -mx-2 px-2 py-1.5" : ""
+      }`}
+    >
+      <PostCard post={post} />
+    </div>
+  );
+}
+
+function ForYouTab({
+  interestId,
+  justPostedId,
+  scrollToPostId,
+}: {
+  interestId?: string;
+  justPostedId?: string | null;
+  scrollToPostId?: string | null;
+}) {
   const [page, setPage] = useState(0);
   const { data: identity } = useActiveIdentity();
   const activePageId = identity?.mode === "page" ? identity.page.id : undefined;
@@ -110,7 +155,7 @@ function ForYouTab({ interestId, justPostedId }: { interestId?: string; justPost
   return (
     <>
       {displayedPosts.map((post) => (
-        <PostCard key={post.id} post={post} />
+        <FeedPostRow key={post.id} post={post} isTarget={!!scrollToPostId && post.id === scrollToPostId} />
       ))}
       {posts.length > 0 && <LoadMoreButton onClick={() => setPage((p) => p + 1)} />}
     </>
@@ -181,8 +226,16 @@ export function Feed() {
   const [justPostedId] = useState<string | null>(
     () => (location.state as { justPostedId?: string } | null)?.justPostedId ?? null
   );
+  // Set by ProfilePage's "Back to post" FAB (see fromFeedPost there) —
+  // the post whose byline sent the visitor to that profile in the
+  // first place. Captured once the same way as justPostedId, for the
+  // same reason: shouldn't keep re-triggering the scroll+flash below
+  // on a later back/forward through history.
+  const [scrollToPostId] = useState<string | null>(
+    () => (location.state as { scrollToPostId?: string } | null)?.scrollToPostId ?? null
+  );
   useEffect(() => {
-    if (justPostedId) window.history.replaceState({}, "");
+    if (justPostedId || scrollToPostId) window.history.replaceState({}, "");
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -264,7 +317,12 @@ export function Feed() {
           }}
         >
           {[
-            <ForYouTab key="for-you" interestId={interestId} justPostedId={justPostedId} />,
+            <ForYouTab
+              key="for-you"
+              interestId={interestId}
+              justPostedId={justPostedId}
+              scrollToPostId={scrollToPostId}
+            />,
             <TopDiscussionsTab key="top" />,
             <FollowingTab key="following" />,
           ]}
