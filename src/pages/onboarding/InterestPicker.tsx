@@ -75,7 +75,7 @@ export function InterestPicker() {
     <div className="min-h-screen bg-canvas px-6 py-10 pb-28">
       <div className="max-w-2xl mx-auto">
         <div className="mb-8">
-          <Wordmark size="sm" showTagline={false} />
+          <Wordmark asIcon iconTagline={false} />
         </div>
 
         <h2 className="font-display text-2xl text-ink mb-2">What do you reason about?</h2>
