@@ -236,6 +236,69 @@ export function useCreatePage() {
   });
 }
 
+// ------------------------------------------------------------
+// Page creation eligibility — 30 posts + 30 distinct engaged posts in
+// the trailing 30 days by default, admin-configurable (see
+// capability_creation_rules / capability_overrides and
+// get_page_creation_eligibility() in the migration). This hook and
+// the reasons helper below are UX only: they let CreatePage show
+// accurate progress and block submission early with a clear message,
+// but create_page() independently re-checks the same rule
+// server-side, so a stale or tampered client value here can never
+// actually create a Page it shouldn't.
+// ------------------------------------------------------------
+export interface PageCreationEligibility {
+  allowed: boolean;
+  overridden: boolean;
+  posts_30d: number;
+  posts_required: number;
+  posts_met: boolean;
+  distinct_engaged_30d: number;
+  distinct_engaged_required: number;
+  distinct_engaged_met: boolean;
+}
+
+export function usePageCreationEligibility() {
+  const { user } = useAuth();
+
+  return useQuery({
+    queryKey: ["page-creation-eligibility", user?.id],
+    queryFn: async (): Promise<PageCreationEligibility> => {
+      const { data, error } = await supabase.rpc("get_page_creation_eligibility");
+      if (error) throw error;
+      // RPC is declared RETURNS TABLE(...), so PostgREST hands back a
+      // one-row array rather than a bare object.
+      return Array.isArray(data) ? data[0] : data;
+    },
+    enabled: !!user,
+  });
+}
+
+/** Same { eligible, reasons } shape as CreateProject's
+ * getProjectTypeEligibility (see useProjects.ts), so CreatePage can
+ * render its warning with the identical component pattern. Returns
+ * undefined while the eligibility query is still loading, so the
+ * caller can avoid flashing a false-negative warning on first render. */
+export function getPageCreationEligibilityReasons(
+  eligibility: PageCreationEligibility | undefined
+): { eligible: boolean; reasons: string[] } | undefined {
+  if (!eligibility) return undefined;
+  if (eligibility.allowed) return { eligible: true, reasons: [] };
+
+  const reasons: string[] = [];
+  if (!eligibility.posts_met) {
+    reasons.push(
+      `You need at least ${eligibility.posts_required} posts in the last 30 days (you have ${eligibility.posts_30d}).`
+    );
+  }
+  if (!eligibility.distinct_engaged_met) {
+    reasons.push(
+      `You need at least ${eligibility.distinct_engaged_required} distinct engaged posts in the last 30 days (you have ${eligibility.distinct_engaged_30d}).`
+    );
+  }
+  return { eligible: false, reasons };
+}
+
 // Who currently holds page-deletion/ownership-transfer authority for a
 // page — the creator, unless their account is gone, in which case the
 // earliest-tenured active admin (see resolve_page_owner() server-side,
