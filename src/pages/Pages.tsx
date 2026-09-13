@@ -5,6 +5,7 @@ import { ArrowLeft, Check, X } from "lucide-react";
 import { Avatar } from "../components/Avatar";
 import { AccountModeSwitcher } from "../components/AccountModeSwitcher";
 import { useMyPendingPageInvites, useRespondToPageInvite } from "../hooks/usePages";
+import { usePagesFeatureSettings } from "../hooks/useAdmin";
 import { pageModeLabel } from "../lib/pageRoles";
 
 // /pages — the account-mode hub: switch between personal and any page
@@ -13,6 +14,7 @@ export function Pages() {
   const smartBack = useSmartBack();
   const { data: invites } = useMyPendingPageInvites();
   const respond = useRespondToPageInvite();
+  const { data: pagesFeature } = usePagesFeatureSettings();
 
   return (
     <div className="min-h-screen bg-canvas px-4 pt-4 pb-10">
@@ -67,12 +69,17 @@ export function Pages() {
         <AccountModeSwitcher />
 
         <p className="text-xs text-ink-muted mt-4 px-1">
-          While you're acting as an organisation or brand, your posts, name, and photo show
-          theirs instead of yours — everyone managing it shares the same page.{" "}
-          <Link to="/pages/new" className="text-accent">
-            Set one up
-          </Link>
-          .
+          While you're acting as a page, your posts, name, and photo show its instead of
+          yours — everyone managing it shares the same page.
+          {(pagesFeature?.pages_creation_enabled ?? true) && (
+            <>
+              {" "}
+              <Link to="/pages/new" className="text-accent">
+                Set one up
+              </Link>
+              .
+            </>
+          )}
         </p>
       </div>
     </div>
