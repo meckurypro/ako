@@ -35,8 +35,17 @@ export function Compose() {
   // Item 10: tag one of your own projects into the post — stored as
   // just the id (what actually gets posted) plus a title snapshot
   // (so the picker pill below can show something without waiting on
-  // a fresh fetch of the project itself).
-  const [taggedProject, setTaggedProject] = useState<{ id: string; title: string } | null>(null);
+  // a fresh fetch of the project itself). Arriving from a project's
+  // "Push" menu item (see ProjectCard.tsx) preloads this via
+  // location.state instead of the picker — the two ways in meet at
+  // the same piece of state, so everything downstream (the pill,
+  // "change" reopening the picker, what gets posted) works identically
+  // either way.
+  const incomingTaggedProject =
+    (location.state as { taggedProject?: { id: string; title: string } } | null)?.taggedProject ?? null;
+  const [taggedProject, setTaggedProject] = useState<{ id: string; title: string } | null>(
+    incomingTaggedProject
+  );
   const [showProjectPicker, setShowProjectPicker] = useState(false);
   const createPost = useCreatePost();
   const deleteDraftOrScheduled = useDeleteDraftOrScheduledPost();
@@ -51,34 +60,46 @@ export function Compose() {
   const [scheduleValue, setScheduleValue] = useState("");
   const toast = useToast();
 
-  // Resuming a draft (see DraftPosts.tsx's "Resume" button) — loaded
-  // directly rather than through create-post's edge function, since
-  // this is just reading the author's own unpublished row back, not
-  // creating or moderating anything. Kept in a ref (not state) since
-  // it's read once, at submit time, to know which row to clean up —
-  // re-fetching it or reacting to it changing isn't needed.
-  const resumingDraftId = (location.state as { draftId?: string } | null)?.draftId ?? null;
-  const resumedDraftIdRef = useRef(resumingDraftId);
+  // Resuming a draft or a scheduled post (see DraftPosts.tsx and
+  // ScheduledPosts.tsx's "Resume" buttons) — loaded directly rather
+  // than through create-post's edge function, since this is just
+  // reading the author's own unpublished row back, not creating or
+  // moderating anything. Both cases behave identically here: prefill,
+  // let the author change anything (including the tagged project),
+  // and delete the original row once the edit is (re)submitted —
+  // "editing" an unpublished post is really "replace it," which is
+  // also how it re-enters moderation on save instead of skipping it.
+  // Kept in a ref (not state) since it's read once, at submit time, to
+  // know which row to clean up — re-fetching it or reacting to it
+  // changing isn't needed.
+  const locationState = location.state as { draftId?: string; scheduledId?: string } | null;
+  const resumingPostId = locationState?.draftId ?? locationState?.scheduledId ?? null;
+  const resumedPostIdRef = useRef(resumingPostId);
+  const resumingKind = locationState?.scheduledId ? "scheduled post" : "draft";
 
   useEffect(() => {
-    if (!resumingDraftId) return;
+    if (!resumingPostId) return;
     (async () => {
       const { data, error: fetchError } = await supabase
         .from("posts")
-        .select("heading, content, category_id, media_urls")
-        .eq("id", resumingDraftId)
+        .select(
+          "heading, content, category_id, media_urls, tagged_project:projects!posts_tagged_project_id_fkey(id, title)"
+        )
+        .eq("id", resumingPostId)
         .single();
       if (fetchError || !data) {
-        toast("Couldn't load that draft.", { variant: "error" });
+        toast(`Couldn't load that ${resumingKind}.`, { variant: "error" });
         return;
       }
       setHeading(data.heading ?? "");
       setContent(data.content ?? "");
       setCategoryId(data.category_id ?? null);
       setMediaUrls(data.media_urls ?? []);
+      const resumedProject = (data as any).tagged_project;
+      if (resumedProject) setTaggedProject({ id: resumedProject.id, title: resumedProject.title });
     })();
     // Only ever needs to run once, on mount — this is a one-time
-    // prefill, not a live sync with the draft row.
+    // prefill, not a live sync with the original row.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -138,14 +159,14 @@ export function Compose() {
 
       if (status === "draft") {
         toast("Saved to your drafts.", { variant: "success" });
-        if (resumedDraftIdRef.current) deleteDraftOrScheduled.mutate(resumedDraftIdRef.current);
+        if (resumedPostIdRef.current) deleteDraftOrScheduled.mutate(resumedPostIdRef.current);
         navigate("/activity/drafts");
       } else if (status === "scheduled") {
         toast("Scheduled — it'll post automatically.", { variant: "success" });
-        if (resumedDraftIdRef.current) deleteDraftOrScheduled.mutate(resumedDraftIdRef.current);
+        if (resumedPostIdRef.current) deleteDraftOrScheduled.mutate(resumedPostIdRef.current);
         navigate("/activity/scheduled");
       } else {
-        if (resumedDraftIdRef.current) deleteDraftOrScheduled.mutate(resumedDraftIdRef.current);
+        if (resumedPostIdRef.current) deleteDraftOrScheduled.mutate(resumedPostIdRef.current);
         navigate(postingAsPage ? `/page/${postingAsPage.username}` : "/feed");
       }
     } catch (err) {
@@ -267,8 +288,15 @@ export function Compose() {
           <div className="mt-3">
             {taggedProject ? (
               <div className="inline-flex items-center gap-1.5 rounded-full border border-border bg-surface pl-3 pr-1.5 py-1 text-sm text-ink">
-                <Link2 size={13} className="text-ink-muted" />
-                <span className="truncate max-w-[220px]">{taggedProject.title}</span>
+                <button
+                  type="button"
+                  onClick={() => setShowProjectPicker(true)}
+                  className="flex items-center gap-1.5 min-w-0"
+                  aria-label="Change tagged project"
+                >
+                  <Link2 size={13} className="text-ink-muted shrink-0" />
+                  <span className="truncate max-w-[220px]">{taggedProject.title}</span>
+                </button>
                 <button
                   onClick={() => setTaggedProject(null)}
                   className="p-1 text-ink-muted"
