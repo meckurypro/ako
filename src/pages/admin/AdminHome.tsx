@@ -1,6 +1,6 @@
 // src/pages/admin/AdminHome.tsx
 import { Link } from "react-router-dom";
-import { Tag, Gift, Flag, ShieldAlert, Mail, Send, MailPlus, Bell, ToggleLeft, ShieldCheck, UserCheck, Sparkles, Landmark, Wallet, Users } from "lucide-react";
+import { Tag, Gift, Flag, ShieldAlert, Mail, Send, MailPlus, Bell, ToggleLeft, ShieldCheck, UserCheck, Sparkles, Landmark, Wallet, Users, Building2 } from "lucide-react";
 import { usePendingReports } from "../../hooks/useAdmin";
 
 const SECTIONS = [
@@ -11,6 +11,7 @@ const SECTIONS = [
   { to: "/admin/account-exemptions", icon: UserCheck, label: "Account exemptions" },
   { to: "/admin/suggested-profiles", icon: Sparkles, label: "Suggested profiles" },
   { to: "/admin/moderation", icon: ShieldCheck, label: "Content moderation" },
+  { to: "/admin/page-settings", icon: Building2, label: "Page settings" },
 ];
 
 const INSIGHTS_SECTIONS = [
