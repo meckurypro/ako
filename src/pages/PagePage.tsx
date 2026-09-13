@@ -2,7 +2,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useParams, Link, useNavigate } from "react-router-dom";
 import { useSmartBack } from "../hooks/useSmartBack";
-import { ArrowLeft, ArrowLeftRight, BadgeCheck, Building2, Check, ChevronDown, Globe, MoreHorizontal, Pencil, Redo2, Users, UserCog } from "lucide-react";
+import { ArrowLeft, ArrowLeftRight, BadgeCheck, Building2, Globe, MoreHorizontal, Pencil, Plus, Redo2, Users, UserCog } from "lucide-react";
 import { useAuth } from "../hooks/useAuth";
 import { useMyProfile } from "../hooks/useProfile";
 import { Avatar } from "../components/Avatar";
@@ -45,10 +45,10 @@ export function PagePage() {
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
   // Separate from the "…" menu above — tapping the page's own NAME
-  // opens a quick switcher scoped to pages of the SAME type (org ↔
-  // org, brand ↔ brand only), the way tapping your handle in
-  // IG/TikTok pops up "Switch accounts". Own open state + outside-tap
-  // ref, same pattern as the "…" menu just above.
+  // opens a quick switcher across every page you run (not just
+  // same-type ones anymore), the way tapping your handle in IG/TikTok
+  // pops up "Switch accounts". Own open state + outside-tap ref, same
+  // pattern as the "…" menu just above.
   const [nameMenuOpen, setNameMenuOpen] = useState(false);
   const nameMenuRef = useRef<HTMLDivElement>(null);
 
@@ -77,15 +77,13 @@ export function PagePage() {
   // Am I currently acting AS this page? Drives whether the menu offers
   // "switch to it" or "switch back to personal/elsewhere".
   const isActiveHere = identity?.mode === "page" && identity.page.id === page?.id;
-  // The other pages I run, for a quick "switch to X" shortcut without
-  // having to go back through /pages first.
-  const otherPages = (myPages ?? []).filter((p) => p.id !== page?.id);
-  // Same-type pages (every organisation you run, if this is one — or
-  // every brand, if this is one) — what tapping the NAME switches
-  // between. Only worth making the name tappable when there's more
-  // than one to choose from.
-  const samePlatformPages = (myPages ?? []).filter((p) => p.page_type === page?.page_type);
-  const canSwitchByName = isMember && samePlatformPages.length > 1;
+  // Every page I run (any type) plus this one — what tapping the NAME
+  // switches between, the same way tapping your own display name in
+  // personal mode would offer every account you have. Switching
+  // between pages happens exclusively here now, not as a separate
+  // "Switch to X" list in the "…" menu above.
+  const switchablePages = (myPages ?? []).filter((p) => p.id !== page?.id);
+  const canSwitchByName = isMember && switchablePages.length > 0;
 
   useEffect(() => {
     if (!menuOpen) return;
@@ -166,22 +164,38 @@ export function PagePage() {
             <ArrowLeft size={22} />
           </button>
 
-          {/* Mode-aware "…" — content depends on the viewer's relationship
-              to this specific page (visitor / member / currently acting as
-              it), not a fixed set of options. */}
-          <div ref={menuRef} className="relative">
-            <button
-              onClick={() => setMenuOpen((o) => !o)}
-              className="p-2 text-ink-muted"
-              aria-label="Page options"
-            >
-              <MoreHorizontal size={20} />
-            </button>
+          <div className="flex items-center gap-1">
+            {/* Only while actually ACTING as this page — a member who
+                hasn't switched into it yet posts as themselves, so this
+                button living here (rather than always-on for any
+                member) keeps "what I create next" matched to "who I'm
+                posting as right now". Reuses the same /create sheet as
+                Feed/personal profile — Compose.tsx and CreateProject.tsx
+                already attribute the result to the active page identity
+                on their own (posted_as_page_id), so nothing else here
+                needs to know this is a page. */}
+            {isActiveHere && (
+              <Link to="/create" aria-label="Create" className="p-2 text-ink-muted">
+                <Plus size={22} />
+              </Link>
+            )}
 
-            {menuOpen && (
-              <div className="absolute top-full right-0 mt-1 bg-canvas border border-border rounded-xl shadow-lg py-1 w-60 z-10">
-                <button
-                  onClick={handleShare}
+            {/* Mode-aware "…" — content depends on the viewer's relationship
+                to this specific page (visitor / member / currently acting as
+                it), not a fixed set of options. */}
+            <div ref={menuRef} className="relative">
+              <button
+                onClick={() => setMenuOpen((o) => !o)}
+                className="p-2 text-ink-muted"
+                aria-label="Page options"
+              >
+                <MoreHorizontal size={20} />
+              </button>
+
+              {menuOpen && (
+                <div className="absolute top-full right-0 mt-1 bg-canvas border border-border rounded-xl shadow-lg py-1 w-60 z-10">
+                  <button
+                    onClick={handleShare}
                   className="w-full flex items-center gap-2.5 text-left px-4 py-2.5 text-sm text-ink hover:bg-surface"
                 >
                   <Redo2 size={16} />
@@ -207,18 +221,6 @@ export function PagePage() {
                     Switch to {page.name}
                   </button>
                 )}
-
-                {isMember &&
-                  otherPages.map((p) => (
-                    <button
-                      key={p.id}
-                      onClick={() => handleSwitchTo(p.id, `/page/${p.username}`)}
-                      className="w-full flex items-center gap-2.5 text-left px-4 py-2.5 text-sm text-ink hover:bg-surface"
-                    >
-                      <Avatar src={p.avatar_url} name={p.name} size="sm" />
-                      <span className="truncate">Switch to {p.name}</span>
-                    </button>
-                  ))}
 
                 {isAdmin && (
                   <Link
@@ -255,6 +257,7 @@ export function PagePage() {
               </div>
             )}
           </div>
+          </div>
         </div>
 
         <div className="px-4 pt-3 pb-4">
@@ -270,17 +273,16 @@ export function PagePage() {
                 >
                   <h1 className="font-display text-lg text-ink truncate">{page.name}</h1>
                   {page.is_verified && <BadgeCheck size={16} className="text-accent flex-shrink-0" />}
-                  {canSwitchByName && <ChevronDown size={14} className="text-ink-muted flex-shrink-0" />}
                 </button>
 
-                {/* Same-type switcher — every organisation you run if this
-                    page is one, every brand if it's one. Tapping a row
-                    switches straight into it, same as the "…" menu's
-                    per-page rows, just scoped and reached the IG/TikTok
-                    way: tap the name itself. */}
+                {/* Every other page you run — tapping a row switches
+                    straight into it, the same way tapping your own name
+                    in personal mode offers every account you have. No
+                    chevron here, matching personal mode's name, which
+                    isn't marked with one either. */}
                 {nameMenuOpen && (
                   <div className="absolute top-full left-0 mt-1 bg-canvas border border-border rounded-xl shadow-lg py-1 w-56 z-10">
-                    {samePlatformPages.map((p) => (
+                    {switchablePages.map((p) => (
                       <button
                         key={p.id}
                         onClick={() => handleSwitchTo(p.id, `/page/${p.username}`)}
@@ -288,7 +290,6 @@ export function PagePage() {
                       >
                         <Avatar src={p.avatar_url} name={p.name} size="sm" />
                         <span className="flex-1 min-w-0 truncate">{p.name}</span>
-                        {p.id === page.id && <Check size={14} className="text-accent flex-shrink-0" />}
                       </button>
                     ))}
                   </div>
