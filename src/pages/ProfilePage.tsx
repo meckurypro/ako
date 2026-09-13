@@ -1,10 +1,9 @@
 // src/pages/ProfilePage.tsx
 import { useState, useRef } from "react";
 import { useParams, Link, useNavigate, useLocation } from "react-router-dom";
-import { Settings, Wallet, MessageCircle, MoreHorizontal, Plus, Eye, X, Globe, UserCheck, Lock, Redo2, Building2, Store } from "lucide-react";
+import { Settings, Wallet, MessageCircle, MoreHorizontal, Plus, Eye, X, Globe, UserCheck, Lock, Redo2, Building2 } from "lucide-react";
 import { useAuth } from "../hooks/useAuth";
 import { useProfileByUsername, useIsFollowing, useIsFollowedByUser, useToggleFollow } from "../hooks/useProfile";
-import { useMyPages, useSwitchActiveMode } from "../hooks/usePages";
 import { useTabState } from "../hooks/useTabState";
 import { useBackDismiss } from "../hooks/useBackDismiss";
 import { useScrollLock } from "../hooks/useScrollLock";
@@ -84,12 +83,6 @@ export function ProfilePage() {
   function handleAccountNameClick() {
     setAccountSwitcherOpen((o) => !o);
   }
-  // Account-mode: the org/brand (if any) this user runs, shown as
-  // switch-into rows in the owner menu below (see handleModeMenuClick).
-  const { data: myPages } = useMyPages();
-  const switchMode = useSwitchActiveMode();
-  const myOrg = myPages?.find((p) => p.page_type === "organization");
-  const myBrand = myPages?.find((p) => p.page_type === "brand");
   const [showUnfollowConfirm, setShowUnfollowConfirm] = useState(false);
   useBackDismiss(() => setShowUnfollowConfirm(false), showUnfollowConfirm);
   useScrollLock(showUnfollowConfirm);
@@ -226,21 +219,6 @@ export function ProfilePage() {
     void shareProfile();
   }
 
-  // Organisation/Brand rows in the owner menu double as both "create"
-  // (no page of that type yet — sends you to set one up) and "switch"
-  // (you already run one — tapping it acts as that page from here on).
-  // Only the FIRST organization/brand you run shows here — if someone
-  // manages more than one of either type, the rest are reachable from
-  // /pages, which lists every page you can switch into.
-  function handleModeMenuClick(page: { id: string; username: string } | undefined, type: "organization" | "brand") {
-    setOwnerMenuOpen(false);
-    if (page) {
-      switchMode.mutate(page.id, { onSuccess: () => navigate(`/page/${page.username}`) });
-    } else {
-      navigate(`/pages/new?type=${type}`);
-    }
-  }
-
   // Same swipe pattern as Feed's tab row — SwipeableTabs is bound only to
   // the content area below the tab bar (see the wrapping div further
   // down), so swiping over the header/bio never accidentally flips tabs.
@@ -321,18 +299,13 @@ export function ProfilePage() {
                   items={[
                     { key: "share", label: "Share profile", icon: <Redo2 />, onSelect: handleShareProfile },
                     {
-                      key: "org",
-                      label: myOrg ? myOrg.name : "Organisation",
-                      icon: myOrg ? undefined : <Building2 />,
-                      badge: myOrg ? <Avatar src={myOrg.avatar_url} name={myOrg.name} size="sm" /> : undefined,
-                      onSelect: () => handleModeMenuClick(myOrg, "organization"),
-                    },
-                    {
-                      key: "brand",
-                      label: myBrand ? myBrand.name : "Brand",
-                      icon: myBrand ? undefined : <Store />,
-                      badge: myBrand ? <Avatar src={myBrand.avatar_url} name={myBrand.name} size="sm" /> : undefined,
-                      onSelect: () => handleModeMenuClick(myBrand, "brand"),
+                      key: "page",
+                      label: "Page",
+                      icon: <Building2 />,
+                      onSelect: () => {
+                        setOwnerMenuOpen(false);
+                        navigate("/pages");
+                      },
                     },
                     {
                       key: "view-as-visitor",
