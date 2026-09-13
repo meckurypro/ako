@@ -23,12 +23,14 @@ import {
   SlidersHorizontal,
   AlertTriangle,
   LogOut,
+  Eye,
 } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "../lib/supabase";
 import { useAuth } from "../hooks/useAuth";
 import { removeSavedAccount } from "../lib/accountSessions";
 import { useUpdateProfile, useUpdateProfileRoles } from "../hooks/useProfile";
+import { useProfileVisitCount } from "../hooks/useProfileVisits";
 import { useUploadAvatar } from "../hooks/useUploadAvatar";
 import { useRoles } from "../hooks/useRoles";
 import { PROFILE_ROLES_SELECT } from "../lib/profileRoles";
@@ -197,6 +199,12 @@ export function Settings() {
 
   // ---- Profile ----
   const { data: profile, isLoading: profileLoading } = useOwnProfile();
+  // Moved here from ProfilePage — a stat about the account, for the
+  // owner only, so it belongs among the rest of the account's own
+  // settings rather than mixed into the Following/Followers row a
+  // visitor also sees. Always enabled: this page is only ever the
+  // signed-in user's own settings, never someone else's.
+  const { data: visitCount } = useProfileVisitCount(profile?.id, !!profile?.id);
   const updateProfile = useUpdateProfile();
   const updateProfileRoles = useUpdateProfileRoles();
   const uploadAvatar = useUploadAvatar();
@@ -473,6 +481,17 @@ export function Settings() {
                   {uploadAvatar.isPending ? "Uploading…" : "Change photo"}
                 </button>
                 {uploadError && <p className="text-danger text-sm mt-1">{uploadError}</p>}
+
+                {/* Moved from ProfilePage's Following/Followers row —
+                    an owner-only stat, so it lives here among the rest
+                    of the account's own settings instead. */}
+                <span
+                  className="flex items-center gap-1.5 text-sm text-ink-muted mt-3"
+                  title="Only visible to you"
+                >
+                  <Eye size={14} />
+                  <span className="font-medium text-ink">{visitCount ?? 0}</span> visits in the last 30 days
+                </span>
               </div>
 
               <FormField
