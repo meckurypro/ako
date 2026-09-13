@@ -580,6 +580,9 @@ export interface AdminPageCapabilitySearchResult {
   follower_count: number;
   created_at: string;
   has_page_override: boolean;
+  // null = active with no expiry ("forever"); undefined when there's no
+  // active override at all (has_page_override is false in that case).
+  override_expires_at: string | null | undefined;
 }
 
 export function useAdminSearchAccountsForPageCapability(query: string) {
@@ -607,13 +610,17 @@ export function useAdminSearchAccountsForPageCapability(query: string) {
       if (overridesError) throw overridesError;
 
       const now = Date.now();
-      const activeOverrideIds = new Set(
+      const activeOverrides = new Map(
         (overrides ?? [])
           .filter((o) => !o.revoked_at && (!o.expires_at || new Date(o.expires_at).getTime() > now))
-          .map((o) => o.user_id)
+          .map((o) => [o.user_id, o.expires_at] as const)
       );
 
-      return profiles.map((p) => ({ ...p, has_page_override: activeOverrideIds.has(p.id) }));
+      return profiles.map((p) => ({
+        ...p,
+        has_page_override: activeOverrides.has(p.id),
+        override_expires_at: activeOverrides.get(p.id),
+      }));
     },
     enabled: query.trim().length > 1,
   });
@@ -623,9 +630,12 @@ export function useGrantPageCreationOverride() {
   const { user } = useAuth();
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async (targetUserId: string) => {
-      // Upsert so re-granting after a revoke clears revoked_at/expires_at
-      // rather than colliding with the (user_id, capability) primary key.
+    // expiresAt: an ISO date string, or null/undefined for no expiry
+    // ("forever", until manually revoked).
+    mutationFn: async ({ targetUserId, expiresAt }: { targetUserId: string; expiresAt?: string | null }) => {
+      // Upsert so re-granting after a revoke clears revoked_at and sets
+      // a fresh expiry, rather than colliding with the (user_id,
+      // capability) primary key.
       const { error } = await supabase.from("capability_overrides").upsert({
         user_id: targetUserId,
         capability: "create_page",
@@ -633,7 +643,7 @@ export function useGrantPageCreationOverride() {
         reason: "Admin test override",
         revoked_at: null,
         revoked_by: null,
-        expires_at: null,
+        expires_at: expiresAt ?? null,
       });
       if (error) throw error;
     },
