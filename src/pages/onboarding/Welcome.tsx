@@ -12,7 +12,7 @@ export function Welcome() {
   return (
     <div className="min-h-screen flex flex-col items-center justify-center bg-canvas px-6 text-center">
       <div className="mb-10">
-        <Wordmark />
+        <Wordmark asIcon iconTagline={false} />
       </div>
 
       <h1 className="font-display text-2xl text-ink mb-3">Welcome to Akọ</h1>
