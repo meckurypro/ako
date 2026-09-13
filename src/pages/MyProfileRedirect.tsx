@@ -11,9 +11,17 @@ import { useActiveIdentity } from "../hooks/usePages";
 // ProfilePage's owner menu is what switched you into it.
 export function MyProfileRedirect() {
   const { profile, loading } = useAuth();
-  const { data: identity, isLoading: identityLoading } = useActiveIdentity();
+  const { data: identity, isLoading: identityLoading, isFetching: identityFetching } = useActiveIdentity();
 
-  if (loading || identityLoading || !profile) {
+  // isLoading alone isn't enough here: with cached data already present
+  // (e.g. from BottomNav's own long-lived subscription to this same
+  // query), isLoading is false the instant this mounts even though
+  // useActiveIdentity's refetchOnMount: "always" has a fresh fetch
+  // in flight — the exact stale-read gap described there. Waiting on
+  // isFetching too means this only ever navigates once that fetch has
+  // actually resolved, at the cost of a beat longer on the loading
+  // screen every time — worth it for a redirect that only gets one shot.
+  if (loading || identityLoading || identityFetching || !profile) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-canvas">
         <p className="text-ink-muted">Loading…</p>
