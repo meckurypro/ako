@@ -317,7 +317,7 @@ export function usePostToRoom(projectId: string) {
 }
 
 // A lecture can be a voice note too — same upload-then-encode pipeline
-// useSendVoiceNote uses for chat (same post-media bucket, same
+// useSendVoiceNote uses for chat (same "audio" bucket, same
 // encodeVoiceNote packing), so VoiceMessageBubble/decodeVoiceNote work
 // identically here without caring whether the row is a room_post or a
 // message.
@@ -328,12 +328,15 @@ export function usePostVoiceNoteToRoom(projectId: string) {
     mutationFn: async ({ blob, durationSec, peaks }: { blob: Blob; durationSec: number; peaks: number[] }) => {
       if (!user) throw new Error("Not signed in");
       const ext = blob.type.includes("mp4") ? "m4a" : "webm";
-      const path = `room-voice-notes/${projectId}/${user.id}-${Date.now()}.${ext}`;
+      // First segment must be the uploader's own auth.uid() to satisfy
+      // the "audio" bucket's upload RLS policy — see the matching note
+      // in useMessaging.ts's useSendVoiceNote, which had the same bug.
+      const path = `${user.id}/room-${projectId}-${Date.now()}.${ext}`;
       const { error: uploadError } = await supabase.storage
-        .from("post-media")
+        .from("audio")
         .upload(path, blob, { contentType: blob.type || "audio/webm" });
       if (uploadError) throw uploadError;
-      const { data: publicUrl } = supabase.storage.from("post-media").getPublicUrl(path);
+      const { data: publicUrl } = supabase.storage.from("audio").getPublicUrl(path);
       const content = encodeVoiceNote({ url: publicUrl.publicUrl, durationSec, peaks });
 
       const { error } = await supabase.from("room_posts").insert({
