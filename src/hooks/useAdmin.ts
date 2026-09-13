@@ -517,6 +517,45 @@ export function useToggleAiModeration() {
 }
 
 // ------------------------------------------------------------
+// Site-wide kill switch for standing up new Pages (organisation,
+// brand, or product). Same moderation_settings key/value table as AI
+// moderation above — this only ever gates the "create a page" entry
+// points and the /pages/new route itself; pages that already exist,
+// and everything about acting as one, are untouched by this.
+// ------------------------------------------------------------
+const PAGES_ENABLED_KEY = "pages_creation_enabled";
+
+export function usePagesFeatureSettings() {
+  return useQuery({
+    queryKey: ["admin-pages-feature-settings"],
+    queryFn: async (): Promise<{ pages_creation_enabled: boolean }> => {
+      const { data, error } = await supabase
+        .from("moderation_settings")
+        .select("value")
+        .eq("key", PAGES_ENABLED_KEY)
+        .maybeSingle();
+      if (error) throw error;
+      // No row yet defaults to on — Pages has been a live feature, this
+      // toggle is an off switch, not an opt-in.
+      return { pages_creation_enabled: data ? data.value === "true" : true };
+    },
+  });
+}
+
+export function useTogglePagesEnabled() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (pages_creation_enabled: boolean) => {
+      const { error } = await supabase
+        .from("moderation_settings")
+        .upsert({ key: PAGES_ENABLED_KEY, value: pages_creation_enabled ? "true" : "false" });
+      if (error) throw error;
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["admin-pages-feature-settings"] }),
+  });
+}
+
+// ------------------------------------------------------------
 // Account exemptions — admin grants a specific user a full pass on
 // project_type_access_rules (see project_type_rule_exemptions in
 // ako_admin_project_type_controls_migration.sql). Search is a plain
