@@ -238,14 +238,14 @@ export function useCreatePage() {
 
 // ------------------------------------------------------------
 // Page creation eligibility — 30 posts + 30 distinct engaged posts in
-// the trailing 30 days by default, admin-configurable (see
-// capability_creation_rules / capability_overrides and
-// get_page_creation_eligibility() in the migration). This hook and
-// the reasons helper below are UX only: they let CreatePage show
-// accurate progress and block submission early with a clear message,
-// but create_page() independently re-checks the same rule
-// server-side, so a stale or tampered client value here can never
-// actually create a Page it shouldn't.
+// the trailing 30 days, plus a minimum account age, all
+// admin-configurable (see capability_creation_rules /
+// capability_overrides and get_page_creation_eligibility() in the
+// migration). This hook and the reasons helper below are UX only:
+// they let CreatePage show accurate progress and block submission
+// early with a clear message, but create_page() independently
+// re-checks the same rule server-side, so a stale or tampered client
+// value here can never actually create a Page it shouldn't.
 // ------------------------------------------------------------
 export interface PageCreationEligibility {
   allowed: boolean;
@@ -256,6 +256,9 @@ export interface PageCreationEligibility {
   distinct_engaged_30d: number;
   distinct_engaged_required: number;
   distinct_engaged_met: boolean;
+  account_age_days: number;
+  account_age_required: number;
+  account_age_met: boolean;
 }
 
 export function usePageCreationEligibility() {
@@ -294,6 +297,11 @@ export function getPageCreationEligibilityReasons(
   if (!eligibility.distinct_engaged_met) {
     reasons.push(
       `You need at least ${eligibility.distinct_engaged_required} distinct engaged posts in the last 30 days (you have ${eligibility.distinct_engaged_30d}).`
+    );
+  }
+  if (!eligibility.account_age_met) {
+    reasons.push(
+      `Your account needs to be at least ${eligibility.account_age_required} days old (yours is ${eligibility.account_age_days}).`
     );
   }
   return { eligible: false, reasons };
