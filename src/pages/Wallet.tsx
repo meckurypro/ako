@@ -23,7 +23,7 @@ export function WalletPage() {
   return (
     <div className="min-h-screen bg-canvas pb-24">
       <header className="px-4 pt-6 pb-3 sticky top-0 bg-canvas z-30 border-b border-border">
-        <Wordmark size="sm" showTagline={false} />
+        <Wordmark size="sm" asIcon iconTagline={false} />
       </header>
 
       <div className="max-w-xl mx-auto px-4 pt-6">
