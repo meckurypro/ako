@@ -34,7 +34,9 @@ export function AdminPayouts() {
       setResultMsg(
         `Batch processed: ${result.initiated} transfer(s) initiated (${formatUsd(result.total_usd)} / ${formatNgn(
           result.total_ngn
-        )})${result.failed_immediately ? `, ${result.failed_immediately} failed immediately` : ""}.`
+        )}, ${formatNgn(result.total_fees_ngn)} in transfer fees passed to users)${
+          result.failed_immediately ? `, ${result.failed_immediately} failed immediately` : ""
+        }.`
       );
     } catch (err) {
       setErrorMsg(err instanceof Error ? err.message : "Couldn't process payouts.");
