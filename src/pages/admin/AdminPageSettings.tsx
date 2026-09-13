@@ -1,23 +1,231 @@
+import { useEffect, useState } from "react";
 import { useSmartBack } from "../../hooks/useSmartBack";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, Search } from "lucide-react";
 import { ToggleSwitch } from "../../components/admin/ToggleSwitch";
-import { usePagesFeatureSettings, useTogglePagesEnabled } from "../../hooks/useAdmin";
+import { Avatar } from "../../components/Avatar";
+import {
+  usePagesFeatureSettings,
+  useTogglePagesEnabled,
+  useAdminPageCreationRule,
+  useUpdatePageCreationRule,
+  useAdminSearchAccountsForPageCapability,
+  useGrantPageCreationOverride,
+  useRevokePageCreationOverride,
+  type PageCreationRule,
+} from "../../hooks/useAdmin";
+
+function toDraft(rule: PageCreationRule) {
+  return {
+    min_posts_30d: String(rule.min_posts_30d),
+    min_distinct_engaged_posts_30d: String(rule.min_distinct_engaged_posts_30d),
+    min_account_age_days: String(rule.min_account_age_days),
+  };
+}
+
+// Editable copy of the create_page rule's numbers, plus its own
+// is_active switch — same "local draft + Save" pattern as
+// AdminProjectTypes' RuleFields.
+function PageRuleFields({ rule }: { rule: PageCreationRule | null | undefined }) {
+  const updateRule = useUpdatePageCreationRule();
+  const [draft, setDraft] = useState(() =>
+    rule ? toDraft(rule) : { min_posts_30d: "30", min_distinct_engaged_posts_30d: "30", min_account_age_days: "0" }
+  );
+  const [isActive, setIsActive] = useState(rule?.is_active ?? true);
+  const [saved, setSaved] = useState(false);
+
+  useEffect(() => {
+    if (rule) {
+      setDraft(toDraft(rule));
+      setIsActive(rule.is_active);
+    }
+  }, [rule]);
+
+  const isDirty =
+    !!rule &&
+    (draft.min_posts_30d !== String(rule.min_posts_30d) ||
+      draft.min_distinct_engaged_posts_30d !== String(rule.min_distinct_engaged_posts_30d) ||
+      draft.min_account_age_days !== String(rule.min_account_age_days) ||
+      isActive !== rule.is_active);
+
+  async function handleSave() {
+    setSaved(false);
+    await updateRule.mutateAsync({
+      min_posts_30d: Math.max(0, parseInt(draft.min_posts_30d, 10) || 0),
+      min_distinct_engaged_posts_30d: Math.max(0, parseInt(draft.min_distinct_engaged_posts_30d, 10) || 0),
+      min_account_age_days: Math.max(0, parseInt(draft.min_account_age_days, 10) || 0),
+      is_active: isActive,
+    });
+    setSaved(true);
+  }
+
+  return (
+    <div className="bg-surface rounded-xl p-4 border border-border space-y-3">
+      <div className="flex items-center justify-between gap-3">
+        <div>
+          <p className="text-sm font-medium text-ink">Enforce eligibility rule</p>
+          <p className="text-xs text-ink-muted mt-0.5">
+            {isActive
+              ? "A user must clear both requirements below to create a page."
+              : "Rule is off — falls back to the safe default (30 / 30) rather than opening the gate. Turn on to use the numbers below instead."}
+          </p>
+        </div>
+        <ToggleSwitch
+          checked={isActive}
+          disabled={updateRule.isPending}
+          onChange={(checked) => {
+            setSaved(false);
+            setIsActive(checked);
+          }}
+        />
+      </div>
+
+      <div>
+        <label className="block text-xs font-medium text-ink-muted mb-1">Minimum posts in the last 30 days</label>
+        <input
+          type="number"
+          min={0}
+          value={draft.min_posts_30d}
+          onChange={(e) => {
+            setSaved(false);
+            setDraft((d) => ({ ...d, min_posts_30d: e.target.value }));
+          }}
+          className="w-full px-3 py-1.5 rounded-lg border border-border bg-canvas text-sm text-ink"
+        />
+      </div>
+
+      <div>
+        <label className="block text-xs font-medium text-ink-muted mb-1">
+          Minimum distinct posts engaged with in the last 30 days
+        </label>
+        <p className="text-xs text-ink-muted mb-1">
+          Counts reactions, comments, bookmarks, and reshares — deduped per post. Own posts don't count toward
+          this.
+        </p>
+        <input
+          type="number"
+          min={0}
+          value={draft.min_distinct_engaged_posts_30d}
+          onChange={(e) => {
+            setSaved(false);
+            setDraft((d) => ({ ...d, min_distinct_engaged_posts_30d: e.target.value }));
+          }}
+          className="w-full px-3 py-1.5 rounded-lg border border-border bg-canvas text-sm text-ink"
+        />
+      </div>
+
+      <div>
+        <label className="block text-xs font-medium text-ink-muted mb-1">Minimum account age (days)</label>
+        <input
+          type="number"
+          min={0}
+          value={draft.min_account_age_days}
+          onChange={(e) => {
+            setSaved(false);
+            setDraft((d) => ({ ...d, min_account_age_days: e.target.value }));
+          }}
+          className="w-full px-3 py-1.5 rounded-lg border border-border bg-canvas text-sm text-ink"
+        />
+      </div>
+
+      <div className="flex items-center gap-3">
+        <button
+          type="button"
+          onClick={handleSave}
+          disabled={!isDirty || updateRule.isPending}
+          className="bg-accent text-canvas px-3 py-1.5 rounded-lg text-sm font-medium disabled:opacity-50"
+        >
+          {updateRule.isPending ? "Saving…" : "Save rule"}
+        </button>
+        {saved && !isDirty && <span className="text-xs text-ink-muted">Saved.</span>}
+      </div>
+    </div>
+  );
+}
+
+// Capability-scoped override search — deliberately separate from
+// /admin/account-exemptions, which grants a blanket pass on every
+// project-type rule at once. An override granted here only ever
+// affects create_page, nothing else.
+function PageCapabilityOverrides() {
+  const [query, setQuery] = useState("");
+  const { data: results, isLoading, isFetching } = useAdminSearchAccountsForPageCapability(query);
+  const grant = useGrantPageCreationOverride();
+  const revoke = useRevokePageCreationOverride();
+
+  return (
+    <div className="space-y-3">
+      <div>
+        <p className="text-sm font-medium text-ink">Test overrides</p>
+        <p className="text-xs text-ink-muted mt-0.5">
+          Grants a specific account create_page access regardless of the rule above — for testing only. Doesn't
+          touch their actual post/engagement counts, and doesn't affect any other creation rule.
+        </p>
+      </div>
+
+      <div className="relative">
+        <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-ink-muted" />
+        <input
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder="Search by username or name…"
+          className="w-full pl-9 pr-4 py-2.5 rounded-xl border border-border bg-canvas text-ink text-sm"
+        />
+      </div>
+
+      {query.trim().length <= 1 ? (
+        <p className="text-ink-muted text-center py-6 text-sm">Type at least 2 characters to search.</p>
+      ) : isLoading || isFetching ? (
+        <p className="text-ink-muted text-center py-6 text-sm">Searching…</p>
+      ) : results?.length === 0 ? (
+        <p className="text-ink-muted text-center py-6 text-sm">No accounts found.</p>
+      ) : (
+        <div className="space-y-2">
+          {results?.map((account) => (
+            <div key={account.id} className="flex items-center gap-3 bg-canvas rounded-xl p-3 border border-border">
+              <Avatar src={account.avatar_url} name={account.display_name} size="sm" />
+              <div className="flex-1 min-w-0">
+                <p className="font-medium text-ink truncate text-sm">{account.display_name}</p>
+                <p className="text-xs text-ink-muted truncate">
+                  @{account.username} · {account.follower_count} followers
+                </p>
+              </div>
+              <ToggleSwitch
+                checked={account.has_page_override}
+                disabled={grant.isPending || revoke.isPending}
+                onChange={(checked) => {
+                  if (checked) {
+                    grant.mutate(account.id);
+                  } else {
+                    revoke.mutate(account.id);
+                  }
+                }}
+              />
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
 
 // /admin/page-settings — site-wide on/off switch for standing up new
-// organisation, brand, or product pages. Turning this off hides the
-// "Page" row in the profile owner menu, the "+ create a page" row in
-// the account-mode switcher, and blocks /pages/new directly. Pages
-// that already exist, and switching into/acting as one, are
-// unaffected either way.
+// organisation, brand, or product pages, plus the eligibility rule
+// (30 posts / 30 distinct engaged posts in the last 30 days by
+// default) and capability-scoped test overrides for create_page.
+// Turning the top switch off hides the "Page" row in the profile
+// owner menu, the "+ create a page" row in the account-mode switcher,
+// and blocks /pages/new directly. Pages that already exist, and
+// switching into/acting as one, are unaffected either way.
 export function AdminPageSettings() {
   const smartBack = useSmartBack();
   const { data: settings, isLoading } = usePagesFeatureSettings();
   const toggle = useTogglePagesEnabled();
+  const { data: rule, isLoading: ruleLoading } = useAdminPageCreationRule();
 
   return (
     <div className="min-h-screen bg-canvas px-4 pt-4 pb-10">
-      <div className="max-w-md mx-auto">
-        <div className="flex items-center gap-3 mb-6">
+      <div className="max-w-md mx-auto space-y-4">
+        <div className="flex items-center gap-3 mb-2">
           <button onClick={smartBack} className="text-ink-muted">
             <ArrowLeft size={22} />
           </button>
@@ -32,10 +240,10 @@ export function AdminPageSettings() {
               <div>
                 <p className="text-sm font-medium text-ink">Allow new pages</p>
                 <p className="text-xs text-ink-muted mt-0.5">
-                  When on, anyone can stand up a new organisation, brand, or product page.
-                  Turning this off hides the "create a page" entry points and blocks the
-                  /pages/new form directly — pages that already exist, and switching into
-                  them, keep working as normal either way.
+                  When on, anyone who meets the eligibility rule below can stand up a new organisation, brand,
+                  or product page. Turning this off hides the "create a page" entry points and blocks the
+                  /pages/new form directly — pages that already exist, and switching into them, keep working
+                  as normal either way.
                 </p>
               </div>
               <ToggleSwitch
@@ -46,6 +254,16 @@ export function AdminPageSettings() {
             </div>
           </div>
         )}
+
+        {ruleLoading ? (
+          <p className="text-ink-muted text-center py-6">Loading rule…</p>
+        ) : (
+          <PageRuleFields rule={rule} />
+        )}
+
+        <div className="bg-surface rounded-xl p-4 border border-border">
+          <PageCapabilityOverrides />
+        </div>
       </div>
     </div>
   );
