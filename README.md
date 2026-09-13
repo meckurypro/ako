@@ -17,7 +17,7 @@ wrapped around a **Projects marketplace** — the mechanism that lets a
 post become a course, a meeting, a room, an event, or a sellable
 file, instead of just words that scroll away.
 
-| Layer | What it's for |
+| Layer | What it is for |
 |---|---|
 | Feed | expression |
 | Following | relationships |
