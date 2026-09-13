@@ -4,21 +4,41 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import { useSmartBack } from "../hooks/useSmartBack";
 import { ArrowLeft } from "lucide-react";
 import { supabase } from "../lib/supabase";
-import { useCreatePage, useMyPages, usePageById } from "../hooks/usePages";
+import { useCreatePage, useMyPages, usePageById, usePageRoleLabelSuggestions } from "../hooks/usePages";
 import { useCategories } from "../hooks/useCategories";
+import { usePagesFeatureSettings } from "../hooks/useAdmin";
 import type { PageType } from "../types/database";
 
 type UsernameStatus = "idle" | "checking" | "available" | "taken" | "error";
 
-const TYPES: { value: PageType; label: string; hint: string }[] = [
-  { value: "organization", label: "Organisation", hint: "A company, nonprofit, or team — e.g. IQ Universe" },
-  { value: "brand", label: "Brand", hint: "A product or service — e.g. Meckury AI, PromptIQ" },
+const TYPES: { value: PageType; label: string }[] = [
+  { value: "organization", label: "Organisation" },
+  { value: "brand", label: "Brand" },
+  { value: "product", label: "Product" },
 ];
 
-// /pages/new — form to stand up an organisation or brand page. On
-// success, the creator becomes its first (admin) member automatically
-// (see create_page() in the migration) and we drop them straight
-// into managing it.
+const NAME_LABEL: Record<PageType, string> = {
+  organization: "Organisation name",
+  brand: "Brand name",
+  product: "Product name",
+};
+
+const NAME_PLACEHOLDER: Record<PageType, string> = {
+  organization: "Acme Inc",
+  brand: "Acme",
+  product: "Acme Widget",
+};
+
+const TAGLINE_PLACEHOLDER: Record<PageType, string> = {
+  organization: "What this organisation does",
+  brand: "What this brand does",
+  product: "What this product does",
+};
+
+// /pages/new — form to stand up an organisation, brand, or product
+// page. On success, the creator becomes its first (admin) member
+// automatically (see create_page() in the migration) and we drop them
+// straight into managing it.
 export function CreatePage() {
   const navigate = useNavigate();
   const smartBack = useSmartBack();
@@ -26,21 +46,19 @@ export function CreatePage() {
   const createPage = useCreatePage();
   const { data: categories } = useCategories();
   const { data: myPages } = useMyPages();
+  const { data: pagesFeature, isLoading: loadingPagesFeature } = usePagesFeatureSettings();
 
-  // Arriving from the profile owner menu's "Organisation"/"Brand" row
-  // (see ProfilePage.tsx) passes ?type=... to preselect it — someone
-  // starting from a blank /pages/new just gets the default below.
-  const requestedType = searchParams.get("type");
   // Arriving from an existing page's "…" menu "Add Subsidiary" row
-  // (see PagePage.tsx) passes ?parent=<page id> instead — that page
-  // becomes a fixed, non-editable parent rather than something picked
-  // from the dropdown below (skipped entirely in that case).
+  // (see PagePage.tsx) passes ?parent=<page id> — that page becomes a
+  // fixed, non-editable parent rather than something picked from the
+  // dropdown below (skipped entirely in that case).
   const presetParentId = searchParams.get("parent");
   const { data: presetParent } = usePageById(presetParentId ?? "", !!presetParentId);
-  const [pageType, setPageType] = useState<PageType>(requestedType === "organization" ? "organization" : "brand");
+  const [pageType, setPageType] = useState<PageType>("organization");
   const [name, setName] = useState("");
   const [username, setUsername] = useState("");
   const [roleLabel, setRoleLabel] = useState("");
+  const [showRoleSuggestions, setShowRoleSuggestions] = useState(false);
   const [tagline, setTagline] = useState("");
   const [bio, setBio] = useState("");
   const [categoryId, setCategoryId] = useState("");
@@ -50,8 +68,14 @@ export function CreatePage() {
   const [usernameStatus, setUsernameStatus] = useState<UsernameStatus>("idle");
   const usernameCheckId = useRef(0);
 
+  // Same live suggestion list PageTeam.tsx uses when inviting a team
+  // member to a role — here it's for the founder's own role on a
+  // brand-new page, backed by the same page_role_labels table so a
+  // title only ever gets typed out in full once across the app.
+  const { data: roleSuggestions } = usePageRoleLabelSuggestions(roleLabel);
+
   // Any page you admin can host a Subsidiary, and a Subsidiary can be
-  // either page type — no longer restricted to "brand under an
+  // any page type — no longer restricted to "brand under an
   // organization you run" (see ako_pages_v2_subsidiaries.sql for the
   // server-side rule this now actually depends on).
   const myAdminPages = (myPages ?? []).filter((p) => p.my_is_admin);
@@ -140,6 +164,28 @@ export function CreatePage() {
     }
   }
 
+  // Admin kill switch (see AdminPageSettings) — blocks the form even
+  // for someone who navigates here directly, not just the hidden entry
+  // points elsewhere. Wait for the setting to load rather than flash
+  // the form then yank it away.
+  if (!loadingPagesFeature && !(pagesFeature?.pages_creation_enabled ?? true)) {
+    return (
+      <div className="min-h-screen bg-canvas px-4 pt-4 pb-10">
+        <div className="max-w-md mx-auto">
+          <div className="flex items-center gap-3 mb-6">
+            <button onClick={smartBack} className="text-ink-muted">
+              <ArrowLeft size={22} />
+            </button>
+            <h2 className="font-display text-xl text-ink">Create a page</h2>
+          </div>
+          <p className="text-sm text-ink-muted">
+            New pages aren't being created right now. Check back later.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-canvas px-4 pt-4 pb-10">
       <div className="max-w-md mx-auto">
@@ -151,31 +197,28 @@ export function CreatePage() {
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-5">
-          <div className="grid grid-cols-2 gap-2">
+          <div className="grid grid-cols-3 gap-2">
             {TYPES.map((t) => (
               <button
                 key={t.value}
                 type="button"
                 onClick={() => setPageType(t.value)}
-                className={`text-left p-3 rounded-2xl border ${
-                  pageType === t.value ? "border-accent bg-accent-soft" : "border-border bg-surface"
+                className={`text-center p-3 rounded-2xl border text-sm font-medium ${
+                  pageType === t.value ? "border-accent bg-accent-soft text-ink" : "border-border bg-surface text-ink"
                 }`}
               >
-                <p className="text-sm font-medium text-ink">{t.label}</p>
-                <p className="text-xs text-ink-muted mt-0.5">{t.hint}</p>
+                {t.label}
               </button>
             ))}
           </div>
 
           <div>
-            <label className="block text-xs font-medium text-ink-muted mb-1">
-              {pageType === "brand" ? "Brand name" : "Organisation name"}
-            </label>
+            <label className="block text-xs font-medium text-ink-muted mb-1">{NAME_LABEL[pageType]}</label>
             <input
               value={name}
               onChange={(e) => setName(e.target.value)}
               maxLength={80}
-              placeholder={pageType === "brand" ? "Meckury AI" : "IQ Universe"}
+              placeholder={NAME_PLACEHOLDER[pageType]}
               className="w-full bg-surface rounded-xl px-4 py-3 text-sm text-ink placeholder:text-ink-muted"
             />
           </div>
@@ -201,11 +244,21 @@ export function CreatePage() {
             )}
           </div>
 
-          <div>
+          <div className="relative">
             <label className="block text-xs font-medium text-ink-muted mb-1">Your role at it</label>
             <input
               value={roleLabel}
-              onChange={(e) => setRoleLabel(e.target.value)}
+              onChange={(e) => {
+                setRoleLabel(e.target.value);
+                setShowRoleSuggestions(true);
+              }}
+              onFocus={() => setShowRoleSuggestions(true)}
+              onBlur={() => {
+                // Give a suggestion's onMouseDown below a chance to fire
+                // first — a plain blur would otherwise close this before
+                // the click on it registers.
+                setTimeout(() => setShowRoleSuggestions(false), 100);
+              }}
               maxLength={60}
               placeholder="CEO, Founder, Community Lead…"
               className="w-full bg-surface rounded-xl px-4 py-3 text-sm text-ink placeholder:text-ink-muted"
@@ -213,17 +266,39 @@ export function CreatePage() {
             <p className="text-xs text-ink-muted mt-1">
               Shown as "{roleLabel || "Your role"} at {name || "this page"}" on your profile.
             </p>
+
+            {/* Existing role titles that match what's typed so far — same
+                list PageTeam.tsx shows when inviting someone, backed by
+                page_role_labels. Picking one just fills the field;
+                typing something new is still a perfectly valid role, it
+                simply won't show suggestions. */}
+            {showRoleSuggestions && roleLabel.trim().length > 0 && !!roleSuggestions?.length && (
+              <div className="absolute top-full left-0 right-0 mt-1 bg-canvas border border-border rounded-xl shadow-lg max-h-56 overflow-y-auto z-10">
+                {roleSuggestions.map((label) => (
+                  <button
+                    key={label}
+                    type="button"
+                    onMouseDown={(e) => e.preventDefault()}
+                    onClick={() => {
+                      setRoleLabel(label);
+                      setShowRoleSuggestions(false);
+                    }}
+                    className="w-full px-3 py-2.5 text-left text-sm text-ink hover:bg-surface truncate"
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
 
           <div>
-            <label className="block text-xs font-medium text-ink-muted mb-1">
-              Tagline {pageType === "brand" && "(the product or service, in a few words)"}
-            </label>
+            <label className="block text-xs font-medium text-ink-muted mb-1">Tagline</label>
             <input
               value={tagline}
               onChange={(e) => setTagline(e.target.value)}
               maxLength={100}
-              placeholder={pageType === "brand" ? "Credit-based AI generation platform" : "What this organisation does"}
+              placeholder={TAGLINE_PLACEHOLDER[pageType]}
               className="w-full bg-surface rounded-xl px-4 py-3 text-sm text-ink placeholder:text-ink-muted"
             />
           </div>
