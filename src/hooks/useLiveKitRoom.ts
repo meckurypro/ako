@@ -3,6 +3,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Room, RoomEvent, Track, type Participant } from "livekit-client";
 import { supabase } from "../lib/supabase";
 import { useSound } from "./useSound";
+import { useToast } from "../components/Toast";
 
 export interface CallParticipantView {
   identity: string;
@@ -51,6 +52,7 @@ export function useLiveKitRoom(projectId: string | undefined) {
   const [cameraEnabled, setCameraEnabled] = useState(false);
   const [screenShareEnabled, setScreenShareEnabled] = useState(false);
   const { play } = useSound();
+  const toast = useToast();
 
   const refreshParticipants = useCallback((room: Room) => {
     setParticipants([
@@ -97,6 +99,12 @@ export function useLiveKitRoom(projectId: string | undefined) {
           setCameraEnabled(false);
           setScreenShareEnabled(false);
           play("room-leave");
+          // Matches the existing room-leave sound with the visual
+          // moment it was missing — "no room join/leave visual" in
+          // MICRO_INTERACTIONS.md. Fires for any disconnect (explicit
+          // leave, kicked, connection drop) since all three end the
+          // same way for this user: no longer in the call.
+          toast("You left the meeting.");
         });
 
       await room.connect(data.url as string, data.token as string);
@@ -113,6 +121,7 @@ export function useLiveKitRoom(projectId: string | undefined) {
       setConnectionState("connected");
       refreshParticipants(room);
       play("room-join");
+      toast("You joined the meeting.", { variant: "success" });
     } catch (err) {
       setConnectionState("error");
       setErrorMessage(err instanceof Error ? err.message : "Couldn't join the meeting.");
