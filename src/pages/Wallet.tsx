@@ -1,5 +1,5 @@
 import { Link } from "react-router-dom";
-import { ArrowDownCircle, ArrowUpCircle } from "lucide-react";
+import { ArrowDownCircle, ArrowUpCircle, TrendingUp } from "lucide-react";
 import { useWallet, useWalletTransactions } from "../hooks/useWallet";
 import { BottomNav } from "../components/BottomNav";
 import { Wordmark } from "../components/Wordmark";
@@ -12,6 +12,8 @@ const TXN_LABELS: Record<string, string> = {
   withdrawal: "Withdrawal",
   reversal: "Reversal",
   dev_credit: "Dev credit",
+  affiliate_commission: "Affiliate commission",
+  affiliate_commission_reversal: "Affiliate commission reversed",
 };
 
 export function WalletPage() {
@@ -48,6 +50,14 @@ export function WalletPage() {
             </Link>
           </div>
         </div>
+
+        <Link
+          to="/wallet/affiliate-links"
+          className="flex items-center justify-center gap-2 text-accent text-sm font-medium mt-4"
+        >
+          <TrendingUp size={15} />
+          My affiliate links
+        </Link>
 
         <h3 className="font-display text-lg text-ink mt-8 mb-3">Recent activity</h3>
 
