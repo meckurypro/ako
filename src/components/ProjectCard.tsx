@@ -595,7 +595,19 @@ export function ProjectCard({
   // Nothing pinned right anymore — Share used to be a fixed right slot,
   // now it joins the middle group with everything else (see
   // middleActions below). Only Like stays pinned left.
-  const rightActions: EngagementAction[] = [];
+  // Fixed right slot: "···" opens the same ReactionMoreSheet as
+  // long-pressing any of the other 4 icons — a plain tap now, no hold
+  // required, always in the same place regardless of how the ranked
+  // middle actions reorder themselves. Matches PostCard's tray.
+  const rightActions: EngagementAction[] = [
+    {
+      key: "more",
+      label: "More",
+      icon: <MoreHorizontal size={24} className="text-ink" />,
+      count: null,
+      onClick: () => setShowMoreActions(true),
+    },
+  ];
 
   const middleActions: EngagementAction[] = [
     ...(!isOwner
