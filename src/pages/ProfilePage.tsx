@@ -261,6 +261,14 @@ export function ProfilePage() {
 
   return (
     <div className="min-h-screen bg-canvas pb-24">
+      {/* Sticky top section — everything above the tab content
+          (banner, action toolbar, avatar/name/bio, stats, and the
+          Posts/Projects tab labels) stays pinned to the top of the
+          viewport. Only the tab content below scrolls underneath it.
+          bg-canvas + a hairline shadow so scrolled-past content never
+          shows through the seam, same treatment as Feed's sticky
+          TopHeader wrapper. */}
+      <div className="sticky top-0 z-20 bg-canvas shadow-[0_2px_8px_-4px_rgba(var(--shadow-ink-rgb),0.10)]">
       <div className="max-w-xl mx-auto px-4 pt-8">
 
         {/* Preview-mode banner */}
@@ -547,6 +555,12 @@ export function ProfilePage() {
           </div>
         )}
 
+      </div>
+      </div>
+      {/* End sticky top section. Tab content below is the only part of
+          the page that scrolls. */}
+
+      <div className="max-w-xl mx-auto px-4">
         {/* Tab content — real drag-tracking carousel, same as Feed's tab
             row (see SwipeableTabs.tsx). A locked/blocked profile has
             nothing behind either tab, so it skips the carousel and just
