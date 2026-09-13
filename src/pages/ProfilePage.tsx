@@ -1,7 +1,7 @@
 // src/pages/ProfilePage.tsx
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useParams, Link, useNavigate, useLocation } from "react-router-dom";
-import { Settings, Wallet, MessageCircle, MoreHorizontal, Plus, Eye, X, Globe, UserCheck, Lock, Redo2, Building2 } from "lucide-react";
+import { Settings, Wallet, MessageCircle, MoreHorizontal, Plus, Eye, X, Globe, UserCheck, Lock, Redo2, Building2, ArrowUp, Undo2 } from "lucide-react";
 import { useAuth } from "../hooks/useAuth";
 import { useProfileByUsername, useIsFollowing, useIsFollowedByUser, useToggleFollow } from "../hooks/useProfile";
 import { useTabState } from "../hooks/useTabState";
@@ -19,7 +19,7 @@ import { useUserPostsWithArchived } from "../hooks/usePosts";
 import { useStartConversation } from "../hooks/useMessaging";
 import { useIsBlocked, useToggleBlock, useIsMuted, useToggleMute } from "../hooks/usePrivacy";
 import { useUserProjects } from "../hooks/useProjects";
-import { useRecordProfileVisit, useProfileVisitCount } from "../hooks/useProfileVisits";
+import { useRecordProfileVisit } from "../hooks/useProfileVisits";
 import { Avatar } from "../components/Avatar";
 import { AccountSwitcher } from "../components/AccountSwitcher";
 import { ImageLightbox } from "../components/ImageLightbox";
@@ -52,6 +52,17 @@ function getWebsiteDomain(url: string): string {
 // rather than living here as a third profile tab.
 const TABS = ["posts", "projects"] as const;
 type ProfileTab = (typeof TABS)[number];
+
+// How far down the page (px, plain window.scrollY) before the
+// "scroll to top" FAB appears.
+const SCROLL_TOP_THRESHOLD = 480;
+
+// Tier 1's rendered height — the always-sticky toolbar row (see the
+// wrapper below). Tier 2 (the Posts/Projects tab bar) docks its own
+// `top` offset directly under this, via the matching `top-14`
+// Tailwind class, so the two numbers can't silently drift apart.
+// h-14 === 56px === top-14.
+const TOOLBAR_HEIGHT_CLASS = "h-14";
 
 export function ProfilePage() {
   const { username } = useParams<{ username: string }>();
@@ -89,6 +100,39 @@ export function ProfilePage() {
 
   const [previewingAsVisitor, setPreviewingAsVisitor] = useState(false);
   const [avatarOpen, setAvatarOpen] = useState(false);
+
+  // "Back to post" FAB — set once, from the router state a Feed post's
+  // byline attaches when it sends a visitor here (see the identityHref
+  // Links in PostCard.tsx). Read via a lazy initializer so it survives
+  // exactly one mount, then the history entry's own state is cleared
+  // the same way Feed does for its justPostedId — paging back/forward
+  // through history afterward shouldn't keep re-arming this on a page
+  // that's no longer "freshly arrived from that post".
+  const [fromFeedPost] = useState<{ id: string } | null>(
+    () => (location.state as { fromFeedPost?: { id: string } } | null)?.fromFeedPost ?? null
+  );
+  useEffect(() => {
+    if (fromFeedPost) window.history.replaceState({}, "");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  function handleBackToFeedPost() {
+    if (!fromFeedPost) return;
+    navigate("/feed", { state: { scrollToPostId: fromFeedPost.id } });
+  }
+
+  // "Scroll to top" FAB — purely a function of raw scroll position,
+  // not any layout measurement, so it stays correct regardless of how
+  // tall the (now non-sticky) avatar/bio/stats block above the tabs
+  // happens to render for any given profile.
+  const [showScrollTop, setShowScrollTop] = useState(false);
+  useEffect(() => {
+    function onScroll() {
+      setShowScrollTop(window.scrollY > SCROLL_TOP_THRESHOLD);
+    }
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, []);
 
   const { data: profile, isLoading } = useProfileByUsername(username!);
   // Lets a shared project link (?tab=projects) land directly on the
@@ -142,12 +186,13 @@ export function ProfilePage() {
   // cancelled ones.
   const visibleProjects = projects?.filter((p) => p.status !== "archived");
 
-  // Profile visits: recording a visit is safe to fire on every mount
-  // (it no-ops for self-visits inside the hook); the 30-day count is
-  // only ever fetched — and only ever shown — in the true owner view,
-  // never while previewing as a visitor.
+  // Recording a visit is safe to fire on every mount (it no-ops for
+  // self-visits inside the hook). The 30-day visit COUNT itself no
+  // longer lives on this page at all — it moved to Settings → Profile
+  // (see Settings.tsx), since it's an owner-facing stat about the
+  // account, not something a visitor scrolling this profile needs to
+  // see mixed in with Following/Followers.
   useRecordProfileVisit(profile?.id);
-  const { data: visitCount } = useProfileVisitCount(profile?.id, showOwnerView);
 
   // Outside-click / back-dismiss for both "…" menus (visitor-side
   // mute/block, owner-side options) is handled internally by
@@ -239,177 +284,187 @@ export function ProfilePage() {
 
   return (
     <div className="min-h-screen bg-canvas pb-24">
-      {/* Sticky top section — everything above the tab content
-          (banner, action toolbar, avatar/name/bio, stats, and the
-          Posts/Projects tab labels) stays pinned to the top of the
-          viewport. Only the tab content below scrolls underneath it.
-          bg-canvas + a hairline shadow so scrolled-past content never
-          shows through the seam, same treatment as Feed's sticky
-          TopHeader wrapper. */}
-      <div className="sticky top-0 z-20 bg-canvas shadow-[0_2px_8px_-4px_rgba(var(--shadow-ink-rgb),0.10)]">
-      <div className="max-w-xl mx-auto px-4 pt-8">
+      {/* Tier 1 — the only always-sticky piece of the header. Whichever
+          toolbar variant is showing (owner's Plus/⋯, a visitor's
+          Message/Follow/⋯, or the "Exit preview" control while the
+          owner is previewing as a visitor) renders inside a fixed-height
+          row so Tier 2 below has a stable offset to dock under. */}
+      <div className="sticky top-0 z-30 bg-canvas shadow-[0_2px_8px_-4px_rgba(var(--shadow-ink-rgb),0.10)]">
+        <div className={`max-w-xl mx-auto px-4 ${TOOLBAR_HEIGHT_CLASS} flex items-center`}>
+          {showOwnerView ? (
+            <div className="flex items-center justify-end gap-1 w-full">
+              <Link to="/create" state={{ background: location }} aria-label="Create" className="p-2 text-ink-muted">
+                <Plus size={22} />
+              </Link>
 
-        {/* Preview-mode banner */}
-        {isOwnProfile && previewingAsVisitor && (
-          <div className="flex items-center justify-between bg-accent-soft text-accent text-sm rounded-xl px-4 py-2.5 mb-4">
-            <span className="flex items-center gap-1.5">
-              <Eye size={14} />
-              Viewing your profile as a visitor sees it
-            </span>
-            <button
-              onClick={() => setPreviewingAsVisitor(false)}
-              className="flex items-center gap-1 font-medium"
-            >
-              <X size={14} />
-              Exit
-            </button>
-          </div>
-        )}
+              <div className="relative">
+                <button
+                  ref={ownerMenuButtonRef}
+                  onClick={() => setOwnerMenuOpen((o) => !o)}
+                  className="relative p-2 text-ink-muted"
+                  aria-label="Profile options"
+                >
+                  <MoreHorizontal size={20} />
+                  {/* Same badge shown again on the "Follow requests" row
+                      below — this one flags that something inside the
+                      menu needs attention before it's even opened. */}
+                  {incomingRequestCount > 0 && (
+                    <span className="absolute top-0.5 right-0.5 bg-danger text-canvas text-[10px] font-medium rounded-full w-4 h-4 flex items-center justify-center">
+                      {incomingRequestCount > 9 ? "9+" : incomingRequestCount}
+                    </span>
+                  )}
+                </button>
 
-        {/* Action toolbar */}
-        {showOwnerView ? (
-          <div className="flex items-center justify-end gap-1">
-            <Link to="/create" state={{ background: location }} aria-label="Create" className="p-2 text-ink-muted">
-              <Plus size={22} />
-            </Link>
-
-            <div className="relative">
-              <button
-                ref={ownerMenuButtonRef}
-                onClick={() => setOwnerMenuOpen((o) => !o)}
-                className="relative p-2 text-ink-muted"
-                aria-label="Profile options"
-              >
-                <MoreHorizontal size={20} />
-                {/* Same badge shown again on the "Follow requests" row
-                    below — this one flags that something inside the
-                    menu needs attention before it's even opened. */}
-                {incomingRequestCount > 0 && (
-                  <span className="absolute top-0.5 right-0.5 bg-danger text-canvas text-[10px] font-medium rounded-full w-4 h-4 flex items-center justify-center">
-                    {incomingRequestCount > 9 ? "9+" : incomingRequestCount}
-                  </span>
-                )}
-              </button>
-
-              {ownerMenuOpen && (
-                <DropdownMenu
-                  anchorRef={ownerMenuButtonRef}
-                  onClose={() => setOwnerMenuOpen(false)}
-                  widthClass="w-64"
-                  items={[
-                    { key: "share", label: "Share profile", icon: <Redo2 />, onSelect: handleShareProfile },
-                    {
-                      key: "page",
-                      label: "Page",
-                      icon: <Building2 />,
-                      onSelect: () => {
-                        setOwnerMenuOpen(false);
-                        navigate("/pages");
+                {ownerMenuOpen && (
+                  <DropdownMenu
+                    anchorRef={ownerMenuButtonRef}
+                    onClose={() => setOwnerMenuOpen(false)}
+                    widthClass="w-64"
+                    items={[
+                      { key: "share", label: "Share profile", icon: <Redo2 />, onSelect: handleShareProfile },
+                      {
+                        key: "page",
+                        label: "Page",
+                        icon: <Building2 />,
+                        onSelect: () => {
+                          setOwnerMenuOpen(false);
+                          navigate("/pages");
+                        },
                       },
-                    },
-                    {
-                      key: "view-as-visitor",
-                      label: "View as visitor",
-                      icon: <Eye />,
-                      onSelect: () => setPreviewingAsVisitor(true),
-                    },
-                    ...(profile.is_private
-                      ? ([
-                          {
-                            key: "follow-requests",
-                            label: "Follow requests",
-                            icon: <UserCheck />,
-                            badge:
-                              incomingRequestCount > 0 ? (
-                                <span className="bg-danger text-canvas text-[10px] font-medium rounded-full w-4 h-4 flex items-center justify-center shrink-0">
-                                  {incomingRequestCount > 9 ? "9+" : incomingRequestCount}
-                                </span>
-                              ) : undefined,
-                            onSelect: () => navigate("/requests"),
-                          },
-                        ] satisfies DropdownMenuItem[])
-                      : []),
-                    { key: "wallet", label: "Wallet", icon: <Wallet />, onSelect: () => navigate("/wallet") },
-                    { key: "settings", label: "Settings", icon: <Settings />, onSelect: () => navigate("/settings/profile") },
-                  ]}
-                />
-              )}
+                      {
+                        key: "view-as-visitor",
+                        label: "View as visitor",
+                        icon: <Eye />,
+                        onSelect: () => setPreviewingAsVisitor(true),
+                      },
+                      ...(profile.is_private
+                        ? ([
+                            {
+                              key: "follow-requests",
+                              label: "Follow requests",
+                              icon: <UserCheck />,
+                              badge:
+                                incomingRequestCount > 0 ? (
+                                  <span className="bg-danger text-canvas text-[10px] font-medium rounded-full w-4 h-4 flex items-center justify-center shrink-0">
+                                    {incomingRequestCount > 9 ? "9+" : incomingRequestCount}
+                                  </span>
+                                ) : undefined,
+                              onSelect: () => navigate("/requests"),
+                            },
+                          ] satisfies DropdownMenuItem[])
+                        : []),
+                      { key: "wallet", label: "Wallet", icon: <Wallet />, onSelect: () => navigate("/wallet") },
+                      { key: "settings", label: "Settings", icon: <Settings />, onSelect: () => navigate("/settings/profile") },
+                    ]}
+                  />
+                )}
+              </div>
             </div>
-          </div>
-        ) : isOwnProfile ? (
-          null
-        ) : (
-          <div className="flex items-center justify-end gap-2 relative">
-            <button
-              onClick={handleMessage}
-              disabled={startConversation.isPending || isBlocked}
-              className="flex items-center gap-1.5 text-sm text-ink-muted border border-border rounded-full px-4 py-2 disabled:opacity-40"
-            >
-              <MessageCircle size={16} />
-              Message
-            </button>
-            <button
-              onClick={handleFollowClick}
-              disabled={
-                toggleFollow.isPending ||
-                sendFollowRequest.isPending ||
-                cancelFollowRequest.isPending ||
-                isBlocked
-              }
-              className={`px-5 py-2 rounded-full text-sm font-medium disabled:opacity-40 ${
-                isFollowing || hasPendingRequest
-                  ? "bg-accent-soft text-accent"
-                  : isFollowedByUser
-                  ? "bg-pushback/15 text-pushback"
-                  : "bg-ink/10 text-ink"
-              }`}
-            >
-              {isFollowing
-                ? "Unfollow"
-                : hasPendingRequest
-                ? "Requested"
-                : isFollowedByUser
-                ? "Follow back"
-                : "Follow"}
-            </button>
-
-            <div className="relative">
+          ) : isOwnProfile ? (
+            // Previewing own profile as a visitor sees it. The
+            // explanatory banner scrolls with the rest of the header
+            // now (see below), but the control to leave preview mode
+            // stays reachable up here at all times, scrolled or not.
+            <div className="flex items-center justify-end w-full">
               <button
-                ref={menuButtonRef}
-                onClick={() => setMenuOpen((o) => !o)}
-                className="text-ink-muted p-2"
-                aria-label="More options"
+                onClick={() => setPreviewingAsVisitor(false)}
+                className="flex items-center gap-1 text-sm text-accent font-medium px-2 py-1.5"
               >
-                <MoreHorizontal size={18} />
+                <X size={14} />
+                Exit preview
+              </button>
+            </div>
+          ) : (
+            <div className="flex items-center justify-end gap-2 relative w-full">
+              <button
+                onClick={handleMessage}
+                disabled={startConversation.isPending || isBlocked}
+                className="flex items-center gap-1.5 text-sm text-ink-muted border border-border rounded-full px-4 py-2 disabled:opacity-40"
+              >
+                <MessageCircle size={16} />
+                Message
+              </button>
+              <button
+                onClick={handleFollowClick}
+                disabled={
+                  toggleFollow.isPending ||
+                  sendFollowRequest.isPending ||
+                  cancelFollowRequest.isPending ||
+                  isBlocked
+                }
+                className={`px-5 py-2 rounded-full text-sm font-medium disabled:opacity-40 ${
+                  isFollowing || hasPendingRequest
+                    ? "bg-accent-soft text-accent"
+                    : isFollowedByUser
+                    ? "bg-pushback/15 text-pushback"
+                    : "bg-ink/10 text-ink"
+                }`}
+              >
+                {isFollowing
+                  ? "Unfollow"
+                  : hasPendingRequest
+                  ? "Requested"
+                  : isFollowedByUser
+                  ? "Follow back"
+                  : "Follow"}
               </button>
 
-              {menuOpen && (
-                <DropdownMenu
-                  anchorRef={menuButtonRef}
-                  onClose={() => setMenuOpen(false)}
-                  widthClass="w-48"
-                  items={[
-                    { key: "share", label: "Share profile", icon: <Redo2 />, onSelect: () => void shareProfile() },
-                    {
-                      key: "mute",
-                      label: isMuted ? "Unmute" : "Mute",
-                      onSelect: () => toggleMute.mutate(isMuted),
-                    },
-                    {
-                      key: "block",
-                      label: isBlocked ? "Unblock" : "Block",
-                      variant: "danger",
-                      onSelect: () => toggleBlock.mutate(isBlocked),
-                    },
-                  ]}
-                />
-              )}
+              <div className="relative">
+                <button
+                  ref={menuButtonRef}
+                  onClick={() => setMenuOpen((o) => !o)}
+                  className="text-ink-muted p-2"
+                  aria-label="More options"
+                >
+                  <MoreHorizontal size={18} />
+                </button>
+
+                {menuOpen && (
+                  <DropdownMenu
+                    anchorRef={menuButtonRef}
+                    onClose={() => setMenuOpen(false)}
+                    widthClass="w-48"
+                    items={[
+                      { key: "share", label: "Share profile", icon: <Redo2 />, onSelect: () => void shareProfile() },
+                      {
+                        key: "mute",
+                        label: isMuted ? "Unmute" : "Mute",
+                        onSelect: () => toggleMute.mutate(isMuted),
+                      },
+                      {
+                        key: "block",
+                        label: isBlocked ? "Unblock" : "Block",
+                        variant: "danger",
+                        onSelect: () => toggleBlock.mutate(isBlocked),
+                      },
+                    ]}
+                  />
+                )}
+              </div>
             </div>
+          )}
+        </div>
+      </div>
+
+      {/* Non-sticky header content — banner, avatar/name/roles/handle,
+          bio, and the Following/Followers stats row. This scrolls
+          away underneath Tier 1 above, same as any other page content;
+          only the toolbar row and the tab bar (Tier 2, further down)
+          stay pinned. */}
+      <div className="max-w-xl mx-auto px-4 pt-4">
+        {/* Preview-mode banner — informational only now; the actual
+            "Exit" control lives in the always-reachable Tier 1 bar
+            above, so this can scroll away without taking the exit
+            with it. */}
+        {isOwnProfile && previewingAsVisitor && (
+          <div className="flex items-center gap-1.5 bg-accent-soft text-accent text-sm rounded-xl px-4 py-2.5 mb-4">
+            <Eye size={14} />
+            Viewing your profile as a visitor sees it
           </div>
         )}
 
         {/* Header: avatar beside name / roles / handle + website */}
-        <div className="flex items-start gap-4 mt-4">
+        <div className="flex items-start gap-4">
           {profile.avatar_url ? (
             <button
               type="button"
@@ -470,7 +525,11 @@ export function ProfilePage() {
 
         {profile.bio && <p className="text-ink mt-4">{profile.bio}</p>}
 
-        <div className="flex items-center gap-5 mt-4 flex-wrap">
+        {/* Visit count ("X visits in the last 30 days") moved to
+            Settings → Profile — it's an owner-facing stat about the
+            account, not part of what belongs in this Following/
+            Followers row (see Settings.tsx). */}
+        <div className="flex items-center gap-5 mt-4 mb-4 flex-wrap">
           <Link to={`/profile/${profile.username}/following`} className="text-sm">
             <span className="font-medium text-ink">{profile.following_count}</span>{" "}
             <span className="text-ink-muted">Following</span>
@@ -479,59 +538,47 @@ export function ProfilePage() {
             <span className="font-medium text-ink">{profile.follower_count}</span>{" "}
             <span className="text-ink-muted">Followers</span>
           </Link>
-          {/* Owner-only, and only ever the true owner view — never shown
-              while previewing as a visitor, since a visitor could never
-              see this about themselves either. */}
-          {showOwnerView && (
-            <span
-              className="flex items-center gap-1.5 text-sm text-ink-muted"
-              title="Only visible to you"
-            >
-              <Eye size={14} />
-              <span className="font-medium text-ink">{visitCount ?? 0}</span> visits in the last 30 days.
-            </span>
-          )}
         </div>
+      </div>
 
-        {/* Tabs — hidden entirely for a locked private profile, since
-            there's nothing behind either tab for a visitor to switch to.
-            Equal width now that Activity has moved out: Posts and
-            Projects split the row evenly instead of hugging the left.
-            The active indicator is one sliding bar (below) instead of
-            each button drawing its own border, so switching tabs springs
-            the bar across rather than just appearing under the other
-            button — same pattern as Feed's tab row. */}
-        {!isPrivateLocked && (
-          <div className="relative flex items-stretch mt-6 border-b border-border">
-            <button
-              onClick={() => handleTabClick(0, "posts")}
-              className={`flex-1 text-center text-sm font-medium pb-3 ${
-                activeTab === "posts" ? "text-accent" : "text-ink-muted"
-              }`}
-            >
-              Posts
-            </button>
-            <button
-              onClick={() => handleTabClick(1, "projects")}
-              className={`flex-1 text-center text-sm font-medium pb-3 ${
-                activeTab === "projects" ? "text-accent" : "text-ink-muted"
-              }`}
-            >
-              Projects
-            </button>
-            <div
-              className={`ako-tab-indicator absolute bottom-0 left-0 h-[2px] w-1/2 bg-accent rounded-full ${
-                tabDragging ? "ako-tab-indicator--dragging" : ""
-              }`}
-              style={{ transform: `translateX(${tabProgress * 100}%)` }}
-            />
+      {/* Tier 2 — the Posts/Projects tab bar. Its own sticky element,
+          docking directly under Tier 1 (top-14 === Tier 1's h-14) once
+          the avatar/bio/stats block above has scrolled past. Hidden
+          entirely for a locked private profile, same as before, since
+          there's nothing behind either tab for a visitor to switch to. */}
+      {!isPrivateLocked && (
+        <div className="sticky top-14 z-20 bg-canvas shadow-[0_2px_8px_-4px_rgba(var(--shadow-ink-rgb),0.10)]">
+          <div className="max-w-xl mx-auto px-4">
+            {/* Equal width, same sliding-indicator treatment as before —
+                only the wrapper around this moved, not the tab row
+                itself. */}
+            <div className="relative flex items-stretch border-b border-border">
+              <button
+                onClick={() => handleTabClick(0, "posts")}
+                className={`flex-1 text-center text-sm font-medium pt-3 pb-3 ${
+                  activeTab === "posts" ? "text-accent" : "text-ink-muted"
+                }`}
+              >
+                Posts
+              </button>
+              <button
+                onClick={() => handleTabClick(1, "projects")}
+                className={`flex-1 text-center text-sm font-medium pt-3 pb-3 ${
+                  activeTab === "projects" ? "text-accent" : "text-ink-muted"
+                }`}
+              >
+                Projects
+              </button>
+              <div
+                className={`ako-tab-indicator absolute bottom-0 left-0 h-[2px] w-1/2 bg-accent rounded-full ${
+                  tabDragging ? "ako-tab-indicator--dragging" : ""
+                }`}
+                style={{ transform: `translateX(${tabProgress * 100}%)` }}
+              />
+            </div>
           </div>
-        )}
-
-      </div>
-      </div>
-      {/* End sticky top section. Tab content below is the only part of
-          the page that scrolls. */}
+        </div>
+      )}
 
       <div className="max-w-xl mx-auto px-4">
         {/* Tab content — real drag-tracking carousel, same as Feed's tab
@@ -590,6 +637,37 @@ export function ProfilePage() {
       </div>
 
       <BottomNav />
+
+      {/* Floating action buttons. Stacked bottom-right, above BottomNav
+          (which sits at z-40 — these stay under it, but the two never
+          overlap spatially since this sits well above the nav's own
+          height + safe area). "Back to post" only ever appears when
+          this page was actually reached via a specific post's byline
+          in the Feed (see fromFeedPost above); "scroll to top" is
+          purely a function of scroll position. ako-pill-in gives each
+          one the same soft scale+fade arrival already used for other
+          "something just appeared" moments (see FollowButton.tsx). */}
+      <div className="fixed right-4 z-30 flex flex-col items-end gap-3 bottom-[calc(env(safe-area-inset-bottom)+5.5rem)]">
+        {fromFeedPost && (
+          <button
+            onClick={handleBackToFeedPost}
+            className="ako-pill-in flex items-center gap-1.5 bg-ink text-canvas text-sm font-medium pl-3 pr-4 py-2.5 rounded-full shadow-lg"
+            aria-label="Back to the post you came from"
+          >
+            <Undo2 size={16} />
+            Back to post
+          </button>
+        )}
+        {showScrollTop && (
+          <button
+            onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
+            className="ako-pill-in w-11 h-11 flex items-center justify-center bg-canvas border border-border text-ink rounded-full shadow-lg"
+            aria-label="Scroll to top"
+          >
+            <ArrowUp size={18} />
+          </button>
+        )}
+      </div>
 
       {avatarOpen && profile.avatar_url && (
         <ImageLightbox
