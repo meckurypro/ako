@@ -72,3 +72,67 @@ export function useWithdrawalEligibility() {
 export function useBusinessWeekday(): string {
   return new Intl.DateTimeFormat("en-US", { timeZone: "Africa/Lagos", weekday: "long" }).format(new Date());
 }
+
+/**
+ * Live preview of Paystack's transfer fee + stamp duty for a given
+ * gross NGN amount, via the same calculate_transfer_fee_ngn() that
+ * request_withdrawal() uses server-side — so this can never show a
+ * fee the server would then charge differently. Debounces on the
+ * rounded amount so it doesn't fire on every keystroke.
+ */
+export function useTransferFeePreview(grossNgn: number | null) {
+  const rounded = grossNgn && grossNgn > 0 ? Math.round(grossNgn) : null;
+
+  return useQuery({
+    queryKey: ["transfer-fee-preview", rounded],
+    queryFn: async (): Promise<number> => {
+      const { data, error } = await supabase.rpc("calculate_transfer_fee_ngn", {
+        p_amount_ngn: rounded,
+      });
+      if (error) throw error;
+      return Number(data);
+    },
+    enabled: rounded !== null,
+    staleTime: 60 * 1000,
+  });
+}
+
+export interface PayoutSettings {
+  minimumWithdrawalUsd: number;
+  newAccountCooldownHours: number;
+}
+
+// Falls back to the same numbers request_withdrawal() defaults to, so a
+// slow/failed fetch degrades to the correct values rather than 0s —
+// but this is still just for display copy; the server (payout_settings,
+// read live inside request_withdrawal()) is what actually enforces them.
+const PAYOUT_SETTINGS_FALLBACK: PayoutSettings = {
+  minimumWithdrawalUsd: 10,
+  newAccountCooldownHours: 24,
+};
+
+/**
+ * Reads the admin-controlled payout_settings singleton row directly —
+ * RLS allows any authenticated user to SELECT it. This replaces what
+ * used to be a hardcoded `$10` constant duplicated in this file and in
+ * the process-withdrawal edge function; now there's exactly one place
+ * (the payout_settings table) either side can drift out of sync with.
+ */
+export function usePayoutSettings() {
+  return useQuery({
+    queryKey: ["payout-settings"],
+    queryFn: async (): Promise<PayoutSettings> => {
+      const { data, error } = await supabase
+        .from("payout_settings")
+        .select("minimum_withdrawal_usd, new_account_cooldown_hours")
+        .single();
+      if (error) throw error;
+      return {
+        minimumWithdrawalUsd: Number(data.minimum_withdrawal_usd),
+        newAccountCooldownHours: Number(data.new_account_cooldown_hours),
+      };
+    },
+    staleTime: 5 * 60 * 1000,
+    placeholderData: PAYOUT_SETTINGS_FALLBACK,
+  });
+}
