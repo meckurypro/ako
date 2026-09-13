@@ -29,7 +29,7 @@ function timeAgo(dateString: string): string {
 export function RepostEmbed({ source }: { source: RepostSource | null | undefined }) {
   if (!source || source.is_deleted) {
     return (
-      <div className="mt-3 rounded-xl border border-border bg-canvas px-4 py-3 text-sm text-ink-muted">
+      <div className="mt-3 rounded-xl border border-border bg-surface dark:bg-[#121114] px-4 py-3 text-sm text-ink-muted">
         This post is no longer available.
       </div>
     );
@@ -37,7 +37,7 @@ export function RepostEmbed({ source }: { source: RepostSource | null | undefine
 
   if (source.is_archived) {
     return (
-      <div className="mt-3 rounded-xl border border-border bg-canvas px-4 py-3 text-sm text-ink-muted">
+      <div className="mt-3 rounded-xl border border-border bg-surface dark:bg-[#121114] px-4 py-3 text-sm text-ink-muted">
         This post has been archived by its author.
       </div>
     );
@@ -50,7 +50,7 @@ export function RepostEmbed({ source }: { source: RepostSource | null | undefine
     <Link
       to={`/post/${source.id}`}
       onClick={(e) => e.stopPropagation()}
-      className="mt-3 block rounded-xl border border-border bg-canvas px-3.5 py-3 hover:bg-canvas/80 transition-colors"
+      className="mt-3 block rounded-xl border border-border bg-surface dark:bg-[#121114] px-3.5 py-3 hover:bg-canvas/50 dark:hover:bg-canvas/20 transition-colors"
     >
       <div className="flex items-center gap-2">
         <Avatar src={source.author.avatar_url} name={source.author.display_name} size="sm" />
