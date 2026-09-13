@@ -647,13 +647,17 @@ export function useSendMessage(conversationId: string) {
 /**
  * Records + uploads a voice note and sends it as a message. Rides the
  * existing text-only `messages.content` column via encodeVoiceNote
- * (see lib/voiceNotes.ts) rather than needing a schema change, and
- * reuses the "post-media" storage bucket (already used for post/avatar
- * images elsewhere in this app) under its own path prefix rather than
- * assuming a dedicated bucket exists. If you'd rather keep voice notes
- * out of that bucket, create a new public-read bucket and swap the
- * name below — this is the one piece that can't be inferred from the
- * client alone.
+ * (see lib/voiceNotes.ts) rather than needing a schema change.
+ *
+ * Uses the dedicated "audio" storage bucket, with the path's first
+ * folder segment set to the uploader's own `user.id`. That isn't
+ * cosmetic: the bucket's INSERT policy ("Users can upload audio to
+ * their own folder") checks `storage.foldername(name)[1] = auth.uid()`,
+ * so the path shape here has to match it exactly or every upload is
+ * rejected by RLS before it ever reaches storage. (An earlier version
+ * of this path put the conversation id first and used the post-media
+ * bucket, which doesn't satisfy that check — voice notes were failing
+ * to upload for every sender because of it.)
  */
 interface SendVoiceNoteInput {
   blob: Blob;
@@ -678,12 +682,15 @@ export function useSendVoiceNote(conversationId: string) {
       if (!user) throw new Error("Not signed in");
 
       const ext = blob.type.includes("mp4") ? "m4a" : "webm";
-      const path = `voice-notes/${conversationId}/${user.id}-${Date.now()}.${ext}`;
+      // First segment MUST be the uploader's own auth.uid() — see the
+      // storage RLS note above. conversationId + timestamp after that
+      // keeps names unique and still traceable to the conversation.
+      const path = `${user.id}/${conversationId}-${Date.now()}.${ext}`;
       const { error: uploadError } = await supabase.storage
-        .from("post-media")
+        .from("audio")
         .upload(path, blob, { contentType: blob.type || "audio/webm" });
       if (uploadError) throw uploadError;
-      const { data: publicUrl } = supabase.storage.from("post-media").getPublicUrl(path);
+      const { data: publicUrl } = supabase.storage.from("audio").getPublicUrl(path);
 
       const content = encodeVoiceNote({ url: publicUrl.publicUrl, durationSec, peaks });
 
