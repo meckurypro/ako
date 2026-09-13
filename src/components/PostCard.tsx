@@ -604,12 +604,6 @@ export function PostCard({
               {post.edited_at && " · edited"}
             </span>
             {post.visibility === "public" && <Globe size={11} />}
-            {plainReshare && (
-              <span className="flex items-center gap-0.5 text-accent">
-                <Repeat2 size={11} />
-                Reposted
-              </span>
-            )}
           </p>
 
           {/* Relationship badge (Follow/Following/Friends/Requested) used to
