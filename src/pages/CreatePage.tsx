@@ -1,11 +1,14 @@
 // src/pages/CreatePage.tsx
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useSmartBack } from "../hooks/useSmartBack";
 import { ArrowLeft } from "lucide-react";
+import { supabase } from "../lib/supabase";
 import { useCreatePage, useMyPages, usePageById } from "../hooks/usePages";
 import { useCategories } from "../hooks/useCategories";
 import type { PageType } from "../types/database";
+
+type UsernameStatus = "idle" | "checking" | "available" | "taken" | "error";
 
 const TYPES: { value: PageType; label: string; hint: string }[] = [
   { value: "organization", label: "Organisation", hint: "A company, nonprofit, or team — e.g. IQ Universe" },
@@ -44,11 +47,48 @@ export function CreatePage() {
   const [parentOrgId, setParentOrgId] = useState("");
   const [error, setError] = useState<string | null>(null);
 
+  const [usernameStatus, setUsernameStatus] = useState<UsernameStatus>("idle");
+  const usernameCheckId = useRef(0);
+
   // Any page you admin can host a Subsidiary, and a Subsidiary can be
   // either page type — no longer restricted to "brand under an
   // organization you run" (see ako_pages_v2_subsidiaries.sql for the
   // server-side rule this now actually depends on).
   const myAdminPages = (myPages ?? []).filter((p) => p.my_is_admin);
+
+  // Debounced live availability check as the user types — same pattern
+  // as SignUp.tsx's personal-account check, just against the pages
+  // table instead of profiles. UX nicety only: create_page() still
+  // enforces the real uniqueness server-side.
+  useEffect(() => {
+    const candidate = username.trim().toLowerCase();
+    if (candidate.length < 3) {
+      setUsernameStatus("idle");
+      return;
+    }
+
+    const checkId = ++usernameCheckId.current;
+    setUsernameStatus("checking");
+
+    const timeout = setTimeout(async () => {
+      const { data, error: checkError } = await supabase
+        .from("pages")
+        .select("id")
+        .eq("username", candidate)
+        .maybeSingle();
+
+      // Ignore stale responses if the user kept typing.
+      if (checkId !== usernameCheckId.current) return;
+
+      if (checkError) {
+        setUsernameStatus("error");
+      } else {
+        setUsernameStatus(data ? "taken" : "available");
+      }
+    }, 400);
+
+    return () => clearTimeout(timeout);
+  }, [username]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -56,6 +96,30 @@ export function CreatePage() {
 
     if (!name.trim() || !username.trim() || !roleLabel.trim()) {
       setError("Name, username, and your role are required.");
+      return;
+    }
+
+    if (usernameStatus === "taken") {
+      setError("That username is already taken.");
+      return;
+    }
+
+    // Re-check right before submitting — the live check above can go
+    // stale if someone else takes the name in the gap between typing
+    // and hitting submit.
+    const { data: existingPage, error: recheckError } = await supabase
+      .from("pages")
+      .select("id")
+      .eq("username", username.trim().toLowerCase())
+      .maybeSingle();
+
+    if (recheckError) {
+      setError("Couldn't verify that username right now. Please try again.");
+      return;
+    }
+    if (existingPage) {
+      setUsernameStatus("taken");
+      setError("That username is already taken.");
       return;
     }
 
@@ -120,12 +184,21 @@ export function CreatePage() {
             <label className="block text-xs font-medium text-ink-muted mb-1">Username</label>
             <input
               value={username}
-              onChange={(e) => setUsername(e.target.value.replace(/\s/g, ""))}
+              onChange={(e) => setUsername(e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, ""))}
               maxLength={30}
               placeholder="meckuryai"
               className="w-full bg-surface rounded-xl px-4 py-3 text-sm text-ink placeholder:text-ink-muted"
             />
             <p className="text-xs text-ink-muted mt-1">akọ.app/page/{username || "..."}</p>
+            {usernameStatus === "checking" && (
+              <p className="text-xs text-ink-muted mt-1.5">Checking availability…</p>
+            )}
+            {usernameStatus === "taken" && (
+              <p className="text-xs text-danger mt-1.5">That username is already taken.</p>
+            )}
+            {usernameStatus === "available" && (
+              <p className="text-xs text-accent mt-1.5">Username is available.</p>
+            )}
           </div>
 
           <div>
