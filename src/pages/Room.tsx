@@ -26,6 +26,8 @@ import {
   EyeOff,
   CheckCircle2,
   XCircle,
+  Circle,
+  Square,
 } from "lucide-react";
 import { useAuth } from "../hooks/useAuth";
 import { useProject } from "../hooks/useProjects";
@@ -38,6 +40,7 @@ import { Avatar } from "../components/Avatar";
 import { decodeVoiceNote } from "../lib/voiceNotes";
 import { RoomChat } from "../components/RoomChat";
 import { useLiveKitRoom, type CallParticipantView } from "../hooks/useLiveKitRoom";
+import { useStartMeetingRecording, useStopMeetingRecording } from "../hooks/useMeetingRecordings";
 import {
   useIsRoomMember,
   useIsRoomHost,
@@ -119,9 +122,12 @@ function RoomCallTile({ participant }: { participant: CallParticipantView }) {
   );
 }
 
-function RoomCallView({ roomMeeting, onLeave }: { roomMeeting: RoomMeeting; onLeave: () => void }) {
+function RoomCallView({ roomMeeting, isHost, onLeave }: { roomMeeting: RoomMeeting; isHost: boolean; onLeave: () => void }) {
   const call = useLiveKitRoom(roomMeeting.id);
   const joined = useRef(false);
+  const startRecording = useStartMeetingRecording(roomMeeting.id);
+  const stopRecording = useStopMeetingRecording(roomMeeting.id);
+  const [recording, setRecording] = useState(false);
 
   useEffect(() => {
     if (joined.current) return;
@@ -129,6 +135,16 @@ function RoomCallView({ roomMeeting, onLeave }: { roomMeeting: RoomMeeting; onLe
     void call.join();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  async function handleToggleRecording() {
+    if (recording) {
+      await stopRecording.mutateAsync();
+      setRecording(false);
+    } else {
+      await startRecording.mutateAsync();
+      setRecording(true);
+    }
+  }
 
   return (
     <div className="flex flex-col gap-3">
@@ -140,6 +156,13 @@ function RoomCallView({ roomMeeting, onLeave }: { roomMeeting: RoomMeeting; onLe
       )}
       {call.connectionState === "connecting" && <p className="text-sm text-ink-muted text-center">Connecting…</p>}
       {call.connectionState === "error" && <p className="text-sm text-danger">{call.errorMessage}</p>}
+
+      {recording && (
+        <div className="flex items-center gap-1.5 text-xs text-danger font-medium">
+          <Circle size={10} fill="currentColor" />
+          Recording
+        </div>
+      )}
 
       <div className="grid grid-cols-2 gap-2">
         {call.participants.map((p) => (
@@ -169,6 +192,16 @@ function RoomCallView({ roomMeeting, onLeave }: { roomMeeting: RoomMeeting; onLe
         >
           {call.screenShareEnabled ? <ScreenShareOff size={16} /> : <ScreenShare size={16} />}
         </button>
+        {isHost && roomMeeting.recording_enabled && (
+          <button
+            onClick={() => void handleToggleRecording()}
+            disabled={startRecording.isPending || stopRecording.isPending}
+            className={`p-3 rounded-full ${recording ? "bg-danger text-canvas" : "bg-surface text-ink"} disabled:opacity-50`}
+            aria-label="Toggle recording"
+          >
+            {recording ? <Square size={16} /> : <Circle size={16} />}
+          </button>
+        )}
         <button
           onClick={() => {
             void call.leave();
@@ -441,7 +474,7 @@ function MeetingsTab({ projectId, isHost }: { projectId: string; isHost: boolean
 
   const activeCall = (meetings ?? []).find((m) => m.id === activeCallMeetingId);
   if (activeCall) {
-    return <RoomCallView roomMeeting={activeCall} onLeave={() => setActiveCallMeetingId(null)} />;
+    return <RoomCallView roomMeeting={activeCall} isHost={isHost} onLeave={() => setActiveCallMeetingId(null)} />;
   }
 
   return (
