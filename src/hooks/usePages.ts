@@ -236,6 +236,54 @@ export function useCreatePage() {
   });
 }
 
+// Who currently holds page-deletion/ownership-transfer authority for a
+// page — the creator, unless their account is gone, in which case the
+// earliest-tenured active admin (see resolve_page_owner() server-side,
+// which this just mirrors for UI gating like showing/hiding "Delete").
+export function useResolvePageOwner(pageId: string, enabled = true) {
+  return useQuery({
+    queryKey: ["page-owner", pageId],
+    queryFn: async (): Promise<string | null> => {
+      const { data, error } = await supabase.rpc("resolve_page_owner", { p_page_id: pageId });
+      if (error) throw error;
+      return data;
+    },
+    enabled: enabled && !!pageId,
+  });
+}
+
+export function useDeletePage() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    meta: { blocking: true },
+    mutationFn: async (pageId: string) => {
+      const { error } = await supabase.rpc("delete_page", { p_page_id: pageId });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["my-pages"] });
+      queryClient.invalidateQueries({ queryKey: ["active-identity"] });
+    },
+  });
+}
+
+export function useTransferPageOwnership(pageId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    meta: { blocking: true },
+    mutationFn: async (newOwnerId: string) => {
+      const { error } = await supabase.rpc("transfer_page_ownership", {
+        p_page_id: pageId,
+        p_new_owner_id: newOwnerId,
+      });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["page-owner", pageId] });
+    },
+  });
+}
+
 interface UpdatePageInput {
   page_id: string;
   name?: string;
