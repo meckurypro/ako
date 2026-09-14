@@ -17,12 +17,16 @@ import {
 } from "../hooks/useFollowRequests";
 import { useUserPostsWithArchived } from "../hooks/usePosts";
 import { useStartConversation } from "../hooks/useMessaging";
-import { useIsBlocked, useToggleBlock, useIsMuted, useToggleMute } from "../hooks/usePrivacy";
+import { useIsBlocked, useToggleBlock, useIsMuted, useToggleMute, useRemoveFollower } from "../hooks/usePrivacy";
+import { useContactNickname } from "../hooks/useContactNicknames";
 import { useUserProjects } from "../hooks/useProjects";
 import { useRecordProfileVisit } from "../hooks/useProfileVisits";
 import { Avatar } from "../components/Avatar";
 import { AccountSwitcher } from "../components/AccountSwitcher";
 import { ImageLightbox } from "../components/ImageLightbox";
+import { ShareProfileSheet } from "../components/ShareProfileSheet";
+import { ProfileShareScreen } from "../components/ProfileShareScreen";
+import { useToast } from "../components/Toast";
 import { TierBadge } from "../components/TierBadge";
 import { RoleTags } from "../components/RoleTags";
 import { PostCard } from "../components/PostCard";
@@ -70,9 +74,8 @@ export function ProfilePage() {
   const navigate = useNavigate();
   const location = useLocation();
   const startConversation = useStartConversation();
-  const [menuOpen, setMenuOpen] = useState(false);
-  const menuButtonRef = useRef<HTMLButtonElement>(null);
-  // Separate menu from the visitor-side mute/block one below — the
+  const toast = useToast();
+  // Separate menu from the visitor-side "Send to" sheet below — the
   // owner's dropdown (Share profile / View as visitor / Follow
   // requests / Wallet / Settings) needs its own open state and its
   // own anchor button.
@@ -100,6 +103,12 @@ export function ProfilePage() {
 
   const [previewingAsVisitor, setPreviewingAsVisitor] = useState(false);
   const [avatarOpen, setAvatarOpen] = useState(false);
+  // Visitor's consolidated "Send to" sheet (see ShareProfileSheet) and
+  // the owner's full-screen QR share takeover (see ProfileShareScreen)
+  // — mutually exclusive, but kept as separate flags since they're
+  // reached from different toolbar states and never both apply.
+  const [shareSheetOpen, setShareSheetOpen] = useState(false);
+  const [qrShareOpen, setQrShareOpen] = useState(false);
 
   // "Back to post" FAB — set once, from the router state a Feed post's
   // byline attaches when it sends a visitor here (see the identityHref
@@ -156,6 +165,11 @@ export function ProfilePage() {
   const toggleBlock = useToggleBlock(profile?.id ?? "");
   const isMutedQuery = useIsMuted(profile?.id ?? "");
   const toggleMute = useToggleMute(profile?.id ?? "");
+  const removeFollower = useRemoveFollower(profile?.id ?? "");
+  // Private, viewer-only override for how this profile's name reads to
+  // ME (see "Customise name" in ShareProfileSheet) — never touches the
+  // profile itself, so it only ever changes what I see.
+  const { data: nickname } = useContactNickname(profile?.id ?? "");
 
   const isOwnProfile = user?.id === profile?.id;
   const showOwnerView = isOwnProfile && !previewingAsVisitor;
@@ -165,6 +179,12 @@ export function ProfilePage() {
   const hasPendingRequest = !!hasPendingRequestQuery.data;
   const isBlocked = !!isBlockedQuery.data;
   const isMuted = !!isMutedQuery.data;
+  // A nickname only ever overrides what I, personally, see — it never
+  // changes profile.display_name itself, so anything that needs the
+  // real name (unfollow confirm copy, share text, etc.) keeps reading
+  // profile.display_name directly and only the on-screen labels below
+  // swap to displayName.
+  const displayName = nickname || profile?.display_name || "";
   const firstName = profile?.display_name?.trim().split(/\s+/)[0] ?? "";
 
   // A private account's posts and projects must never reach a visitor
@@ -237,31 +257,23 @@ export function ProfilePage() {
     navigate(`/messages/${conversationId}`);
   }
 
-  // Same pattern as ProjectCard's share button: native share sheet
-  // when available (it already offers "copy link" alongside apps on
-  // most platforms), plain clipboard copy otherwise. The URL is the
-  // profile's own canonical route — opened by anyone other than the
-  // owner, it renders exactly as the ordinary visitor view already
-  // does, so no separate "visitor mode" flag is needed. Split from
-  // the menu-closing so both the owner's dropdown and the visitor's
-  // "…" menu can call it and each close their own open state first.
-  async function shareProfile() {
-    if (!profile) return;
-    const url = `${window.location.origin}/profile/${profile.username}`;
-    if (navigator.share) {
-      try {
-        await navigator.share({ title: profile.display_name, url });
-      } catch {
-        // User cancelled the native share sheet — nothing to do.
-      }
-    } else {
-      await navigator.clipboard.writeText(url);
-    }
-  }
-
+  // Owner sharing their OWN profile gets the full-screen QR takeover
+  // (see ProfileShareScreen) — a visitor sees the consolidated "Send
+  // to" sheet instead (see ShareProfileSheet, wired into the visitor
+  // toolbar below), matching how each audience actually wants to
+  // hand the link off.
   function handleShareProfile() {
     setOwnerMenuOpen(false);
-    void shareProfile();
+    setQrShareOpen(true);
+  }
+
+  function handleRemoveFollower() {
+    removeFollower.mutate(undefined, {
+      onSuccess: () => {
+        setShareSheetOpen(false);
+        toast(`Removed ${firstName || "this follower"}.`, { variant: "success" });
+      },
+    });
   }
 
   // Same swipe pattern as Feed's tab row — SwipeableTabs is bound only to
@@ -409,38 +421,13 @@ export function ProfilePage() {
                   : "Follow"}
               </button>
 
-              <div className="relative">
-                <button
-                  ref={menuButtonRef}
-                  onClick={() => setMenuOpen((o) => !o)}
-                  className="text-ink-muted p-2"
-                  aria-label="More options"
-                >
-                  <MoreHorizontal size={18} />
-                </button>
-
-                {menuOpen && (
-                  <DropdownMenu
-                    anchorRef={menuButtonRef}
-                    onClose={() => setMenuOpen(false)}
-                    widthClass="w-48"
-                    items={[
-                      { key: "share", label: "Share profile", icon: <Redo2 />, onSelect: () => void shareProfile() },
-                      {
-                        key: "mute",
-                        label: isMuted ? "Unmute" : "Mute",
-                        onSelect: () => toggleMute.mutate(isMuted),
-                      },
-                      {
-                        key: "block",
-                        label: isBlocked ? "Unblock" : "Block",
-                        variant: "danger",
-                        onSelect: () => toggleBlock.mutate(isBlocked),
-                      },
-                    ]}
-                  />
-                )}
-              </div>
+              <button
+                onClick={() => setShareSheetOpen(true)}
+                className="text-ink-muted p-2"
+                aria-label="More options"
+              >
+                <MoreHorizontal size={18} />
+              </button>
             </div>
           )}
         </div>
@@ -493,7 +480,7 @@ export function ProfilePage() {
                   )}
                 </div>
               ) : (
-                <h1 className="font-medium text-lg text-ink">{profile.display_name}</h1>
+                <h1 className="font-medium text-lg text-ink">{displayName}</h1>
               )}
               <TierBadge tier={profile.tier} />
             </div>
@@ -674,6 +661,36 @@ export function ProfilePage() {
           src={profile.avatar_url}
           alt={profile.display_name}
           onClose={() => setAvatarOpen(false)}
+        />
+      )}
+
+      {shareSheetOpen && !showOwnerView && (
+        <ShareProfileSheet
+          profile={{
+            id: profile.id,
+            username: profile.username,
+            display_name: profile.display_name,
+            avatar_url: profile.avatar_url,
+          }}
+          isFollowedByUser={isFollowedByUser}
+          isBlocked={isBlocked}
+          isMuted={isMuted}
+          onToggleBlock={() => toggleBlock.mutate(isBlocked)}
+          onToggleMute={() => toggleMute.mutate(isMuted)}
+          onRemoveFollower={handleRemoveFollower}
+          onMessage={handleMessage}
+          onOpenQR={() => setQrShareOpen(true)}
+          onClose={() => setShareSheetOpen(false)}
+        />
+      )}
+
+      {qrShareOpen && (
+        <ProfileShareScreen
+          name={profile.display_name}
+          handle={profile.username}
+          avatarUrl={profile.avatar_url}
+          url={`${window.location.origin}/profile/${profile.username}`}
+          onClose={() => setQrShareOpen(false)}
         />
       )}
 
