@@ -288,7 +288,7 @@ function MessageBubbleImpl({
               </span>
             ) : voiceNote ? (
               <span className="relative block">
-                <VoiceMessageBubble url={voiceNote.url} durationSec={voiceNote.durationSec} peaks={voiceNote.peaks} isMine={isMine} />
+                <VoiceMessageBubble url={voiceNote.url} path={voiceNote.path} durationSec={voiceNote.durationSec} peaks={voiceNote.peaks} isMine={isMine} />
                 <span
                   className={`flex items-center gap-1 justify-end mt-1 text-[11px] ${isMine ? "text-white/70" : "text-ink-muted"}`}
                 >
