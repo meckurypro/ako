@@ -56,8 +56,8 @@ export function RoomChat({ projectId, conversationId, canPost, cantPostReason }:
     bottomRef.current?.scrollIntoView({ block: "end" });
   }, [messages?.length]);
 
-  const voiceRecorder = useVoiceRecorder(async (blob, durationSec, peaks) => {
-    await sendVoiceNote.mutateAsync({ blob, durationSec, peaks, replyToMessageId: null });
+  const voiceRecorder = useVoiceRecorder(async (blob, durationSec, peaks, viewOnce) => {
+    await sendVoiceNote.mutateAsync({ blob, durationSec, peaks, viewOnce, replyToMessageId: null });
   });
 
   function handleSubmit(e: FormEvent) {
@@ -125,6 +125,8 @@ export function RoomChat({ projectId, conversationId, canPost, cantPostReason }:
           durationSec={voiceRecorder.preview.durationSec}
           peaks={voiceRecorder.preview.peaks}
           sending={voiceRecorder.sending}
+          viewOnce={voiceRecorder.preview.viewOnce}
+          onToggleViewOnce={voiceRecorder.toggleViewOnce}
           onDiscard={voiceRecorder.discardPreview}
           onSend={voiceRecorder.sendPreview}
         />
