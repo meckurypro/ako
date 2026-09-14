@@ -6,6 +6,7 @@ import { useBackDismiss } from "../hooks/useBackDismiss";
 import { useScrollLock } from "../hooks/useScrollLock";
 import { Portal } from "./Portal";
 import { RepostEmbed } from "./RepostEmbed";
+import { useToast } from "./Toast";
 import type { RepostSource } from "../types/database";
 
 interface ReshareSheetProps {
@@ -26,6 +27,7 @@ export function ReshareSheet({ postId, source, onClose }: ReshareSheetProps) {
   const [caption, setCaption] = useState("");
   const [error, setError] = useState<string | null>(null);
   const createReshare = useCreateReshare();
+  const toast = useToast();
 
   // Base level — always on while the sheet is open. Back from the
   // "choose" step closes the whole sheet.
@@ -40,6 +42,7 @@ export function ReshareSheet({ postId, source, onClose }: ReshareSheetProps) {
     try {
       await createReshare.mutateAsync({ originalPostId: postId });
       onClose();
+      toast("Reposted.", { variant: "success" });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Couldn't repost this.");
     }
@@ -51,6 +54,7 @@ export function ReshareSheet({ postId, source, onClose }: ReshareSheetProps) {
     try {
       await createReshare.mutateAsync({ originalPostId: postId, caption });
       onClose();
+      toast("Posted.", { variant: "success" });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Couldn't post this.");
     }
