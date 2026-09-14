@@ -10,6 +10,7 @@ import {
   useRemoveProjectMember,
 } from "../hooks/useProjectMembers";
 import { Avatar } from "./Avatar";
+import { useToast } from "./Toast";
 
 interface ManageAccessSheetProps {
   projectId: string;
@@ -30,6 +31,7 @@ export function ManageAccessSheet({ projectId, projectTitle, onClose }: ManageAc
   const { data: members, isLoading: loadingMembers } = useProjectMembers(projectId);
   const addMember = useAddProjectMember(projectId);
   const removeMember = useRemoveProjectMember(projectId);
+  const toast = useToast();
 
   const memberIds = new Set((members ?? []).map((m) => m.user_id));
 
@@ -86,7 +88,17 @@ export function ManageAccessSheet({ projectId, projectTitle, onClose }: ManageAc
                         <p className="text-xs text-ink-muted truncate">@{person.username}</p>
                       </div>
                       <button
-                        onClick={() => (isMember ? removeMember.mutate(person.id) : addMember.mutate(person.id))}
+                        onClick={() =>
+                          isMember
+                            ? removeMember.mutate(person.id, {
+                                onSuccess: () =>
+                                  toast(`${person.display_name} removed.`, { variant: "success" }),
+                              })
+                            : addMember.mutate(person.id, {
+                                onSuccess: () =>
+                                  toast(`${person.display_name} added.`, { variant: "success" }),
+                              })
+                        }
                         disabled={addMember.isPending || removeMember.isPending}
                         className={`flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-full disabled:opacity-50 ${
                           isMember ? "bg-danger/10 text-danger" : "bg-accent-soft text-accent"
@@ -124,7 +136,11 @@ export function ManageAccessSheet({ projectId, projectTitle, onClose }: ManageAc
                     <p className="text-xs text-ink-muted truncate">@{m.profile.username}</p>
                   </div>
                   <button
-                    onClick={() => removeMember.mutate(m.user_id)}
+                    onClick={() =>
+                      removeMember.mutate(m.user_id, {
+                        onSuccess: () => toast(`${m.profile.display_name} removed.`, { variant: "success" }),
+                      })
+                    }
                     disabled={removeMember.isPending}
                     aria-label={`Remove ${m.profile.display_name}`}
                     className="flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-full bg-danger/10 text-danger disabled:opacity-50"
