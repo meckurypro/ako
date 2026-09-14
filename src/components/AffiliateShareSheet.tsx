@@ -13,6 +13,7 @@ import {
   useAffiliateDashboard,
   affiliateLinkFor,
 } from "../hooks/useAffiliates";
+import { useFeatureFlag } from "../hooks/useFeatureFlags";
 import { formatUsd } from "../lib/money";
 
 interface AffiliateShareSheetProps {
@@ -39,9 +40,16 @@ export function AffiliateShareSheet({ projectId, projectTitle, onClose }: Affili
   const { data: relationship, isLoading: loadingRelationship } = useMyAffiliateRelationship(projectId);
   const { data: dashboard } = useAffiliateDashboard(relationship?.status === "active" ? relationship.id : undefined);
   const createRelationship = useCreateAffiliateRelationship(projectId);
+  // Only gates NEW joins below (the "Get my link" button) — an
+  // already-active relationship's link/stats above render regardless.
+  const affiliateProgramsEnabled = useFeatureFlag("affiliate_programs_enabled");
 
   async function handleFork() {
     setError(null);
+    if (!affiliateProgramsEnabled) {
+      setError("Affiliate programs are temporarily disabled.");
+      return;
+    }
     try {
       await createRelationship.mutateAsync();
     } catch (err) {
@@ -129,9 +137,13 @@ export function AffiliateShareSheet({ projectId, projectTitle, onClose }: Affili
                     {error}
                   </p>
                 )}
-                <Button onClick={() => void handleFork()} loading={createRelationship.isPending}>
-                  Get my link
-                </Button>
+                {affiliateProgramsEnabled ? (
+                  <Button onClick={() => void handleFork()} loading={createRelationship.isPending}>
+                    Get my link
+                  </Button>
+                ) : (
+                  <p className="text-xs text-ink-muted">New affiliate links are temporarily unavailable.</p>
+                )}
               </div>
             )}
           </div>
