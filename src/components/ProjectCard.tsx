@@ -541,6 +541,7 @@ export function ProjectCard({
     setShowDeleteConfirm(false);
     try {
       await deleteProject.mutateAsync(project.id);
+      toast(`${project.title} deleted.`, { variant: "success" });
     } catch (err) {
       // Most likely reason: purchases exist and the delete was
       // refused server-side — surface that instead of failing silently.
