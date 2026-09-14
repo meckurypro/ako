@@ -14,6 +14,7 @@ import {
 } from "../hooks/usePages";
 import { useCategories } from "../hooks/useCategories";
 import { usePagesFeatureSettings } from "../hooks/useAdmin";
+import { useFeatureFlag } from "../hooks/useFeatureFlags";
 import { useToast } from "../components/Toast";
 import type { PageType } from "../types/database";
 
@@ -81,6 +82,10 @@ export function CreatePage() {
   const { data: categories } = useCategories();
   const { data: myPages } = useMyPages();
   const { data: pagesFeature, isLoading: loadingPagesFeature } = usePagesFeatureSettings();
+  // Separate from pages_creation_enabled above: this can be off while
+  // ordinary page creation stays on, or vice versa — see
+  // AdminPageSettings' "Add Subsidiary" section.
+  const subsidiariesEnabled = useFeatureFlag("subsidiaries_enabled");
 
   // Server-computed progress toward the 30-posts / 30-distinct-
   // engaged-posts requirement (see get_page_creation_eligibility()).
@@ -177,6 +182,15 @@ export function CreatePage() {
       return;
     }
 
+    // Same idea for the subsidiaries switch — the dropdown below is
+    // already hidden when this is off, but a dropdown selection made
+    // just before an admin flipped the switch could still be sitting
+    // in state, and create_page() would reject it anyway.
+    if ((presetParentId || parentOrgId) && !subsidiariesEnabled) {
+      setError("Subsidiary creation is temporarily disabled.");
+      return;
+    }
+
     // Re-check right before submitting — the live check above can go
     // stale if someone else takes the name in the gap between typing
     // and hitting submit.
@@ -218,7 +232,9 @@ export function CreatePage() {
   // for someone who navigates here directly, not just the hidden entry
   // points elsewhere. Wait for the setting to load rather than flash
   // the form then yank it away.
-  if (!loadingPagesFeature && !(pagesFeature?.pages_creation_enabled ?? true)) {
+  const pagesBlocked = !loadingPagesFeature && !(pagesFeature?.pages_creation_enabled ?? true);
+  const subsidiaryBlocked = !!presetParentId && !subsidiariesEnabled;
+  if (pagesBlocked || subsidiaryBlocked) {
     return (
       <div className="min-h-screen bg-canvas px-4 pt-4 pb-10">
         <div className="max-w-md mx-auto">
@@ -226,10 +242,12 @@ export function CreatePage() {
             <button onClick={smartBack} className="text-ink-muted">
               <ArrowLeft size={22} />
             </button>
-            <h2 className="font-display text-xl text-ink">Create a page</h2>
+            <h2 className="font-display text-xl text-ink">{presetParentId ? "Add a Subsidiary" : "Create a page"}</h2>
           </div>
           <p className="text-sm text-ink-muted">
-            New pages aren't being created right now. Check back later.
+            {pagesBlocked
+              ? "New pages aren't being created right now. Check back later."
+              : "Adding subsidiaries isn't available right now. Check back later."}
           </p>
         </div>
       </div>
@@ -432,6 +450,7 @@ export function CreatePage() {
               </div>
             )
           ) : (
+            subsidiariesEnabled &&
             myAdminPages.length > 0 && (
               <div>
                 <label className="block text-xs font-medium text-ink-muted mb-1">
