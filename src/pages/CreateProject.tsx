@@ -277,7 +277,7 @@ export function CreateProject() {
           // owner's own view), so no scroll/highlight logic is needed
           // to bring it "into view".
           navigate(`/profile/${me.username}?tab=projects`);
-          toast(`${title.trim()} created successfully.`, { variant: "success", duration: 2000 });
+          toast(`${title.trim()} created successfully.`, { variant: "success" });
         } else {
           navigate(-1);
         }
@@ -427,7 +427,7 @@ export function CreateProject() {
         navigate(`/page/${postingAsPage.username}`);
       } else if (me?.username) {
         navigate(`/profile/${me.username}?tab=projects`);
-        toast(`${title.trim()} created successfully.`, { variant: "success", duration: 2000 });
+        toast(`${title.trim()} created successfully.`, { variant: "success" });
       } else {
         navigate(-1);
       }
