@@ -24,6 +24,7 @@ import {
 import { usePagePosts } from "../hooks/usePosts";
 import { pageModeLabel } from "../lib/pageRoles";
 import { ConfirmDialog } from "../components/ConfirmDialog";
+import { useFeatureFlag } from "../hooks/useFeatureFlags";
 
 function getWebsiteHref(url: string): string {
   return /^https?:\/\//i.test(url) ? url : `https://${url}`;
@@ -71,6 +72,7 @@ export function PagePage() {
   // this relationship server-side.
   const { data: parentPage } = usePageById(page?.parent_organization_id ?? "", !!page?.parent_organization_id);
   const { data: subsidiaries } = usePageSubsidiaries(page?.id);
+  const subsidiariesEnabled = useFeatureFlag("subsidiaries_enabled");
 
   const isFollowing = !!isFollowingQuery.data;
   const myMembership = members?.find((m) => m.user_id === user?.id && m.status === "active");
@@ -251,7 +253,7 @@ export function PagePage() {
                   </Link>
                 )}
 
-                {isAdmin && (
+                {isAdmin && subsidiariesEnabled && (
                   <Link
                     to={`/pages/new?parent=${page.id}`}
                     onClick={() => setMenuOpen(false)}
