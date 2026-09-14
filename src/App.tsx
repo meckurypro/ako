@@ -97,6 +97,7 @@ import { CreateChoice } from "./pages/CreateChoice";
 import { SavedHub } from "./pages/SavedHub";
 import { LikedHub } from "./pages/LikedHub";
 import { EventsActivity } from "./pages/EventsActivity";
+import { LibraryActivity } from "./pages/LibraryActivity";
 import { HistoryActivity } from "./pages/HistoryActivity";
 
 const queryClient = new QueryClient({
@@ -811,6 +812,14 @@ function AppRoutes() {
               element={
                 <RequireAuth>
                   <HistoryActivity />
+                </RequireAuth>
+              }
+            />
+            <Route
+              path="/activity/library"
+              element={
+                <RequireAuth>
+                  <LibraryActivity />
                 </RequireAuth>
               }
             />
