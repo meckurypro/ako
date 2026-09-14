@@ -4,6 +4,7 @@ import { ArrowLeft, AlertCircle, Loader2 } from "lucide-react";
 import { useSmartBack } from "../hooks/useSmartBack";
 import { useExchangeRates } from "../hooks/useWalletRates";
 import { useInitiateDeposit } from "../hooks/useDeposits";
+import { useFeatureFlag } from "../hooks/useFeatureFlags";
 import { formatNgn, formatUsd } from "../lib/money";
 
 // Deposits used to be Apple/Google in-app purchases (verify-iap-receipt).
@@ -19,6 +20,7 @@ export function FundWallet() {
   const smartBack = useSmartBack();
   const { data: rates } = useExchangeRates();
   const initiateDeposit = useInitiateDeposit();
+  const depositsEnabled = useFeatureFlag("deposits_enabled");
 
   const [selectedPreset, setSelectedPreset] = useState<number | null>(10);
   const [customAmount, setCustomAmount] = useState("");
@@ -66,6 +68,23 @@ export function FundWallet() {
     } catch (err) {
       setErrorMessage(err instanceof Error ? err.message : "Couldn't start payment.");
     }
+  }
+
+  // Wallet.tsx already hides the "Fund" entry point when this is off
+  // — this covers anyone who navigates to /wallet/fund directly.
+  // initiate-deposit checks the same flag server-side regardless.
+  if (!depositsEnabled) {
+    return (
+      <div className="min-h-screen bg-canvas px-4 pt-4 pb-10">
+        <div className="max-w-md mx-auto">
+          <button onClick={smartBack} className="text-ink-muted mb-4">
+            <ArrowLeft size={22} />
+          </button>
+          <h2 className="font-display text-2xl text-ink mb-2">Fund your wallet</h2>
+          <p className="text-ink-muted text-sm">Deposits are temporarily unavailable. Check back later.</p>
+        </div>
+      </div>
+    );
   }
 
   return (
