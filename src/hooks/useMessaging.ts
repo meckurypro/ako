@@ -683,16 +683,23 @@ export function useSendVoiceNote(conversationId: string) {
 
       const ext = blob.type.includes("mp4") ? "m4a" : "webm";
       // First segment MUST be the uploader's own auth.uid() — see the
-      // storage RLS note above. conversationId + timestamp after that
-      // keeps names unique and still traceable to the conversation.
-      const path = `${user.id}/${conversationId}-${Date.now()}.${ext}`;
+      // storage RLS note above. Segment 2 ("dm") + the conversation id
+      // are what the private bucket's SELECT policy checks to decide
+      // whether the OTHER participant (not the uploader) can read this
+      // file back — see the private_audio_bucket_with_participant_
+      // read_rls migration.
+      const path = `${user.id}/dm/${conversationId}/${Date.now()}.${ext}`;
       const { error: uploadError } = await supabase.storage
         .from("audio")
         .upload(path, blob, { contentType: blob.type || "audio/webm" });
       if (uploadError) throw uploadError;
-      const { data: publicUrl } = supabase.storage.from("audio").getPublicUrl(path);
 
-      const content = encodeVoiceNote({ url: publicUrl.publicUrl, durationSec, peaks });
+      // Stores the PATH, not a URL — the bucket is private, so there's
+      // no public URL to store, and a signed one would just expire
+      // sitting in the message. VoiceMessageBubble resolves a fresh
+      // signed URL from this path at render time instead (see
+      // lib/signedAudioUrl.ts).
+      const content = encodeVoiceNote({ path, durationSec, peaks });
 
       const { data, error } = await supabase
         .from("messages")
