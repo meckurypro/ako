@@ -10,6 +10,7 @@ import {
   useSetAffiliateProgram,
   useCreatorAffiliateAnalytics,
 } from "../hooks/useAffiliates";
+import { useFeatureFlag } from "../hooks/useFeatureFlags";
 import { formatUsd } from "../lib/money";
 
 interface AffiliateProgramSheetProps {
@@ -37,6 +38,10 @@ export function AffiliateProgramSheet({ projectId, projectTitle, onClose }: Affi
   const { data: program, isLoading } = useAffiliateProgram(projectId);
   const { data: analytics } = useCreatorAffiliateAnalytics(projectId);
   const setProgram = useSetAffiliateProgram(projectId);
+  // Global switch — manage_affiliate_program only enforces this when
+  // turning a program ON, never when turning one off, so an existing
+  // program can always be disabled here regardless of this flag.
+  const affiliateProgramsEnabled = useFeatureFlag("affiliate_programs_enabled");
 
   const [enabled, setEnabled] = useState(false);
   const [commissionPct, setCommissionPct] = useState("20");
@@ -61,6 +66,11 @@ export function AffiliateProgramSheet({ projectId, projectTitle, onClose }: Affi
 
   async function handleSave() {
     setError(null);
+
+    if (enabled && !affiliateProgramsEnabled) {
+      setError("Affiliate programs are temporarily disabled.");
+      return;
+    }
 
     const pct = parseFloat(commissionPct);
     if (enabled && (Number.isNaN(pct) || pct <= 0 || pct > 100)) {
@@ -115,13 +125,25 @@ export function AffiliateProgramSheet({ projectId, projectTitle, onClose }: Affi
                       <p className="text-xs text-ink-muted">
                         Anyone can fork it for their own referral link — you only pay a commission on sales it actually brings in.
                       </p>
+                      {!affiliateProgramsEnabled && !enabled && (
+                        <p className="text-xs text-danger mt-1">
+                          Affiliate programs are temporarily disabled platform-wide.
+                        </p>
+                      )}
                     </div>
                   </div>
                   <button
                     type="button"
-                    onClick={() => setEnabled(!enabled)}
+                    onClick={() => {
+                      // Turning ON is blocked while the global switch
+                      // is off; turning an already-on program OFF
+                      // always works, matching the server rule.
+                      if (!enabled && !affiliateProgramsEnabled) return;
+                      setEnabled(!enabled);
+                    }}
                     aria-pressed={enabled}
-                    className={`w-11 h-6 rounded-full transition-colors relative flex-shrink-0 overflow-hidden ${
+                    disabled={!enabled && !affiliateProgramsEnabled}
+                    className={`w-11 h-6 rounded-full transition-colors relative flex-shrink-0 overflow-hidden disabled:opacity-50 ${
                       enabled ? "bg-accent" : "bg-border"
                     }`}
                   >
