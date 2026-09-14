@@ -663,6 +663,7 @@ interface SendVoiceNoteInput {
   blob: Blob;
   durationSec: number;
   peaks?: number[];
+  viewOnce?: boolean;
   replyToMessageId?: string | null;
   replyToSnippet?: ReplySnippetInput | null;
   /** The recorder's own local blob-URL preview (still valid at send
@@ -678,7 +679,7 @@ export function useSendVoiceNote(conversationId: string) {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async ({ blob, durationSec, peaks, replyToMessageId }: SendVoiceNoteInput) => {
+    mutationFn: async ({ blob, durationSec, peaks, viewOnce, replyToMessageId }: SendVoiceNoteInput) => {
       if (!user) throw new Error("Not signed in");
 
       const ext = blob.type.includes("mp4") ? "m4a" : "webm";
@@ -699,7 +700,7 @@ export function useSendVoiceNote(conversationId: string) {
       // sitting in the message. VoiceMessageBubble resolves a fresh
       // signed URL from this path at render time instead (see
       // lib/signedAudioUrl.ts).
-      const content = encodeVoiceNote({ path, durationSec, peaks });
+      const content = encodeVoiceNote({ path, durationSec, peaks, viewOnce });
 
       const { data, error } = await supabase
         .from("messages")
@@ -730,7 +731,7 @@ export function useSendVoiceNote(conversationId: string) {
     // bubble's audio URL is the recorder's own local blob URL
     // (`localUrl`), so voice playback works immediately even though
     // the real storage upload is still in flight in the background.
-    onMutate: async ({ durationSec, peaks, replyToMessageId, replyToSnippet, localUrl }) => {
+    onMutate: async ({ durationSec, peaks, viewOnce, replyToMessageId, replyToSnippet, localUrl }) => {
       await queryClient.cancelQueries({ queryKey: ["messages", conversationId], exact: false });
 
       const previousQueries = getMessagesQueries(queryClient, conversationId);
@@ -746,7 +747,7 @@ export function useSendVoiceNote(conversationId: string) {
         id: tempId,
         conversation_id: conversationId,
         sender_id: user!.id,
-        content: encodeVoiceNote({ url: localUrl, durationSec, peaks }),
+        content: encodeVoiceNote({ url: localUrl, durationSec, peaks, viewOnce }),
         created_at: new Date().toISOString(),
         delivered_at: null,
         read_at: null,
