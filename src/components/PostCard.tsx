@@ -41,6 +41,7 @@ import { ConfirmDialog } from "./ConfirmDialog";
 import { TagPeopleSheet } from "./TagPeopleSheet";
 import { CollaboratorsSheet } from "./CollaboratorsSheet";
 import { PostCollaboratorsBadge } from "./PostCollaboratorsBadge";
+import { useToast } from "./Toast";
 import { useAuth } from "../hooks/useAuth";
 import { useActiveIdentity } from "../hooks/usePages";
 import { useIsBookmarked, useToggleBookmark } from "../hooks/useBookmarks";
@@ -191,6 +192,7 @@ export function PostCard({
   const isDisliked = !!dislikeQuery.data;
 
   const deletePost = useDeletePost();
+  const toast = useToast();
   const setArchived = useSetPostArchived();
   const prioritizePost = usePrioritizePost();
   // Only the owner ever needs to know today's pick — everyone else's
@@ -290,7 +292,9 @@ export function PostCard({
 
   function handleConfirmDelete() {
     setShowDeleteConfirm(false);
-    deletePost.mutate(post.id);
+    deletePost.mutate(post.id, {
+      onSuccess: () => toast("Post deleted.", { variant: "success" }),
+    });
   }
 
   // Deliberately confirmed — prioritizing locks out the creator's other
