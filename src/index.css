@@ -40,6 +40,7 @@
   --color-tick-blue: #53BDEB;      /* WhatsApp's own read-receipt blue — double-tick color once a message has been read. Sent/delivered ticks stay the neutral unread color in MessageStatusTicks; only this final state goes blue, matching WhatsApp exactly. */
   --color-presence-online: #39FF6A; /* neon green — online-now presence dot */
   --color-highlight: #BFE6C6;     /* saturated sage — deliberately more vivid than accent-soft, used for the few spots that need to visually pop against a list (unread notification rows, jump-to-comment flash) rather than sit quietly like an accent-soft badge */
+  --color-post-header: #1E4C9A;    /* post heading (PostContent.tsx) blue — deliberately its own token, not a reuse of --color-tick-blue (that one's WhatsApp-specific) or --color-accent (sage, would read as a link/action color here). Medium navy holds ~7.5:1 against light-mode canvas/surface; see .dark below for the near-black-safe counterpart. */
 
   /*
     Dedicated chat-bubble colors — deliberately separate tokens from
@@ -120,6 +121,7 @@
   --color-danger: #C97C6B;
   --color-pushback: #D9A857;
   --color-highlight: #1E4B31;    /* dark-mode counterpart — noticeably more saturated/green than --color-accent-soft's #17281F so unread rows still pop against near-black canvas */
+  --color-post-header: #7CB3FF;  /* dark-mode counterpart to light mode's #1E4C9A — that navy is far too dark to read against near-black canvas, so this swaps to a light sky-blue instead; ~8.6-9:1 against dark canvas/surface, and kept visibly distinct from both --color-tick-blue (#53BDEB) and dark --color-accent (#4CAE7C) so it doesn't get mistaken for either. */
 
   /*
     Sent-bubble green is kept noticeably darker than --color-accent
