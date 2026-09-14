@@ -53,6 +53,7 @@ import { PasswordField } from "../components/PasswordField";
 import { Avatar } from "../components/Avatar";
 import { SettingsSection } from "../components/SettingsSection";
 import { MentionTextarea } from "../components/MentionTextarea";
+import { useToast } from "../components/Toast";
 
 // Own-profile lookup by id, since this page doesn't have :username in the URL
 function useOwnProfile() {
@@ -403,6 +404,7 @@ export function Settings() {
 
   // ---- Advanced / danger zone ----
   const deactivate = useDeactivateAccount();
+  const toast = useToast();
   const [showDeactivateConfirm, setShowDeactivateConfirm] = useState(false);
   const [deactivating, setDeactivating] = useState(false);
   const [deactivateError, setDeactivateError] = useState<string | null>(null);
@@ -416,6 +418,7 @@ export function Settings() {
       if (user) removeSavedAccount(user.id);
       await supabase.auth.signOut();
       navigate("/login");
+      toast("Account deactivated.", { variant: "success" });
     } catch (err) {
       setDeactivateError(err instanceof Error ? err.message : "Couldn't deactivate account.");
       setDeactivating(false);
