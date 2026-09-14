@@ -275,3 +275,79 @@ export function useReviewPromotion() {
     },
   });
 }
+
+// ------------------------------------------------------------
+// Give Back — settlement visibility + manual trigger.
+// See AKO_GIVE_BACK_DISTRIBUTION_SYSTEM.md. The actual scoring and
+// payout run server-side (triggers on reactions/comments/bookmarks/
+// posts feed give_back_contribution_events; a 15-minute cron calls
+// settle_promotion_give_back() for anything that just ended or was
+// cancelled). This is read-only visibility plus a manual "settle now"
+// escape hatch for admins — nothing here computes or displays scores,
+// per the spec's instruction to keep the mechanic invisible to users.
+// ------------------------------------------------------------
+
+export interface GiveBackSettlement {
+  id: string;
+  status: "completed" | "zero_participants" | "no_pool";
+  pool_usd: number;
+  distributed_usd: number;
+  total_eligible_points: number;
+  participant_count: number;
+  settled_at: string;
+}
+
+export interface GiveBackPromotion extends AdminPromotion {
+  give_back_settled_at: string | null;
+  give_back_distributed_usd: number | null;
+  give_back_settlements: GiveBackSettlement[];
+}
+
+const GIVE_BACK_PROMOTION_SELECT =
+  `${PROMOTION_SELECT}, give_back_settled_at, give_back_distributed_usd, ` +
+  `promoter:profiles!promotions_user_id_fkey(username, display_name, avatar_url), ` +
+  `post:posts!promotions_post_id_fkey(id, content, heading), ` +
+  `give_back_settlements(id, status, pool_usd, distributed_usd, total_eligible_points, participant_count, settled_at)`;
+
+/** Every promotion that ever had a Give Back pool, most recent first. */
+export function useGiveBackPromotions() {
+  return useQuery({
+    queryKey: ["give-back-promotions"],
+    queryFn: async (): Promise<GiveBackPromotion[]> => {
+      const { data, error } = await supabase
+        .from("promotions")
+        .select(GIVE_BACK_PROMOTION_SELECT)
+        .gt("give_back_usd", 0)
+        .order("created_at", { ascending: false });
+      if (error) throw error;
+      return data as unknown as GiveBackPromotion[];
+    },
+  });
+}
+
+/**
+ * Manually settles a promotion's Give Back pool right now, instead of
+ * waiting for the next cron pass. Safe to call on anything the cron
+ * would also pick up — settle_promotion_give_back() is idempotent and
+ * re-checks eligibility itself, so this is a "don't make me wait 15
+ * minutes to verify this worked" button, not a bypass of any rule.
+ */
+export function useSettleGiveBack() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    meta: { blocking: true },
+    mutationFn: async (promotionId: string): Promise<GiveBackSettlement> => {
+      const { data, error } = await supabase.functions.invoke("settle-promotion-give-back", {
+        body: { promotion_id: promotionId },
+      });
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+      return data.settlement;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["give-back-promotions"] });
+      queryClient.invalidateQueries({ queryKey: ["wallet"] });
+    },
+  });
+}
