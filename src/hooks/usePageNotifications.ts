@@ -6,29 +6,12 @@
 // from whichever human is currently acting as that page, and shared by
 // every active team member, not just whoever's logged in right now.
 //
-// BACKEND NOT YET BUILT. This hook is written against a contract that
-// doesn't exist in the schema yet — calls will 404/error until it's
-// added. Needed on the backend:
-//
-//   create table public.page_notifications (
-//     id uuid primary key default gen_random_uuid(),
-//     page_id uuid not null references public.pages(id),
-//     type text not null,           -- same vocabulary as notifications.type
-//     actor_id uuid references public.profiles(id),
-//     target_type text,
-//     target_id uuid,
-//     preview_text text,
-//     read_at timestamptz,
-//     created_at timestamptz not null default now()
-//   );
-//   -- RLS: select/update where exists an active page_members row for
-//   -- (page_id, auth.uid()) — i.e. any active team member, not just admins.
-//
-//   Every trigger that currently inserts into public.notifications for a
-//   post/comment engagement needs a companion branch: if the target
-//   post's posted_as_page_id is set, insert into page_notifications
-//   instead of (or in addition to, for follow/gift events aimed at the
-//   page itself) the personal table.
+// Backend is live: public.page_notifications exists with RLS scoped to
+// active page_members, and every engagement trigger that fires for
+// personal notifications (comment, reaction, gift, follow) has a
+// page-side companion (notify_page_on_comment, notify_page_on_reaction,
+// notify_page_on_gift, notify_page_on_follow) that inserts here instead
+// when the content's posted_as_page_id is set.
 //
 // Deliberately a SEPARATE table rather than a nullable page_id column
 // on notifications — keeps the existing personal-notifications RLS
