@@ -15,6 +15,10 @@ const TXN_LABELS: Record<string, string> = {
   dev_credit: "Dev credit",
   affiliate_commission: "Affiliate commission",
   affiliate_commission_reversal: "Affiliate commission reversed",
+  promotion_charge: "Promotion charge",
+  promotion_refund: "Promotion refund",
+  give_back: "Give Back reward",
+  give_back_reversal: "Give Back reward reversed",
 };
 
 export function WalletPage() {
