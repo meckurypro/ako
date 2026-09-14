@@ -94,6 +94,9 @@ import { MeetingRoom } from "./pages/MeetingRoom";
 import { TicketView } from "./pages/TicketView";
 import { EventCheckIn } from "./pages/EventCheckIn";
 import { Activity } from "./pages/Activity";
+import { DraftPosts } from "./pages/DraftPosts";
+import { ScheduledPosts } from "./pages/ScheduledPosts";
+import { NotFound } from "./pages/NotFound";
 import { CreateChoice } from "./pages/CreateChoice";
 import { SavedHub } from "./pages/SavedHub";
 import { LikedHub } from "./pages/LikedHub";
@@ -818,6 +821,27 @@ function AppRoutes() {
                 </RequireAuth>
               }
             />
+            {/* Both rows exist in Activity's own ROWS list (see
+                Activity.tsx) and both page components were already
+                fully built, but neither route was ever mounted here —
+                so tapping "Drafts" or "Scheduled" from the hub hit no
+                matching route and rendered blank. */}
+            <Route
+              path="/activity/drafts"
+              element={
+                <RequireAuth>
+                  <DraftPosts />
+                </RequireAuth>
+              }
+            />
+            <Route
+              path="/activity/scheduled"
+              element={
+                <RequireAuth>
+                  <ScheduledPosts />
+                </RequireAuth>
+              }
+            />
             <Route
               path="/activity/history"
               element={
@@ -845,6 +869,12 @@ function AppRoutes() {
             {/* Folded into the Activity hub's Saved tab now — kept as a
                 redirect so any stale links still land somewhere valid. */}
             <Route path="/saved-projects" element={<Navigate to="/activity/saved" replace />} />
+
+            {/* Catch-all — must stay last. Previously absent, so any
+                unmatched URL (typo, stale bookmark to something removed
+                outright, malformed deep link) rendered nothing: no
+                heading, no nav, no recovery path. */}
+            <Route path="*" element={<NotFound />} />
       </Routes>
 
       {backgroundLocation && (
