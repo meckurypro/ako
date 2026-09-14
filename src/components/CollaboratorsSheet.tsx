@@ -12,6 +12,7 @@ import { useScrollLock } from "../hooks/useScrollLock";
 import { Portal } from "./Portal";
 import { Avatar } from "./Avatar";
 import { PeoplePicker } from "./PeoplePicker";
+import { useToast } from "./Toast";
 import type { MentionCandidate } from "../hooks/useMentions";
 
 const STATUS_LABEL: Record<string, string> = {
@@ -34,6 +35,7 @@ export function CollaboratorsSheet({
   const removeCollaborator = useRemoveCollaborator(target);
   const [showPicker, setShowPicker] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const toast = useToast();
 
   useBackDismiss(onClose);
   useScrollLock();
@@ -44,7 +46,10 @@ export function CollaboratorsSheet({
   function handleInvite(selected: MentionCandidate[]) {
     setError(null);
     Promise.all(selected.map((p) => sendRequest.mutateAsync({ targetId, userId: p.id })))
-      .then(() => setShowPicker(false))
+      .then(() => {
+        setShowPicker(false);
+        toast(selected.length > 1 ? "Invites sent." : "Invite sent.", { variant: "success" });
+      })
       .catch((err) => setError(err instanceof Error ? err.message : "Couldn't send one or more invites."));
   }
 
@@ -81,7 +86,12 @@ export function CollaboratorsSheet({
                         </p>
                       </div>
                       <button
-                        onClick={() => removeCollaborator.mutate({ targetId, userId: c.user.id })}
+                        onClick={() =>
+                          removeCollaborator.mutate(
+                            { targetId, userId: c.user.id },
+                            { onSuccess: () => toast(`${c.user.display_name} removed.`, { variant: "success" }) }
+                          )
+                        }
                         className="text-xs text-danger px-2 py-1"
                       >
                         Remove
