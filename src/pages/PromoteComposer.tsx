@@ -19,6 +19,7 @@ import {
 } from "../hooks/usePromotions";
 import { Button } from "../components/Button";
 import { FormField } from "../components/FormField";
+import { useFeatureFlag } from "../hooks/useFeatureFlags";
 import { formatUsd } from "../lib/money";
 
 interface PromotablePost {
@@ -65,6 +66,7 @@ export function PromoteComposer() {
   const { data: categories } = useCategories();
   const { data: existingPromotion, isLoading: promotionLoading } = usePromotionForPost(postId);
   const submitPromotion = useSubmitPromotion();
+  const promotionsEnabled = useFeatureFlag("promotions_enabled");
 
   const [dailyBudget, setDailyBudget] = useState(String(PROMOTION_DAILY_BUDGET_MIN_USD));
   const [durationDays, setDurationDays] = useState(String(PROMOTION_DURATION_MIN_DAYS));
@@ -97,6 +99,11 @@ export function PromoteComposer() {
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
     setError(null);
+
+    if (!promotionsEnabled) {
+      setError("Post promotions are temporarily disabled.");
+      return;
+    }
 
     const budget = Number(dailyBudget);
     const days = Number(durationDays);
@@ -197,6 +204,8 @@ export function PromoteComposer() {
             This post already has {existingPromotion?.status === "pending" ? "a campaign awaiting review" : "an active campaign"}.
             {existingPromotion?.status === "pending" && " You can submit a new one once this is reviewed."}
           </p>
+        ) : !promotionsEnabled ? (
+          <p className="text-sm text-ink-muted">Post promotions are temporarily unavailable. Check back later.</p>
         ) : (
           <form onSubmit={handleSubmit}>
             <FormField
