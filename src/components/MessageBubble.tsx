@@ -103,6 +103,19 @@ interface MessageBubbleProps {
   message: MessageWithSender;
   currentUserId: string | undefined;
   otherParticipantName: string;
+  /** Avatar for the "not-mine" side of a voice-note bubble — the sender
+   *  when the message isn't the current user's. Undefined (no `src`
+   *  prop passed at all — see VoiceMessageBubble) skips the thumbnail
+   *  entirely rather than rendering a blank/initials circle every
+   *  voice note, since most conversations here are 1:1 and the header
+   *  avatar already establishes who's on the other end; pass this only
+   *  where the extra per-bubble identity actually helps (e.g. a group
+   *  thread). */
+  otherParticipantAvatarUrl?: string | null;
+  /** Current user's own avatar — shown on their own sent voice-note
+   *  bubbles, matching WhatsApp's per-bubble sender thumbnail. */
+  myAvatarUrl?: string | null;
+  myName?: string;
   reactions: MessageReaction[];
   myReaction: string | null;
   isSelected: boolean;
@@ -111,6 +124,13 @@ interface MessageBubbleProps {
   searchQuery: string;
   dragOffset: number;
   isDraggingThis: boolean;
+  /** DB-backed "already opened" state for a view-once voice note —
+   *  read from message_user_state.opened_once_at (see useMessageUserStates),
+   *  not a local flag. */
+  voiceNoteOpenedAt?: string | null;
+  /** Fires once, the moment a view-once voice note finishes playing —
+   *  MessageThread wires this to useMarkVoiceNoteOpened. */
+  onVoiceNoteOpened?: (messageId: string) => void;
   /** Play the entrance animation once for this bubble — set by
    *  MessageThread for a message it hasn't rendered before (a genuine
    *  new send/arrival), never for the initial page load or loadOlder()
@@ -141,6 +161,9 @@ function MessageBubbleImpl({
   message: m,
   currentUserId,
   otherParticipantName,
+  otherParticipantAvatarUrl,
+  myAvatarUrl,
+  myName,
   reactions,
   myReaction,
   isSelected,
@@ -149,6 +172,8 @@ function MessageBubbleImpl({
   searchQuery,
   dragOffset,
   isDraggingThis,
+  voiceNoteOpenedAt,
+  onVoiceNoteOpened,
   animateIn,
   registerRef,
   onRowClick,
@@ -288,7 +313,18 @@ function MessageBubbleImpl({
               </span>
             ) : voiceNote ? (
               <span className="relative block">
-                <VoiceMessageBubble url={voiceNote.url} path={voiceNote.path} durationSec={voiceNote.durationSec} peaks={voiceNote.peaks} isMine={isMine} />
+                <VoiceMessageBubble
+                  url={voiceNote.url}
+                  path={voiceNote.path}
+                  durationSec={voiceNote.durationSec}
+                  peaks={voiceNote.peaks}
+                  isMine={isMine}
+                  viewOnce={voiceNote.viewOnce}
+                  openedOnceAt={voiceNoteOpenedAt}
+                  onOpened={() => onVoiceNoteOpened?.(m.id)}
+                  senderAvatarUrl={isMine ? myAvatarUrl : otherParticipantAvatarUrl}
+                  senderName={isMine ? myName ?? "You" : otherParticipantName}
+                />
                 <span
                   className={`flex items-center gap-1 justify-end mt-1 text-[11px] ${isMine ? "text-white/70" : "text-ink-muted"}`}
                 >
