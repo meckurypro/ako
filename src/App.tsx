@@ -75,6 +75,7 @@ import { AdminPageSettings } from "./pages/admin/AdminPageSettings";
 import { AdminFeatureFlags } from "./pages/admin/AdminFeatureFlags";
 import { AdminReports } from "./pages/admin/AdminReports";
 import { AdminPromotions } from "./pages/admin/AdminPromotions";
+import { AdminGiveBack } from "./pages/admin/AdminGiveBack";
 import { AdminSmtpSettings } from "./pages/admin/AdminSmtpSettings";
 import { AdminEmailTemplates } from "./pages/admin/AdminEmailTemplates";
 import { AdminEmailTemplateEditor } from "./pages/admin/AdminEmailTemplateEditor";
@@ -588,6 +589,16 @@ function AppRoutes() {
                 <RequireAuth>
                   <RequireAdmin>
                     <AdminPromotions />
+                  </RequireAdmin>
+                </RequireAuth>
+              }
+            />
+            <Route
+              path="/admin/give-back"
+              element={
+                <RequireAuth>
+                  <RequireAdmin>
+                    <AdminGiveBack />
                   </RequireAdmin>
                 </RequireAuth>
               }
