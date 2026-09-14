@@ -7,6 +7,7 @@ import { useBackDismiss } from "../hooks/useBackDismiss";
 import { useScrollLock } from "../hooks/useScrollLock";
 import { Portal } from "./Portal";
 import { Avatar } from "./Avatar";
+import { useFeatureFlag } from "../hooks/useFeatureFlags";
 import type { GiftType } from "../types/database";
 
 interface GiftPickerProps {
@@ -50,6 +51,7 @@ export function GiftPicker({
   const { data: wallet } = useWallet();
   const { data: topGiftTypeIds } = useTopGiftTypeIds(6);
   const sendGift = useSendGift();
+  const giftingEnabled = useFeatureFlag("gifting_enabled");
 
   useBackDismiss(
     insufficientGift
@@ -84,6 +86,7 @@ export function GiftPicker({
   }, [giftTypes, topGiftTypeIds]);
 
   function handleSelect(gift: GiftType) {
+    if (!giftingEnabled) return;
     if (balance < gift.cost_usd) {
       setInsufficientGift(gift);
       return;
@@ -146,7 +149,11 @@ export function GiftPicker({
         <div className="overflow-y-auto flex-1 px-4 py-4">
           {step === "catalog" && (
             <>
-              {loadingGifts ? (
+              {!giftingEnabled ? (
+                <p className="text-ink-muted text-sm text-center py-10">
+                  Gifting is temporarily unavailable. Check back later.
+                </p>
+              ) : loadingGifts ? (
                 <p className="text-ink-muted text-sm text-center py-10">Loading gifts…</p>
               ) : !sortedGiftTypes || sortedGiftTypes.length === 0 ? (
                 <p className="text-ink-muted text-sm text-center py-10">No gifts available right now.</p>
