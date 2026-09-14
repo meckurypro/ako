@@ -20,6 +20,16 @@ export interface NotificationWithActor {
   // a dead link, since a bare comment id has nowhere to route to on its
   // own. null means "couldn't resolve" (e.g. the comment was deleted).
   comment_post_id?: string | null;
+  // Only populated for target_type === "project" — same reasoning as
+  // comment_post_id above. A bare project id isn't enough to route
+  // correctly: rooms, courses, books, and meetings each have their
+  // own dedicated page (/rooms/:id, /courses/:id, /books/:id,
+  // /meetings/:id) distinct from the generic /projects/:id detail
+  // page, and a notification (tag, collaboration invite, room
+  // meeting scheduled...) should land on that dedicated experience,
+  // not the generic one. null means "couldn't resolve" (e.g. the
+  // project was deleted).
+  project_type?: string | null;
 }
 
 export function useNotifications() {
@@ -72,6 +82,36 @@ export function useNotifications() {
         for (const n of notifications) {
           if (n.target_type === "comment" && n.target_id) {
             n.comment_post_id = postIdByCommentId.get(n.target_id) ?? null;
+          }
+        }
+      }
+
+      // Resolve the real type of any project-target notification, so
+      // the link can route to the project's actual dedicated page
+      // instead of always falling back to the generic project detail
+      // page — see project_type on NotificationWithActor above.
+      const projectIds = Array.from(
+        new Set(
+          notifications
+            .filter((n) => n.target_type === "project" && n.target_id)
+            .map((n) => n.target_id as string)
+        )
+      );
+
+      if (projectIds.length > 0) {
+        const { data: projectRows, error: projectsError } = await supabase
+          .from("projects")
+          .select("id, project_type")
+          .in("id", projectIds);
+        if (projectsError) throw projectsError;
+
+        const typeByProjectId = new Map(
+          (projectRows ?? []).map((p: any) => [p.id as string, p.project_type as string])
+        );
+
+        for (const n of notifications) {
+          if (n.target_type === "project" && n.target_id) {
+            n.project_type = typeByProjectId.get(n.target_id) ?? null;
           }
         }
       }
