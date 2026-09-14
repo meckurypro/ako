@@ -19,6 +19,7 @@ import { MessageStatusTicks } from "../components/MessageStatusTicks";
 import { ConversationActionSheet } from "../components/ConversationActionSheet";
 import { ConfirmDialog } from "../components/ConfirmDialog";
 import { ImageLightbox } from "../components/ImageLightbox";
+import { decodeVoiceNote, VOICE_NOTE_LABEL } from "../lib/voiceNotes";
 
 const MAX_PINNED = 3;
 
@@ -203,7 +204,10 @@ export function ConversationList() {
       return (
         name.toLowerCase().includes(q) ||
         username.toLowerCase().includes(q) ||
-        (c.last_message?.content ?? "").toLowerCase().includes(q)
+        // A voice note's raw encoded content (the storage path, its
+        // JSON wrapper) isn't something a search term should ever
+        // match against — nothing about it is meant to be read as text.
+        (!!c.last_message && !decodeVoiceNote(c.last_message.content) && c.last_message.content.toLowerCase().includes(q))
       );
     });
   }, [conversations, searchQuery]);
@@ -311,7 +315,11 @@ export function ConversationList() {
               </span>
             )}
             <span className={`truncate min-w-0 flex-1 ${c.last_message?.is_deleted ? "italic opacity-70" : ""}`}>
-              {c.last_message?.is_deleted ? "This message was deleted" : c.last_message?.content ?? "Say hello"}
+              {c.last_message?.is_deleted
+                ? "This message was deleted"
+                : c.last_message && decodeVoiceNote(c.last_message.content)
+                  ? VOICE_NOTE_LABEL
+                  : c.last_message?.content ?? "Say hello"}
             </span>
           </p>
         </div>
