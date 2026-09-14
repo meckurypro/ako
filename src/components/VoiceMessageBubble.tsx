@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import { Play, Pause } from "lucide-react";
 import { formatVoiceDuration } from "../lib/voiceNotes";
 import { computeWaveformPeaks } from "../lib/waveform";
+import { getSignedAudioUrl } from "../lib/signedAudioUrl";
 import {
   announcePlaying,
   clearPlaying,
@@ -19,7 +20,12 @@ import { VoiceWaveform } from "./VoiceWaveform";
 const FLAT_PEAKS = Array(40).fill(0.12);
 
 interface VoiceMessageBubbleProps {
-  url: string;
+  /** Playable immediately — the optimistic bubble's local blob: URL.
+   *  Mutually exclusive with `path`; see lib/voiceNotes.ts. */
+  url?: string;
+  /** Storage path in the private "audio" bucket — resolved to a
+   *  short-lived signed URL below rather than used directly. */
+  path?: string;
   durationSec: number;
   /** Waveform bar heights (0..1). Voice notes sent going forward
    *  always have this; omit it (older messages) and the bubble fetches
@@ -41,22 +47,46 @@ interface VoiceMessageBubbleProps {
  * pauses whatever other voice note was playing (only one plays at a
  * time, matching WhatsApp), and pausing mid-note remembers where you
  * left off so reopening the chat resumes there instead of from zero.
+ * Both are keyed by `stableKey` (the storage path, or the local blob
+ * URL for an optimistic bubble) rather than the resolved playback URL
+ * below, since a signed URL is re-issued periodically and would churn
+ * that key on every re-sign.
  */
-export function VoiceMessageBubble({ url, durationSec, peaks, isMine }: VoiceMessageBubbleProps) {
+export function VoiceMessageBubble({ url, path, durationSec, peaks, isMine }: VoiceMessageBubbleProps) {
+  const stableKey = path ?? url ?? "";
   const audioRef = useRef<HTMLAudioElement>(null);
   const [playing, setPlaying] = useState(false);
   const [progress, setProgress] = useState(0);
   const [elapsed, setElapsed] = useState(0);
   const [fetchedPeaks, setFetchedPeaks] = useState<number[] | null>(null);
   const [speed, setSpeed] = useState<PlaybackSpeed>(() => getPreferredPlaybackSpeed());
+  // `url` is already playable as-is (optimistic local blob). A `path`
+  // needs a signed URL fetched first — the bucket is private, so
+  // there's nothing playable to point <audio> at until this resolves.
+  const [resolvedUrl, setResolvedUrl] = useState<string | null>(url ?? null);
+
+  useEffect(() => {
+    if (url) {
+      setResolvedUrl(url);
+      return;
+    }
+    if (!path) return;
+    let cancelled = false;
+    getSignedAudioUrl(path).then((signed) => {
+      if (!cancelled) setResolvedUrl(signed);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [url, path]);
 
   // Older voice notes sent before waveform peaks were stored don't
   // have `peaks` — fetch and decode the audio once, client-side, so
   // they still get the same look instead of a flat/plain bar.
   useEffect(() => {
-    if (peaks?.length) return;
+    if (peaks?.length || !resolvedUrl) return;
     let cancelled = false;
-    fetch(url)
+    fetch(resolvedUrl)
       .then((r) => r.blob())
       .then((blob) => computeWaveformPeaks(blob))
       .then((computed) => {
@@ -66,7 +96,7 @@ export function VoiceMessageBubble({ url, durationSec, peaks, isMine }: VoiceMes
     return () => {
       cancelled = true;
     };
-  }, [url, peaks]);
+  }, [resolvedUrl, peaks]);
 
   // Resume from a remembered position (if this exact note was paused
   // mid-listen earlier in the session) as soon as duration is known —
@@ -75,7 +105,7 @@ export function VoiceMessageBubble({ url, durationSec, peaks, isMine }: VoiceMes
     const audio = audioRef.current;
     if (!audio) return;
     const applyRememberedPosition = () => {
-      const remembered = getRememberedPosition(url);
+      const remembered = getRememberedPosition(stableKey);
       if (remembered > 0 && remembered < audio.duration) {
         audio.currentTime = remembered;
         setElapsed(remembered);
@@ -84,7 +114,7 @@ export function VoiceMessageBubble({ url, durationSec, peaks, isMine }: VoiceMes
     };
     audio.addEventListener("loadedmetadata", applyRememberedPosition);
     return () => audio.removeEventListener("loadedmetadata", applyRememberedPosition);
-  }, [url]);
+  }, [stableKey, resolvedUrl]);
 
   useEffect(() => {
     const audio = audioRef.current;
@@ -103,7 +133,7 @@ export function VoiceMessageBubble({ url, durationSec, peaks, isMine }: VoiceMes
       setPlaying(false);
       setProgress(0);
       setElapsed(0);
-      clearRememberedPosition(url);
+      clearRememberedPosition(stableKey);
       clearPlaying(pause);
     };
     audio.addEventListener("timeupdate", onTime);
@@ -113,7 +143,7 @@ export function VoiceMessageBubble({ url, durationSec, peaks, isMine }: VoiceMes
       audio.removeEventListener("ended", onEnd);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [url]);
+  }, [stableKey, resolvedUrl]);
 
   // Pausing (including via another bubble starting, tab close, or
   // unmount-while-playing) always remembers where this note stopped.
@@ -123,7 +153,7 @@ export function VoiceMessageBubble({ url, durationSec, peaks, isMine }: VoiceMes
     audio.pause();
     setPlaying(false);
     if (audio.currentTime > 0 && audio.currentTime < audio.duration) {
-      setRememberedPosition(url, audio.currentTime);
+      setRememberedPosition(stableKey, audio.currentTime);
     }
     clearPlaying(pause);
   }
@@ -136,18 +166,18 @@ export function VoiceMessageBubble({ url, durationSec, peaks, isMine }: VoiceMes
       const audio = audioRef.current;
       if (audio && !audio.paused) {
         if (audio.currentTime > 0 && audio.currentTime < audio.duration) {
-          setRememberedPosition(url, audio.currentTime);
+          setRememberedPosition(stableKey, audio.currentTime);
         }
         audio.pause();
       }
       clearPlaying(pause);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [url]);
+  }, [stableKey]);
 
   function toggle() {
     const audio = audioRef.current;
-    if (!audio) return;
+    if (!audio || !resolvedUrl) return; // not yet signed, or signing failed — nothing to play
     if (playing) {
       pause();
     } else {
@@ -164,7 +194,7 @@ export function VoiceMessageBubble({ url, durationSec, peaks, isMine }: VoiceMes
     audio.currentTime = ratio * audio.duration;
     setProgress(ratio);
     setElapsed(audio.currentTime);
-    if (playing) setRememberedPosition(url, audio.currentTime);
+    if (playing) setRememberedPosition(stableKey, audio.currentTime);
   }
 
   function cycleSpeed() {
@@ -182,11 +212,12 @@ export function VoiceMessageBubble({ url, durationSec, peaks, isMine }: VoiceMes
   return (
     <div className="flex items-center gap-2.5 min-w-[200px] py-0.5">
       {/* eslint-disable-next-line jsx-a11y/media-has-caption */}
-      <audio ref={audioRef} src={url} preload="metadata" className="hidden" />
+      {resolvedUrl && <audio ref={audioRef} src={resolvedUrl} preload="metadata" className="hidden" />}
       <button
         type="button"
         onClick={toggle}
-        className={`w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0 ${buttonClass}`}
+        disabled={!resolvedUrl}
+        className={`w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0 ${buttonClass} ${!resolvedUrl ? "opacity-50" : ""}`}
         aria-label={playing ? "Pause voice message" : "Play voice message"}
       >
         {playing ? (
