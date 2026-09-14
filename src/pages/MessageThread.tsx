@@ -46,6 +46,7 @@ import {
   useToggleMessageState,
   useBulkSetMessagesHidden,
   useTrackEmojiUsage,
+  useMarkVoiceNoteOpened,
 } from "../hooks/useMessageReactions";
 import { Avatar } from "../components/Avatar";
 import { useUnseenPosts } from "../hooks/useUnseenPosts";
@@ -150,7 +151,7 @@ export function MessageThread() {
   const { conversationId } = useParams<{ conversationId: string }>();
   const navigate = useNavigate();
   const location = useLocation();
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
   const { data: messages, isLoading, hasMore, loadOlder, isLoadingOlder } = useMessages(conversationId!);
   const { data: header } = useConversationHeader(conversationId!);
   const otherParticipant = header?.other_participant;
@@ -177,6 +178,7 @@ export function MessageThread() {
   const toggleStar = useToggleMessageState(conversationId!, "starred_at");
   const togglePin = useToggleMessageState(conversationId!, "pinned_at");
   const toggleHidden = useToggleMessageState(conversationId!, "hidden_at");
+  const markVoiceNoteOpened = useMarkVoiceNoteOpened(conversationId!);
   const topEmojis = useUserTopEmojis();
   const trackEmojiUsage = useTrackEmojiUsage();
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -195,6 +197,21 @@ export function MessageThread() {
     if (errorBannerTimer.current) clearTimeout(errorBannerTimer.current);
   }, []);
   const onMutationError = useCallback(() => flashError("Something went wrong. Please try again."), [flashError]);
+
+  // Same brief-banner pattern as flashError above, but neutral styling
+  // for a plain confirmation rather than a failure — used for the
+  // "Voice message set to view once" toast when the sender flips the
+  // preview bar's "1" toggle on (matches image 7 in the reference set).
+  const [infoBanner, setInfoBanner] = useState<string | null>(null);
+  const infoBannerTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const flashInfo = useCallback((message: string) => {
+    setInfoBanner(message);
+    if (infoBannerTimer.current) clearTimeout(infoBannerTimer.current);
+    infoBannerTimer.current = setTimeout(() => setInfoBanner(null), 2200);
+  }, []);
+  useEffect(() => () => {
+    if (infoBannerTimer.current) clearTimeout(infoBannerTimer.current);
+  }, []);
 
   // Per-message read_at stamping (drives ticks) — separate mechanism
   // from markConversationRead above, which drives the conversation-list
@@ -838,7 +855,7 @@ export function MessageThread() {
   // Full press-hold-record / slide-to-cancel / slide-up-to-lock /
   // preview-before-send lifecycle lives in this hook — see
   // useVoiceRecorder.ts for the gesture and MediaRecorder details.
-  const voiceRecorder = useVoiceRecorder(async (blob, durationSec, peaks) => {
+  const voiceRecorder = useVoiceRecorder(async (blob, durationSec, peaks, viewOnce) => {
     const replyingTo = replyTarget;
     // Still a valid, playable blob URL at this point — useVoiceRecorder's
     // sendPreview only revokes it once this callback resolves. Passing it
@@ -850,6 +867,7 @@ export function MessageThread() {
         blob,
         durationSec,
         peaks,
+        viewOnce,
         replyToMessageId: replyingTo?.id ?? null,
         replyToSnippet: replyingTo
           ? { id: replyingTo.id, content: replyingTo.content, sender_id: replyingTo.sender_id, is_deleted: replyingTo.is_deleted }
@@ -1061,6 +1079,12 @@ export function MessageThread() {
         </div>
       )}
 
+      {infoBanner && (
+        <div className="px-4 py-2 max-w-xl mx-auto w-full text-xs text-ink-muted bg-surface border-b border-border text-center">
+          {infoBanner}
+        </div>
+      )}
+
       {myParticipantState?.is_request && (
         <div className="flex items-center gap-2 px-4 py-2.5 max-w-xl mx-auto w-full text-sm text-ink-muted bg-accent-soft/60 border-b border-border">
           <Inbox size={15} className="text-accent flex-shrink-0" />
@@ -1148,6 +1172,11 @@ export function MessageThread() {
                       message={m}
                       currentUserId={user?.id}
                       otherParticipantName={otherParticipant?.display_name ?? "Them"}
+                      otherParticipantAvatarUrl={otherParticipant?.avatar_url}
+                      myAvatarUrl={profile?.avatar_url}
+                      myName="You"
+                      voiceNoteOpenedAt={userStates?.[m.id]?.opened_once_at}
+                      onVoiceNoteOpened={(id) => markVoiceNoteOpened.mutate(id)}
                       reactions={reactions}
                       myReaction={myReaction}
                       isSelected={selectedIds.has(m.id)}
@@ -1307,6 +1336,12 @@ export function MessageThread() {
                 durationSec={voiceRecorder.preview.durationSec}
                 peaks={voiceRecorder.preview.peaks}
                 sending={voiceRecorder.sending}
+                viewOnce={voiceRecorder.preview.viewOnce}
+                onToggleViewOnce={() => {
+                  const turningOn = !voiceRecorder.preview?.viewOnce;
+                  voiceRecorder.toggleViewOnce();
+                  if (turningOn) flashInfo("Voice message set to view once");
+                }}
                 onDiscard={voiceRecorder.discardPreview}
                 onSend={voiceRecorder.sendPreview}
               />
