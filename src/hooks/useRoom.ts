@@ -331,13 +331,18 @@ export function usePostVoiceNoteToRoom(projectId: string) {
       // First segment must be the uploader's own auth.uid() to satisfy
       // the "audio" bucket's upload RLS policy — see the matching note
       // in useMessaging.ts's useSendVoiceNote, which had the same bug.
-      const path = `${user.id}/room-${projectId}-${Date.now()}.${ext}`;
+      // Segment 2 ("room") + the project id are what the private
+      // bucket's SELECT policy checks to decide whether another room
+      // member (not the uploader) can read this file back — see the
+      // private_audio_bucket_with_participant_read_rls migration.
+      const path = `${user.id}/room/${projectId}/${Date.now()}.${ext}`;
       const { error: uploadError } = await supabase.storage
         .from("audio")
         .upload(path, blob, { contentType: blob.type || "audio/webm" });
       if (uploadError) throw uploadError;
-      const { data: publicUrl } = supabase.storage.from("audio").getPublicUrl(path);
-      const content = encodeVoiceNote({ url: publicUrl.publicUrl, durationSec, peaks });
+      // Stores the PATH, not a URL — see the matching note in
+      // useMessaging.ts's useSendVoiceNote.
+      const content = encodeVoiceNote({ path, durationSec, peaks });
 
       const { error } = await supabase.from("room_posts").insert({
         project_id: projectId,
