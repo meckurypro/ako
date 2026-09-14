@@ -21,6 +21,7 @@ import { useBackDismiss } from "../hooks/useBackDismiss";
 import { useScrollLock } from "../hooks/useScrollLock";
 import { BottomNav } from "../components/BottomNav";
 import { isPlainReshare, isQuote, type PostWithAuthor } from "../types/database";
+import { decodeVoiceNote, VOICE_NOTE_LABEL } from "../lib/voiceNotes";
 
 function timeAgo(dateString: string): string {
   const seconds = Math.floor((Date.now() - new Date(dateString).getTime()) / 1000);
@@ -257,7 +258,11 @@ export function Archive() {
               </span>
             )}
             <p className={`text-sm truncate min-w-0 flex-1 ${c.unreadCount > 0 ? "text-ink" : "text-ink-muted"} ${c.last_message?.is_deleted ? "italic opacity-70" : ""}`}>
-              {c.last_message?.is_deleted ? "This message was deleted" : c.last_message?.content ?? "Say hello"}
+              {c.last_message?.is_deleted
+                ? "This message was deleted"
+                : c.last_message && decodeVoiceNote(c.last_message.content)
+                  ? VOICE_NOTE_LABEL
+                  : c.last_message?.content ?? "Say hello"}
             </p>
           </div>
         </div>
