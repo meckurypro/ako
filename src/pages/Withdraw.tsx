@@ -21,6 +21,7 @@ import {
 } from "../hooks/useWalletRates";
 import { Button } from "../components/Button";
 import { FormField } from "../components/FormField";
+import { useFeatureFlag } from "../hooks/useFeatureFlags";
 import { useToast } from "../components/Toast";
 import { formatNgn, formatUsd } from "../lib/money";
 
@@ -114,6 +115,7 @@ export function Withdraw() {
   const nextFridayLabel = useNextFridayLabel();
   const addAccount = useAddPayoutAccount();
   const withdraw = useWithdraw();
+  const withdrawalsEnabled = useFeatureFlag("withdrawals_enabled");
   const toast = useToast();
 
   const isWithdrawalDay = weekday === "Friday";
@@ -218,20 +220,32 @@ export function Withdraw() {
         <p className="text-ink-muted text-sm mb-1">
           Available balance: {formatUsd(wallet?.balance ?? 0)}
         </p>
-        {availableToRequest !== null && (
-          <p className="text-ink-muted text-xs mb-6">
-            Up to {formatUsd(availableToRequest)} available to request this week (50% weekly limit)
-          </p>
-        )}
 
-        {!isWithdrawalDay && (
-          <div className="flex gap-2 bg-accent-soft text-accent text-sm rounded-xl p-3 mb-6">
-            <CalendarClock size={18} className="flex-shrink-0 mt-0.5" />
-            <p>
-              Withdrawal requests open on Fridays. Next window opens {nextFridayLabel}. Deposits and
-              gifting are available every day.
-            </p>
+        {!withdrawalsEnabled ? (
+          // Wallet.tsx already hides the "Withdraw" entry point when
+          // this is off — this covers direct navigation. Existing
+          // payout accounts and withdrawal history below still render
+          // (per the flag's own description), only the request flow
+          // is blocked here.
+          <div className="flex gap-2 bg-danger/10 text-danger text-sm rounded-xl p-3 mb-6">
+            <p>Withdrawals are temporarily unavailable. Check back later.</p>
           </div>
+        ) : (
+          <>
+            {availableToRequest !== null && (
+              <p className="text-ink-muted text-xs mb-6">
+                Up to {formatUsd(availableToRequest)} available to request this week (50% weekly limit)
+              </p>
+            )}
+
+            {!isWithdrawalDay && (
+              <div className="flex gap-2 bg-accent-soft text-accent text-sm rounded-xl p-3 mb-6">
+                <CalendarClock size={18} className="flex-shrink-0 mt-0.5" />
+                <p>
+                  Withdrawal requests open on Fridays. Next window opens {nextFridayLabel}. Deposits and
+                  gifting are available every day.
+                </p>
+              </div>
         )}
 
         <h3 className="text-sm font-medium text-ink-muted mb-2">Payout account</h3>
@@ -351,6 +365,8 @@ export function Withdraw() {
           <p className="text-xs text-ink-muted text-center mt-3">
             Requests submitted today are paid out in Saturday's payout run.
           </p>
+        )}
+          </>
         )}
 
         {withdrawals && withdrawals.length > 0 && (
