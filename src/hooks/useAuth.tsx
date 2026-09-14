@@ -7,6 +7,7 @@ import { updateSavedAccountTokens } from "../lib/accountSessions";
 
 interface MyProfile {
   username: string;
+  avatar_url: string | null;
 }
 
 interface AuthContextValue {
@@ -136,7 +137,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("profiles")
-        .select("username")
+        .select("username, avatar_url")
         .eq("id", userId!)
         .single();
       if (error) throw error;
