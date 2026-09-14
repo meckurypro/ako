@@ -173,9 +173,15 @@ export interface MessageUserState {
   // here too so MessageThread can filter these out of the live thread
   // alongside hidden_at in one pass over the same userStates map.
   deleted_for_me_at: string | null;
+  // Per-user, permanent — set the moment a recipient finishes playing a
+  // view-once voice note (see VoiceMessageBubble). Sender's own copy
+  // never sets this, so their bubble stays replayable.
+  opened_once_at: string | null;
 }
 
-type UserStatePatch = Partial<Pick<MessageUserState, "starred_at" | "pinned_at" | "hidden_at" | "deleted_for_me_at">>;
+type UserStatePatch = Partial<
+  Pick<MessageUserState, "starred_at" | "pinned_at" | "hidden_at" | "deleted_for_me_at" | "opened_once_at">
+>;
 
 /**
  * Writes one message_user_state row for (messageId, userId) — used by
@@ -227,7 +233,7 @@ export function useMessageUserStates(conversationId: string, messageIds: string[
       if (!messageIds.length || !user) return {};
       const { data, error } = await supabase
         .from("message_user_state")
-        .select("message_id, starred_at, pinned_at, hidden_at, deleted_for_me_at")
+        .select("message_id, starred_at, pinned_at, hidden_at, deleted_for_me_at, opened_once_at")
         .in("message_id", messageIds)
         .eq("user_id", user.id);
       if (error) throw error;
@@ -247,6 +253,29 @@ export function useToggleMessageState(conversationId: string, field: "starred_at
     mutationFn: async ({ messageId, active }: { messageId: string; active: boolean }) => {
       if (!user) throw new Error("Not signed in");
       await upsertMessageUserState(user.id, messageId, { [field]: active ? new Date().toISOString() : null });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["message-user-state", conversationId] });
+    },
+  });
+}
+
+/**
+ * Marks a view-once voice note as opened for the current user — DB-backed
+ * (message_user_state.opened_once_at) rather than a local flag, so it's
+ * the same "already played" fact whichever device/session reopens the
+ * chat, and the sender can eventually see it was opened too. Fire-and-
+ * forget from VoiceMessageBubble's onEnd: the bubble already collapses
+ * to the spent placeholder optimistically, this just persists that.
+ */
+export function useMarkVoiceNoteOpened(conversationId: string) {
+  const { user } = useAuth();
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (messageId: string) => {
+      if (!user) throw new Error("Not signed in");
+      await upsertMessageUserState(user.id, messageId, { opened_once_at: new Date().toISOString() });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["message-user-state", conversationId] });
