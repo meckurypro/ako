@@ -28,6 +28,14 @@ function renderParagraphs(content: string) {
 // nothing added below — so it renders as plain body text instead of a
 // large bold headline, which otherwise reads like a shouty, half-empty
 // post.
+//
+// Color: --color-post-header, not text-ink — a dedicated blue token
+// (own dark-mode override in index.css) rather than --color-accent
+// (sage, reads as a link/action color here) or --color-tick-blue
+// (WhatsApp-specific, semantically unrelated). Weight: font-semibold,
+// a step down from the old font-bold but still clearly heavier than
+// the body/details text below it (font-normal), so the heading stays
+// the most prominent line without shouting.
 export function PostContent({ heading, content }: PostContentProps) {
   const hasBody = content.trim() !== "";
 
@@ -38,7 +46,7 @@ export function PostContent({ heading, content }: PostContentProps) {
   return (
     <div>
       {heading && (
-        <h3 className="font-display text-[26px] font-bold leading-[30px] text-ink mb-3">
+        <h3 className="font-display text-[26px] font-semibold leading-[30px] text-post-header mb-3">
           {renderFormattedText(heading, "h")}
         </h3>
       )}
