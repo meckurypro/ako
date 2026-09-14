@@ -102,6 +102,36 @@ export function useToggleMute(targetUserId: string) {
   });
 }
 
+/**
+ * Removes someone who follows ME from my followers — the reverse
+ * direction of unfollow. Deletes their follows row (follower_id =
+ * them, following_id = me); the existing "Users can unfollow" DELETE
+ * policy only covers `follower_id = auth.uid()`, so this needs its
+ * own RLS carve-out (see 32_remove_follower.sql) rather than reusing
+ * useToggleFollow, which only ever deletes MY OWN follower_id row.
+ */
+export function useRemoveFollower(targetUserId: string) {
+  const { user } = useAuth();
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async () => {
+      if (!user) throw new Error("Not signed in");
+      const { error } = await supabase
+        .from("follows")
+        .delete()
+        .eq("follower_id", targetUserId)
+        .eq("following_id", user.id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["is-followed-by", targetUserId] });
+      queryClient.invalidateQueries({ queryKey: ["followers"] });
+      queryClient.invalidateQueries({ queryKey: ["profile"] });
+    },
+  });
+}
+
 export function useBlockedList() {
   const { user } = useAuth();
 
