@@ -22,6 +22,10 @@ export interface VoiceNotePayload {
    *  still decode fine — the bubble falls back to fetching and
    *  decoding the audio itself when it's missing. */
   peaks?: number[];
+  /** WhatsApp-style "view once" — plays a single time, then the
+   *  bubble collapses to a spent placeholder. Optional/omitted for
+   *  every normal voice note, so old messages decode unaffected. */
+  viewOnce?: boolean;
 }
 
 /**
@@ -54,6 +58,7 @@ export function decodeVoiceNote(content: string): VoiceNotePayload | null {
         path: hasPath ? parsed.path : undefined,
         durationSec: parsed.durationSec,
         peaks,
+        viewOnce: parsed.viewOnce === true ? true : undefined,
       };
     }
     return null;
@@ -64,7 +69,7 @@ export function decodeVoiceNote(content: string): VoiceNotePayload | null {
 
 /** Plain-text stand-in for a voice note wherever raw text is expected
  *  (reply-to quote snippets, search matching, forwarding preview). */
-export const VOICE_NOTE_LABEL = "🎤 Voice message";
+export const VOICE_NOTE_LABEL = "Voice note";
 
 /** mm:ss formatting shared by the recorder UI and playback bubble. */
 export function formatVoiceDuration(totalSeconds: number): string {
