@@ -13,6 +13,7 @@ import {
   useRevokePageCreationOverride,
   type PageCreationRule,
 } from "../../hooks/useAdmin";
+import { useFeatureFlag, useToggleFeatureFlag } from "../../hooks/useFeatureFlags";
 
 function toDraft(rule: PageCreationRule) {
   return {
@@ -244,7 +245,10 @@ function PageCapabilityOverrides() {
 // /admin/page-settings — site-wide on/off switch for standing up new
 // organisation, brand, or product pages, plus the eligibility rule
 // (30 posts / 30 distinct engaged posts in the last 30 days by
-// default) and capability-scoped test overrides for create_page.
+// default), capability-scoped test overrides for create_page, and two
+// narrower page-domain switches (subsidiary creation, page messaging)
+// — see useFeatureFlags.ts for those two and /admin/feature-flags for
+// the rest of the app's flags (wallet, promotions, affiliates).
 // Turning the top switch off hides the "Page" row in the profile
 // owner menu, the "+ create a page" row in the account-mode switcher,
 // and blocks /pages/new directly. Pages that already exist, and
@@ -254,6 +258,12 @@ export function AdminPageSettings() {
   const { data: settings, isLoading } = usePagesFeatureSettings();
   const toggle = useTogglePagesEnabled();
   const { data: rule, isLoading: ruleLoading } = useAdminPageCreationRule();
+  // Two narrower switches alongside the main one above — see
+  // useFeatureFlags.ts. Kept on this page rather than a separate admin
+  // screen since they're both still squarely page-domain settings.
+  const subsidiariesEnabled = useFeatureFlag("subsidiaries_enabled");
+  const pageMessagingEnabled = useFeatureFlag("page_messaging_enabled");
+  const toggleFlag = useToggleFeatureFlag();
 
   return (
     <div className="min-h-screen bg-canvas px-4 pt-4 pb-10">
@@ -287,6 +297,37 @@ export function AdminPageSettings() {
             </div>
           </div>
         )}
+
+        <div className="bg-surface rounded-xl border border-border divide-y divide-border">
+          <div className="flex items-center justify-between gap-3 p-4">
+            <div>
+              <p className="text-sm font-medium text-ink">Subsidiary creation</p>
+              <p className="text-xs text-ink-muted mt-0.5">
+                The "Add Subsidiary" row on an organisation page's "…" menu, and /pages/new when arrived at that
+                way. Independent of "Allow new pages" above — existing subsidiary relationships are unaffected
+                either way.
+              </p>
+            </div>
+            <ToggleSwitch
+              checked={subsidiariesEnabled}
+              disabled={toggleFlag.isPending}
+              onChange={(checked) => toggleFlag.mutate({ key: "subsidiaries_enabled", enabled: checked })}
+            />
+          </div>
+          <div className="flex items-center justify-between gap-3 p-4">
+            <div>
+              <p className="text-sm font-medium text-ink">Page messaging</p>
+              <p className="text-xs text-ink-muted mt-0.5">
+                Page inbox / page-to-profile direct messages. Existing threads stay readable either way.
+              </p>
+            </div>
+            <ToggleSwitch
+              checked={pageMessagingEnabled}
+              disabled={toggleFlag.isPending}
+              onChange={(checked) => toggleFlag.mutate({ key: "page_messaging_enabled", enabled: checked })}
+            />
+          </div>
+        </div>
 
         {ruleLoading ? (
           <p className="text-ink-muted text-center py-6">Loading rule…</p>
