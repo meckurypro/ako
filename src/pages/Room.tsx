@@ -381,7 +381,7 @@ function ClassroomTab({ projectId, isHost }: { projectId: string; isHost: boolea
               </div>
               {p.type === "text" && <p className="text-ink whitespace-pre-wrap">{p.content}</p>}
               {voiceNote && (
-                <VoiceMessageBubble url={voiceNote.url} durationSec={voiceNote.durationSec} peaks={voiceNote.peaks} isMine={false} />
+                <VoiceMessageBubble url={voiceNote.url} path={voiceNote.path} durationSec={voiceNote.durationSec} peaks={voiceNote.peaks} isMine={false} />
               )}
               {p.type === "video" && p.media_url && <video src={p.media_url} controls className="w-full rounded-lg max-h-72 mt-1" />}
               {p.type === "image" && p.media_url && <img src={p.media_url} alt="" className="w-full rounded-lg mt-1" />}
