@@ -3,7 +3,19 @@
 const VOICE_NOTE_MARKER = "ako-voice-note:v1:";
 
 export interface VoiceNotePayload {
-  url: string;
+  /** Playable immediately, no signing needed. Populated for the
+   *  optimistic bubble (the recorder's own local blob: URL, still
+   *  valid while the real upload is in flight) — never written for a
+   *  persisted message, since the "audio" bucket is private and a
+   *  plain URL to it wouldn't be readable anyway. Exactly one of
+   *  `url` / `path` is present on any given payload. */
+  url?: string;
+  /** Storage object path in the private "audio" bucket — what a
+   *  persisted voice note actually stores. Resolved to a short-lived
+   *  signed URL at render time (see lib/signedAudioUrl.ts) rather than
+   *  a stored URL, since a signed URL itself expires and would go
+   *  stale sitting in a message someone reopens days later. */
+  path?: string;
   durationSec: number;
   /** Waveform bar heights (0..1), computed client-side at record time.
    *  Optional so older, already-sent voice notes without this field
@@ -13,10 +25,10 @@ export interface VoiceNotePayload {
 }
 
 /**
- * Packs a voice note's storage URL + duration into a plain message
- * `content` string, so voice notes can ride the existing text-only
- * `messages.content` column without a schema change. Every other
- * message-content consumer in the app (search, reply snippets,
+ * Packs a voice note's storage reference + duration into a plain
+ * message `content` string, so voice notes can ride the existing
+ * text-only `messages.content` column without a schema change. Every
+ * other message-content consumer in the app (search, reply snippets,
  * conversation-list previews) just sees an opaque string it doesn't
  * match against this marker, so nothing else needs to change to stay
  * backward compatible.
@@ -30,12 +42,19 @@ export function decodeVoiceNote(content: string): VoiceNotePayload | null {
   if (!content || !content.startsWith(VOICE_NOTE_MARKER)) return null;
   try {
     const parsed = JSON.parse(content.slice(VOICE_NOTE_MARKER.length));
-    if (parsed && typeof parsed.url === "string" && typeof parsed.durationSec === "number") {
+    const hasUrl = typeof parsed?.url === "string";
+    const hasPath = typeof parsed?.path === "string";
+    if (parsed && (hasUrl || hasPath) && typeof parsed.durationSec === "number") {
       const peaks =
         Array.isArray(parsed.peaks) && parsed.peaks.every((p: unknown) => typeof p === "number")
           ? parsed.peaks
           : undefined;
-      return { url: parsed.url, durationSec: parsed.durationSec, peaks };
+      return {
+        url: hasUrl ? parsed.url : undefined,
+        path: hasPath ? parsed.path : undefined,
+        durationSec: parsed.durationSec,
+        peaks,
+      };
     }
     return null;
   } catch {
