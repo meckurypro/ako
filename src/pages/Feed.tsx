@@ -125,6 +125,24 @@ function ForYouTab({
   );
   const waitingForFreshFeed = pinning && (isLoading || isFetching || (isLoadingJustPosted && !justPostedFailed));
 
+  // "Back to post" fallback — if the target post isn't anywhere in
+  // what's currently loaded (it's further down in pagination than
+  // we've fetched, or it was originally seen in Following/Top
+  // Discussions/a topic filter rather than this plain ranked list),
+  // fetch it directly by id instead of silently having nothing to
+  // scroll to. This is also *why* the scroll+flash treatment doesn't
+  // need wiring into Following/Top Discussions separately: "Back to
+  // post" always lands here on For You (see Feed()'s bare `/feed`
+  // navigate with no `?tab=`), and this fallback guarantees the exact
+  // post shows up here regardless of which feed it was ranked in
+  // originally. Checked against the raw `posts` page (not
+  // displayedPosts below, which doesn't exist yet this early) — close
+  // enough, since justPostedPost and this are never the same post.
+  const scrollTargetInList = !!scrollToPostId && posts.some((p) => p.id === scrollToPostId);
+  const { data: fetchedScrollToPost } = usePostById(
+    scrollToPostId && !scrollTargetInList ? scrollToPostId : null
+  );
+
   if ((isLoading || waitingForFreshFeed) && page === 0) return <p className="text-ink-muted text-center py-10">Loading your feed…</p>;
   if (error) return (
     <p className="text-danger text-center py-10 px-4 text-sm break-words">
@@ -132,7 +150,7 @@ function ForYouTab({
       {(error as any)?.hint && <> — hint: {(error as any).hint}</>}
     </p>
   );
-  if (posts.length === 0 && page === 0 && !justPostedPost) {
+  if (posts.length === 0 && page === 0 && !justPostedPost && !fetchedScrollToPost) {
     return (
       <div className="text-center py-16">
         <p className="text-ink-muted mb-4">No posts yet. Be the first to share a thought.</p>
@@ -152,9 +170,24 @@ function ForYouTab({
     ? [justPostedPost, ...posts.filter((p) => p.id !== justPostedPost.id)]
     : posts;
 
+  // Once fetched, the "back to post" target is pinned above the ranked
+  // list (own small label, same idea as "just posted") rather than
+  // left wherever the ranking would otherwise put it — filtered out of
+  // the ranked list below so it can't ever render twice if a later
+  // page happens to also contain it.
+  const rankedPosts = fetchedScrollToPost
+    ? displayedPosts.filter((p) => p.id !== fetchedScrollToPost.id)
+    : displayedPosts;
+
   return (
     <>
-      {displayedPosts.map((post) => (
+      {fetchedScrollToPost && (
+        <div className="mb-4">
+          <p className="text-xs text-ink-muted font-medium mb-2">Continuing from where you left off</p>
+          <FeedPostRow post={fetchedScrollToPost} isTarget />
+        </div>
+      )}
+      {rankedPosts.map((post) => (
         <FeedPostRow key={post.id} post={post} isTarget={!!scrollToPostId && post.id === scrollToPostId} />
       ))}
       {posts.length > 0 && <LoadMoreButton onClick={() => setPage((p) => p + 1)} />}
