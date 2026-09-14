@@ -1185,7 +1185,7 @@ export function MessageThread() {
           You're no longer part of this chat.
         </div>
       ) : (
-      <div className="sticky bottom-0 bg-canvas border-t border-border max-w-xl mx-auto w-full">
+      <div className="sticky bottom-0 bg-canvas border-t border-border max-w-xl mx-auto w-full relative">
         {replyTarget && voiceRecorder.phase === "idle" && (
           <div className="flex items-start gap-2 px-4 pt-2.5">
             <div className="flex-1 min-w-0 border-l-2 border-accent pl-2 py-0.5">
@@ -1207,86 +1207,111 @@ export function MessageThread() {
           </div>
         )}
 
-        {voiceRecorder.phase === "recording" ? (
-          <VoiceRecordingBar
-            locked={voiceRecorder.locked}
-            paused={voiceRecorder.paused}
-            elapsedMs={voiceRecorder.elapsedMs}
-            drag={voiceRecorder.drag}
-            cancelThresholdPx={voiceRecorder.cancelThresholdPx}
-            lockThresholdPx={voiceRecorder.lockThresholdPx}
-            liveLevels={voiceRecorder.liveLevels}
-            onCancel={voiceRecorder.cancelRecording}
-            onTogglePause={voiceRecorder.togglePauseResume}
-            onStop={voiceRecorder.stopToPreview}
+        {/* This form — and specifically the mic button inside it — is
+           now ALWAYS mounted, through "recording" and "preview" too,
+           never swapped out for VoiceRecordingBar/VoicePreviewBar the
+           way it used to be. That swap was the actual cause of every
+           voice note recording for only ~1 second: the mic button is
+           the pointerdown target for the whole hold-to-record gesture
+           (see useVoiceRecorder), and removing that exact DOM node
+           from the tree while the touch was still physically active on
+           it made the browser fire pointercancel on it — read as "the
+           gesture ended" almost the instant it began. Recording/preview
+           now render as an opaque overlay ON TOP of this instead of
+           replacing it, so the gesture's own target is never touched
+           mid-hold. aria-hidden + pointer-events:none keep it out of
+           the way (and out of the accessibility tree) once it's
+           covered, without ever unmounting it. */}
+        <form
+          onSubmit={handleSubmit}
+          className="px-4 py-3 flex items-center gap-2"
+          aria-hidden={voiceRecorder.phase !== "idle"}
+          style={voiceRecorder.phase !== "idle" ? { pointerEvents: "none" } : undefined}
+        >
+          <button
+            type="button"
+            onClick={() => {
+              const switchingToKeyboard = emojiPickerTarget?.mode === "input";
+              setEmojiPickerTarget(switchingToKeyboard ? null : { mode: "input" });
+              if (switchingToKeyboard) {
+                // Bring the real software keyboard straight back up —
+                // matches the feel of a native app's emoji/keyboard
+                // toggle instead of dropping the user with no keyboard
+                // and no focus.
+                requestAnimationFrame(() => inputRef.current?.focus());
+              } else {
+                inputRef.current?.blur(); // stop the OS keyboard from fighting our panel for space
+              }
+            }}
+            className="text-ink-muted flex-shrink-0"
+            aria-label={emojiPickerTarget?.mode === "input" ? "Switch to keyboard" : "Add emoji"}
+          >
+            {emojiPickerTarget?.mode === "input" ? <Keyboard size={22} /> : <Smile size={22} />}
+          </button>
+          <textarea
+            ref={inputRef}
+            value={content}
+            onChange={(e) => setContent(e.target.value)}
+            maxLength={2000}
+            rows={1}
+            placeholder="Message…"
+            // No onKeyDown at all on purpose — a bare <textarea> never
+            // submits its form on Enter (only <input> does that), so
+            // Enter already just inserts a newline for free. Sending
+            // only ever happens via the button below.
+            className="flex-1 px-4 py-2.5 rounded-3xl border border-border bg-surface text-ink resize-none
+              max-h-[120px] leading-snug
+              focus:outline-none focus:ring-2 focus:ring-accent/40 focus:border-accent"
           />
-        ) : voiceRecorder.phase === "preview" && voiceRecorder.preview ? (
-          <VoicePreviewBar
-            url={voiceRecorder.preview.url}
-            durationSec={voiceRecorder.preview.durationSec}
-            peaks={voiceRecorder.preview.peaks}
-            sending={voiceRecorder.sending}
-            onDiscard={voiceRecorder.discardPreview}
-            onSend={voiceRecorder.sendPreview}
-          />
-        ) : (
-          <form onSubmit={handleSubmit} className="px-4 py-3 flex items-center gap-2">
+          {content.trim() ? (
+            <button
+              type="submit"
+              disabled={sendMessage.isPending}
+              className="bg-accent text-white rounded-full p-2.5 transition-colors hover:bg-accent-hover active:scale-95 disabled:opacity-50 disabled:active:scale-100 flex-shrink-0"
+              aria-label="Send"
+            >
+              <Send size={18} />
+            </button>
+          ) : (
             <button
               type="button"
-              onClick={() => {
-                const switchingToKeyboard = emojiPickerTarget?.mode === "input";
-                setEmojiPickerTarget(switchingToKeyboard ? null : { mode: "input" });
-                if (switchingToKeyboard) {
-                  // Bring the real software keyboard straight back up —
-                  // matches the feel of a native app's emoji/keyboard
-                  // toggle instead of dropping the user with no keyboard
-                  // and no focus.
-                  requestAnimationFrame(() => inputRef.current?.focus());
-                } else {
-                  inputRef.current?.blur(); // stop the OS keyboard from fighting our panel for space
-                }
-              }}
-              className="text-ink-muted flex-shrink-0"
-              aria-label={emojiPickerTarget?.mode === "input" ? "Switch to keyboard" : "Add emoji"}
+              onPointerDown={voiceRecorder.micHandlers.onPointerDown}
+              className="bg-accent text-white rounded-full p-2.5 transition-colors hover:bg-accent-hover active:scale-95 flex-shrink-0"
+              style={{ touchAction: "none" }}
+              aria-label="Hold to record a voice message"
             >
-              {emojiPickerTarget?.mode === "input" ? <Keyboard size={22} /> : <Smile size={22} />}
+              <Mic size={18} />
             </button>
-            <textarea
-              ref={inputRef}
-              value={content}
-              onChange={(e) => setContent(e.target.value)}
-              maxLength={2000}
-              rows={1}
-              placeholder="Message…"
-              // No onKeyDown at all on purpose — a bare <textarea> never
-              // submits its form on Enter (only <input> does that), so
-              // Enter already just inserts a newline for free. Sending
-              // only ever happens via the button below.
-              className="flex-1 px-4 py-2.5 rounded-3xl border border-border bg-surface text-ink resize-none
-                max-h-[120px] leading-snug
-                focus:outline-none focus:ring-2 focus:ring-accent/40 focus:border-accent"
-            />
-            {content.trim() ? (
-              <button
-                type="submit"
-                disabled={sendMessage.isPending}
-                className="bg-accent text-white rounded-full p-2.5 transition-colors hover:bg-accent-hover active:scale-95 disabled:opacity-50 disabled:active:scale-100 flex-shrink-0"
-                aria-label="Send"
-              >
-                <Send size={18} />
-              </button>
-            ) : (
-              <button
-                type="button"
-                onPointerDown={voiceRecorder.micHandlers.onPointerDown}
-                className="bg-accent text-white rounded-full p-2.5 transition-colors hover:bg-accent-hover active:scale-95 flex-shrink-0"
-                style={{ touchAction: "none" }}
-                aria-label="Hold to record a voice message"
-              >
-                <Mic size={18} />
-              </button>
+          )}
+        </form>
+
+        {voiceRecorder.phase !== "idle" && (
+          <div className="absolute inset-0 bg-canvas">
+            {voiceRecorder.phase === "recording" && (
+              <VoiceRecordingBar
+                locked={voiceRecorder.locked}
+                paused={voiceRecorder.paused}
+                elapsedMs={voiceRecorder.elapsedMs}
+                drag={voiceRecorder.drag}
+                cancelThresholdPx={voiceRecorder.cancelThresholdPx}
+                lockThresholdPx={voiceRecorder.lockThresholdPx}
+                liveLevels={voiceRecorder.liveLevels}
+                onCancel={voiceRecorder.cancelRecording}
+                onTogglePause={voiceRecorder.togglePauseResume}
+                onStop={voiceRecorder.stopToPreview}
+              />
             )}
-          </form>
+            {voiceRecorder.phase === "preview" && voiceRecorder.preview && (
+              <VoicePreviewBar
+                url={voiceRecorder.preview.url}
+                durationSec={voiceRecorder.preview.durationSec}
+                peaks={voiceRecorder.preview.peaks}
+                sending={voiceRecorder.sending}
+                onDiscard={voiceRecorder.discardPreview}
+                onSend={voiceRecorder.sendPreview}
+              />
+            )}
+          </div>
         )}
 
         {emojiPickerTarget?.mode === "input" && (
