@@ -1,6 +1,6 @@
 // src/components/VoiceMessageBubble.tsx
 import { useEffect, useRef, useState } from "react";
-import { Play, Pause } from "lucide-react";
+import { Play, Pause, EyeOff, Mic } from "lucide-react";
 import { formatVoiceDuration } from "../lib/voiceNotes";
 import { computeWaveformPeaks } from "../lib/waveform";
 import { getSignedAudioUrl } from "../lib/signedAudioUrl";
@@ -16,6 +16,7 @@ import {
   type PlaybackSpeed,
 } from "../lib/voicePlayback";
 import { VoiceWaveform } from "./VoiceWaveform";
+import { Avatar } from "./Avatar";
 
 const FLAT_PEAKS = Array(40).fill(0.12);
 
@@ -34,6 +35,27 @@ interface VoiceMessageBubbleProps {
   /** Controls color: white-on-accent for the sender's own bubble,
    *  accent-on-surface for the other participant's. */
   isMine: boolean;
+  /** WhatsApp-style "view once" — the recipient gets a single
+   *  playthrough, then the bubble collapses to a spent placeholder.
+   *  The sender's own copy stays fully replayable, so they can always
+   *  confirm what they sent. */
+  viewOnce?: boolean;
+  /** DB-backed (message_user_state.opened_once_at) — set once the
+   *  current user has already played a view-once note. Passed down
+   *  from MessageThread's userStates map rather than tracked locally,
+   *  so it's the same "already played" fact on every device/session,
+   *  not just this browser. Ignored when `viewOnce` is falsy. */
+  openedOnceAt?: string | null;
+  /** Fired the moment a view-once note finishes playing, so the
+   *  caller can persist it (useMarkVoiceNoteOpened). Never called for
+   *  the sender's own bubble or a non-view-once note. */
+  onOpened?: () => void;
+  /** Sender's avatar — small circular thumbnail on the waveform side
+   *  of the bubble, matching WhatsApp's voice-note treatment. Omitted
+   *  entirely (no thumbnail) if not provided, e.g. in a room lecture
+   *  post where there's no single 1:1 sender photo to anchor. */
+  senderAvatarUrl?: string | null;
+  senderName?: string;
 }
 
 /**
@@ -52,8 +74,23 @@ interface VoiceMessageBubbleProps {
  * below, since a signed URL is re-issued periodically and would churn
  * that key on every re-sign.
  */
-export function VoiceMessageBubble({ url, path, durationSec, peaks, isMine }: VoiceMessageBubbleProps) {
+export function VoiceMessageBubble({
+  url,
+  path,
+  durationSec,
+  peaks,
+  isMine,
+  viewOnce,
+  openedOnceAt,
+  onOpened,
+  senderAvatarUrl,
+  senderName,
+}: VoiceMessageBubbleProps) {
   const stableKey = path ?? url ?? "";
+  // Recipient-only: once the DB says this exact note has been opened,
+  // it stays spent — same fact on every device, not a per-browser flag.
+  const enforceViewOnce = !!viewOnce && !isMine;
+  const spent = enforceViewOnce && !!openedOnceAt;
   const audioRef = useRef<HTMLAudioElement>(null);
   const [playing, setPlaying] = useState(false);
   const [progress, setProgress] = useState(0);
@@ -135,6 +172,7 @@ export function VoiceMessageBubble({ url, path, durationSec, peaks, isMine }: Vo
       setElapsed(0);
       clearRememberedPosition(stableKey);
       clearPlaying(pause);
+      if (enforceViewOnce) onOpened?.();
     };
     audio.addEventListener("timeupdate", onTime);
     audio.addEventListener("ended", onEnd);
@@ -209,10 +247,35 @@ export function VoiceMessageBubble({ url, path, durationSec, peaks, isMine }: Vo
   const buttonClass = isMine ? "bg-white text-accent" : "bg-accent text-white";
   const chipClass = isMine ? "bg-white/20 text-white" : "bg-accent/10 text-accent";
 
+  // Recipient already opened this view-once note — collapse to a
+  // spent placeholder rather than the normal playable bubble. Matches
+  // WhatsApp's own "Voice message set to view once" copy re-purposed
+  // as the after-the-fact state (image 7 in the reference set).
+  if (spent) {
+    return (
+      <div className={`flex items-center gap-2 py-0.5 text-sm italic ${isMine ? "text-white/70" : "text-ink-muted"}`}>
+        <EyeOff size={15} className="flex-shrink-0" />
+        <span>Opened</span>
+      </div>
+    );
+  }
+
   return (
     <div className="flex items-center gap-2.5 min-w-[200px] py-0.5">
       {/* eslint-disable-next-line jsx-a11y/media-has-caption */}
       {resolvedUrl && <audio ref={audioRef} src={resolvedUrl} preload="metadata" className="hidden" />}
+      {senderAvatarUrl !== undefined && (
+        <div className="relative flex-shrink-0">
+          <Avatar src={senderAvatarUrl} name={senderName ?? "?"} size="sm" />
+          <span
+            className={`absolute -bottom-0.5 -right-0.5 w-4 h-4 rounded-full flex items-center justify-center ring-2 ${
+              isMine ? "bg-white text-accent ring-accent" : "bg-accent text-white ring-surface"
+            }`}
+          >
+            <Mic size={9} />
+          </span>
+        </div>
+      )}
       <button
         type="button"
         onClick={toggle}
@@ -228,7 +291,17 @@ export function VoiceMessageBubble({ url, path, durationSec, peaks, isMine }: Vo
       </button>
       <VoiceWaveform levels={barLevels} progress={progress} filledColor={filledColor} mutedColor={mutedColor} onSeek={seek} />
       <div className="flex flex-col items-end gap-0.5 flex-shrink-0">
-        <span className="text-[11px] tabular-nums opacity-80">
+        <span className="text-[11px] tabular-nums opacity-80 flex items-center gap-1">
+          {viewOnce && (
+            <span
+              className={`w-3.5 h-3.5 rounded-full flex items-center justify-center text-[9px] font-bold leading-none ${
+                isMine ? "bg-white/25" : "bg-accent/15 text-accent"
+              }`}
+              aria-label="View once"
+            >
+              1
+            </span>
+          )}
           {formatVoiceDuration(playing || elapsed > 0 ? elapsed : durationSec)}
         </span>
         {/* Speed is discoverable but stays out of the way until a note
