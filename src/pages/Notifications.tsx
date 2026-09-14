@@ -16,6 +16,10 @@ import {
   Redo2,
   Users,
   Tag,
+  AtSign,
+  ShieldAlert,
+  Send,
+  Megaphone,
 } from "lucide-react";
 import { useNotifications, useMarkNotificationRead, useMarkAllRead } from "../hooks/useNotifications";
 import {
@@ -31,6 +35,10 @@ import { CollaborationInviteResponseModal } from "../components/CollaborationInv
 import type { NotificationWithActor } from "../hooks/useNotifications";
 
 const TYPE_CONFIG: Record<string, { icon: typeof Heart; verb: string }> = {
+  // like/dislike/share can target a post OR a project (see
+  // notify_on_reaction — projects only ever get like/dislike/share,
+  // never support/disagree/pushback) — verb here is the post-target
+  // default; verbFor() below swaps in "project" when target_type is.
   like: { icon: Heart, verb: "liked your post" },
   dislike: { icon: ThumbsDown, verb: "disliked your post" },
   support: { icon: Handshake, verb: "supported your post" },
@@ -66,6 +74,12 @@ const TYPE_CONFIG: Record<string, { icon: typeof Heart; verb: string }> = {
   collaboration_invite: { icon: Users, verb: "invited you to collaborate" },
   collaboration_accepted: { icon: UserCheck, verb: "accepted your collaboration invite" },
   collaboration_declined: { icon: UserX, verb: "declined your collaboration invite" },
+  mention: { icon: AtSign, verb: "mentioned you" },
+  moderation_notice: { icon: ShieldAlert, verb: "" },
+  promotion_approved: { icon: Megaphone, verb: "Your promotion was approved" },
+  promotion_declined: { icon: Megaphone, verb: "Your promotion needs changes" },
+  post_published: { icon: Send, verb: "Your scheduled post is live" },
+  room_meeting_scheduled: { icon: Users, verb: "scheduled a new Room meeting" },
 };
 
 function timeAgo(dateString: string): string {
@@ -93,10 +107,29 @@ function timeAgo(dateString: string): string {
 //     its own — useNotifications() resolves comment_post_id for these,
 //     so we route to the parent post with a `#comment-{id}` anchor that
 //     PostDetail/CommentThread scroll to and briefly highlight.
+// Rooms, courses, books, and meetings each have a dedicated page
+// distinct from the generic project detail page — see project_type
+// on NotificationWithActor. Anything else (media/file/url/event/gig/
+// pitch) still uses the generic page, same as before.
+const PROJECT_TYPE_ROUTE: Record<string, (id: string) => string> = {
+  room: (id) => `/rooms/${id}`,
+  course: (id) => `/courses/${id}`,
+  book: (id) => `/books/${id}`,
+  meeting: (id) => `/meetings/${id}`,
+};
+
 function notificationLink(n: NotificationWithActor): string {
   if (n.type === "follow_request") return "/requests";
   if (n.target_type === "post" && n.target_id) return `/post/${n.target_id}`;
-  if (n.target_type === "project" && n.target_id) return `/projects/${n.target_id}`;
+  if (n.target_type === "project" && n.target_id) {
+    const route = n.project_type ? PROJECT_TYPE_ROUTE[n.project_type] : undefined;
+    return route ? route(n.target_id) : `/projects/${n.target_id}`;
+  }
+  // Promotions don't have their own detail page — the promoter's own
+  // "boosted post/project" state lives on whatever they promoted, so
+  // send them back to Wallet, where promotion status/history is
+  // already surfaced (see MyAffiliateLinks/Wallet).
+  if (n.target_type === "promotion") return "/wallet";
   if (n.target_type === "comment" && n.target_id) {
     // comment_post_id can be null if it couldn't be resolved (e.g. the
     // comment was since deleted) — nothing sensible to link to then.
@@ -111,12 +144,38 @@ function notificationLink(n: NotificationWithActor): string {
 // three different "what happens on tap" behaviors below (plain Link,
 // modal-opening button, async-resolved Link) can each wrap it the same
 // way instead of triplicating the avatar/text/unread-dot markup.
+// Types where actor_id is set for bookkeeping (an admin who reviewed
+// something, or — for post_published — the author themself via a
+// system job) rather than "this person did something to you". Showing
+// their avatar/name next to the message reads wrong (your own face
+// next to "Your scheduled post is live"; a moderator's identity next
+// to a promotion decision) — these render with the generic icon block
+// and just the verb instead, same as system/admin_message already did.
+const NO_ACTOR_TYPES = new Set([
+  "system",
+  "admin_message",
+  "moderation_notice",
+  "promotion_approved",
+  "promotion_declined",
+  "post_published",
+]);
+
+const PROJECT_TARGETABLE_TYPES = new Set(["like", "dislike", "share"]);
+
+function verbFor(n: NotificationWithActor, config: { verb: string }): string {
+  if (n.target_type === "project" && PROJECT_TARGETABLE_TYPES.has(n.type)) {
+    return config.verb.replace("your post", "your project");
+  }
+  return config.verb;
+}
+
 function NotificationRowContent({ n, config }: { n: NotificationWithActor; config: { icon: typeof Heart; verb: string } }) {
   const Icon = config.icon;
+  const showActor = !!n.actor && !NO_ACTOR_TYPES.has(n.type);
   return (
     <>
-      {n.actor ? (
-        <Avatar src={n.actor.avatar_url} name={n.actor.display_name} size="sm" />
+      {showActor ? (
+        <Avatar src={n.actor!.avatar_url} name={n.actor!.display_name} size="sm" />
       ) : (
         <div className="w-8 h-8 rounded-full bg-accent-soft flex items-center justify-center flex-shrink-0">
           <Icon size={16} className="text-accent" />
@@ -125,9 +184,9 @@ function NotificationRowContent({ n, config }: { n: NotificationWithActor; confi
 
       <div className="min-w-0 flex-1">
         <p className="text-sm text-ink">
-          {n.actor && <span className="font-medium">{n.actor.display_name}</span>}
+          {showActor && <span className="font-medium">{n.actor!.display_name}</span>}
           {n.type === "admin_message" && <span className="font-medium">Akọ.</span>}{" "}
-          {config.verb}
+          {verbFor(n, config)}
         </p>
         {n.preview_text && (
           <p className="text-sm text-ink-muted truncate mt-0.5">"{n.preview_text}"</p>
