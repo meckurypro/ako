@@ -514,10 +514,14 @@ export function useToggleAiModeration() {
 
 // ------------------------------------------------------------
 // Site-wide kill switch for standing up new Pages (organisation,
-// brand, or product). Same moderation_settings key/value table as AI
-// moderation above — this only ever gates the "create a page" entry
-// points and the /pages/new route itself; pages that already exist,
-// and everything about acting as one, are untouched by this.
+// brand, or product). Now backed by the unified feature_flags table
+// (see useFeatureFlags.ts and /admin/feature-flags) rather than
+// moderation_settings — kept as its own named hook pair (rather than
+// folded into the generic useFeatureFlag/useToggleFeatureFlag) so
+// AdminPageSettings.tsx, AccountModeSwitcher, CreatePage, and Pages
+// didn't need to change. This only ever gates the "create a page"
+// entry points and the /pages/new route itself; pages that already
+// exist, and everything about acting as one, are untouched by this.
 // ------------------------------------------------------------
 const PAGES_ENABLED_KEY = "pages_creation_enabled";
 
@@ -526,14 +530,14 @@ export function usePagesFeatureSettings() {
     queryKey: ["admin-pages-feature-settings"],
     queryFn: async (): Promise<{ pages_creation_enabled: boolean }> => {
       const { data, error } = await supabase
-        .from("moderation_settings")
-        .select("value")
+        .from("feature_flags")
+        .select("enabled")
         .eq("key", PAGES_ENABLED_KEY)
         .maybeSingle();
       if (error) throw error;
       // No row yet defaults to on — Pages has been a live feature, this
       // toggle is an off switch, not an opt-in.
-      return { pages_creation_enabled: data ? data.value === "true" : true };
+      return { pages_creation_enabled: data ? data.enabled : true };
     },
   });
 }
@@ -543,8 +547,9 @@ export function useTogglePagesEnabled() {
   return useMutation({
     mutationFn: async (pages_creation_enabled: boolean) => {
       const { error } = await supabase
-        .from("moderation_settings")
-        .upsert({ key: PAGES_ENABLED_KEY, value: pages_creation_enabled ? "true" : "false" });
+        .from("feature_flags")
+        .update({ enabled: pages_creation_enabled, updated_at: new Date().toISOString() })
+        .eq("key", PAGES_ENABLED_KEY);
       if (error) throw error;
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["admin-pages-feature-settings"] }),
