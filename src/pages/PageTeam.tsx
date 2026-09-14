@@ -13,6 +13,7 @@ import {
   useRemovePageMember,
   usePageRoleLabelSuggestions,
 } from "../hooks/usePages";
+import { useToast } from "../components/Toast";
 import type { ProfileWithRoles } from "../types/database";
 
 // /page/:username/team — admin view: active roster + pending invites,
@@ -28,6 +29,7 @@ export function PageTeam() {
   const { data: members } = usePageMembers(page?.id ?? "");
   const invite = useInvitePageMember();
   const remove = useRemovePageMember();
+  const toast = useToast();
 
   // Smart search-as-you-type replaces the old "type the exact username,
   // look it up on submit" flow. `selectedUser` is who's about to be
@@ -82,6 +84,7 @@ export function PageTeam() {
       setInviteRole("");
       setShowRoleSuggestions(false);
       setInviteAsAdmin(false);
+      toast("Invite sent.", { variant: "success" });
     } catch (err: any) {
       setError(err.message ?? "Couldn't send that invite.");
     } finally {
@@ -250,7 +253,12 @@ export function PageTeam() {
                     <p className="text-xs text-ink-muted truncate">Invited as {m.role_label}</p>
                   </div>
                   <button
-                    onClick={() => remove.mutate({ page_id: page.id, user_id: m.user_id })}
+                    onClick={() =>
+                      remove.mutate(
+                        { page_id: page.id, user_id: m.user_id },
+                        { onSuccess: () => toast("Invite cancelled.", { variant: "success" }) }
+                      )
+                    }
                     className="text-ink-muted"
                     aria-label="Cancel invite"
                   >
@@ -278,7 +286,12 @@ export function PageTeam() {
               </div>
               {m.user_id !== user?.id && (
                 <button
-                  onClick={() => remove.mutate({ page_id: page.id, user_id: m.user_id })}
+                  onClick={() =>
+                    remove.mutate(
+                      { page_id: page.id, user_id: m.user_id },
+                      { onSuccess: () => toast(`${m.profile.display_name} removed.`, { variant: "success" }) }
+                    )
+                  }
                   className="text-xs text-danger flex-shrink-0"
                 >
                   Remove
