@@ -199,7 +199,7 @@ export function useVoiceRecorder(onSend: (blob: Blob, durationSec: number, peaks
       function cleanup() {
         window.removeEventListener("pointermove", handleMove);
         window.removeEventListener("pointerup", handleUp);
-        window.removeEventListener("pointercancel", handleUp);
+        window.removeEventListener("pointercancel", handleCancel);
       }
       function handleMove(ev: PointerEvent) {
         if (lockedRef.current || endedRef.current) return;
@@ -223,10 +223,29 @@ export function useVoiceRecorder(onSend: (blob: Blob, durationSec: number, peaks
         if (endedRef.current || lockedRef.current) return; // locked → hands-free, only the toolbar's own buttons end it now
         stopToPreview();
       }
+      // A genuine pointerup (finger deliberately lifted) still goes to
+      // preview even if it's short — that's a real, if brief, note.
+      // pointercancel means something ELSE ended the gesture — the OS
+      // showing a call/notification, the browser deciding this became
+      // a different kind of touch, or (this was happening on every
+      // single recording) the mic button's own DOM node briefly
+      // disappearing out from under the still-active touch the instant
+      // recording starts, which Chromium treats as an implicit cancel.
+      // Treating that the same as a deliberate release meant every
+      // note got committed at whatever near-zero elapsed time existed
+      // at that instant, floored by stopToPreview's Math.max(1, …) to a
+      // flat "0:01" — every time, regardless of how long anyone
+      // actually held it. An interruption should discard the note, not
+      // silently send a 1-second one.
+      function handleCancel() {
+        cleanup();
+        if (endedRef.current || lockedRef.current) return;
+        cancelRecording();
+      }
 
       window.addEventListener("pointermove", handleMove);
       window.addEventListener("pointerup", handleUp);
-      window.addEventListener("pointercancel", handleUp);
+      window.addEventListener("pointercancel", handleCancel);
     },
     [startRecording, cancelRecording, stopToPreview]
   );
