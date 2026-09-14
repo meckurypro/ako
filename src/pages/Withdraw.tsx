@@ -21,6 +21,7 @@ import {
 } from "../hooks/useWalletRates";
 import { Button } from "../components/Button";
 import { FormField } from "../components/FormField";
+import { useToast } from "../components/Toast";
 import { formatNgn, formatUsd } from "../lib/money";
 
 /**
@@ -113,6 +114,7 @@ export function Withdraw() {
   const nextFridayLabel = useNextFridayLabel();
   const addAccount = useAddPayoutAccount();
   const withdraw = useWithdraw();
+  const toast = useToast();
 
   const isWithdrawalDay = weekday === "Friday";
 
@@ -163,6 +165,7 @@ export function Withdraw() {
       });
       setShowAddAccount(false);
       setAccountNumber("");
+      toast("Payout account added.", { variant: "success" });
     } catch (err) {
       setAddAccountError(err instanceof Error ? err.message : "Couldn't add this account.");
     }
@@ -198,6 +201,7 @@ export function Withdraw() {
       await withdraw.mutateAsync({ amount_usd: amountUsd, payout_account_id: selectedAccountId });
       setAmount("");
       navigate("/wallet");
+      toast("Withdrawal requested.", { variant: "success" });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Withdrawal failed.");
     }
