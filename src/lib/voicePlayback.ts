@@ -54,6 +54,38 @@ export function clearRememberedPosition(url: string): void {
   rememberedPositions.delete(url);
 }
 
+// "View once" voice notes: the recipient gets exactly one playthrough,
+// then the bubble collapses to a spent placeholder — matching
+// WhatsApp's view-once photos/videos, applied to voice notes. Tracked
+// in localStorage (keyed by the message's stable audio key) rather
+// than a DB column, since decodeVoiceNote's whole point is riding the
+// existing `content` column with no schema change; "has this device's
+// user already opened it" is a reasonable client-local proxy for that.
+const OPENED_ONCE_STORAGE_KEY = "ako:voice-opened-once";
+
+function readOpenedOnceSet(): Set<string> {
+  try {
+    const raw = localStorage.getItem(OPENED_ONCE_STORAGE_KEY);
+    return new Set(raw ? (JSON.parse(raw) as string[]) : []);
+  } catch {
+    return new Set();
+  }
+}
+
+export function hasOpenedOnce(key: string): boolean {
+  return readOpenedOnceSet().has(key);
+}
+
+export function markOpenedOnce(key: string): void {
+  try {
+    const set = readOpenedOnceSet();
+    set.add(key);
+    localStorage.setItem(OPENED_ONCE_STORAGE_KEY, JSON.stringify([...set]));
+  } catch {
+    // Storage unavailable — worst case the note replays once more.
+  }
+}
+
 export const PLAYBACK_SPEEDS = [1, 1.5, 2] as const;
 export type PlaybackSpeed = (typeof PLAYBACK_SPEEDS)[number];
 
