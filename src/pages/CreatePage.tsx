@@ -14,6 +14,7 @@ import {
 } from "../hooks/usePages";
 import { useCategories } from "../hooks/useCategories";
 import { usePagesFeatureSettings } from "../hooks/useAdmin";
+import { useToast } from "../components/Toast";
 import type { PageType } from "../types/database";
 
 type UsernameStatus = "idle" | "checking" | "available" | "taken" | "error";
@@ -76,6 +77,7 @@ export function CreatePage() {
   const smartBack = useSmartBack();
   const [searchParams] = useSearchParams();
   const createPage = useCreatePage();
+  const toast = useToast();
   const { data: categories } = useCategories();
   const { data: myPages } = useMyPages();
   const { data: pagesFeature, isLoading: loadingPagesFeature } = usePagesFeatureSettings();
@@ -206,6 +208,7 @@ export function CreatePage() {
         parent_organization_id: presetParentId || parentOrgId || undefined,
       });
       navigate(`/page/${page.username}`);
+      toast(`${name.trim()} created successfully.`, { variant: "success" });
     } catch (err: any) {
       setError(err.message ?? "Couldn't create that page.");
     }
