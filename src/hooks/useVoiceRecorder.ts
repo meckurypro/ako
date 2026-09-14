@@ -20,6 +20,9 @@ interface PreviewData {
    *  "waveform ready". The preview bar renders flat placeholder bars
    *  in that gap rather than waiting to appear. */
   peaks: number[];
+  /** WhatsApp's "1" toggle in the preview/locked bar — off by default,
+   *  tapped on right before sending. */
+  viewOnce: boolean;
 }
 
 /**
@@ -46,7 +49,9 @@ interface PreviewData {
  * browser mid-gesture. Global listeners have no such dependency on a
  * particular element surviving the whole hold.
  */
-export function useVoiceRecorder(onSend: (blob: Blob, durationSec: number, peaks: number[]) => Promise<void>) {
+export function useVoiceRecorder(
+  onSend: (blob: Blob, durationSec: number, peaks: number[], viewOnce: boolean) => Promise<void>
+) {
   const [phase, setPhase] = useState<VoiceRecorderPhase>("idle");
   const [locked, setLocked] = useState(false);
   const [paused, setPaused] = useState(false);
@@ -136,7 +141,7 @@ export function useVoiceRecorder(onSend: (blob: Blob, durationSec: number, peaks
       const blob = new Blob(recordedChunksRef.current, { type: mr.mimeType || "audio/webm" });
       const url = URL.createObjectURL(blob);
       const durationSec = Math.max(1, Math.round(finalElapsedMs / 1000));
-      setPreview({ blob, url, durationSec, peaks: [] });
+      setPreview({ blob, url, durationSec, peaks: [], viewOnce: false });
       setPhase("preview");
       releaseMic();
       // Fills in a beat after the preview bar is already visible —
@@ -165,6 +170,10 @@ export function useVoiceRecorder(onSend: (blob: Blob, durationSec: number, peaks
     }
   }, []);
 
+  const toggleViewOnce = useCallback(() => {
+    setPreview((prev) => (prev ? { ...prev, viewOnce: !prev.viewOnce } : prev));
+  }, []);
+
   const discardPreview = useCallback(() => {
     setPreview((prev) => {
       if (prev) URL.revokeObjectURL(prev.url);
@@ -177,7 +186,7 @@ export function useVoiceRecorder(onSend: (blob: Blob, durationSec: number, peaks
     if (!preview) return;
     setSending(true);
     try {
-      await onSend(preview.blob, preview.durationSec, preview.peaks);
+      await onSend(preview.blob, preview.durationSec, preview.peaks, preview.viewOnce);
       URL.revokeObjectURL(preview.url);
       setPreview(null);
       setPhase("idle");
@@ -265,6 +274,7 @@ export function useVoiceRecorder(onSend: (blob: Blob, durationSec: number, peaks
     cancelRecording,
     stopToPreview,
     togglePauseResume,
+    toggleViewOnce,
     discardPreview,
     sendPreview,
   };
