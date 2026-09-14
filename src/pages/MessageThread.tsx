@@ -1,5 +1,5 @@
 // src/pages/MessageThread.tsx
-import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type FormEvent, type PointerEvent as ReactPointerEvent } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type FormEvent, type PointerEvent as ReactPointerEvent } from "react";
 import { useParams, useNavigate, useLocation } from "react-router-dom";
 import {
   ArrowLeft,
@@ -21,6 +21,7 @@ import {
   Users,
 } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
+import { useVirtualizer } from "@tanstack/react-virtual";
 import { supabase } from "../lib/supabase";
 import { Wallpaper } from "../components/Wallpaper";
 import { useAuth } from "../hooks/useAuth";
@@ -214,6 +215,56 @@ export function MessageThread() {
     });
   }, [messages, userStates]);
 
+  // Flat, virtualizer-friendly list: one entry per message, each
+  // carrying whether it starts a new day and that day's label. Day
+  // separators used to be a sibling Fragment next to each bubble, but
+  // the virtualizer needs exactly one measurable DOM node per index,
+  // so a separator now rides along as part of its message's own row
+  // (rendered above the bubble) instead of being a separate item.
+  const items = useMemo(() => {
+    if (!visibleMessages) return [];
+    let lastDayKey: string | null = null;
+    return visibleMessages.map((m) => {
+      const dayKey = dayKeyFor(m.created_at);
+      const showDaySeparator = dayKey !== lastDayKey;
+      lastDayKey = dayKey;
+      return { key: m.client_key ?? m.id, message: m, showDaySeparator, dayLabel: formatMessageDayLabel(m.created_at) };
+    });
+  }, [visibleMessages]);
+
+  const indexById = useMemo(() => {
+    const map = new Map<string, number>();
+    items.forEach((item, i) => map.set(item.message.id, i));
+    return map;
+  }, [items]);
+
+  // Only messages within/near the viewport are ever mounted, however
+  // long the conversation gets — see the render loop below (§14 of the
+  // messaging audit: "avoid full-screen spinners... a single reaction/
+  // playback tick must not rerender every message" applies just as much
+  // to "every message must not sit in the DOM at once" for a long-running
+  // thread). getItemKey keys the size-measurement cache by our own
+  // stable per-message key rather than raw index, so prepending older
+  // messages (which shifts every existing message's index) doesn't
+  // register as every one of them "changing size" and force a
+  // re-measure/flash.
+  const rowVirtualizer = useVirtualizer({
+    count: items.length,
+    getScrollElement: () => listRef.current,
+    estimateSize: () => 68,
+    overscan: 12,
+    getItemKey: (index) => items[index]?.key ?? index,
+  });
+
+  const scrollToMessageIndex = useCallback(
+    (id: string, align: "start" | "center" | "end" | "auto" = "center") => {
+      const index = indexById.get(id);
+      if (index == null) return; // not currently loaded (e.g. an un-paginated-in older message) — same silent no-op as before virtualization
+      rowVirtualizer.scrollToIndex(index, { align, behavior: "smooth" });
+    },
+    [indexById, rowVirtualizer]
+  );
+
   // Which messages get the bubble entrance animation (see MessageBubble's
   // `animateIn` / ako-bubble-in-* in index.css) — genuine new arrivals
   // only: a message just sent, or a realtime INSERT landing while the
@@ -253,9 +304,19 @@ export function MessageThread() {
     // location.state change would fight with the user's own typing.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-  const bottomRef = useRef<HTMLDivElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
   const messageRefs = useRef<Record<string, HTMLDivElement | null>>({});
+  // Whether the viewport is close enough to the bottom that an
+  // incoming message should auto-scroll into view. Updated on every
+  // scroll tick (see handleListScroll) rather than derived from state,
+  // since it needs to be read synchronously the instant a new message
+  // arrives — a state value could still be one render behind.
+  const isNearBottomRef = useRef(true);
+  // WhatsApp-style "New messages" pill: a message arriving while the
+  // user is scrolled up reading history shows this instead of
+  // yanking the viewport down to it.
+  const [showNewMessagePill, setShowNewMessagePill] = useState(false);
+  const lastSeenLastMessageIdRef = useRef<string | null>(null);
 
   // WhatsApp-style floating date badge — shows which day's messages are
   // currently scrolled to the top of the viewport, visible only while
@@ -283,13 +344,15 @@ export function MessageThread() {
     el.style.height = "auto";
     el.style.height = `${Math.min(el.scrollHeight, 120)}px`;
   }, [content]);
-  // Set right before calling loadOlder(), holding the scroll container's
-  // height at that moment — the layout effect below uses it to keep the
-  // viewport pinned to the same messages once the older page is
-  // prepended, instead of the browser preserving raw scrollTop (which
-  // would visually jump the list down by however tall the newly-
-  // prepended messages are).
-  const prevScrollHeightRef = useRef<number | null>(null);
+  // Set right before calling loadOlder(), holding the id of whichever
+  // message was topmost on screen at that moment — the layout effect
+  // below re-anchors the virtualized list on that same message once
+  // the older page is prepended (via the virtualizer's own
+  // scrollToIndex, since indices of every already-loaded message shift
+  // once older ones are inserted ahead of them), instead of the
+  // browser preserving raw scrollTop, which would visually jump the
+  // list down by however tall the newly-prepended messages are.
+  const pendingOlderAnchorIdRef = useRef<string | null>(null);
   // First render of a conversation should land on the last message
   // instantly — no visible scroll animation from the top. Only messages
   // that arrive afterward (a reply coming in, etc.) get a smooth scroll.
@@ -443,10 +506,10 @@ export function MessageThread() {
 
   const scrollToMessage = useCallback(
     (id: string) => {
-      messageRefs.current[id]?.scrollIntoView({ behavior: "smooth", block: "center" });
+      scrollToMessageIndex(id, "center");
       flashHighlight(id);
     },
-    [flashHighlight]
+    [scrollToMessageIndex, flashHighlight]
   );
 
   useEffect(() => {
@@ -475,57 +538,80 @@ export function MessageThread() {
     inputRef.current?.focus();
   }, [conversationId, searchOpen, selectMode]);
 
+  // Landing on the bottom, staying there for genuinely new messages,
+  // and NOT yanking the view for one while the user is reading history
+  // are three different cases, all keyed off whichever message is now
+  // last:
+  //  - never scrolled yet (first paint of this conversation) → jump
+  //    straight to the bottom, no animation.
+  //  - the last message id changed (something new landed) and either
+  //    it's the user's own send or they're already near the bottom →
+  //    scroll to it smoothly.
+  //  - otherwise (new arrival while scrolled up reading older
+  //    messages) → leave the viewport alone and show the pill instead.
   useEffect(() => {
     if (searchOpen) return; // don't fight the search-match scroll below
-    if (!visibleMessages) return;
-    // Loading older messages also changes `visibleMessages` — don't
-    // yank the view back down to the bottom in that case; the layout
-    // effect below is what keeps the viewport steady for that path.
-    if (prevScrollHeightRef.current != null) return;
-    bottomRef.current?.scrollIntoView({ behavior: hasScrolledToBottomOnce.current ? "smooth" : "auto" });
-    hasScrolledToBottomOnce.current = true;
-  }, [visibleMessages, searchOpen]);
+    if (!visibleMessages || !visibleMessages.length) return;
+    // Loading older messages also changes `visibleMessages` — the
+    // layout effect below owns scroll position for that path.
+    if (pendingOlderAnchorIdRef.current != null) return;
 
-  // Keeps the currently-visible messages pinned in place once an
-  // older page loads and gets prepended above them — see
-  // prevScrollHeightRef's comment above. Runs before paint so there's
-  // no visible flash of the wrong scroll position.
-  useLayoutEffect(() => {
-    const el = listRef.current;
-    if (el && prevScrollHeightRef.current != null) {
-      el.scrollTop += el.scrollHeight - prevScrollHeightRef.current;
-      prevScrollHeightRef.current = null;
+    const lastMessage = visibleMessages[visibleMessages.length - 1];
+
+    if (!hasScrolledToBottomOnce.current) {
+      rowVirtualizer.scrollToIndex(items.length - 1, { align: "end" });
+      hasScrolledToBottomOnce.current = true;
+      lastSeenLastMessageIdRef.current = lastMessage.id;
+      return;
     }
-  }, [messages]);
+
+    if (lastMessage.id === lastSeenLastMessageIdRef.current) return; // nothing new appended, e.g. just a reaction/read-state update
+    lastSeenLastMessageIdRef.current = lastMessage.id;
+
+    if (lastMessage.sender_id === user?.id || isNearBottomRef.current) {
+      rowVirtualizer.scrollToIndex(items.length - 1, { align: "end", behavior: "smooth" });
+      setShowNewMessagePill(false);
+    } else {
+      setShowNewMessagePill(true);
+    }
+  }, [visibleMessages, items.length, rowVirtualizer, searchOpen, user?.id]);
+
+  // Re-anchors the virtualized list on whichever message was topmost
+  // on screen right before loadOlder() was called — see
+  // pendingOlderAnchorIdRef's comment above. Runs before paint so
+  // there's no visible flash of the wrong scroll position.
+  useLayoutEffect(() => {
+    const anchorId = pendingOlderAnchorIdRef.current;
+    if (anchorId == null) return;
+    pendingOlderAnchorIdRef.current = null;
+    const index = indexById.get(anchorId);
+    if (index != null) rowVirtualizer.scrollToIndex(index, { align: "start" });
+  }, [items, indexById, rowVirtualizer]);
 
   const handleLoadOlder = useCallback(() => {
-    const el = listRef.current;
-    if (el) prevScrollHeightRef.current = el.scrollHeight;
+    const topVisible = rowVirtualizer.getVirtualItems()[0];
+    const topItem = topVisible ? items[topVisible.index] : undefined;
+    pendingOlderAnchorIdRef.current = topItem?.message.id ?? null;
     loadOlder();
-  }, [loadOlder]);
+  }, [loadOlder, rowVirtualizer, items]);
 
   const handleListScroll = useCallback(
     (e: React.UIEvent<HTMLDivElement>) => {
       const el = e.currentTarget;
+      isNearBottomRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < 150;
+      if (isNearBottomRef.current) setShowNewMessagePill(false);
+
       if (el.scrollTop < 120 && hasMore && !isLoadingOlder) {
         handleLoadOlder();
       }
 
-      // Find the day separator currently at (or just past) the top of
-      // the viewport. Compared via on-screen position (getBoundingClientRect)
-      // rather than offsetTop, and with no fudge factor — WhatsApp swaps
-      // the floating date the instant the next section's separator meets
-      // the top edge, in both scroll directions, not a moment after.
-      const containerTop = el.getBoundingClientRect().top;
-      const separators = el.querySelectorAll<HTMLElement>("[data-day-separator]");
-      let currentLabel: string | null = null;
-      for (const sep of separators) {
-        if (sep.getBoundingClientRect().top <= containerTop + 1) {
-          currentLabel = sep.dataset.dayLabel ?? currentLabel;
-        } else {
-          break;
-        }
-      }
+      // Sticky floating date badge: whichever message is topmost in the
+      // virtualized viewport carries its own day's label (see `items`
+      // above), so this is a plain data lookup now rather than querying
+      // the DOM for day-separator elements — which broke the moment a
+      // separator scrolled far enough to be unmounted by the virtualizer.
+      const topVisible = rowVirtualizer.getVirtualItems()[0];
+      const currentLabel = topVisible ? items[topVisible.index]?.dayLabel ?? null : null;
 
       if (currentLabel) {
         setStickyDayLabel(currentLabel);
@@ -534,7 +620,7 @@ export function MessageThread() {
         stickyDayHideTimer.current = setTimeout(() => setStickyDayVisible(false), 1200);
       }
     },
-    [hasMore, isLoadingOlder, handleLoadOlder]
+    [hasMore, isLoadingOlder, handleLoadOlder, rowVirtualizer, items]
   );
 
   const matches = useMemo((): MessageWithSender[] => {
@@ -554,9 +640,8 @@ export function MessageThread() {
 
   useEffect(() => {
     if (!matches.length) return;
-    const current = matches[matchIndex];
-    messageRefs.current[current.id]?.scrollIntoView({ behavior: "smooth", block: "center" });
-  }, [matchIndex, matches]);
+    scrollToMessageIndex(matches[matchIndex].id, "center");
+  }, [matchIndex, matches, scrollToMessageIndex]);
 
   function goToPrevMatch() {
     if (!matches.length) return;
@@ -735,14 +820,13 @@ export function MessageThread() {
     function keepActiveMessageVisible() {
       requestAnimationFrame(() => {
         const targetId = flashMessageId ?? replyTarget?.id;
-        const el = targetId ? messageRefs.current[targetId] : null;
-        if (el) el.scrollIntoView({ block: "nearest" });
-        else bottomRef.current?.scrollIntoView({ block: "end" });
+        if (targetId) scrollToMessageIndex(targetId, "auto"); // "auto" = only scroll if not already visible, matching the old block:"nearest"
+        else if (items.length) rowVirtualizer.scrollToIndex(items.length - 1, { align: "end" });
       });
     }
     vv.addEventListener("resize", keepActiveMessageVisible);
     return () => vv.removeEventListener("resize", keepActiveMessageVisible);
-  }, [flashMessageId, replyTarget]);
+  }, [flashMessageId, replyTarget, scrollToMessageIndex, items.length, rowVirtualizer]);
 
   const activeReactions = activeMessage ? reactionsByMessage?.[activeMessage.message.id] ?? [] : [];
   const activeMyReaction = activeMessage
@@ -999,6 +1083,25 @@ export function MessageThread() {
             {stickyDayLabel}
           </span>
         </div>
+        {/* "New messages" pill — see the scroll-to-bottom effect above.
+            Only ever shown while genuinely scrolled up; tapping it is
+            the one thing that scrolls the list on its behalf. */}
+        <div
+          className={`absolute bottom-3 left-1/2 -translate-x-1/2 z-20 transition-opacity duration-200 ${
+            showNewMessagePill ? "opacity-100" : "opacity-0 pointer-events-none"
+          }`}
+        >
+          <button
+            type="button"
+            onClick={() => {
+              rowVirtualizer.scrollToIndex(items.length - 1, { align: "end", behavior: "smooth" });
+              setShowNewMessagePill(false);
+            }}
+            className="inline-flex items-center gap-1 px-3 py-1.5 rounded-full bg-accent text-white text-xs font-medium shadow-md"
+          >
+            New messages <ChevronDown size={14} />
+          </button>
+        </div>
         <div ref={listRef} onScroll={handleListScroll} className="relative z-10 h-full overflow-y-auto px-4 py-4 max-w-xl mx-auto w-full">
         {isLoading ? (
           <p className="text-ink-muted text-center py-10">Loading…</p>
@@ -1007,30 +1110,37 @@ export function MessageThread() {
         ) : (
           <>
             {isLoadingOlder && <p className="text-ink-muted text-center py-2 text-xs">Loading earlier messages…</p>}
-            {(() => {
-              let lastDayKey: string | null = null;
-              return visibleMessages.map((m) => {
+            {/* Virtualized: only messages within/near the viewport are
+               ever mounted, however long the conversation gets. Each
+               row is absolutely positioned at its measured offset
+               inside a spacer sized to the full (virtual) list height —
+               the standard @tanstack/react-virtual dynamic-size
+               pattern. A day separator rides along as part of its
+               message's own row rather than a sibling Fragment, since
+               the virtualizer needs exactly one measured element per
+               index. */}
+            <div style={{ height: rowVirtualizer.getTotalSize(), position: "relative", width: "100%" }}>
+              {rowVirtualizer.getVirtualItems().map((virtualRow) => {
+                const item = items[virtualRow.index];
+                if (!item) return null;
+                const m = item.message;
                 const reactions = m.is_deleted ? [] : reactionsByMessage?.[m.id] ?? [];
                 const myReaction = reactions.find((r) => r.user_id === user?.id)?.emoji ?? null;
                 const isCurrentMatch = m.id === currentMatchId;
                 const isFlashed = flashMessageId === m.id;
-
-                const dayKey = dayKeyFor(m.created_at);
-                const isNewDay = dayKey !== lastDayKey;
-                lastDayKey = dayKey;
-                const messageKey = m.client_key ?? m.id;
-                const animateIn = hasLoadedRef.current && !seenKeysRef.current.has(messageKey);
+                const animateIn = hasLoadedRef.current && !seenKeysRef.current.has(item.key);
 
                 return (
-                  <Fragment key={messageKey}>
-                    {isNewDay && (
-                      <div
-                        className="flex justify-center py-2 first:pt-0"
-                        data-day-separator
-                        data-day-label={formatMessageDayLabel(m.created_at)}
-                      >
+                  <div
+                    key={virtualRow.key}
+                    data-index={virtualRow.index}
+                    ref={rowVirtualizer.measureElement}
+                    style={{ position: "absolute", top: 0, left: 0, width: "100%", transform: `translateY(${virtualRow.start}px)` }}
+                  >
+                    {item.showDaySeparator && (
+                      <div className={`flex justify-center ${virtualRow.index === 0 ? "pt-0 pb-2" : "py-2"}`}>
                         <span className="inline-flex items-center px-3 py-1 rounded-full bg-surface/90 border border-border text-[11px] font-medium text-ink-muted shadow-sm">
-                          {formatMessageDayLabel(m.created_at)}
+                          {item.dayLabel}
                         </span>
                       </div>
                     )}
@@ -1056,13 +1166,12 @@ export function MessageThread() {
                       onAddReaction={onAddReaction}
                       onRequestManageReaction={onRequestManageReaction}
                     />
-                  </Fragment>
+                  </div>
                 );
-              });
-            })()}
+              })}
+            </div>
           </>
         )}
-        <div ref={bottomRef} />
         </div>
       </div>
 
