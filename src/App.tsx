@@ -72,6 +72,7 @@ import { AdminAccountExemptions } from "./pages/admin/AdminAccountExemptions";
 import { AdminSuggestedProfiles } from "./pages/admin/AdminSuggestedProfiles";
 import { AdminModeration } from "./pages/admin/AdminModeration";
 import { AdminPageSettings } from "./pages/admin/AdminPageSettings";
+import { AdminFeatureFlags } from "./pages/admin/AdminFeatureFlags";
 import { AdminReports } from "./pages/admin/AdminReports";
 import { AdminPromotions } from "./pages/admin/AdminPromotions";
 import { AdminSmtpSettings } from "./pages/admin/AdminSmtpSettings";
@@ -636,6 +637,16 @@ function AppRoutes() {
                 <RequireAuth>
                   <RequireAdmin>
                     <AdminPageSettings />
+                  </RequireAdmin>
+                </RequireAuth>
+              }
+            />
+            <Route
+              path="/admin/feature-flags"
+              element={
+                <RequireAuth>
+                  <RequireAdmin>
+                    <AdminFeatureFlags />
                   </RequireAdmin>
                 </RequireAuth>
               }
