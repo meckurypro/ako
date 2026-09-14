@@ -6,6 +6,7 @@ import { Avatar } from "../components/Avatar";
 import { AccountModeSwitcher } from "../components/AccountModeSwitcher";
 import { useMyPendingPageInvites, useRespondToPageInvite } from "../hooks/usePages";
 import { usePagesFeatureSettings } from "../hooks/useAdmin";
+import { useToast } from "../components/Toast";
 import { pageModeLabel } from "../lib/pageRoles";
 
 // /pages — the account-mode hub: switch between personal and any page
@@ -15,6 +16,7 @@ export function Pages() {
   const { data: invites } = useMyPendingPageInvites();
   const respond = useRespondToPageInvite();
   const { data: pagesFeature } = usePagesFeatureSettings();
+  const toast = useToast();
 
   return (
     <div className="min-h-screen bg-canvas px-4 pt-4 pb-10">
@@ -43,7 +45,12 @@ export function Pages() {
                   </div>
                   <button
                     aria-label="Decline"
-                    onClick={() => respond.mutate({ page_id: invite.page_id, accept: false })}
+                    onClick={() =>
+                      respond.mutate(
+                        { page_id: invite.page_id, accept: false },
+                        { onSuccess: () => toast(`Declined ${invite.page.name}.`, { variant: "success" }) }
+                      )
+                    }
                     disabled={respond.isPending}
                     className="w-8 h-8 rounded-full flex items-center justify-center text-ink-muted"
                   >
@@ -51,7 +58,12 @@ export function Pages() {
                   </button>
                   <button
                     aria-label="Accept"
-                    onClick={() => respond.mutate({ page_id: invite.page_id, accept: true })}
+                    onClick={() =>
+                      respond.mutate(
+                        { page_id: invite.page_id, accept: true },
+                        { onSuccess: () => toast(`Joined ${invite.page.name}.`, { variant: "success" }) }
+                      )
+                    }
                     disabled={respond.isPending}
                     className="w-8 h-8 rounded-full bg-accent-soft flex items-center justify-center text-accent"
                   >
