@@ -37,6 +37,7 @@ import { VoiceRecordingBar } from "../components/VoiceRecordingBar";
 import { VoicePreviewBar } from "../components/VoicePreviewBar";
 import { VoiceMessageBubble } from "../components/VoiceMessageBubble";
 import { Avatar } from "../components/Avatar";
+import { useToast } from "../components/Toast";
 import { decodeVoiceNote } from "../lib/voiceNotes";
 import { RoomChat } from "../components/RoomChat";
 import { useLiveKitRoom, type CallParticipantView } from "../hooks/useLiveKitRoom";
@@ -756,6 +757,7 @@ function HostSettingsPanel({ projectId }: { projectId: string }) {
   const updateDetails = useUpdateRoomDetails(projectId);
   const addModerator = useAddRoomModerator(projectId);
   const removeModerator = useRemoveRoomModerator(projectId);
+  const toast = useToast();
 
   const moderatorIds = new Set((moderators ?? []).map((m) => m.user_id));
 
@@ -797,11 +799,25 @@ function HostSettingsPanel({ projectId }: { projectId: string }) {
                 <span className="text-sm text-ink">{m.profile.display_name}</span>
               </div>
               {moderatorIds.has(m.user_id) ? (
-                <button onClick={() => removeModerator.mutate(m.user_id)} className="text-xs text-danger font-medium">
+                <button
+                  onClick={() =>
+                    removeModerator.mutate(m.user_id, {
+                      onSuccess: () => toast(`${m.profile.display_name} is no longer a co-host.`, { variant: "success" }),
+                    })
+                  }
+                  className="text-xs text-danger font-medium"
+                >
                   Remove
                 </button>
               ) : (
-                <button onClick={() => addModerator.mutate(m.user_id)} className="text-xs text-accent font-medium">
+                <button
+                  onClick={() =>
+                    addModerator.mutate(m.user_id, {
+                      onSuccess: () => toast(`${m.profile.display_name} is now a co-host.`, { variant: "success" }),
+                    })
+                  }
+                  className="text-xs text-accent font-medium"
+                >
                   Make co-host
                 </button>
               )}
