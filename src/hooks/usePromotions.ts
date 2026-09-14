@@ -11,21 +11,33 @@
 // charge; an approval requires the admin to set a Give Back amount
 // first and does not charge again.
 //
-// Scope note: this only covers the request/charge/review/refund
-// workflow, not the actual feed-distribution mechanism for an
-// approved campaign — see the migration comment for
+// Once approved, the promoter can pause/resume, terminate, or extend
+// their own campaign — pause_promotion/resume_promotion/
+// terminate_promotion/extend_promotion are called directly via
+// supabase.rpc (same pattern as create_page, transfer_page_ownership,
+// etc. elsewhere in this codebase), not through an edge function,
+// since there's no fraud-heuristics layer needed here the way
+// process-gift has for gifting. Pausing shifts ends_at forward by
+// however long it was paused, so a promoter never loses paid-for
+// delivery days to a pause. Terminating refunds a prorated amount for
+// remaining undelivered days. Extending charges for the added days
+// immediately, same as the initial submission.
+//
+// Scope note: this only covers the request/charge/review/refund/
+// lifecycle workflow, not the actual feed-distribution mechanism for
+// an approved campaign — see the migration comment for
 // add_post_promotions.
 // ============================================================
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "../lib/supabase";
 import { useAuth } from "./useAuth";
 
-export const PROMOTION_DAILY_BUDGET_MIN_USD = 5;
-export const PROMOTION_DAILY_BUDGET_MAX_USD = 1000;
+export const PROMOTION_DAILY_BUDGET_MIN_USD = 1;
+export const PROMOTION_DAILY_BUDGET_MAX_USD = 100;
 export const PROMOTION_DURATION_MIN_DAYS = 1;
 export const PROMOTION_DURATION_MAX_DAYS = 30;
 
-export type PromotionStatus = "pending" | "approved" | "declined" | "completed" | "cancelled";
+export type PromotionStatus = "pending" | "approved" | "declined" | "completed" | "cancelled" | "paused";
 
 export interface Promotion {
   id: string;
@@ -42,6 +54,7 @@ export interface Promotion {
   reviewed_at: string | null;
   starts_at: string | null;
   ends_at: string | null;
+  paused_at: string | null;
   created_at: string;
 }
 
@@ -51,7 +64,7 @@ export interface AdminPromotion extends Promotion {
 }
 
 const PROMOTION_SELECT =
-  "id, post_id, user_id, status, daily_budget_usd, duration_days, total_charged_usd, interest_ids, give_back_usd, admin_feedback, reviewed_by, reviewed_at, starts_at, ends_at, created_at";
+  "id, post_id, user_id, status, daily_budget_usd, duration_days, total_charged_usd, interest_ids, give_back_usd, admin_feedback, reviewed_by, reviewed_at, starts_at, ends_at, paused_at, created_at";
 
 /**
  * The current (most recent) promotion for a specific post, if any —
@@ -123,6 +136,81 @@ export function useSubmitPromotion() {
       if (error) throw error;
       if (data?.error) throw new Error(data.error);
       return data.promotion;
+    },
+    onSuccess: (promotion) => {
+      queryClient.invalidateQueries({ queryKey: ["wallet"] });
+      queryClient.invalidateQueries({ queryKey: ["my-promotions"] });
+      queryClient.invalidateQueries({ queryKey: ["promotion-for-post", promotion.post_id] });
+    },
+  });
+}
+
+// ------------------------------------------------------------
+// Lifecycle — pause / resume / terminate / extend an approved
+// campaign. All four call their DB function directly via
+// supabase.rpc; each function re-verifies auth.uid() === p_user_id
+// and ownership of the promotion server-side, so passing user.id here
+// is a convenience for the function signature, not a trust boundary.
+// ------------------------------------------------------------
+
+function usePromotionLifecycleMutation(rpcName: "pause_promotion" | "resume_promotion" | "terminate_promotion") {
+  const { user } = useAuth();
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    meta: { blocking: true },
+    mutationFn: async (promotionId: string): Promise<Promotion> => {
+      const { data, error } = await supabase.rpc(rpcName, {
+        p_user_id: user!.id,
+        p_promotion_id: promotionId,
+      });
+      if (error) throw new Error(error.message);
+      return data as Promotion;
+    },
+    onSuccess: (promotion) => {
+      queryClient.invalidateQueries({ queryKey: ["wallet"] });
+      queryClient.invalidateQueries({ queryKey: ["my-promotions"] });
+      queryClient.invalidateQueries({ queryKey: ["promotion-for-post", promotion.post_id] });
+    },
+  });
+}
+
+/** Pauses a live campaign — stops it from serving, keeps its unspent days. */
+export function usePausePromotion() {
+  return usePromotionLifecycleMutation("pause_promotion");
+}
+
+/** Resumes a paused campaign; ends_at shifts forward by the paused duration. */
+export function useResumePromotion() {
+  return usePromotionLifecycleMutation("resume_promotion");
+}
+
+/** Ends a live or paused campaign early and refunds the undelivered days. */
+export function useTerminatePromotion() {
+  return usePromotionLifecycleMutation("terminate_promotion");
+}
+
+/** Adds days (and charges for them) to a live or paused campaign. */
+export function useExtendPromotion() {
+  const { user } = useAuth();
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    meta: { blocking: true },
+    mutationFn: async ({
+      promotionId,
+      additionalDays,
+    }: {
+      promotionId: string;
+      additionalDays: number;
+    }): Promise<Promotion> => {
+      const { data, error } = await supabase.rpc("extend_promotion", {
+        p_user_id: user!.id,
+        p_promotion_id: promotionId,
+        p_additional_days: additionalDays,
+      });
+      if (error) throw new Error(error.message);
+      return data as Promotion;
     },
     onSuccess: (promotion) => {
       queryClient.invalidateQueries({ queryKey: ["wallet"] });
