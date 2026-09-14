@@ -21,8 +21,10 @@ interface ToastItem {
 
 interface ToastOptions {
   variant?: ToastVariant;
-  /** ms before auto-dismiss. Default 3200 — long enough to read a short
-   *  sentence, short enough not to pile up if several fire in a row. */
+  /** ms before auto-dismiss. Fixed at 2000 for every toast in the
+   *  app — no toast should ever overstay two seconds, so this isn't
+   *  meant to be overridden per-call; kept as an option only so a
+   *  call site could shorten it further if it ever needed to. */
   duration?: number;
 }
 
@@ -30,10 +32,18 @@ type ToastFn = (message: string, options?: ToastOptions) => void;
 
 const ToastContext = createContext<ToastFn | null>(null);
 
+const DEFAULT_DURATION_MS = 2000;
+
+// Icon shape alone carries the meaning (check vs. X vs. plain info) —
+// color deliberately does NOT vary by variant. A toast is a small,
+// low-stakes, self-dismissing surface; it isn't the place for
+// semantic red/green the way an inline form error is. Every toast
+// reads as the same neutral, theme-following chip regardless of
+// what triggered it.
 const ICON_FOR: Record<ToastVariant, ReactNode> = {
   default: <Info size={18} className="text-ink-muted shrink-0" />,
-  success: <CheckCircle2 size={18} className="text-accent shrink-0" />,
-  error: <XCircle size={18} className="text-danger shrink-0" />,
+  success: <CheckCircle2 size={18} className="text-ink-muted shrink-0" />,
+  error: <XCircle size={18} className="text-ink-muted shrink-0" />,
 };
 
 export function ToastProvider({ children }: { children: ReactNode }) {
@@ -46,7 +56,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
     setToasts((prev) => [...prev, { id, message, variant }]);
     window.setTimeout(() => {
       setToasts((prev) => prev.filter((t) => t.id !== id));
-    }, options?.duration ?? 3200);
+    }, options?.duration ?? DEFAULT_DURATION_MS);
   }, []);
 
   return (
