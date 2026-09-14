@@ -1,6 +1,6 @@
 // src/pages/admin/AdminHome.tsx
 import { Link } from "react-router-dom";
-import { Tag, Gift, Flag, ShieldAlert, Mail, Send, MailPlus, Bell, ToggleLeft, ToggleRight, ShieldCheck, UserCheck, Sparkles, Landmark, Wallet, Users, Building2, Megaphone } from "lucide-react";
+import { Tag, Gift, Flag, ShieldAlert, Mail, Send, MailPlus, Bell, ToggleLeft, ToggleRight, ShieldCheck, UserCheck, Sparkles, Landmark, Wallet, Users, Building2, Megaphone, HandCoins } from "lucide-react";
 import { usePendingReports } from "../../hooks/useAdmin";
 import { usePendingPromotions } from "../../hooks/usePromotions";
 
@@ -23,6 +23,7 @@ const INSIGHTS_SECTIONS = [
 const WALLET_SECTIONS = [
   { to: "/admin/exchange-rates", icon: Landmark, label: "Exchange rates" },
   { to: "/admin/payouts", icon: Wallet, label: "Saturday payouts" },
+  { to: "/admin/give-back", icon: HandCoins, label: "Give Back" },
 ];
 
 const COMMS_SECTIONS = [
