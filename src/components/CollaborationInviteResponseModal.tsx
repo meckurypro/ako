@@ -10,6 +10,7 @@ import {
   useRespondToCollaborationRequest,
   type CollaborationTarget,
 } from "../hooks/useCollaboration";
+import { useToast } from "./Toast";
 
 // Same shape as PageInviteResponseModal — opened from a tap on a
 // collaboration_invite notification (see Notifications.tsx), looking
@@ -26,6 +27,7 @@ export function CollaborationInviteResponseModal({
   const navigate = useNavigate();
   const { data: invites, isLoading } = useMyPendingCollaborationInvites();
   const respond = useRespondToCollaborationRequest(target);
+  const toast = useToast();
   const [error, setError] = useState<string | null>(null);
 
   useBackDismiss(onClose);
@@ -42,6 +44,7 @@ export function CollaborationInviteResponseModal({
       {
         onSuccess: () => {
           onClose();
+          toast(accept ? "You're now a collaborator." : "Invite declined.", { variant: "success" });
           if (accept) navigate(target === "post" ? `/post/${targetId}` : `/projects/${targetId}`);
         },
         onError: (err) => setError(err instanceof Error ? err.message : "Couldn't respond to this invite."),
