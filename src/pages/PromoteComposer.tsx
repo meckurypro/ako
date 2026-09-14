@@ -2,7 +2,7 @@
 import { useMemo, useState, type FormEvent } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
-import { ArrowLeft, Megaphone } from "lucide-react";
+import { ArrowLeft, Megaphone, Pause, Play, XCircle, TimerReset } from "lucide-react";
 import { useSmartBack } from "../hooks/useSmartBack";
 import { supabase } from "../lib/supabase";
 import { useAuth } from "../hooks/useAuth";
@@ -11,6 +11,10 @@ import { useCategories } from "../hooks/useCategories";
 import {
   useSubmitPromotion,
   usePromotionForPost,
+  usePausePromotion,
+  useResumePromotion,
+  useTerminatePromotion,
+  useExtendPromotion,
   PROMOTION_DAILY_BUDGET_MIN_USD,
   PROMOTION_DAILY_BUDGET_MAX_USD,
   PROMOTION_DURATION_MIN_DAYS,
@@ -50,9 +54,10 @@ function usePromotablePost(postId: string | undefined) {
 const STATUS_COPY: Record<PromotionStatus, { label: string; tone: string }> = {
   pending: { label: "Submitted — awaiting admin review", tone: "text-ink-muted" },
   approved: { label: "Approved — live now", tone: "text-accent" },
+  paused: { label: "Paused — not currently serving", tone: "text-ink-muted" },
   declined: { label: "Declined — refunded to your wallet", tone: "text-danger" },
   completed: { label: "Completed", tone: "text-ink-muted" },
-  cancelled: { label: "Cancelled", tone: "text-ink-muted" },
+  cancelled: { label: "Terminated — refunded for remaining days", tone: "text-ink-muted" },
 };
 
 export function PromoteComposer() {
@@ -66,12 +71,19 @@ export function PromoteComposer() {
   const { data: categories } = useCategories();
   const { data: existingPromotion, isLoading: promotionLoading } = usePromotionForPost(postId);
   const submitPromotion = useSubmitPromotion();
+  const pausePromotion = usePausePromotion();
+  const resumePromotion = useResumePromotion();
+  const terminatePromotion = useTerminatePromotion();
+  const extendPromotion = useExtendPromotion();
   const promotionsEnabled = useFeatureFlag("promotions_enabled");
 
   const [dailyBudget, setDailyBudget] = useState(String(PROMOTION_DAILY_BUDGET_MIN_USD));
   const [durationDays, setDurationDays] = useState(String(PROMOTION_DURATION_MIN_DAYS));
   const [selectedInterests, setSelectedInterests] = useState<Set<string>>(new Set());
   const [error, setError] = useState<string | null>(null);
+  const [lifecycleError, setLifecycleError] = useState<string | null>(null);
+  const [showExtendForm, setShowExtendForm] = useState(false);
+  const [extendDays, setExtendDays] = useState("1");
 
   const totalCost = useMemo(() => {
     const budget = Number(dailyBudget);
@@ -81,11 +93,15 @@ export function PromoteComposer() {
   }, [dailyBudget, durationDays]);
 
   const isOwner = !!user && !!post && post.author_id === user.id;
-  // A pending or approved campaign already covers this post — the
-  // form is replaced with a status card instead of allowing a
-  // second, overlapping submission (also enforced server-side).
+  // Pending, approved, or paused all count as "already has a campaign"
+  // for this post — pending/declined/completed/cancelled aside, this
+  // is what blocks a second overlapping submission (also enforced
+  // server-side).
   const hasActiveCampaign =
-    existingPromotion?.status === "pending" || existingPromotion?.status === "approved";
+    existingPromotion?.status === "pending" ||
+    existingPromotion?.status === "approved" ||
+    existingPromotion?.status === "paused";
+  const canManage = existingPromotion?.status === "approved" || existingPromotion?.status === "paused";
 
   function toggleInterest(id: string) {
     setSelectedInterests((prev) => {
@@ -94,6 +110,49 @@ export function PromoteComposer() {
       else next.add(id);
       return next;
     });
+  }
+
+  async function handlePauseToggle() {
+    if (!existingPromotion) return;
+    setLifecycleError(null);
+    try {
+      if (existingPromotion.status === "paused") {
+        await resumePromotion.mutateAsync(existingPromotion.id);
+      } else {
+        await pausePromotion.mutateAsync(existingPromotion.id);
+      }
+    } catch (err) {
+      setLifecycleError(err instanceof Error ? err.message : "Couldn't update this campaign.");
+    }
+  }
+
+  async function handleTerminate() {
+    if (!existingPromotion) return;
+    if (!window.confirm("End this campaign now? You'll be refunded for any remaining undelivered days.")) return;
+    setLifecycleError(null);
+    try {
+      await terminatePromotion.mutateAsync(existingPromotion.id);
+    } catch (err) {
+      setLifecycleError(err instanceof Error ? err.message : "Couldn't terminate this campaign.");
+    }
+  }
+
+  async function handleExtend(e: FormEvent) {
+    e.preventDefault();
+    if (!existingPromotion) return;
+    const days = Number(extendDays);
+    if (!Number.isInteger(days) || days <= 0) {
+      setLifecycleError("Enter a whole number of days to add.");
+      return;
+    }
+    setLifecycleError(null);
+    try {
+      await extendPromotion.mutateAsync({ promotionId: existingPromotion.id, additionalDays: days });
+      setShowExtendForm(false);
+      setExtendDays("1");
+    } catch (err) {
+      setLifecycleError(err instanceof Error ? err.message : "Couldn't extend this campaign.");
+    }
   }
 
   async function handleSubmit(e: FormEvent) {
@@ -195,6 +254,79 @@ export function PromoteComposer() {
               <p className="text-xs text-ink-muted mt-2">
                 Give Back: {formatUsd(existingPromotion.give_back_usd)}
               </p>
+            )}
+
+            {canManage && (
+              <div className="mt-3 pt-3 border-t border-border space-y-3">
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    disabled={pausePromotion.isPending || resumePromotion.isPending}
+                    onClick={handlePauseToggle}
+                    className="inline-flex items-center px-3 py-1.5 rounded-lg text-sm font-medium bg-accent-soft text-accent hover:bg-accent-soft/70 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                  >
+                    {existingPromotion.status === "paused" ? (
+                      <>
+                        <Play size={14} className="mr-1.5" />
+                        {resumePromotion.isPending ? "Resuming…" : "Resume"}
+                      </>
+                    ) : (
+                      <>
+                        <Pause size={14} className="mr-1.5" />
+                        {pausePromotion.isPending ? "Pausing…" : "Pause"}
+                      </>
+                    )}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setShowExtendForm((s) => !s)}
+                    className="inline-flex items-center px-3 py-1.5 rounded-lg text-sm font-medium bg-accent-soft text-accent hover:bg-accent-soft/70 transition-colors"
+                  >
+                    <TimerReset size={14} className="mr-1.5" /> Extend
+                  </button>
+                  <button
+                    type="button"
+                    disabled={terminatePromotion.isPending}
+                    onClick={handleTerminate}
+                    className="inline-flex items-center px-3 py-1.5 rounded-lg text-sm font-medium bg-danger/10 text-danger hover:bg-danger/20 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                  >
+                    <XCircle size={14} className="mr-1.5" />
+                    {terminatePromotion.isPending ? "Ending…" : "End campaign"}
+                  </button>
+                </div>
+
+                {showExtendForm && (
+                  <form onSubmit={handleExtend} className="flex items-end gap-2">
+                    <div className="flex-1">
+                      <FormField
+                        id="extend-days"
+                        label="Additional days"
+                        type="number"
+                        min={1}
+                        step="1"
+                        value={extendDays}
+                        onChange={(e) => setExtendDays(e.target.value)}
+                      />
+                    </div>
+                    <p className="text-xs text-ink-muted pb-2.5 whitespace-nowrap">
+                      +{formatUsd((Number(extendDays) || 0) * existingPromotion.daily_budget_usd)}
+                    </p>
+                    <button
+                      type="submit"
+                      disabled={extendPromotion.isPending}
+                      className="px-3 py-2 rounded-lg text-sm font-medium bg-accent text-canvas hover:bg-accent-hover disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                    >
+                      {extendPromotion.isPending ? "Adding…" : "Add"}
+                    </button>
+                  </form>
+                )}
+
+                {lifecycleError && (
+                  <p className="text-danger text-sm" role="alert">
+                    {lifecycleError}
+                  </p>
+                )}
+              </div>
             )}
           </div>
         )}
