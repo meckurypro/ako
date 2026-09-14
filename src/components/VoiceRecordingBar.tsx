@@ -1,5 +1,5 @@
 // src/components/VoiceRecordingBar.tsx
-import { Trash2, Play, Pause, Square, Lock, ChevronsLeft, Mic } from "lucide-react";
+import { Trash2, Pause, Square, Lock, ChevronsLeft, Mic } from "lucide-react";
 import { formatVoiceDuration } from "../lib/voiceNotes";
 import { VoiceWaveform } from "./VoiceWaveform";
 
@@ -43,25 +43,39 @@ export function VoiceRecordingBar({
   onStop,
 }: VoiceRecordingBarProps) {
   if (locked) {
+    // Matches WhatsApp's locked/paused toolbar: a circled trash on the
+    // left, a scrub-style waveform + timer in the middle (paused
+    // freezes it — no pulsing dot once you've stopped talking), a
+    // labeled Pause/Resume pill, and a dark send-style Stop button.
     return (
-      <div className="px-4 py-3 flex items-center gap-3">
-        <button type="button" onClick={onCancel} className="text-danger flex-shrink-0 p-1" aria-label="Discard recording">
-          <Trash2 size={20} />
+      <div className="px-4 py-3 flex items-center gap-2">
+        <button
+          type="button"
+          onClick={onCancel}
+          className="w-9 h-9 rounded-full bg-danger/10 text-danger flex items-center justify-center flex-shrink-0"
+          aria-label="Discard recording"
+        >
+          <Trash2 size={18} />
         </button>
         <div className="flex-1 flex items-center gap-2 text-sm text-ink min-w-0">
-          <span className={`w-2.5 h-2.5 rounded-full bg-danger flex-shrink-0 ${paused ? "" : "animate-pulse"}`} />
-          <span className="tabular-nums flex-shrink-0">{formatVoiceDuration(elapsedMs / 1000)}</span>
           <VoiceWaveform levels={liveLevels} filledColor="bg-accent" mutedColor="bg-ink-muted/25" heightClass="h-5" />
+          <span className="tabular-nums flex-shrink-0 text-ink-muted text-[13px]">{formatVoiceDuration(elapsedMs / 1000)}</span>
         </div>
         <button
           type="button"
           onClick={onTogglePause}
-          className="text-ink flex-shrink-0 p-2"
+          className="flex items-center gap-1.5 px-3 py-2 rounded-full bg-surface text-ink text-sm flex-shrink-0"
           aria-label={paused ? "Resume recording" : "Pause recording"}
         >
-          {paused ? <Play size={20} /> : <Pause size={20} />}
+          {paused ? <Mic size={16} /> : <Pause size={16} />}
+          <span>{paused ? "Resume" : "Pause"}</span>
         </button>
-        <button type="button" onClick={onStop} className="bg-accent text-white rounded-full p-2.5 flex-shrink-0" aria-label="Stop recording">
+        <button
+          type="button"
+          onClick={onStop}
+          className="bg-ink text-canvas rounded-full p-2.5 flex-shrink-0"
+          aria-label="Stop recording"
+        >
           <Square size={16} fill="currentColor" />
         </button>
       </div>
