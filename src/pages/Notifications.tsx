@@ -20,6 +20,9 @@ import {
   ShieldAlert,
   Send,
   Megaphone,
+  Wallet2,
+  Coins,
+  Banknote,
 } from "lucide-react";
 import { useNotifications, useMarkNotificationRead, useMarkAllRead } from "../hooks/useNotifications";
 import {
@@ -80,6 +83,9 @@ const TYPE_CONFIG: Record<string, { icon: typeof Heart; verb: string }> = {
   promotion_declined: { icon: Megaphone, verb: "Your promotion needs changes" },
   post_published: { icon: Send, verb: "Your scheduled post is live" },
   room_meeting_scheduled: { icon: Users, verb: "scheduled a new Room meeting" },
+  project_purchased: { icon: Wallet2, verb: "bought your project" },
+  affiliate_commission_earned: { icon: Coins, verb: "You earned an affiliate commission" },
+  withdrawal_status: { icon: Banknote, verb: "" },
 };
 
 function timeAgo(dateString: string): string {
@@ -130,6 +136,9 @@ function notificationLink(n: NotificationWithActor): string {
   // send them back to Wallet, where promotion status/history is
   // already surfaced (see MyAffiliateLinks/Wallet).
   if (n.target_type === "promotion") return "/wallet";
+  // No dedicated withdrawal detail page yet — Wallet already surfaces
+  // withdrawal history/status, same reasoning as promotion above.
+  if (n.target_type === "withdrawal") return "/wallet";
   if (n.target_type === "comment" && n.target_id) {
     // comment_post_id can be null if it couldn't be resolved (e.g. the
     // comment was since deleted) — nothing sensible to link to then.
@@ -158,6 +167,13 @@ const NO_ACTOR_TYPES = new Set([
   "promotion_approved",
   "promotion_declined",
   "post_published",
+  // Passive money events — actor_id is null (affiliate_commission_earned)
+  // or not applicable (withdrawal_status) already, but explicit here so
+  // the icon block always renders even if that ever changes upstream.
+  // project_purchased is deliberately NOT in this set — the buyer is a
+  // real person who did a real thing, showing them is the whole point.
+  "affiliate_commission_earned",
+  "withdrawal_status",
 ]);
 
 const PROJECT_TARGETABLE_TYPES = new Set(["like", "dislike", "share"]);
