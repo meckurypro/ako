@@ -176,6 +176,7 @@ export function Compose() {
           postingAsPage ? `/page/${postingAsPage.username}` : "/feed",
           postingAsPage ? undefined : { state: { justPostedId: (createdPost as { id: string }).id } }
         );
+        toast("Posted.", { variant: "success" });
       }
     } catch (err) {
       // Moderation rejections and other edge-function errors surface here —
