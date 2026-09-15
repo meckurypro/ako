@@ -35,7 +35,6 @@ export interface NotificationWithActor {
 
 export function useNotifications() {
   const { user } = useAuth();
-  const queryClient = useQueryClient();
 
   // Realtime for this query is handled globally by AuthProvider (see
   // useAuth.tsx) — it subscribes to this exact same
