@@ -13,6 +13,7 @@ import {
 } from "../hooks/useMessaging";
 import { useUnseenPosts } from "../hooks/useUnseenPosts";
 import { useAuth } from "../hooks/useAuth";
+import { useFeatureFlag } from "../hooks/useFeatureFlags";
 import { Avatar } from "../components/Avatar";
 import { BottomNav } from "../components/BottomNav";
 import { MessageStatusTicks } from "../components/MessageStatusTicks";
@@ -41,6 +42,7 @@ export function ConversationList() {
   const authorIds = conversations?.map((c) => c.other_participant.id) ?? [];
   const { data: unseenPosts } = useUnseenPosts(authorIds);
   const archiveBadgeCount = useArchiveBadgeCount();
+  const messagingEnabled = useFeatureFlag("messaging_enabled");
 
   const [searchQuery, setSearchQuery] = useState("");
 
@@ -328,6 +330,30 @@ export function ConversationList() {
             {c.unreadCount > 99 ? "99+" : c.unreadCount}
           </span>
         )}
+      </div>
+    );
+  }
+
+  // Defensive layer for anyone who lands on /messages directly (a
+  // stale tab, a bookmark, a deep link) while messaging is off — same
+  // "off switch is enforced here too, not just hidden from BottomNav"
+  // approach WalletPage takes for wallet_enabled. Enforced server-side
+  // as well (see check_messaging_enabled trigger on conversations/
+  // messages), so this is a courtesy, not the only thing stopping a
+  // new conversation or message from going through.
+  if (!messagingEnabled) {
+    return (
+      <div className="min-h-screen bg-canvas pb-24">
+        <header className="px-4 pt-6 pb-3 flex items-center gap-3 sticky top-0 bg-canvas z-30 border-b border-border">
+          <button onClick={smartBack} className="text-ink-muted">
+            <ArrowLeft size={22} />
+          </button>
+          <h2 className="font-display text-2xl text-ink flex-1">Messages</h2>
+        </header>
+        <div className="max-w-xl mx-auto px-4 pt-10 text-center">
+          <p className="text-sm text-ink-muted">Messaging is temporarily unavailable. Check back later.</p>
+        </div>
+        <BottomNav />
       </div>
     );
   }
