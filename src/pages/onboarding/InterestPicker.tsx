@@ -1,5 +1,6 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { ChevronDown, Search } from "lucide-react";
 import { useCategories } from "../../hooks/useCategories";
 import { useMyInterestIds, useSaveInterests } from "../../hooks/useOnboarding";
 import { Wordmark } from "../../components/Wordmark";
@@ -16,6 +17,33 @@ export function InterestPicker() {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [saveError, setSaveError] = useState<string | null>(null);
   const prefilled = useRef(false);
+
+  // Every category fully expanded read as a wall of pills once there
+  // were enough categories/interests to choose from. Default to
+  // collapsed (one category open at a time, same pattern as the
+  // in-form TopicPicker) and let search cut straight to a matching
+  // interest instead of asking people to scan the whole list.
+  const [query, setQuery] = useState("");
+  const [openCategoryId, setOpenCategoryId] = useState<string | null>(null);
+
+  const trimmedQuery = query.trim().toLowerCase();
+  const isSearching = trimmedQuery.length > 0;
+
+  // Flattened, category-tagged matches for the search view — only
+  // built while there's a query, so browsing by category doesn't pay
+  // for it.
+  const searchResults = useMemo(() => {
+    if (!isSearching || !categories) return [];
+    const results: { categoryName: string; id: string; name: string }[] = [];
+    for (const category of categories) {
+      for (const interest of category.interests) {
+        if (interest.name.toLowerCase().includes(trimmedQuery)) {
+          results.push({ categoryName: category.name, id: interest.id, name: interest.name });
+        }
+      }
+    }
+    return results;
+  }, [categories, isSearching, trimmedQuery]);
 
   // Seed selections from whatever's already saved (resume case) —
   // once only, so it doesn't clobber the user's in-progress toggling
@@ -90,32 +118,101 @@ export function InterestPicker() {
           </p>
         )}
 
-        <div className="space-y-8">
-          {categories?.map((category) => (
-            <div key={category.id}>
-              <h3 className="font-display text-lg text-ink mb-3">{category.name}</h3>
-              <div className="flex flex-wrap gap-2">
-                {category.interests.map((interest) => {
-                  const isSelected = selected.has(interest.id);
-                  return (
-                    <button
-                      key={interest.id}
-                      type="button"
-                      onClick={() => toggleInterest(interest.id)}
-                      className={`px-4 py-2 rounded-full text-sm font-medium border transition-colors ${
-                        isSelected
-                          ? "bg-accent text-canvas border-accent"
-                          : "bg-surface text-ink border-border hover:border-accent/50"
-                      }`}
-                    >
-                      {interest.name}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-          ))}
+        <div className="relative mb-6">
+          <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-ink-muted" />
+          <input
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Search topics…"
+            className="w-full pl-9 pr-4 py-2.5 rounded-xl border border-border bg-surface text-ink"
+          />
         </div>
+
+        {isSearching ? (
+          searchResults.length === 0 ? (
+            <p className="text-sm text-ink-muted">No topics match "{query.trim()}".</p>
+          ) : (
+            <div className="flex flex-wrap gap-2">
+              {searchResults.map(({ id, name, categoryName }) => {
+                const isSelected = selected.has(id);
+                return (
+                  <button
+                    key={id}
+                    type="button"
+                    onClick={() => toggleInterest(id)}
+                    title={categoryName}
+                    className={`px-4 py-2 rounded-full text-sm font-medium border transition-colors ${
+                      isSelected
+                        ? "bg-accent text-canvas border-accent"
+                        : "bg-surface text-ink border-border hover:border-accent/50"
+                    }`}
+                  >
+                    {name} <span className="text-xs opacity-70">· {categoryName}</span>
+                  </button>
+                );
+              })}
+            </div>
+          )
+        ) : (
+          <div className="divide-y divide-border">
+            {categories?.map((category) => {
+              const isCategoryOpen = openCategoryId === category.id;
+              const selectedInCategory = category.interests.filter((i) => selected.has(i.id)).length;
+
+              return (
+                <div key={category.id}>
+                  <button
+                    type="button"
+                    onClick={() => setOpenCategoryId((curr) => (curr === category.id ? null : category.id))}
+                    aria-expanded={isCategoryOpen}
+                    className="w-full flex items-center justify-between py-3 text-left"
+                  >
+                    <span className="font-display text-lg text-ink">
+                      {category.name}
+                      {selectedInCategory > 0 && (
+                        <span className="text-ink-muted font-sans text-sm font-normal"> ({selectedInCategory})</span>
+                      )}
+                    </span>
+                    <ChevronDown
+                      size={18}
+                      className={`text-ink-muted transition-transform duration-300 ease-in-out ${
+                        isCategoryOpen ? "rotate-180" : ""
+                      }`}
+                    />
+                  </button>
+
+                  <div
+                    className={`grid transition-[grid-template-rows] duration-300 ease-in-out ${
+                      isCategoryOpen ? "grid-rows-[1fr]" : "grid-rows-[0fr]"
+                    }`}
+                  >
+                    <div className="overflow-hidden">
+                      <div className="flex flex-wrap gap-2 pb-4">
+                        {category.interests.map((interest) => {
+                          const isSelected = selected.has(interest.id);
+                          return (
+                            <button
+                              key={interest.id}
+                              type="button"
+                              onClick={() => toggleInterest(interest.id)}
+                              className={`px-4 py-2 rounded-full text-sm font-medium border transition-colors ${
+                                isSelected
+                                  ? "bg-accent text-canvas border-accent"
+                                  : "bg-surface text-ink border-border hover:border-accent/50"
+                              }`}
+                            >
+                              {interest.name}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
       </div>
 
       <div className="fixed bottom-0 left-0 right-0 bg-canvas border-t border-border px-6 py-4">
