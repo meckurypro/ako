@@ -44,7 +44,15 @@ export function AccountSwitcher({ onClose }: { onClose: () => void }) {
   const others = accounts.filter((a) => a.user_id !== user?.id);
 
   return (
-    <div ref={ref} className="absolute top-full left-0 mt-1 bg-canvas border border-border rounded-xl shadow-lg py-1 w-64 z-10">
+    <div
+      ref={ref}
+      // z-40: this dropdown lives in ProfilePage's non-sticky header
+      // block, which has no z-index of its own — so this ends up
+      // compared directly against the page's sticky headers (Tier 1
+      // z-30, Tier 2 z-20) in the same shared stacking context rather
+      // than automatically winning by DOM nesting. Needs to beat both.
+      className="absolute top-full left-0 mt-1 bg-canvas border border-border rounded-xl shadow-lg py-1 w-64 z-40"
+    >
       {/* "You" — always first, not from the saved list (that list only
           has OTHER accounts' tokens cached; the current one is already
           live and shown from useAuth instead). */}
