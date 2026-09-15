@@ -2,6 +2,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { FunctionsHttpError } from "@supabase/supabase-js";
 import { supabase } from "../lib/supabase";
+import { resolveFunctionErrorMessage } from "../lib/functionErrors";
 import { useAuth } from "./useAuth";
 import { PROFILE_ROLES_SELECT, toProfileRoles } from "../lib/profileRoles";
 import type { PostWithAuthor, RepostSource } from "../types/database";
@@ -320,7 +321,14 @@ export function useCreatePost() {
           })
         : await supabase.functions.invoke("create-post", { body: rest });
 
-      if (error) throw error;
+      // See resolveFunctionErrorMessage — without this, a moderation
+      // rejection (e.g. the code-based word-filter's block message)
+      // never reaches the composer: supabase-js discards create-post's
+      // actual { error: "..." } body on a non-2xx response and only
+      // gives back a generic "Edge Function returned a non-2xx status
+      // code", so the toast/inline error the user sees would be that
+      // instead of the real reason their post was blocked.
+      if (error) throw new Error(await resolveFunctionErrorMessage(error, "Couldn't post this."));
       if (data?.error) throw new Error(data.error);
       return data.post;
     },
