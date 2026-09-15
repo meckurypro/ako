@@ -41,6 +41,7 @@ import { BottomNav } from "../components/BottomNav";
 import { AffiliateShareSheet } from "../components/AffiliateShareSheet";
 import { useAffiliateProgram } from "../hooks/useAffiliates";
 import { PublishMusicButton } from "../components/music/PublishMusicButton";
+import { ProjectFaqSection } from "../components/ProjectFaqSection";
 
 // Compact, non-interactive project tile for the "similar projects"
 // rails — just enough to identify it and tap through. The full
@@ -482,6 +483,8 @@ export function ProjectDetail() {
             {project.project_type === "gig" && <GigReviewsSection projectId={project.id} />}
 
             {project.project_type === "event" && <EventHighlightsSection projectId={project.id} isOwner={isOwner} />}
+
+            <ProjectFaqSection projectId={project.id} projectType={project.project_type} isOwner={isOwner} />
 
             {project.project_type === "media" && isOwner && (
               <PublishMusicButton projectId={project.id} />
