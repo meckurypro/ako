@@ -23,14 +23,14 @@ function SuggestedPersonRow({ person }: { person: OnboardingRecommendation }) {
   const isFollowing = !!isFollowingQuery.data;
 
   return (
-    <div className="bg-surface rounded-2xl border border-border p-4 flex items-center gap-4 shadow-[0_1px_4px_-1px_rgba(var(--shadow-ink-rgb),0.06)]">
-      <Avatar src={person.avatar_url} name={person.display_name} size="lg" />
+    <div className="bg-surface rounded-xl border border-border px-3.5 py-3 flex items-center gap-3 shadow-[0_1px_4px_-1px_rgba(var(--shadow-ink-rgb),0.06)]">
+      <Avatar src={person.avatar_url} name={person.display_name} size="md" />
 
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-1.5">
-          <p className="font-display text-base text-ink truncate">{person.display_name}</p>
+          <p className="font-display text-sm text-ink truncate">{person.display_name}</p>
           {person.is_admin_suggested && (
-            <span className="text-[10px] font-medium text-accent bg-accent-soft px-2 py-0.5 rounded-full shrink-0">
+            <span className="text-[10px] font-medium text-accent bg-accent-soft px-1.5 py-0.5 rounded-full shrink-0">
               Featured
             </span>
           )}
@@ -41,27 +41,26 @@ function SuggestedPersonRow({ person }: { person: OnboardingRecommendation }) {
         </p>
 
         {person.bio && (
-          <p className="text-xs text-ink-muted mt-1.5 line-clamp-1">{person.bio}</p>
+          <p className="text-xs text-ink-muted mt-1 line-clamp-1">{person.bio}</p>
         )}
 
         {person.shared_interest_count > 0 && (
-          <p className="text-[11px] text-accent font-medium mt-1.5">
+          <p className="text-[11px] text-accent font-medium mt-1">
             {person.shared_interest_count} shared interest{person.shared_interest_count > 1 ? "s" : ""}
           </p>
         )}
       </div>
 
-      <div className="w-24 shrink-0">
-        <Button
-          variant={isFollowing ? "secondary" : "primary"}
-          onClick={() => toggleFollow.mutate(isFollowing)}
-          disabled={isFollowingQuery.isLoading}
-          loading={toggleFollow.isPending}
-          className="py-2 text-sm"
-        >
-          {isFollowing ? "Following" : "Follow"}
-        </Button>
-      </div>
+      <Button
+        variant={isFollowing ? "secondary" : "primary"}
+        size="sm"
+        onClick={() => toggleFollow.mutate(isFollowing)}
+        disabled={isFollowingQuery.isLoading}
+        loading={toggleFollow.isPending}
+        className="shrink-0"
+      >
+        {isFollowing ? "Following" : "Follow"}
+      </Button>
     </div>
   );
 }

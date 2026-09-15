@@ -1,12 +1,13 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { ChevronDown, Search } from "lucide-react";
+import { Search, X } from "lucide-react";
 import { useCategories } from "../../hooks/useCategories";
 import { useMyInterestIds, useSaveInterests } from "../../hooks/useOnboarding";
 import { Wordmark } from "../../components/Wordmark";
 import { Button } from "../../components/Button";
 
 const MIN_INTERESTS = 3;
+const MAX_SUGGESTIONS = 8;
 
 export function InterestPicker() {
   const navigate = useNavigate();
@@ -16,34 +17,36 @@ export function InterestPicker() {
 
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [saveError, setSaveError] = useState<string | null>(null);
+  const [query, setQuery] = useState("");
+  const [isFocused, setIsFocused] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
   const prefilled = useRef(false);
 
-  // Every category fully expanded read as a wall of pills once there
-  // were enough categories/interests to choose from. Default to
-  // collapsed (one category open at a time, same pattern as the
-  // in-form TopicPicker) and let search cut straight to a matching
-  // interest instead of asking people to scan the whole list.
-  const [query, setQuery] = useState("");
-  const [openCategoryId, setOpenCategoryId] = useState<string | null>(null);
+  // Flat, searchable list of every interest across every category —
+  // this is what powers the typeahead, so a match on "startups" finds
+  // it regardless of which category it lives under.
+  const flatInterests = useMemo(
+    () =>
+      (categories ?? []).flatMap((category) =>
+        category.interests.map((interest) => ({ ...interest, categoryName: category.name }))
+      ),
+    [categories]
+  );
 
-  const trimmedQuery = query.trim().toLowerCase();
-  const isSearching = trimmedQuery.length > 0;
+  // Preserves selection order (Set iterates in insertion order) so
+  // chips don't jump around as you add/remove them.
+  const selectedInterests = useMemo(
+    () => Array.from(selected).flatMap((id) => flatInterests.filter((i) => i.id === id)),
+    [selected, flatInterests]
+  );
 
-  // Flattened, category-tagged matches for the search view — only
-  // built while there's a query, so browsing by category doesn't pay
-  // for it.
-  const searchResults = useMemo(() => {
-    if (!isSearching || !categories) return [];
-    const results: { categoryName: string; id: string; name: string }[] = [];
-    for (const category of categories) {
-      for (const interest of category.interests) {
-        if (interest.name.toLowerCase().includes(trimmedQuery)) {
-          results.push({ categoryName: category.name, id: interest.id, name: interest.name });
-        }
-      }
-    }
-    return results;
-  }, [categories, isSearching, trimmedQuery]);
+  const suggestions = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return [];
+    return flatInterests
+      .filter((i) => !selected.has(i.id) && i.name.toLowerCase().includes(q))
+      .slice(0, MAX_SUGGESTIONS);
+  }, [query, flatInterests, selected]);
 
   // Seed selections from whatever's already saved (resume case) —
   // once only, so it doesn't clobber the user's in-progress toggling
@@ -66,6 +69,20 @@ export function InterestPicker() {
       }
       return next;
     });
+  }
+
+  function selectSuggestion(interestId: string) {
+    toggleInterest(interestId);
+    setQuery("");
+    inputRef.current?.focus();
+  }
+
+  // Backspace on an empty field pops the most recently added chip —
+  // mirrors the FB/Instagram tag-input pattern.
+  function handleInputKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
+    if (e.key === "Backspace" && query === "" && selectedInterests.length > 0) {
+      toggleInterest(selectedInterests[selectedInterests.length - 1].id);
+    }
   }
 
   async function handleContinue() {
@@ -118,101 +135,69 @@ export function InterestPicker() {
           </p>
         )}
 
-        <div className="relative mb-6">
-          <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-ink-muted" />
-          <input
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search topics…"
-            className="w-full pl-9 pr-4 py-2.5 rounded-xl border border-border bg-surface text-ink"
-          />
-        </div>
+        <div className="relative">
+          <div
+            className={`min-h-[52px] flex flex-wrap items-center gap-1.5 bg-surface rounded-2xl border px-3 py-2 transition-colors ${
+              isFocused ? "border-accent/60" : "border-border"
+            }`}
+          >
+            <Search size={16} className="text-ink-muted shrink-0 ml-1" />
 
-        {isSearching ? (
-          searchResults.length === 0 ? (
-            <p className="text-sm text-ink-muted">No topics match "{query.trim()}".</p>
-          ) : (
-            <div className="flex flex-wrap gap-2">
-              {searchResults.map(({ id, name, categoryName }) => {
-                const isSelected = selected.has(id);
-                return (
-                  <button
-                    key={id}
-                    type="button"
-                    onClick={() => toggleInterest(id)}
-                    title={categoryName}
-                    className={`px-4 py-2 rounded-full text-sm font-medium border transition-colors ${
-                      isSelected
-                        ? "bg-accent text-canvas border-accent"
-                        : "bg-surface text-ink border-border hover:border-accent/50"
-                    }`}
-                  >
-                    {name} <span className="text-xs opacity-70">· {categoryName}</span>
-                  </button>
-                );
-              })}
-            </div>
-          )
-        ) : (
-          <div className="divide-y divide-border">
-            {categories?.map((category) => {
-              const isCategoryOpen = openCategoryId === category.id;
-              const selectedInCategory = category.interests.filter((i) => selected.has(i.id)).length;
+            {selectedInterests.map((interest) => (
+              <span
+                key={interest.id}
+                className="inline-flex items-center gap-1 pl-2.5 pr-1.5 py-1 rounded-full bg-accent text-canvas text-xs font-medium"
+              >
+                {interest.name}
+                <button
+                  type="button"
+                  onClick={() => toggleInterest(interest.id)}
+                  aria-label={`Remove ${interest.name}`}
+                  className="hover:bg-canvas/20 rounded-full p-0.5 transition-colors"
+                >
+                  <X size={11} />
+                </button>
+              </span>
+            ))}
 
-              return (
-                <div key={category.id}>
-                  <button
-                    type="button"
-                    onClick={() => setOpenCategoryId((curr) => (curr === category.id ? null : category.id))}
-                    aria-expanded={isCategoryOpen}
-                    className="w-full flex items-center justify-between py-3 text-left"
-                  >
-                    <span className="font-display text-lg text-ink">
-                      {category.name}
-                      {selectedInCategory > 0 && (
-                        <span className="text-ink-muted font-sans text-sm font-normal"> ({selectedInCategory})</span>
-                      )}
-                    </span>
-                    <ChevronDown
-                      size={18}
-                      className={`text-ink-muted transition-transform duration-300 ease-in-out ${
-                        isCategoryOpen ? "rotate-180" : ""
-                      }`}
-                    />
-                  </button>
-
-                  <div
-                    className={`grid transition-[grid-template-rows] duration-300 ease-in-out ${
-                      isCategoryOpen ? "grid-rows-[1fr]" : "grid-rows-[0fr]"
-                    }`}
-                  >
-                    <div className="overflow-hidden">
-                      <div className="flex flex-wrap gap-2 pb-4">
-                        {category.interests.map((interest) => {
-                          const isSelected = selected.has(interest.id);
-                          return (
-                            <button
-                              key={interest.id}
-                              type="button"
-                              onClick={() => toggleInterest(interest.id)}
-                              className={`px-4 py-2 rounded-full text-sm font-medium border transition-colors ${
-                                isSelected
-                                  ? "bg-accent text-canvas border-accent"
-                                  : "bg-surface text-ink border-border hover:border-accent/50"
-                              }`}
-                            >
-                              {interest.name}
-                            </button>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
+            <input
+              ref={inputRef}
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              onKeyDown={handleInputKeyDown}
+              onFocus={() => setIsFocused(true)}
+              onBlur={() => setIsFocused(false)}
+              placeholder={selectedInterests.length === 0 ? "Search topics — Music, Startups, Fitness…" : "Add more…"}
+              className="flex-1 min-w-[120px] bg-transparent text-ink placeholder:text-ink-muted/60 focus:outline-none text-sm py-1"
+            />
           </div>
-        )}
+
+          {isFocused && query.trim().length > 0 && (
+            <div className="absolute z-20 left-0 right-0 mt-2 bg-surface border border-border rounded-2xl shadow-lg max-h-64 overflow-y-auto">
+              {suggestions.length === 0 ? (
+                <p className="text-sm text-ink-muted px-4 py-3">No topics match "{query.trim()}"</p>
+              ) : (
+                suggestions.map((interest) => (
+                  <button
+                    key={interest.id}
+                    type="button"
+                    // onMouseDown (not onClick) fires before the input's
+                    // onBlur, so the dropdown doesn't close out from
+                    // under the click.
+                    onMouseDown={(e) => {
+                      e.preventDefault();
+                      selectSuggestion(interest.id);
+                    }}
+                    className="w-full flex items-center justify-between px-4 py-2.5 text-left hover:bg-canvas transition-colors"
+                  >
+                    <span className="text-sm text-ink">{interest.name}</span>
+                    <span className="text-xs text-ink-muted">{interest.categoryName}</span>
+                  </button>
+                ))
+              )}
+            </div>
+          )}
+        </div>
       </div>
 
       <div className="fixed bottom-0 left-0 right-0 bg-canvas border-t border-border px-6 py-4">
