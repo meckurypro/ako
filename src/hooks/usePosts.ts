@@ -67,6 +67,8 @@ interface CreatePostInput {
   // already persist media_urls/category_id — not something this repo
   // can change directly.
   tagged_project_id?: string;
+  // Optional soundtrack — see src/components/music/AddMusicSheet.tsx.
+  music_catalogue_id?: string;
   // Defaults to "published" server-side when omitted — only send this
   // for a draft or scheduled save. See
   // supabase-fixes/add_post_drafts_and_scheduling.sql: requires that
