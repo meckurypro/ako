@@ -1,16 +1,16 @@
 // src/pages/admin/AdminUserAnalytics.tsx
 import { ArrowLeft } from "lucide-react";
 import { useSmartBack } from "../../hooks/useSmartBack";
-import { useUserGrowth } from "../../hooks/useAdminAnalytics";
+import { useUserGrowth, usePostGrowth, useCommentGrowth, type DailyCount } from "../../hooks/useAdminAnalytics";
 
 /**
  * Plain CSS/SVG bar chart — no charting library in this project
- * (see package.json), and one 30-bar chart doesn't justify adding
- * one. If more charts get added later, recharts would be the
+ * (see package.json), and a handful of 30-bar charts doesn't justify
+ * adding one. If more charts get added later, recharts would be the
  * natural choice (React-idiomatic, already used in comparable
  * Vite/Tailwind stacks) — worth revisiting then.
  */
-function SignupsChart({ data }: { data: { date: string; count: number }[] }) {
+function GrowthChart({ data }: { data: DailyCount[] }) {
   const max = Math.max(1, ...data.map((d) => d.count));
 
   return (
@@ -50,14 +50,81 @@ function formatShortDate(dateKey: string | undefined): string {
   return `${monthNames[Number(m) - 1]} ${Number(d)}`;
 }
 
+function bestDayOf(daily: DailyCount[] | undefined) {
+  if (!daily) return undefined;
+  return daily.reduce((best, d) => (d.count > best.count ? d : best), { date: "", count: 0 });
+}
+
+/**
+ * One metric's full card: total + 30-day count + chart. Shared by
+ * Users, Posts, and Comments below so the three sections stay visually
+ * and structurally identical rather than each admin metric evolving
+ * its own layout over time.
+ */
+function GrowthSection({
+  title,
+  totalLabel,
+  total,
+  newLast30Days,
+  daily,
+  unitSingular,
+  unitPlural,
+  isLoading,
+  error,
+}: {
+  title: string;
+  totalLabel: string;
+  total: number | undefined;
+  newLast30Days: number | undefined;
+  daily: DailyCount[] | undefined;
+  unitSingular: string;
+  unitPlural: string;
+  isLoading: boolean;
+  error: unknown;
+}) {
+  const bestDay = bestDayOf(daily);
+
+  return (
+    <section className="mb-8">
+      <h3 className="font-display text-lg text-ink mb-3">{title}</h3>
+
+      {isLoading && <p className="text-ink-muted text-center py-6 text-sm">Loading…</p>}
+      {!!error && <p className="text-danger text-center py-6 text-sm">Couldn't load this data.</p>}
+
+      {daily && total !== undefined && newLast30Days !== undefined && (
+        <>
+          <div className="grid grid-cols-2 gap-3 mb-3">
+            <div className="bg-surface rounded-xl p-4 border border-border">
+              <p className="text-xs text-ink-muted mb-1">{totalLabel}</p>
+              <p className="font-display text-2xl text-ink">{total.toLocaleString()}</p>
+            </div>
+            <div className="bg-surface rounded-xl p-4 border border-border">
+              <p className="text-xs text-ink-muted mb-1">New (30 days)</p>
+              <p className="font-display text-2xl text-ink">{newLast30Days.toLocaleString()}</p>
+            </div>
+          </div>
+
+          <div className="bg-surface rounded-xl p-4 border border-border mb-3">
+            <p className="text-sm font-medium text-ink mb-4">Daily {unitPlural}</p>
+            <GrowthChart data={daily} />
+          </div>
+
+          {bestDay && bestDay.count > 0 && (
+            <p className="text-xs text-ink-muted text-center">
+              Best day: {formatShortDate(bestDay.date)} with {bestDay.count} {bestDay.count === 1 ? unitSingular : unitPlural}
+            </p>
+          )}
+        </>
+      )}
+    </section>
+  );
+}
+
 export function AdminUserAnalytics() {
   const smartBack = useSmartBack();
-  const { data, isLoading, error } = useUserGrowth();
-
-  const bestDay = data?.dailySignups.reduce(
-    (best, d) => (d.count > best.count ? d : best),
-    { date: "", count: 0 }
-  );
+  const users = useUserGrowth();
+  const posts = usePostGrowth();
+  const comments = useCommentGrowth();
 
   return (
     <div className="min-h-screen bg-canvas px-4 pt-4 pb-10">
@@ -66,38 +133,44 @@ export function AdminUserAnalytics() {
           <button onClick={smartBack} className="text-ink-muted">
             <ArrowLeft size={22} />
           </button>
-          <h2 className="font-display text-xl text-ink">User growth</h2>
+          <h2 className="font-display text-xl text-ink">Growth</h2>
         </div>
 
-        {isLoading && <p className="text-ink-muted text-center py-10">Loading…</p>}
-        {error && <p className="text-danger text-center py-10">Couldn't load user analytics.</p>}
+        <GrowthSection
+          title="Users"
+          totalLabel="Total users"
+          total={users.data?.totalUsers}
+          newLast30Days={users.data?.newLast30Days}
+          daily={users.data?.dailySignups}
+          unitSingular="sign-up"
+          unitPlural="sign-ups"
+          isLoading={users.isLoading}
+          error={users.error}
+        />
 
-        {data && (
-          <>
-            <div className="grid grid-cols-2 gap-3 mb-6">
-              <div className="bg-surface rounded-xl p-4 border border-border">
-                <p className="text-xs text-ink-muted mb-1">Total users</p>
-                <p className="font-display text-2xl text-ink">{data.totalUsers.toLocaleString()}</p>
-              </div>
-              <div className="bg-surface rounded-xl p-4 border border-border">
-                <p className="text-xs text-ink-muted mb-1">New (30 days)</p>
-                <p className="font-display text-2xl text-ink">{data.newLast30Days.toLocaleString()}</p>
-              </div>
-            </div>
+        <GrowthSection
+          title="Posts"
+          totalLabel="Total posts"
+          total={posts.data?.total}
+          newLast30Days={posts.data?.newLast30Days}
+          daily={posts.data?.daily}
+          unitSingular="post"
+          unitPlural="posts"
+          isLoading={posts.isLoading}
+          error={posts.error}
+        />
 
-            <div className="bg-surface rounded-xl p-4 border border-border mb-4">
-              <p className="text-sm font-medium text-ink mb-4">Daily sign-ups</p>
-              <SignupsChart data={data.dailySignups} />
-            </div>
-
-            {bestDay && bestDay.count > 0 && (
-              <p className="text-xs text-ink-muted text-center">
-                Best day: {formatShortDate(bestDay.date)} with {bestDay.count} sign-up
-                {bestDay.count === 1 ? "" : "s"}
-              </p>
-            )}
-          </>
-        )}
+        <GrowthSection
+          title="Comments"
+          totalLabel="Total comments"
+          total={comments.data?.total}
+          newLast30Days={comments.data?.newLast30Days}
+          daily={comments.data?.daily}
+          unitSingular="comment"
+          unitPlural="comments"
+          isLoading={comments.isLoading}
+          error={comments.error}
+        />
       </div>
     </div>
   );
