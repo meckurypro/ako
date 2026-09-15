@@ -16,7 +16,14 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "../lib/supabase";
 import { useAuth } from "./useAuth";
 
-export type FeatureFlagCategory = "pages" | "wallet" | "messaging" | "promotions" | "affiliates" | "discovery";
+export type FeatureFlagCategory =
+  | "pages"
+  | "wallet"
+  | "messaging"
+  | "promotions"
+  | "affiliates"
+  | "projects"
+  | "discovery";
 
 export interface FeatureFlagDef {
   key: string;
@@ -49,6 +56,13 @@ export const FEATURE_FLAG_DEFS: FeatureFlagDef[] = [
     description:
       "Page inbox / page-to-profile direct messages. Existing threads stay readable. Toggled from Admin > Page settings.",
     category: "pages",
+  },
+  {
+    key: "projects_enabled",
+    label: "Projects",
+    description:
+      "Creating new projects of any type (files, events, courses, gigs, pitches, rooms, etc.) via the Create sheet. Existing projects, purchases, and edits to them are unaffected.",
+    category: "projects",
   },
   {
     key: "messaging_enabled",

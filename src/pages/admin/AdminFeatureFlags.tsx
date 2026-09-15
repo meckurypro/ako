@@ -12,10 +12,11 @@ import {
 // Deliberately excludes "pages" — subsidiaries_enabled and
 // page_messaging_enabled are still toggled from AdminPageSettings.tsx
 // (see useFeatureFlags.ts), so they're not duplicated here.
-const CATEGORY_ORDER: FeatureFlagCategory[] = ["messaging", "wallet", "promotions", "affiliates", "discovery"];
+const CATEGORY_ORDER: FeatureFlagCategory[] = ["projects", "messaging", "wallet", "promotions", "affiliates", "discovery"];
 
 const CATEGORY_LABELS: Record<FeatureFlagCategory, string> = {
   pages: "Pages & organisations",
+  projects: "Projects",
   messaging: "Messaging",
   wallet: "Wallet & money",
   promotions: "Promotions",

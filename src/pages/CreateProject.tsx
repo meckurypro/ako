@@ -16,6 +16,7 @@ import {
   getVisibleProjectTypes,
   type ProjectType,
 } from "../hooks/useProjects";
+import { useFeatureFlag } from "../hooks/useFeatureFlags";
 import { useActiveIdentity } from "../hooks/usePages";
 import { useMyProfile } from "../hooks/useProfile";
 import { useUploadProjectThumbnail } from "../hooks/useUploadProjectThumbnail";
@@ -55,6 +56,7 @@ export function CreateProject() {
   // on. See create_pitch_project in ako_projects_v8_pitch.sql.
   const createPitchProject = useCreatePitchProject();
   const uploadThumbnail = useUploadProjectThumbnail();
+  const projectsEnabled = useFeatureFlag("projects_enabled");
 
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
@@ -438,6 +440,26 @@ export function CreateProject() {
     } catch (err) {
       setError(err instanceof Error ? err.message : "Couldn't create project.");
     }
+  }
+
+  // Admin kill switch (see AdminFeatureFlags) — blocks the form even
+  // for someone who navigates here directly, not just the hidden
+  // "Project" entry in CreateChoice. Existing projects are unaffected
+  // either way; this only stops NEW ones from being created. Also
+  // enforced server-side in enforce_project_type_rules, so this is a
+  // convenience, not the only thing standing in the way.
+  if (!projectsEnabled) {
+    return (
+      <div className="min-h-screen bg-canvas px-4 pt-4 pb-10">
+        <div className="max-w-md mx-auto">
+          <button onClick={smartBack} className="text-ink-muted mb-4">
+            <ArrowLeft size={22} />
+          </button>
+          <h2 className="font-display text-2xl text-ink mb-6">New project</h2>
+          <p className="text-sm text-ink-muted">New projects aren't being created right now. Check back later.</p>
+        </div>
+      </div>
+    );
   }
 
   return (
