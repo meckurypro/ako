@@ -23,6 +23,7 @@ import {
   Wallet2,
   Coins,
   Banknote,
+  Briefcase,
 } from "lucide-react";
 import { useNotifications, useMarkNotificationRead, useMarkAllRead } from "../hooks/useNotifications";
 import {
@@ -86,6 +87,11 @@ const TYPE_CONFIG: Record<string, { icon: typeof Heart; verb: string }> = {
   project_purchased: { icon: Wallet2, verb: "bought your project" },
   affiliate_commission_earned: { icon: Coins, verb: "You earned an affiliate commission" },
   withdrawal_status: { icon: Banknote, verb: "" },
+  // System-generated (actor_id null) — see find_or_create_role_gig /
+  // auto_create_gig_on_collaboration_accept. target_id is the new
+  // Gig's project id, so this already routes to it via the generic
+  // target_type==="project" case in notificationLink().
+  gig_created_from_collaboration: { icon: Briefcase, verb: "A Gig was started from your collaboration" },
 };
 
 function timeAgo(dateString: string): string {
@@ -174,6 +180,7 @@ const NO_ACTOR_TYPES = new Set([
   // real person who did a real thing, showing them is the whole point.
   "affiliate_commission_earned",
   "withdrawal_status",
+  "gig_created_from_collaboration",
 ]);
 
 const PROJECT_TARGETABLE_TYPES = new Set(["like", "dislike", "share"]);
