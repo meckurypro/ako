@@ -24,6 +24,7 @@ import {
   Coins,
   Banknote,
   Briefcase,
+  Music2,
 } from "lucide-react";
 import { useNotifications, useMarkNotificationRead, useMarkAllRead } from "../hooks/useNotifications";
 import {
@@ -37,6 +38,7 @@ import { AkoMark } from "../components/AkoMark";
 import { BottomNav } from "../components/BottomNav";
 import { PageInviteResponseModal } from "../components/PageInviteResponseModal";
 import { CollaborationInviteResponseModal } from "../components/CollaborationInviteResponseModal";
+import { MusicCreditResponseModal } from "../components/MusicCreditResponseModal";
 import type { NotificationWithActor } from "../hooks/useNotifications";
 
 const TYPE_CONFIG: Record<string, { icon: typeof Heart; verb: string }> = {
@@ -93,6 +95,10 @@ const TYPE_CONFIG: Record<string, { icon: typeof Heart; verb: string }> = {
   // Gig's project id, so this already routes to it via the generic
   // target_type==="project" case in notificationLink().
   gig_created_from_collaboration: { icon: Briefcase, verb: "A Gig was started from your collaboration" },
+  // publish-music tags a non-publisher contributor 'pending' — see
+  // respond_to_music_credit(). Same "needs accept/decline, not a
+  // plain link" case as collaboration_invite below.
+  music_credit_request: { icon: Music2, verb: "credited you on their song" },
 };
 
 function timeAgo(dateString: string): string {
@@ -255,11 +261,13 @@ function NotificationRow({
   onRead,
   onOpenInvite,
   onOpenCollaborationInvite,
+  onOpenMusicCreditRequest,
 }: {
   n: NotificationWithActor;
   onRead: () => void;
   onOpenInvite: (pageId: string) => void;
   onOpenCollaborationInvite: (target: "post" | "project", targetId: string) => void;
+  onOpenMusicCreditRequest: (catalogueId: string) => void;
 }) {
   const config = TYPE_CONFIG[n.type] ?? TYPE_CONFIG.system;
 
@@ -299,6 +307,22 @@ function NotificationRow({
     );
   }
 
+  // Same pattern again for a pending music credit — see
+  // MusicCreditResponseModal.
+  if (n.type === "music_credit_request" && n.target_id) {
+    return (
+      <button
+        onClick={() => {
+          onRead();
+          onOpenMusicCreditRequest(n.target_id!);
+        }}
+        className={ROW_CLASS(!n.read_at)}
+      >
+        <NotificationRowContent n={n} config={config} />
+      </button>
+    );
+  }
+
   return (
     <Link to={notificationLink(n)} onClick={onRead} className={ROW_CLASS(!n.read_at)}>
       <NotificationRowContent n={n} config={config} />
@@ -329,6 +353,7 @@ export function Notifications() {
   const [openCollaborationInvite, setOpenCollaborationInvite] = useState<
     { target: "post" | "project"; targetId: string } | null
   >(null);
+  const [openMusicCreditCatalogueId, setOpenMusicCreditCatalogueId] = useState<string | null>(null);
 
   const hasUnread = notifications?.some((n) => !n.read_at);
 
@@ -361,6 +386,7 @@ export function Notifications() {
               onRead={() => !n.read_at && markRead.mutate(n.id)}
               onOpenInvite={setOpenInvitePageId}
               onOpenCollaborationInvite={(target, targetId) => setOpenCollaborationInvite({ target, targetId })}
+              onOpenMusicCreditRequest={setOpenMusicCreditCatalogueId}
             />
           ))
         )}
@@ -378,6 +404,13 @@ export function Notifications() {
           target={openCollaborationInvite.target}
           targetId={openCollaborationInvite.targetId}
           onClose={() => setOpenCollaborationInvite(null)}
+        />
+      )}
+
+      {openMusicCreditCatalogueId && (
+        <MusicCreditResponseModal
+          catalogueId={openMusicCreditCatalogueId}
+          onClose={() => setOpenMusicCreditCatalogueId(null)}
         />
       )}
 
