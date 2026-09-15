@@ -1,5 +1,6 @@
 // src/components/GiftPicker.tsx
 import { useMemo, useState } from "react";
+import { Link } from "react-router-dom";
 import { X, ArrowLeft } from "lucide-react";
 import { useGiftTypes, useWallet, useTopGiftTypeIds } from "../hooks/useWallet";
 import { useSendGift } from "../hooks/useGifting";
@@ -217,7 +218,11 @@ export function GiftPicker({
 
               {insufficientBalance && (
                 <div className="w-full text-sm text-danger bg-danger/10 rounded-xl p-3">
-                  Insufficient balance. Fund your wallet to send this gift.
+                  Insufficient balance. Fund your{" "}
+                  <Link to="/wallet" onClick={onClose} className="underline underline-offset-2">
+                    wallet
+                  </Link>{" "}
+                  to send this gift.
                 </div>
               )}
 
@@ -295,8 +300,21 @@ export function GiftPicker({
             )}
           </div>
           <p className="text-ink text-center text-base font-medium max-w-xs">
-            Insufficient balance to gift {article(insufficientGift.name)} {insufficientGift.name}. Please fund your
-            wallet.
+            Insufficient balance to gift {article(insufficientGift.name)} {insufficientGift.name}. Please fund your{" "}
+            <Link
+              to="/wallet"
+              onClick={(e) => {
+                // The overlay itself dismisses on tap anywhere (see the
+                // parent's onClick) — stop that here so tapping the link
+                // navigates to the wallet instead of just closing this.
+                e.stopPropagation();
+                onClose();
+              }}
+              className="underline underline-offset-2"
+            >
+              wallet
+            </Link>
+            .
           </p>
         </div>
       )}
