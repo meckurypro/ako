@@ -115,16 +115,16 @@ export function useIsFollowedByUser(targetUserId: string) {
 
 /**
  * Toggles a follow on/off for the SIGNED-IN PERSON — always writes to
- * `follows`, never page_follows_target. Deliberately does not brand
- * -switch on active identity: this hook backs the full Follow/Unfollow
- * button on ProfilePage, which is unambiguously "you, the person,
- * follow this profile" regardless of what you're currently posting
- * as. See useToggleFollowAsActiveIdentity below for the version
- * FollowButton (the compact one embedded in post/project cards)
- * should use instead, which DOES branch on Page mode — that's the one
- * item 7 was actually about: a team member acting as a page liking/
- * following things from inside a card while in Page mode, and it
- * silently landing on their own personal account.
+ * `follows`, never page_follows_target, regardless of active identity.
+ * Kept around for flows that are unambiguously personal (see
+ * FindPeople.tsx, reached during onboarding before any page can
+ * exist). ProfilePage's main Follow/Unfollow button used to call this
+ * unconditionally too — that was the actual bug behind item 7's
+ * report ("page mode: some follow buttons say Follow, others say
+ * Unfollow, for the same account"). It's identity-aware now (see
+ * useToggleFollowAsActiveIdentity below), matching the card-level
+ * FollowButton, so every follow control on screen agrees regardless
+ * of which one you happen to tap.
  */
 export function useToggleFollow(targetUserId: string) {
   const { user } = useAuth();
@@ -206,11 +206,14 @@ export function useIsFollowingAsActiveIdentity(targetUserId: string) {
  * This is the fix for item 7: previously every follow, everywhere in
  * the app (including from inside a post/project card while acting as
  * a page), went through useToggleFollow above and landed on the
- * team member's own personal `follows` row no matter what. Card-level
- * follow affordances (see FollowButton.tsx) should call this one
- * instead; the full ProfilePage Follow/Unfollow button intentionally
- * keeps using the always-personal useToggleFollow above (see its own
- * comment).
+ * team member's own personal `follows` row no matter what. Now used
+ * by both FollowButton.tsx (the compact card control) AND
+ * ProfilePage's main Follow/Unfollow button — the personal and page
+ * follow relationships are stored in separate tables (follows vs
+ * page_follows_target), so switching identity was never a data
+ * problem, only a "which table is this screen reading/writing right
+ * now" one. Each identity's own follow state is exactly where it was
+ * the moment you switch back to it.
  */
 export function useToggleFollowAsActiveIdentity(targetUserId: string) {
   const { user } = useAuth();
