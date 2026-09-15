@@ -20,6 +20,7 @@ import { CONTENT_LIMIT, contentCounterClass } from "../lib/textLimits";
 import { AddMusicSheet } from "../components/music/AddMusicSheet";
 import { Music as MusicIcon } from "lucide-react";
 import type { MusicSearchResult } from "../types/music";
+import { useFeatureFlag } from "../hooks/useFeatureFlags";
 
 const HEADING_LIMIT = 50;
 const MAX_MEDIA_FILES = 4;
@@ -58,6 +59,11 @@ export function Compose() {
     (location.state as { attachMusicCatalogueId?: string } | null)?.attachMusicCatalogueId ?? null;
   const [attachedMusic, setAttachedMusic] = useState<MusicSearchResult | null>(null);
   const [musicCatalogueId, setMusicCatalogueId] = useState<string | null>(incomingMusic);
+  // Only gates the entry point for attaching NEW music — if the admin
+  // flips this off mid-session after music is already attached (rare),
+  // the attached chip below still shows so it can be removed, it just
+  // won't offer the "Add music" button to attach something else.
+  const musicInPostsEnabled = useFeatureFlag("music_in_posts_enabled");
   const [addMusicOpen, setAddMusicOpen] = useState(false);
   const createPost = useCreatePost();
   const deleteDraftOrScheduled = useDeleteDraftOrScheduledPost();
@@ -365,6 +371,7 @@ export function Compose() {
 
         {uploadError && <p className="text-danger text-sm mt-2">{uploadError}</p>}
 
+        {(musicInPostsEnabled || musicCatalogueId) && (
         <div className="mt-6">
           {musicCatalogueId ? (
             <div className="flex items-center justify-between px-3 py-2 rounded-xl bg-accent-soft text-sm">
@@ -393,6 +400,7 @@ export function Compose() {
             </button>
           )}
         </div>
+        )}
 
         {addMusicOpen && (
           <AddMusicSheet
