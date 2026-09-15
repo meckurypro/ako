@@ -28,7 +28,7 @@ const TAGGED_PROJECT_SELECT = `tagged_project:projects!posts_tagged_project_id_f
 // One level deep: the embedded reshared_post carries its own author but
 // not a further-nested reshared_post, so repost-of-a-repost links to the
 // immediate parent rather than recursing indefinitely.
-const FEED_SELECT = `*, author:profiles!posts_author_id_fkey(${AUTHOR_SELECT}), ${PAGE_SELECT}, ${TAGGED_PROJECT_SELECT}, reshared_post(*, author:profiles!posts_author_id_fkey(${AUTHOR_SELECT}))`;
+export const FEED_SELECT = `*, author:profiles!posts_author_id_fkey(${AUTHOR_SELECT}), ${PAGE_SELECT}, ${TAGGED_PROJECT_SELECT}, reshared_post(*, author:profiles!posts_author_id_fkey(${AUTHOR_SELECT}))`;
 
 export function canEditPost(post: Pick<PostWithAuthor, "created_at">): boolean {
   return Date.now() - new Date(post.created_at).getTime() <= POST_EDIT_WINDOW_MS;
@@ -39,7 +39,7 @@ function normalizeAuthor(raw: any) {
 }
 
 /** Normalises the raw Supabase shape → PostWithAuthor (flattens profile_roles → roles). */
-function normalizePost(raw: any): PostWithAuthor {
+export function normalizePost(raw: any): PostWithAuthor {
   if (!raw) throw new Error("No post data to normalize.");
   const reshared_post: RepostSource | null | undefined = raw.reshared_post
     ? { ...raw.reshared_post, author: normalizeAuthor(raw.reshared_post.author) }
