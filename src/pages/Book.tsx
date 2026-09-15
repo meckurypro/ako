@@ -18,6 +18,8 @@ import {
 } from "lucide-react";
 import { useAuth } from "../hooks/useAuth";
 import { useProject, useHasPurchased, isProjectFree, getEffectivePrice, usePurchaseProject } from "../hooks/useProjects";
+import { useFeedDoorway } from "../hooks/useFeedDoorway";
+import { FeedDoorway } from "../components/FeedDoorway";
 import { useIsProjectMember } from "../hooks/useProjectMembers";
 import { useUploadProjectThumbnail } from "../hooks/useUploadProjectThumbnail";
 import { Button } from "../components/Button";
@@ -440,6 +442,13 @@ function BookReflowReader({
   const scrollRef = useRef<HTMLDivElement>(null);
   const saveTimer = useRef<number | null>(null);
 
+  // The table of contents is the reader's natural stopping point —
+  // reached after finishing a chapter, or right after unlocking the
+  // book, never mid-read. See useFeedDoorway for the session budget
+  // that keeps this from reappearing every time the reader returns
+  // here.
+  const bookDoorway = useFeedDoorway("book");
+
   useEffect(() => {
     localStorage.setItem("ako-reader-theme", theme);
   }, [theme]);
@@ -504,6 +513,7 @@ function BookReflowReader({
               <ChevronRight size={16} className="text-ink-muted shrink-0" />
             </button>
           ))}
+          {bookDoorway.visible && <FeedDoorway context="book" onEnter={bookDoorway.markEnteredFeed} />}
         </div>
       </div>
     );

@@ -7,6 +7,8 @@ import { ArrowLeft, Download, Clock, CheckCircle2 } from "lucide-react";
 import { useProject } from "../hooks/useProjects";
 import { useEventDetails } from "../hooks/useProjectTypeDetails";
 import { useMyEventTicket } from "../hooks/useEventTickets";
+import { useFeedDoorway } from "../hooks/useFeedDoorway";
+import { FeedDoorway } from "../components/FeedDoorway";
 
 // NOTE: this reads event_tickets, but nothing writes to it yet — the
 // purchase edge function needs to be extended to issue a ticket (see
@@ -19,6 +21,7 @@ export function TicketView() {
   const { data: eventDetails } = useEventDetails(projectId);
   const { data: ticket, isLoading } = useMyEventTicket(projectId);
   const [qrUrl, setQrUrl] = useState<string | null>(null);
+  const ticketDoorway = useFeedDoorway("ticket");
 
   // The QR encodes the raw ticket_code — the same string printed as
   // text below it and the same one a host can type manually into the
@@ -96,6 +99,9 @@ export function TicketView() {
               If you've just bought this, your ticket is still being issued — check back shortly.
             </p>
           </div>
+        )}
+        {ticket && ticketDoorway.visible && (
+          <FeedDoorway context="ticket" onEnter={ticketDoorway.markEnteredFeed} />
         )}
       </div>
     </div>

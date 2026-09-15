@@ -12,14 +12,25 @@ import {
 // Deliberately excludes "pages" — subsidiaries_enabled and
 // page_messaging_enabled are still toggled from AdminPageSettings.tsx
 // (see useFeatureFlags.ts), so they're not duplicated here.
-const CATEGORY_ORDER: FeatureFlagCategory[] = ["messaging", "wallet", "promotions", "affiliates"];
+const CATEGORY_ORDER: FeatureFlagCategory[] = [
+  "projects",
+  "content",
+  "messaging",
+  "wallet",
+  "promotions",
+  "affiliates",
+  "discovery",
+];
 
 const CATEGORY_LABELS: Record<FeatureFlagCategory, string> = {
   pages: "Pages & organisations",
+  projects: "Projects",
+  content: "Content",
   messaging: "Messaging",
   wallet: "Wallet & money",
   promotions: "Promotions",
   affiliates: "Affiliates",
+  discovery: "Discovery",
 };
 
 // /admin/feature-flags — the single switchboard for every "release
