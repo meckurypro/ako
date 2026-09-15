@@ -6,29 +6,23 @@ import { useUnreadCount } from "../hooks/useNotifications";
 import { useMyProfile } from "../hooks/useProfile";
 
 interface TopHeaderProps {
-  showTagline?: boolean;
   // Feed passes "create" — a "+" that opens /create (see
   // CreateChoice.tsx) in place of the own-avatar link. Every other
   // caller (Discover) keeps the avatar, unchanged.
   leftAction?: "avatar" | "create";
-  // Feed passes this to render the app icon (theme-swapped) in place
-  // of the "Akọ" text + tagline. See Wordmark.tsx.
-  asIcon?: boolean;
-  // Feed passes false to use the no-tagline icon variant in this
-  // tight header slot. See Wordmark.tsx.
-  iconTagline?: boolean;
 }
 
 // Matches the mockup: your own avatar on the left (in place of the
 // old search icon) on most screens — Feed swaps it for a "+" that
-// opens the create sheet — the wordmark centered, and only the
-// notification bell on the right — no wallet icon here anymore.
-// Wallet access moved to the profile page's owner action row instead.
+// opens the create sheet — the icon mark centered (see Wordmark.tsx —
+// icon only, no text), and only the notification bell on the right —
+// no wallet icon here anymore. Wallet access moved to the profile
+// page's owner action row instead.
 //
 // No shadow here — this sits inside Feed's sticky bg-surface wrapper
 // together with the tabs row below it, and the shadow for that whole
 // combined block lives on the wrapper, not here.
-export function TopHeader({ showTagline = false, leftAction = "avatar", asIcon = false, iconTagline = true }: TopHeaderProps) {
+export function TopHeader({ leftAction = "avatar" }: TopHeaderProps) {
   const unreadCount = useUnreadCount();
   const { data: me } = useMyProfile();
   const location = useLocation();
@@ -50,7 +44,7 @@ export function TopHeader({ showTagline = false, leftAction = "avatar", asIcon =
         </Link>
       )}
 
-      <Wordmark size="sm" showTagline={showTagline} asIcon={asIcon} iconTagline={iconTagline} />
+      <Wordmark size="sm" />
 
       <Link to="/notifications" className="relative text-ink-muted">
         <Bell size={22} />

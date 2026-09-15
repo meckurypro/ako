@@ -217,7 +217,7 @@ function NotificationRowContent({ n, config }: { n: NotificationWithActor; confi
           {showActor && <span className="font-medium">{n.actor!.display_name}</span>}
           {n.type === "admin_message" && (
             <span className="inline-flex items-center gap-1 font-medium">
-              <AkoMark size={16} /> Akọ.
+              <AkoMark size={22} />
             </span>
           )}{" "}
           {verbFor(n, config)}

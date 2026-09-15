@@ -1,5 +1,5 @@
 // src/components/PostMedia.tsx
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type SyntheticEvent } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { isVideoUrl } from "../hooks/useUploadPostMedia";
 import { MediaViewer } from "./MediaViewer";
@@ -43,6 +43,21 @@ function SlideCarousel({
   const [dragPx, setDragPx] = useState(0);
   const [dragging, setDragging] = useState(false);
   const count = mediaUrls.length;
+
+  // Carousel frame follows the FIRST slide's aspect ratio (same
+  // convention Instagram/Threads carousels use — one shared frame,
+  // not one height per slide) rather than a fixed height. Clamped to
+  // a sane range so one unusually tall/wide first image can't force
+  // every other slide into an awkward crop; a single posted image
+  // (the common case) isn't clamped at all — see PostMedia below.
+  const [frameAspect, setFrameAspect] = useState(1); // width / height, updated once the first slide's natural size is known
+  function handleFirstImageLoad(e: SyntheticEvent<HTMLImageElement>) {
+    const img = e.currentTarget;
+    if (img.naturalWidth && img.naturalHeight) {
+      const raw = img.naturalWidth / img.naturalHeight;
+      setFrameAspect(Math.min(1.91, Math.max(0.5, raw)));
+    }
+  }
 
   useEffect(() => {
     const node = containerRef.current;
@@ -199,7 +214,8 @@ function SlideCarousel({
         // Portal.tsx) so its own swipe is isolated from the tab row
         // regardless.
         data-swipeable-ignore
-        className="w-full h-[380px] bg-canvas rounded-xl overflow-hidden border border-border cursor-pointer"
+        className="w-full bg-canvas rounded-xl overflow-hidden border border-border cursor-pointer"
+        style={{ aspectRatio: frameAspect }}
       >
         <div
           className="flex h-full"
@@ -217,9 +233,15 @@ function SlideCarousel({
               style={{ width: `${100 / count}%` }}
             >
               {isVideoUrl(url) ? (
-                <video src={url} muted className="max-w-full max-h-full object-contain" draggable={false} />
+                <video src={url} muted className="w-full h-full object-cover" draggable={false} />
               ) : (
-                <img src={url} alt="" className="max-w-full max-h-full object-contain" draggable={false} />
+                <img
+                  src={url}
+                  alt=""
+                  className="w-full h-full object-cover"
+                  draggable={false}
+                  onLoad={i === 0 ? handleFirstImageLoad : undefined}
+                />
               )}
             </div>
           ))}
@@ -296,14 +318,22 @@ export function PostMedia({ mediaUrls }: { mediaUrls: string[] }) {
   return (
     <div className="mt-3" onClick={(e) => e.stopPropagation()}>
       {mediaUrls.length === 1 ? (
+        // Card width is fixed (the column width); height follows the
+        // image's own aspect ratio — no crop, no letterboxing, no
+        // artificial cap. Portrait -> tall card. 1:1 -> square card.
+        // Landscape (16:9, etc.) -> the image's long edge is forced to
+        // the card's width, height follows proportionally. `h-auto`
+        // is what does this: the browser derives height from the
+        // image's intrinsic aspect once it's fetched, same as it
+        // would for a plain <img> outside any card.
         <div
-          className="cursor-pointer w-full max-h-[480px] min-h-[180px] flex items-center justify-center bg-canvas rounded-xl overflow-hidden border border-border"
+          className="cursor-pointer w-full bg-canvas rounded-xl overflow-hidden border border-border"
           onClick={() => setViewerIndex(0)}
         >
           {isVideoUrl(mediaUrls[0]) ? (
-            <video src={mediaUrls[0]} muted className="max-w-full max-h-[480px] object-contain" />
+            <video src={mediaUrls[0]} muted className="block w-full h-auto" />
           ) : (
-            <img src={mediaUrls[0]} alt="" className="max-w-full max-h-[480px] object-contain" />
+            <img src={mediaUrls[0]} alt="" className="block w-full h-auto" loading="lazy" />
           )}
         </div>
       ) : (

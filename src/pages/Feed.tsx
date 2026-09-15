@@ -322,7 +322,7 @@ export function Feed() {
             would just be the same destinations twice. Mobile keeps the
             full header (Sidebar is md:hidden there). */}
         <div className="md:hidden">
-          <TopHeader showTagline leftAction="create" asIcon iconTagline={false} />
+          <TopHeader leftAction="create" />
         </div>
         <div className="hidden md:block pt-5" />
 
