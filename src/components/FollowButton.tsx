@@ -73,10 +73,18 @@ export function FollowButton({ authorId, isPrivate }: FollowButtonProps) {
     return null;
   }
 
+  // Following/Friends/Requested all share the same neutral pill now —
+  // previously bg-accent-soft/text-accent (green), which put them in
+  // the same visual family as TierBadge and made the card feel busier
+  // than it needed to. Matched instead to the plain "Follow" pill's own
+  // neutral bg-ink/10 text-ink below: that pair is already tuned for
+  // both themes (pale tint in light mode, dark tint in dark mode, both
+  // off the ink token so it reads correctly whichever theme is active),
+  // so reusing it here is the light AND dark treatment in one move.
   if (isFollowing) {
     return (
       <span
-        className={`text-[11px] font-semibold px-2.5 py-1 rounded-full bg-accent-soft text-accent whitespace-nowrap ${
+        className={`text-[11px] font-semibold px-2.5 py-1 rounded-full bg-ink/10 text-ink whitespace-nowrap ${
           justArrived ? "ako-pill-in" : ""
         }`}
       >
@@ -88,7 +96,7 @@ export function FollowButton({ authorId, isPrivate }: FollowButtonProps) {
   if (hasPendingRequest) {
     return (
       <span
-        className={`text-[11px] font-semibold px-2.5 py-1 rounded-full bg-accent-soft text-accent whitespace-nowrap ${
+        className={`text-[11px] font-semibold px-2.5 py-1 rounded-full bg-ink/10 text-ink whitespace-nowrap ${
           justArrived ? "ako-pill-in" : ""
         }`}
       >
@@ -110,14 +118,16 @@ export function FollowButton({ authorId, isPrivate }: FollowButtonProps) {
   // Both read as "Follow" now — the old solid bg-accent/text-canvas button
   // (visibly heavier than the Friends/Following pill above, since a solid
   // fill plus longer "Follow back" copy reads bigger even at the same
-  // padding) is replaced with the same soft-bg/solid-text pattern Friends
-  // uses, just swapped per case so the two remaining meanings — "brand new
-  // follow" vs "they already follow you" — stay visually distinct without
-  // the size mismatch:
+  // padding) is replaced with the same soft-bg/solid-text pattern
+  // Following/Friends/Requested now use above, just swapped per case so
+  // the two remaining meanings — "brand new follow" vs "they already
+  // follow you" — stay visually distinct without the size mismatch:
   //  - plain Follow: neutral, off the ink token (not accent — this isn't a
   //    relationship yet) — bg-ink/10 is a faint tint that lands pale in
   //    light mode, dark in dark mode; text-ink is solid and flips the same
-  //    way, exactly like Friends' bg-accent-soft/text-accent pair.
+  //    way. Following/Friends/Requested above reuse this exact pairing now
+  //    too, so every established-relationship badge on a card reads as one
+  //    neutral family instead of some being green.
   //  - "follow back" case: same shape, orange instead of neutral, off the
   //    existing --color-pushback token (muted gold/ochre) rather than a new
   //    hardcoded color — bg-pushback/15 for the soft fill, text-pushback
