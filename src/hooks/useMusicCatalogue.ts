@@ -22,6 +22,7 @@ import type {
   MusicCatalogueWithContributors,
   MusicLicenceAgreement,
   MusicSearchResult,
+  PendingMusicCredit,
 } from "../types/music";
 
 const CATALOGUE_BUCKET = "music-catalogue";
@@ -256,10 +257,60 @@ function hydrateCatalogueEntry(row: any): MusicCatalogueWithContributors {
 }
 
 // ------------------------------------------------------------
-// Usage analytics — free-usage discovery signal, deliberately
-// separate from any financial ledger. Fire-and-forget from the UI;
-// never blocks the interaction it's measuring.
+// Credit acceptance (Gig role expansion & collaboration, sections
+// 9, 11): publish-music tags a non-publisher contributor's row
+// 'pending' — they must accept before any Gig relationship forms.
+// See respond_to_music_credit() in the reconcile_gig_automation_
+// with_upstream_schema migration.
 // ------------------------------------------------------------
+export function useMyPendingMusicCredits() {
+  const { user } = useAuth();
+
+  return useQuery({
+    queryKey: ["my-pending-music-credits", user?.id],
+    queryFn: async (): Promise<PendingMusicCredit[]> => {
+      if (!user) return [];
+      const { data, error } = await supabase
+        .from("music_catalogue_contributors")
+        .select(
+          `role, catalogue:music_catalogue!inner(id, title, primary_artist_name, cover_image_path,
+             creator:profiles!music_catalogue_creator_id_fkey(id, username, display_name, avatar_url))`
+        )
+        .eq("contributor_id", user.id)
+        .eq("status", "pending");
+      if (error) throw error;
+      return (data ?? []).map((row: any) => ({
+        catalogue_id: row.catalogue.id,
+        role: row.role,
+        title: row.catalogue.title,
+        primary_artist_name: row.catalogue.primary_artist_name,
+        cover_url: publicUrlFor(row.catalogue.cover_image_path),
+        creator: row.catalogue.creator,
+      }));
+    },
+    enabled: !!user,
+  });
+}
+
+export function useRespondToMusicCredit() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ catalogueId, accept }: { catalogueId: string; accept: boolean }) => {
+      const { data, error } = await supabase.rpc("respond_to_music_credit", {
+        p_catalogue_id: catalogueId,
+        p_accept: accept,
+      });
+      if (error) throw error;
+      return data as { status: string; gig_id: string | null; gig_created: boolean };
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["my-pending-music-credits"] });
+      queryClient.invalidateQueries({ queryKey: ["portfolio-categories"] });
+    },
+  });
+}
+
 export function useRecordMusicUsageEvent() {
   const { user } = useAuth();
 
