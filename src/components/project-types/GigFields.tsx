@@ -3,9 +3,11 @@ import { ImageIcon, Check, Plus, X } from "lucide-react";
 import { FormField } from "../FormField";
 import { useAuth } from "../../hooks/useAuth";
 import { useUserProjects, PROJECT_TYPE_LABELS } from "../../hooks/useProjects";
+import { useGigRolesByCategory } from "../../hooks/usePortfolio";
 import type { GigFaqItem } from "../../hooks/useProjectTypeDetails";
 
 export interface GigFieldsValue {
+  role_id: string;
   tagline: string;
   delivery_estimate: string;
   sample_project_ids: string[];
@@ -15,6 +17,7 @@ export interface GigFieldsValue {
 }
 
 export const EMPTY_GIG_FIELDS: GigFieldsValue = {
+  role_id: "",
   tagline: "",
   delivery_estimate: "",
   sample_project_ids: [],
@@ -43,6 +46,7 @@ interface GigFieldsProps {
 export function GigFields({ value, onChange, excludeProjectId }: GigFieldsProps) {
   const { user } = useAuth();
   const { data: ownProjects } = useUserProjects(user?.id ?? "", true);
+  const { grouped: roleGroups } = useGigRolesByCategory();
   const candidates = (ownProjects ?? []).filter(
     (p) => p.project_type !== "gig" && p.id !== excludeProjectId
   );
@@ -78,6 +82,30 @@ export function GigFields({ value, onChange, excludeProjectId }: GigFieldsProps)
 
   return (
     <div className="mb-4">
+      <div className="mb-4">
+        <label className="block text-sm font-medium text-ink-muted mb-1.5">Professional role</label>
+        <select
+          value={value.role_id}
+          onChange={(e) => onChange({ ...value, role_id: e.target.value })}
+          className="w-full px-3 py-2 rounded-lg border border-border bg-canvas text-sm text-ink"
+        >
+          <option value="">Select a role…</option>
+          {[...roleGroups.entries()].map(([category, roles]) => (
+            <optgroup key={category} label={category}>
+              {roles.map((role) => (
+                <option key={role.id} value={role.id}>
+                  {role.label}
+                </option>
+              ))}
+            </optgroup>
+          ))}
+        </select>
+        <p className="text-xs text-ink-muted mt-1.5">
+          What this gig represents professionally — it's how your work shows up as a tab on your profile
+          (e.g. a Cinematographer gig surfaces under "Film").
+        </p>
+      </div>
+
       <FormField
         id="gig_tagline"
         label="Tagline"
