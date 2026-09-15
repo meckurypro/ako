@@ -4,6 +4,7 @@ import { useCreateComment } from "../hooks/useComments";
 import { useBackDismiss } from "../hooks/useBackDismiss";
 import { useScrollLock } from "../hooks/useScrollLock";
 import { Portal } from "./Portal";
+import { useToast } from "./Toast";
 import type { Stance } from "../types/database";
 import { MentionTextarea } from "./MentionTextarea";
 import { CONTENT_LIMIT, contentCounterClass } from "../lib/textLimits";
@@ -89,6 +90,7 @@ export function StanceComposer({
   const contentRef = useRef<HTMLTextAreaElement>(null);
   const [error, setError] = useState<string | null>(null);
   const createComment = useCreateComment(postId);
+  const toast = useToast();
 
   const colors = STANCE_COLORS[activeStance];
 
@@ -115,7 +117,15 @@ export function StanceComposer({
       setContent("");
       onClose();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Couldn't post this.");
+      // Moderation rejections (e.g. the word-filter's block message)
+      // surface here already worded — no need to reword it. Not
+      // calling onClose() above puts the author right back in this
+      // same composer with their text intact, ready to change
+      // whatever bounced; the toast is what actually announces the
+      // rejection, since the inline text below can be easy to miss.
+      const message = err instanceof Error ? err.message : "Couldn't post this.";
+      setError(message);
+      toast(message, { variant: "error" });
     }
   }
 
