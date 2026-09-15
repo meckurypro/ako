@@ -10,6 +10,7 @@ import {
   Share2,
   PenSquare,
   Flag,
+  FileWarning,
   BellOff,
   Bell,
   Ban,
@@ -41,6 +42,10 @@ interface ShareProfileSheetProps {
   onRemoveFollower: () => void;
   onMessage: () => void;
   onOpenQR: () => void;
+  /** Opens ReportModal — reporting one of this profile's specific
+   *  posts/projects, distinct from this sheet's own "Report" step
+   *  (mode="report" below) which reports the profile itself. */
+  onReportContent: () => void;
   onClose: () => void;
 }
 
@@ -65,6 +70,7 @@ export function ShareProfileSheet({
   onRemoveFollower,
   onMessage,
   onOpenQR,
+  onReportContent,
   onClose,
 }: ShareProfileSheetProps) {
   const [mode, setMode] = useState<Mode>("menu");
@@ -290,6 +296,15 @@ export function ShareProfileSheet({
   }[] = [
     { key: "nickname", label: "Customise name", icon: <PenSquare size={20} />, onSelect: () => setMode("nickname") },
     { key: "report", label: "Report", icon: <Flag size={20} />, onSelect: () => setMode("report") },
+    {
+      key: "report-content",
+      label: "Report a post/project",
+      icon: <FileWarning size={20} />,
+      onSelect: () => {
+        onClose();
+        onReportContent();
+      },
+    },
     {
       key: "mute",
       label: isMuted ? "Unmute" : "Mute their updates",
