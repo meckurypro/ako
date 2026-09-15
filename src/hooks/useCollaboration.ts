@@ -12,6 +12,10 @@ export interface Collaborator {
   responded_at: string | null;
   invited_by: string;
   user: { id: string; username: string; display_name: string; avatar_url: string | null };
+  // Project-only — what this person is credited as contributing (e.g.
+  // "Cinematographer"). Null for post collaborators, or when no role
+  // was assigned on invite.
+  role_label: string | null;
 }
 
 function tableFor(target: CollaborationTarget) {
@@ -27,31 +31,41 @@ export function useCollaborators(target: CollaborationTarget, targetId: string |
     queryKey: ["collaborators", target, targetId],
     queryFn: async (): Promise<Collaborator[]> => {
       if (!targetId) return [];
+      const roleSelect = target === "project" ? ", role:gig_roles(label)" : "";
       const { data, error } = await supabase
         .from(tableFor(target))
-        .select(`status, invited_at, responded_at, invited_by, user:profiles!${tableFor(target)}_user_id_fkey(id, username, display_name, avatar_url)`)
+        .select(
+          `status, invited_at, responded_at, invited_by, user:profiles!${tableFor(target)}_user_id_fkey(id, username, display_name, avatar_url)${roleSelect}`
+        )
         .eq(idColumnFor(target), targetId)
         .neq("status", "removed")
         .order("status", { ascending: true }); // "accepted" < "declined" < "invited" alphabetically — good enough default grouping
       if (error) throw error;
-      return data as unknown as Collaborator[];
+      return (data as any[]).map((row) => ({
+        ...row,
+        role_label: (Array.isArray(row.role) ? row.role[0] : row.role)?.label ?? null,
+      })) as Collaborator[];
     },
     enabled: !!targetId,
   });
 }
 
-/** Sends a collaboration request — inserting the row is the request; the DB trigger notifies the invitee. */
+/** Sends a collaboration request — inserting the row is the request; the DB trigger notifies the invitee.
+ *  roleId is project-only (post_collaborators has no role_id column) — what this person is being
+ *  credited as contributing (e.g. Cinematographer). Optional; an accepted invite with a role tags it,
+ *  which can trigger automatic Gig setup for the invitee (see AKO_DYNAMIC_PROFILE_PORTFOLIOS spec §11). */
 export function useSendCollaborationRequest(target: CollaborationTarget) {
   const { user } = useAuth();
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async ({ targetId, userId }: { targetId: string; userId: string }) => {
+    mutationFn: async ({ targetId, userId, roleId }: { targetId: string; userId: string; roleId?: string }) => {
       if (!user) throw new Error("Not signed in.");
       const { error } = await supabase.from(tableFor(target)).insert({
         [idColumnFor(target)]: targetId,
         user_id: userId,
         invited_by: user.id,
+        ...(target === "project" && roleId ? { role_id: roleId } : {}),
       });
       if (error) {
         if (error.code === "23505") throw new Error("Already invited to collaborate on this.");
