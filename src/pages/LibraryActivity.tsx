@@ -70,9 +70,9 @@ export function LibraryActivity() {
   const { data: items, isLoading } = useLibrary();
 
   return (
-    <div className="min-h-screen bg-canvas px-4 pt-6 pb-24">
-      <div className="max-w-xl mx-auto">
-        <button onClick={smartBack} className="text-ink-muted mb-4">
+    <div className="min-h-screen bg-canvas px-4 md:px-8 pt-6 md:pt-10 pb-24">
+      <div className="max-w-xl md:max-w-4xl mx-auto">
+        <button onClick={smartBack} className="text-ink-muted mb-4 md:hidden">
           <ArrowLeft size={22} />
         </button>
 
@@ -94,7 +94,12 @@ export function LibraryActivity() {
             return (
               <div key={title} className="mb-6">
                 <h3 className="text-sm font-medium text-ink-muted mb-2">{title}</h3>
-                <div className="flex flex-col gap-2">
+                {/* Desktop: "grid/list width" per audit doc §13 — each
+                    LibraryRow is already a self-contained thumbnail+title
+                    tile, so a 3-up grid is a genuine reflow, not a
+                    reinvented component. Mobile keeps the single-column
+                    list unchanged. */}
+                <div className="flex flex-col gap-2 md:grid md:grid-cols-3 md:gap-3">
                   {rows.map((item) => (
                     <LibraryRow key={item.projectId} item={item} />
                   ))}

@@ -8,6 +8,7 @@ import { PathHistoryTracker } from "./components/PathHistoryTracker";
 import { LoadingOverlay } from "./components/LoadingOverlay";
 import { usePageThemeSync } from "./hooks/usePageThemeSync";
 import { ToastProvider } from "./components/Toast";
+import { AppShell } from "./components/AppShell";
 
 import { SignUp } from "./pages/auth/SignUp";
 import { Login } from "./pages/auth/Login";
@@ -49,11 +50,10 @@ import { AffiliateRefCapture } from "./components/AffiliateRefCapture";
 
 import { Notifications } from "./pages/Notifications";
 import { FollowRequests } from "./pages/FollowRequests";
-import { ConversationList } from "./pages/ConversationList";
+import { Messages } from "./pages/Messages";
 import { PageInbox } from "./pages/PageInbox";
 import { PageMessageThread } from "./pages/PageMessageThread";
 import { Archive } from "./pages/Archive";
-import { MessageThread } from "./pages/MessageThread";
 import { HiddenMessages } from "./pages/HiddenMessages";
 import { Search } from "./pages/Search";
 import { Settings } from "./pages/Settings";
@@ -151,7 +151,7 @@ function AppRoutes() {
   usePageThemeSync();
 
   return (
-    <>
+    <AppShell>
       <Routes location={backgroundLocation ?? location}>
             <Route path="/" element={<Navigate to="/feed" replace />} />
 
@@ -428,7 +428,7 @@ function AppRoutes() {
               path="/messages"
               element={
                 <RequireAuth>
-                  <ConversationList />
+                  <Messages />
                 </RequireAuth>
               }
             />
@@ -479,7 +479,7 @@ function AppRoutes() {
               path="/messages/:conversationId"
               element={
                 <RequireAuth>
-                  <MessageThread />
+                  <Messages />
                 </RequireAuth>
               }
             />
@@ -889,6 +889,6 @@ function AppRoutes() {
           />
         </Routes>
       )}
-    </>
+    </AppShell>
   );
 }
