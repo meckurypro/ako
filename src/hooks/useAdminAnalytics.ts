@@ -110,3 +110,70 @@ export function useUserGrowth() {
     staleTime: 5 * 60 * 1000,
   });
 }
+
+export interface DailyCount {
+  date: string; // YYYY-MM-DD, Lagos-local
+  count: number;
+}
+
+export interface ContentGrowth {
+  total: number;
+  newLast30Days: number;
+  daily: DailyCount[];
+}
+
+/**
+ * Same shape and same zero-filled 30-day bucketing as useUserGrowth,
+ * generalized to any table with a `created_at` and `is_deleted`
+ * column — used for both posts and comments so the admin dashboard's
+ * "how many X per day" cards are consistent across users/posts/
+ * comments rather than each reinventing the bucketing logic.
+ */
+function useContentGrowth(table: "posts" | "comments") {
+  return useQuery({
+    queryKey: ["admin-content-growth", table],
+    queryFn: async (): Promise<ContentGrowth> => {
+      const { count: total, error: totalError } = await supabase
+        .from(table)
+        .select("*", { count: "exact", head: true })
+        .eq("is_deleted", false);
+      if (totalError) throw totalError;
+
+      const dayKeys = last30DayKeys();
+      const windowStart = new Date(Date.now() - (DAYS + 1) * 86_400_000).toISOString();
+
+      const { data: recent, error: recentError } = await supabase
+        .from(table)
+        .select("created_at")
+        .eq("is_deleted", false)
+        .gte("created_at", windowStart);
+      if (recentError) throw recentError;
+
+      const counts = new Map<string, number>(dayKeys.map((k) => [k, 0]));
+      let newLast30Days = 0;
+
+      for (const row of recent ?? []) {
+        const key = lagosDateKey(new Date(row.created_at));
+        if (counts.has(key)) {
+          counts.set(key, (counts.get(key) ?? 0) + 1);
+          newLast30Days++;
+        }
+      }
+
+      return {
+        total: total ?? 0,
+        newLast30Days,
+        daily: dayKeys.map((date) => ({ date, count: counts.get(date) ?? 0 })),
+      };
+    },
+    staleTime: 5 * 60 * 1000,
+  });
+}
+
+export function usePostGrowth() {
+  return useContentGrowth("posts");
+}
+
+export function useCommentGrowth() {
+  return useContentGrowth("comments");
+}
