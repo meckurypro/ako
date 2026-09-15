@@ -188,6 +188,11 @@ export interface Post {
   // here. See useMyDraftPosts/useMyScheduledPosts in usePosts.ts.
   status?: "draft" | "scheduled" | "published";
   scheduled_for?: string | null;
+  // Optional soundtrack layer — see src/types/music.ts and the
+  // music_catalogue_v1 migration. Always a currently-published
+  // catalogue entry when non-null (enforced server-side by the
+  // posts_validate_music_catalogue trigger).
+  music_catalogue_id?: string | null;
 }
 
 // Joined shape used when rendering a feed card — the post plus
