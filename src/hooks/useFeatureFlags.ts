@@ -16,7 +16,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "../lib/supabase";
 import { useAuth } from "./useAuth";
 
-export type FeatureFlagCategory = "pages" | "wallet" | "messaging" | "promotions" | "affiliates";
+export type FeatureFlagCategory = "pages" | "wallet" | "messaging" | "promotions" | "affiliates" | "content";
 
 export interface FeatureFlagDef {
   key: string;
@@ -106,6 +106,20 @@ export const FEATURE_FLAG_DEFS: FeatureFlagDef[] = [
     description:
       "Global switch for the affiliate program feature. Per-project toggles (in each project's own settings) still apply on top of this.",
     category: "affiliates",
+  },
+  {
+    key: "music_in_posts_enabled",
+    label: "Music in posts",
+    description:
+      "Attaching a catalogue track as background music on a post via \"Add music\" in Compose. Posts that already have music attached keep it either way.",
+    category: "content",
+  },
+  {
+    key: "profile_ads_enabled",
+    label: "Profile ad slot",
+    description:
+      "The reserved ad banner slot on a user's own profile toolbar. Turning this off hides the slot entirely, regardless of any active ad creatives — manage those from Admin > Profile ads.",
+    category: "content",
   },
 ];
 
