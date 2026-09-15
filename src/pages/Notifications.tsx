@@ -33,6 +33,7 @@ import {
 } from "../hooks/usePageNotifications";
 import { usePageById, useActiveIdentity } from "../hooks/usePages";
 import { Avatar } from "../components/Avatar";
+import { AkoMark } from "../components/AkoMark";
 import { BottomNav } from "../components/BottomNav";
 import { PageInviteResponseModal } from "../components/PageInviteResponseModal";
 import { CollaborationInviteResponseModal } from "../components/CollaborationInviteResponseModal";
@@ -208,7 +209,11 @@ function NotificationRowContent({ n, config }: { n: NotificationWithActor; confi
       <div className="min-w-0 flex-1">
         <p className="text-sm text-ink">
           {showActor && <span className="font-medium">{n.actor!.display_name}</span>}
-          {n.type === "admin_message" && <span className="font-medium">Akọ.</span>}{" "}
+          {n.type === "admin_message" && (
+            <span className="inline-flex items-center gap-1 font-medium">
+              <AkoMark size={16} /> Akọ.
+            </span>
+          )}{" "}
           {verbFor(n, config)}
         </p>
         {n.preview_text && (
