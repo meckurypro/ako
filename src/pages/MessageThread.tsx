@@ -65,6 +65,7 @@ import { useBackDismiss } from "../hooks/useBackDismiss";
 import { useKeyboardInset } from "../hooks/useKeyboardInset";
 import { useVoiceRecorder } from "../hooks/useVoiceRecorder";
 import { MessageBubble, SWIPE_THRESHOLD, SWIPE_MAX } from "../components/MessageBubble";
+import { useFeatureFlag } from "../hooks/useFeatureFlags";
 
 // Fetches header identity for the thread — a small dedicated query
 // since useConversations' list-summary shape isn't available when
@@ -157,6 +158,7 @@ export function MessageThread() {
   const otherParticipant = header?.other_participant;
   const teamPage = header?.team_page;
   const { data: myParticipantState } = useMyParticipantState(conversationId!);
+  const messagingEnabled = useFeatureFlag("messaging_enabled");
 
   // Same ring-on-avatar treatment as ConversationList — checks just
   // this one participant for an unseen post from the last 24h. No
@@ -880,6 +882,28 @@ export function MessageThread() {
       throw new Error("send failed"); // keeps the hook from clearing the preview it couldn't send
     }
   });
+
+  // Defensive layer matching ConversationList's own messaging_enabled
+  // check — a conversation someone had open in a tab, or a deep link
+  // to a specific thread, shouldn't stay usable once an admin flips
+  // messaging off. Enforced server-side too (check_messaging_enabled
+  // trigger on messages), so a blocked send would fail there even if
+  // this check weren't here at all.
+  if (!messagingEnabled) {
+    return (
+      <div className="min-h-screen bg-canvas flex flex-col">
+        <header className="px-4 pt-6 pb-3 flex items-center gap-3 sticky top-0 bg-canvas z-30 border-b border-border">
+          <button onClick={() => navigate("/messages")} className="text-ink-muted" aria-label="Back">
+            <ArrowLeft size={22} />
+          </button>
+          <h2 className="font-display text-lg text-ink">Messages</h2>
+        </header>
+        <div className="flex-1 flex items-center justify-center px-4">
+          <p className="text-sm text-ink-muted text-center">Messaging is temporarily unavailable. Check back later.</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div
