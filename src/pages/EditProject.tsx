@@ -206,6 +206,7 @@ export function EditProject() {
       setTypeDetailsHydrated(true);
     } else if (project.project_type === "gig" && existingGigDetails !== undefined && existingGigSamples) {
       setGigFields({
+        role_id: existingGigDetails?.role_id ?? "",
         tagline: existingGigDetails?.tagline ?? "",
         delivery_estimate: existingGigDetails?.delivery_estimate ?? "",
         sample_project_ids: existingGigSamples.map((p) => p.id),
@@ -298,6 +299,9 @@ export function EditProject() {
     }
     if (project.project_type === "meeting" && !meetingFields.scheduled_at) {
       return "Set when this meeting happens.";
+    }
+    if (project.project_type === "gig" && !gigFields.role_id) {
+      return "Select the professional role this gig represents.";
     }
     if (project.project_type === "gig" && !gigFields.tagline.trim()) {
       return "Add a short tagline for this gig.";
@@ -441,6 +445,7 @@ export function EditProject() {
           .filter((f) => f.question && f.answer);
         const { error: detailsError } = await supabase.from("project_gig_details").upsert({
           project_id: projectId,
+          role_id: gigFields.role_id,
           tagline: gigFields.tagline.trim(),
           delivery_estimate: gigFields.delivery_estimate.trim() || null,
           revisions_included: revisions ? parseInt(revisions, 10) : null,
