@@ -363,8 +363,90 @@ export interface SendNotificationInput extends AudienceInput {
 }
 
 export function useAdminSendNotification() {
+  const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (input: SendNotificationInput) =>
       invoke<{ ok: true; recipient_count: number }>("admin-send-notification", { body: input }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["admin-notification-sends"] });
+    },
+  });
+}
+
+export interface NotificationSend {
+  id: string;
+  message: string;
+  audience_type: "all" | "tier" | "page_followers" | "manual";
+  audience_filter: Record<string, unknown>;
+  recipient_count: number;
+  created_at: string;
+}
+
+/** History of every broadcast sent via useAdminSendNotification. */
+export function useAdminNotificationSends() {
+  return useQuery({
+    queryKey: ["admin-notification-sends"],
+    queryFn: async (): Promise<NotificationSend[]> => {
+      const { data, error } = await supabase
+        .from("admin_notification_sends")
+        .select("id, message, audience_type, audience_filter, recipient_count, created_at")
+        .order("created_at", { ascending: false })
+        .limit(100);
+      if (error) throw error;
+      return data ?? [];
+    },
+  });
+}
+
+/**
+ * Edits a broadcast's text after the fact — updates every recipient's
+ * copy (via send_id, stamped on each notifications row when it was
+ * sent) plus the history log itself, silently: no re-notification, no
+ * "edited" marker shown to recipients. Matches the "silently edit"
+ * requirement — this corrects a mistake, it doesn't ping people again.
+ */
+export function useEditNotificationSend() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ sendId, message }: { sendId: string; message: string }) => {
+      const trimmed = message.trim();
+      if (!trimmed) throw new Error("Message can't be empty.");
+
+      const { error: sendError } = await supabase
+        .from("admin_notification_sends")
+        .update({ message: trimmed })
+        .eq("id", sendId);
+      if (sendError) throw sendError;
+
+      const { error: notifError } = await supabase
+        .from("notifications")
+        .update({ preview_text: trimmed })
+        .eq("send_id", sendId);
+      if (notifError) throw notifError;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["admin-notification-sends"] });
+      queryClient.invalidateQueries({ queryKey: ["notifications"] });
+    },
+  });
+}
+
+/**
+ * Deletes a broadcast entirely — removes it from every recipient's
+ * notifications (ON DELETE CASCADE via send_id) and from the history
+ * log, silently. No "this was removed" trace left for recipients,
+ * matching the "silently delete" requirement.
+ */
+export function useDeleteNotificationSend() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (sendId: string) => {
+      const { error } = await supabase.from("admin_notification_sends").delete().eq("id", sendId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["admin-notification-sends"] });
+      queryClient.invalidateQueries({ queryKey: ["notifications"] });
+    },
   });
 }
