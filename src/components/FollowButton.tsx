@@ -21,11 +21,10 @@ interface FollowButtonProps {
  * PostCard is responsible for not rendering this at all on your own posts.
  *
  * Uses the active-identity-aware follow hooks (useIsFollowingAsActiveIdentity
- * / useToggleFollowAsActiveIdentity), NOT the plain personal ones — this is
- * the control most likely to get tapped while acting as a page (liking/
- * following straight from a card in the feed), so it's the one that most
- * needed the item 7 fix: previously this always wrote to the tapping
- * person's own `follows` row regardless of Page mode.
+ * / useToggleFollowAsActiveIdentity) — same ones ProfilePage's main
+ * Follow/Unfollow button uses, so this card control and that button
+ * always agree on whether the currently-acting identity follows this
+ * account, regardless of which one happens to be on screen.
  *
  * useIsFollowedByUser (the "do they already follow ME" check for the
  * Friends/"Follow back" distinction) intentionally stays personal-only —
