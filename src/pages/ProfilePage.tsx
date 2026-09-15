@@ -20,6 +20,7 @@ import { useStartConversation } from "../hooks/useMessaging";
 import { useIsBlocked, useToggleBlock, useIsMuted, useToggleMute, useRemoveFollower } from "../hooks/usePrivacy";
 import { useContactNickname } from "../hooks/useContactNicknames";
 import { useUserProjects } from "../hooks/useProjects";
+import { usePortfolioCategories, usePortfolioCategoryProjects } from "../hooks/usePortfolio";
 import { useRecordProfileVisit } from "../hooks/useProfileVisits";
 import { Avatar } from "../components/Avatar";
 import { AccountSwitcher } from "../components/AccountSwitcher";
@@ -50,12 +51,48 @@ function getWebsiteDomain(url: string): string {
   }
 }
 
-// Posts/Projects only now — the owner's tickets/meetings/room
-// activity moved to its own page in the Activity hub (see
-// EventsActivity.tsx, reachable from the Activity icon in BottomNav)
-// rather than living here as a third profile tab.
-const TABS = ["posts", "projects"] as const;
-type ProfileTab = (typeof TABS)[number];
+// AKỌ_DYNAMIC_PROFILE_PORTFOLIOS_AND_GIG_SYSTEM spec: Posts is always
+// present; everything else is derived per-profile from the account's
+// active Gigs (see usePortfolioCategories) plus a "projects" fallback
+// for non-gig work that hasn't been categorized yet (spec section 44
+// — a deliberate fallback, never a dumping ground merely because
+// migration is inconvenient). The owner's tickets/meetings/room
+// activity has its own home in the Activity hub, not a tab here.
+type ProfileTab = string;
+
+function categoryToTabId(category: string): string {
+  return category.toLowerCase().replace(/[^a-z0-9]+/g, "-");
+}
+
+// One dynamic category's content pane — its own component (not a loop
+// inside ProfilePage) so each tab can call its own data hook without
+// breaking the rules of hooks across a variable-length tab list.
+function PortfolioCategoryPane({
+  accountId,
+  category,
+  showOwnerView,
+}: {
+  accountId: string;
+  category: string;
+  showOwnerView: boolean;
+}) {
+  const { data: projects, isLoading } = usePortfolioCategoryProjects(accountId, category);
+  if (isLoading) return null;
+  if (!projects || projects.length === 0) {
+    // Shouldn't normally be reachable — the tab itself only appears
+    // when the aggregate query found eligible work — but cache
+    // staleness between the two queries is possible, so fail quiet
+    // rather than showing a broken-looking empty tab.
+    return <p className="text-ink-muted text-center py-10 text-sm">Nothing here yet.</p>;
+  }
+  return (
+    <>
+      {projects.map((project) => (
+        <ProjectCard key={project.id} project={project} isOwnerView={showOwnerView} />
+      ))}
+    </>
+  );
+}
 
 // How far down the page (px, plain window.scrollY) before the
 // "scroll to top" FAB appears.
@@ -144,14 +181,6 @@ export function ProfilePage() {
   }, []);
 
   const { data: profile, isLoading } = useProfileByUsername(username!);
-  // Lets a shared project link (?tab=projects) land directly on the
-  // Projects tab, and now also survives a refresh either way — see
-  // useTabState.
-  const [activeTab, setActiveTab] = useTabState<ProfileTab>(TABS, "posts");
-  // Continuous tab position fed by SwipeableTabs' onProgress, same idea as
-  // Feed's tab row — lets the sliding indicator bar track the finger
-  // during a drag instead of only jumping once the swipe commits.
-  const [tabProgress, setTabProgress] = useState(TABS.indexOf(activeTab));
   const [tabDragging, setTabDragging] = useState(false);
 
   const isFollowingQuery = useIsFollowing(profile?.id ?? "");
@@ -200,11 +229,44 @@ export function ProfilePage() {
   // server for this profile's posts/projects in the first place.
   const { data: projects } = useUserProjects(isPrivateLocked ? "" : profile?.id ?? "", showOwnerView);
   const { data: posts } = useUserPostsWithArchived(isPrivateLocked ? "" : profile?.id ?? "", false);
+  const { data: portfolioCategories } = usePortfolioCategories(isPrivateLocked ? undefined : profile?.id);
 
   // Archived projects have their own home on the merged Archive page
   // now (see Archive.tsx) — this tab only ever shows active/draft/
   // cancelled ones.
   const visibleProjects = projects?.filter((p) => p.status !== "archived");
+
+  // Non-gig work with no category home yet — a deliberate fallback
+  // (spec section 44), never shown when empty.
+  const fallbackProjects = visibleProjects?.filter((p) => p.project_type !== "gig");
+
+  // Posts is always first. Dynamic categories come from the account's
+  // active Gigs (spec sections 2-5) — never an empty one. The
+  // uncategorized-work fallback comes last, only if there's anything
+  // in it.
+  const tabDefs: { id: string; label: string }[] = [
+    { id: "posts", label: "Posts" },
+    ...(portfolioCategories ?? []).map((c) => ({ id: categoryToTabId(c.category), label: c.category })),
+    ...(fallbackProjects && fallbackProjects.length > 0 ? [{ id: "projects", label: "Projects" }] : []),
+  ];
+  const TAB_IDS = tabDefs.map((t) => t.id);
+
+  // Lets a shared project link (?tab=projects) land directly on a
+  // tab, and now also survives a refresh either way — see
+  // useTabState.
+  const [activeTab, setActiveTab] = useTabState<ProfileTab>(TAB_IDS, "posts");
+  // Continuous tab position fed by SwipeableTabs' onProgress, same idea as
+  // Feed's tab row — lets the sliding indicator bar track the finger
+  // during a drag instead of only jumping once the swipe commits.
+  const [tabProgress, setTabProgress] = useState(TAB_IDS.indexOf(activeTab));
+  // TAB_IDS can grow after mount (portfolio categories load async, or a
+  // deep link lands on a category tab before that query resolves) —
+  // resync the indicator once the real index is known rather than
+  // leaving it stuck at its initial (possibly -1) value.
+  useEffect(() => {
+    setTabProgress(Math.max(TAB_IDS.indexOf(activeTab), 0));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab, tabDefs.length]);
 
   // Recording a visit is safe to fire on every mount (it no-ops for
   // self-visits inside the hook). The 30-day visit COUNT itself no
@@ -279,7 +341,7 @@ export function ProfilePage() {
   // Same swipe pattern as Feed's tab row — SwipeableTabs is bound only to
   // the content area below the tab bar (see the wrapping div further
   // down), so swiping over the header/bio never accidentally flips tabs.
-  const activeIndex = TABS.indexOf(activeTab);
+  const activeIndex = Math.max(TAB_IDS.indexOf(activeTab), 0);
 
   function handleTabClick(index: number, tab: ProfileTab) {
     if (index === activeIndex) return;
@@ -540,27 +602,25 @@ export function ProfilePage() {
                 only the wrapper around this moved, not the tab row
                 itself. */}
             <div className="relative flex items-stretch border-b border-border">
-              <button
-                onClick={() => handleTabClick(0, "posts")}
-                className={`flex-1 text-center text-sm font-medium pt-3 pb-3 ${
-                  activeTab === "posts" ? "text-accent" : "text-ink-muted"
-                }`}
-              >
-                Posts
-              </button>
-              <button
-                onClick={() => handleTabClick(1, "projects")}
-                className={`flex-1 text-center text-sm font-medium pt-3 pb-3 ${
-                  activeTab === "projects" ? "text-accent" : "text-ink-muted"
-                }`}
-              >
-                Projects
-              </button>
+              {tabDefs.map((tab, i) => (
+                <button
+                  key={tab.id}
+                  onClick={() => handleTabClick(i, tab.id)}
+                  className={`flex-1 text-center text-sm font-medium pt-3 pb-3 ${
+                    activeTab === tab.id ? "text-accent" : "text-ink-muted"
+                  }`}
+                >
+                  {tab.label}
+                </button>
+              ))}
               <div
-                className={`ako-tab-indicator absolute bottom-0 left-0 h-[2px] w-1/2 bg-accent rounded-full ${
+                className={`ako-tab-indicator absolute bottom-0 left-0 h-[2px] bg-accent rounded-full ${
                   tabDragging ? "ako-tab-indicator--dragging" : ""
                 }`}
-                style={{ transform: `translateX(${tabProgress * 100}%)` }}
+                style={{
+                  width: `${100 / tabDefs.length}%`,
+                  transform: `translateX(${tabProgress * 100}%)`,
+                }}
               />
             </div>
           </div>
@@ -590,34 +650,53 @@ export function ProfilePage() {
           ) : (
             <SwipeableTabs
               index={activeIndex}
-              onIndexChange={(i) => setActiveTab(TABS[i])}
+              onIndexChange={(i) => setActiveTab(TAB_IDS[i])}
               onProgress={(progress, dragging) => {
                 setTabProgress(progress);
                 setTabDragging(dragging);
               }}
             >
-              {[
-                <div key="posts">
-                  {posts && posts.length > 0 ? (
-                    posts.map((post: any) => (
-                      <PostCard key={post.id} post={post} isOwnerView={showOwnerView} />
-                    ))
-                  ) : (
-                    <p className="text-ink-muted text-center py-10 text-sm">No posts yet.</p>
-                  )}
-                </div>,
-                <div key="projects">
-                  {visibleProjects && visibleProjects.length > 0 ? (
-                    visibleProjects.map((project) => (
-                      <ProjectCard key={project.id} project={project} isOwnerView={showOwnerView} />
-                    ))
-                  ) : (
-                    <p className="text-ink-muted text-center py-10 text-sm">
-                      {showOwnerView ? "No projects yet — publish your first one." : "No projects yet."}
-                    </p>
-                  )}
-                </div>,
-              ]}
+              {tabDefs.map((tab) => {
+                if (tab.id === "posts") {
+                  return (
+                    <div key="posts">
+                      {posts && posts.length > 0 ? (
+                        posts.map((post: any) => (
+                          <PostCard key={post.id} post={post} isOwnerView={showOwnerView} />
+                        ))
+                      ) : (
+                        <p className="text-ink-muted text-center py-10 text-sm">No posts yet.</p>
+                      )}
+                    </div>
+                  );
+                }
+                if (tab.id === "projects") {
+                  return (
+                    <div key="projects">
+                      {fallbackProjects && fallbackProjects.length > 0 ? (
+                        fallbackProjects.map((project) => (
+                          <ProjectCard key={project.id} project={project} isOwnerView={showOwnerView} />
+                        ))
+                      ) : (
+                        <p className="text-ink-muted text-center py-10 text-sm">
+                          {showOwnerView ? "No projects yet — publish your first one." : "No projects yet."}
+                        </p>
+                      )}
+                    </div>
+                  );
+                }
+                // A dynamic portfolio category — everything published
+                // under an active Gig in this category.
+                return (
+                  <div key={tab.id}>
+                    <PortfolioCategoryPane
+                      accountId={profile.id}
+                      category={tab.label}
+                      showOwnerView={showOwnerView}
+                    />
+                  </div>
+                );
+              })}
             </SwipeableTabs>
           )}
         </div>
