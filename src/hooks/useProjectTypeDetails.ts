@@ -116,6 +116,10 @@ export interface GigFaqItem {
 
 export interface GigDetails {
   project_id: string;
+  // Canonical professional role this gig represents (gig_roles.id) —
+  // see AKO_DYNAMIC_PROFILE_PORTFOLIOS spec. Null only for gigs
+  // created before that migration.
+  role_id: string | null;
   tagline: string | null;
   delivery_estimate: string | null;
   // Requires the ako_projects_v7_gig_extras migration — default to
