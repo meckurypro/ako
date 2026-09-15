@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "../lib/supabase";
 import { useAuth } from "./useAuth";
@@ -34,6 +35,31 @@ export interface NotificationWithActor {
 
 export function useNotifications() {
   const { user } = useAuth();
+  const queryClient = useQueryClient();
+
+  // Realtime: pushes new notifications (including admin broadcasts,
+  // which land in this same table as type='admin_message') into view
+  // the moment they're inserted, instead of waiting up to 30s for the
+  // next poll or requiring a manual refresh. The poll below stays on
+  // as a safety net in case the socket drops.
+  useEffect(() => {
+    if (!user) return;
+
+    const channel = supabase
+      .channel(`notifications:${user.id}`)
+      .on(
+        "postgres_changes",
+        { event: "INSERT", schema: "public", table: "notifications", filter: `user_id=eq.${user.id}` },
+        () => {
+          queryClient.invalidateQueries({ queryKey: ["notifications", user.id] });
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [user, queryClient]);
 
   return useQuery({
     queryKey: ["notifications", user?.id],
@@ -119,9 +145,9 @@ export function useNotifications() {
       return notifications;
     },
     enabled: !!user,
-    // Poll periodically — good enough for V1 without wiring a realtime
-    // subscription just for the notification bell.
-    refetchInterval: 30_000,
+    // Realtime subscription above handles the instant case; this is
+    // just a safety net if the socket drops.
+    refetchInterval: 2 * 60_000,
   });
 }
 
