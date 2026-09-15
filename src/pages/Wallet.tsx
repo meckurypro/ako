@@ -83,9 +83,11 @@ export function WalletPage() {
   if (!walletEnabled) {
     return (
       <div className="min-h-screen bg-canvas pb-24">
-        <header className="px-4 pt-6 pb-3 sticky top-0 bg-canvas z-30 border-b border-border">
-          <Wordmark size="sm" asIcon iconTagline={false} />
-        </header>
+        <div className="md:hidden">
+          <header className="px-4 pt-6 pb-3 sticky top-0 bg-canvas z-30 border-b border-border">
+            <Wordmark size="sm" asIcon iconTagline={false} />
+          </header>
+        </div>
         <div className="max-w-xl mx-auto px-4 pt-10 text-center">
           <p className="text-sm text-ink-muted">The wallet is temporarily unavailable. Check back later.</p>
         </div>
@@ -96,14 +98,20 @@ export function WalletPage() {
 
   return (
     <div className="min-h-screen bg-canvas pb-24">
-      <header className="px-4 pt-6 pb-3 sticky top-0 bg-canvas z-30 border-b border-border">
-        <Wordmark size="sm" asIcon iconTagline={false} />
-      </header>
+      <div className="md:hidden">
+        <header className="px-4 pt-6 pb-3 sticky top-0 bg-canvas z-30 border-b border-border">
+          <Wordmark size="sm" asIcon iconTagline={false} />
+        </header>
+      </div>
 
-      <div className="max-w-xl mx-auto px-4 pt-6">
+      {/* Desktop: balance/actions form a sticky left rail, history gets
+          real table-width room on the right — per audit doc §13
+          ("Wallet: table/history width"), not the same 576px column as
+          Feed. Mobile keeps the original single stacked column. */}
+      <div className="max-w-xl md:max-w-5xl mx-auto px-4 md:px-8 pt-6 md:pt-10 md:grid md:grid-cols-[360px_1fr] md:gap-10 md:items-start">
         {/* ── Balance card — the one bold element on the page ── */}
         <div
-          className="relative overflow-hidden rounded-[28px] p-6 pt-7"
+          className="relative overflow-hidden rounded-[28px] p-6 pt-7 md:sticky md:top-10"
           style={{
             background: "linear-gradient(135deg, var(--color-accent) 0%, var(--color-accent-hover) 100%)",
             boxShadow:
@@ -162,7 +170,8 @@ export function WalletPage() {
           )}
         </div>
 
-        <h3 className="font-display text-lg text-ink mt-8 mb-3">Recent activity</h3>
+        <div>
+        <h3 className="font-display text-lg text-ink mt-8 md:mt-0 mb-3">Recent activity</h3>
 
         {!transactions || transactions.length === 0 ? (
           <div className="text-center py-10">
@@ -193,6 +202,7 @@ export function WalletPage() {
             })}
           </div>
         )}
+        </div>
       </div>
 
       <BottomNav />

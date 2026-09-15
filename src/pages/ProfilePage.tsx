@@ -372,7 +372,7 @@ export function ProfilePage() {
           owner is previewing as a visitor) renders inside a fixed-height
           row so Tier 2 below has a stable offset to dock under. */}
       <div className="sticky top-0 z-30 bg-canvas shadow-[0_2px_8px_-4px_rgba(var(--shadow-ink-rgb),0.10)]">
-        <div className={`max-w-xl mx-auto px-4 ${TOOLBAR_HEIGHT_CLASS} flex items-center`}>
+        <div className={`max-w-xl md:max-w-2xl mx-auto px-4 ${TOOLBAR_HEIGHT_CLASS} flex items-center`}>
           {showOwnerView ? (
             // The gap left of the Plus/⋯ icons is the reserved ad slot
             // (see AKO_VETERAN_UI_UX_AUDIT's "reserved profile ad
@@ -517,7 +517,7 @@ export function ProfilePage() {
           away underneath Tier 1 above, same as any other page content;
           only the toolbar row and the tab bar (Tier 2, further down)
           stay pinned. */}
-      <div className="max-w-xl mx-auto px-4 pt-4">
+      <div className="max-w-xl md:max-w-2xl mx-auto px-4 pt-4">
         {/* Preview-mode banner — informational only now; the actual
             "Exit" control lives in the always-reachable Tier 1 bar
             above, so this can scroll away without taking the exit
@@ -614,7 +614,7 @@ export function ProfilePage() {
           there's nothing behind either tab for a visitor to switch to. */}
       {!isPrivateLocked && (
         <div className="sticky top-14 z-20 bg-canvas shadow-[0_2px_8px_-4px_rgba(var(--shadow-ink-rgb),0.10)]">
-          <div className="max-w-xl mx-auto px-4">
+          <div className="max-w-xl md:max-w-2xl mx-auto px-4">
             {/* Equal width, same sliding-indicator treatment as before —
                 only the wrapper around this moved, not the tab row
                 itself. */}
@@ -644,7 +644,7 @@ export function ProfilePage() {
         </div>
       )}
 
-      <div className="max-w-xl mx-auto px-4">
+      <div className="max-w-xl md:max-w-2xl mx-auto px-4">
         {/* Tab content — real drag-tracking carousel, same as Feed's tab
             row (see SwipeableTabs.tsx). A locked/blocked profile has
             nothing behind either tab, so it skips the carousel and just

@@ -317,7 +317,14 @@ export function Feed() {
   return (
     <div className="min-h-screen bg-canvas pb-24">
       <div className="sticky top-0 z-20 bg-surface shadow-[0_2px_8px_-4px_rgba(var(--shadow-ink-rgb),0.10)]">
-        <TopHeader showTagline leftAction="create" asIcon iconTagline={false} />
+        {/* Desktop already has Create/Notifications/Profile in the
+            persistent Sidebar (see Sidebar.tsx) — repeating them here
+            would just be the same destinations twice. Mobile keeps the
+            full header (Sidebar is md:hidden there). */}
+        <div className="md:hidden">
+          <TopHeader showTagline leftAction="create" asIcon iconTagline={false} />
+        </div>
+        <div className="hidden md:block pt-5" />
 
         <div className="px-4">
           {/* Equal-width columns (not intrinsic-width + fixed gap) so the
@@ -326,7 +333,7 @@ export function Feed() {
               indicator is now one sliding bar (see below) instead of each
               button drawing its own border, so it can spring across to the
               new position instead of just appearing on a different tab. */}
-          <div className="max-w-xl mx-auto relative grid grid-cols-3 pb-1">
+          <div className="max-w-xl md:max-w-2xl mx-auto relative grid grid-cols-3 pb-1">
             {TABS.map((tab, i) => (
               <button
                 key={tab.key}
@@ -348,7 +355,7 @@ export function Feed() {
         </div>
       </div>
 
-      <div className="max-w-xl mx-auto px-5 pt-5">
+      <div className="max-w-xl md:max-w-2xl mx-auto px-5 pt-5">
         {activeTab === "for-you" && interestId && (
           <button
             onClick={() => setSearchParams({})}
