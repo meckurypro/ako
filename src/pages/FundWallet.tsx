@@ -150,18 +150,26 @@ export function FundWallet() {
 
         {amountUsd > 0 && (
           <div className="bg-surface border border-border rounded-xl p-4 mb-6">
-            <div className="flex justify-between text-sm mb-1">
+            <div className="flex justify-between items-center text-sm mb-3">
               <span className="text-ink-muted">Add to wallet</span>
               <span className="text-ink font-medium">{formatUsd(amountUsd)}</span>
             </div>
-            <div className="flex justify-between text-sm">
-              <span className="text-ink-muted">You'll be charged</span>
-              <span className="text-ink font-medium">
+
+            {/* The actual charge is the number that matters most on this
+                screen — it was previously the same small text-sm as
+                every other row here, easy to skim past on the way to
+                the big "Continue" button below. Given its own visual
+                weight now so the price doesn't read as an afterthought
+                next to the CTA. */}
+            <div className="flex justify-between items-baseline border-t border-border pt-3">
+              <span className="text-sm text-ink-muted">You'll be charged</span>
+              <span className="font-display text-2xl text-ink">
                 {previewNgn !== null ? formatNgn(previewNgn) : "…"}
               </span>
             </div>
+
             {rates?.deposit ? (
-              <p className="text-xs text-ink-muted mt-2">
+              <p className="text-xs text-ink-muted mt-2 text-right">
                 Rate: $1 = {formatNgn(rates.deposit)}
               </p>
             ) : null}
