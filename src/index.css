@@ -522,6 +522,23 @@ body {
   animation: ako-bubble-in-theirs 220ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 
+/*
+  Feed doorway — the quiet cross-surface Feed invitation shown at a
+  natural stopping point (course complete, book TOC, ticket issued —
+  see FeedDoorway.tsx). Deliberately the calmest entrance in this
+  file: a few px of rise and a fade, nothing that competes with the
+  primary task the user actually came here to finish. No bounce, no
+  scale, no repeated movement — this should be noticed for being well
+  placed, not for moving.
+*/
+@keyframes ako-doorway-in {
+  0% { opacity: 0; transform: translateY(4px); }
+  100% { opacity: 1; transform: translateY(0); }
+}
+.ako-doorway-in {
+  animation: ako-doorway-in 420ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
 @media (prefers-reduced-motion: reduce) {
   .ako-tab-indicator {
     transition: none;
@@ -533,7 +550,8 @@ body {
   .ako-gift-rise,
   .ako-unlock-reveal,
   .ako-bubble-in-mine,
-  .ako-bubble-in-theirs {
+  .ako-bubble-in-theirs,
+  .ako-doorway-in {
     animation: none !important;
   }
 }
