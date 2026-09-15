@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+// src/hooks/useNotifications.ts
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "../lib/supabase";
 import { useAuth } from "./useAuth";
@@ -37,30 +37,25 @@ export function useNotifications() {
   const { user } = useAuth();
   const queryClient = useQueryClient();
 
-  // Realtime: pushes new notifications (including admin broadcasts,
-  // which land in this same table as type='admin_message') into view
-  // the moment they're inserted, instead of waiting up to 30s for the
-  // next poll or requiring a manual refresh. The poll below stays on
-  // as a safety net in case the socket drops.
-  useEffect(() => {
-    if (!user) return;
-
-    const channel = supabase
-      .channel(`notifications:${user.id}`)
-      .on(
-        "postgres_changes",
-        { event: "INSERT", schema: "public", table: "notifications", filter: `user_id=eq.${user.id}` },
-        () => {
-          queryClient.invalidateQueries({ queryKey: ["notifications", user.id] });
-        }
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [user, queryClient]);
-
+  // Realtime for this query is handled globally by AuthProvider (see
+  // useAuth.tsx) — it subscribes to this exact same
+  // `notifications:${userId}` channel and invalidates this exact query
+  // key (["notifications", userId]) on every INSERT, so the app-wide
+  // bell/badge already updates live anywhere useNotifications() is
+  // used. A second subscription used to live here too, on the same
+  // channel topic. supabase-js dedupes channels by topic — calling
+  // `.channel()` with a topic that's already registered hands back the
+  // SAME (already-subscribed) instance rather than creating a new one
+  // — so this hook's own `.on('postgres_changes', ...)` call was
+  // landing on AuthProvider's already-`subscribe()`d channel.
+  // RealtimeChannel throws in that case ("cannot add `postgres_changes`
+  // callbacks ... after `subscribe()`"), and since that throw happened
+  // inside a useEffect with no ErrorBoundary anywhere in the tree, it
+  // took down the whole page — blank screen on every route that
+  // mounted this hook (TopHeader/BottomNav's badge, so effectively
+  // every page including Feed) regardless of personal vs. page mode.
+  // The poll below (refetchInterval) remains as the offline safety
+  // net; it doesn't need a matching realtime subscription of its own.
   return useQuery({
     queryKey: ["notifications", user?.id],
     queryFn: async (): Promise<NotificationWithActor[]> => {
@@ -145,8 +140,8 @@ export function useNotifications() {
       return notifications;
     },
     enabled: !!user,
-    // Realtime subscription above handles the instant case; this is
-    // just a safety net if the socket drops.
+    // Realtime is handled globally by AuthProvider (see comment
+    // above); this stays on as a safety net in case the socket drops.
     refetchInterval: 2 * 60_000,
   });
 }
