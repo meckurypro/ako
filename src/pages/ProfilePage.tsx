@@ -39,6 +39,7 @@ import { RoleTags } from "../components/RoleTags";
 import { PostCard } from "../components/PostCard";
 import { ProjectCard } from "../components/ProjectCard";
 import { BottomNav } from "../components/BottomNav";
+import { ProfileAdSlot } from "../components/ProfileAdSlot";
 
 // Website links are saved in full (whatever the user pastes, including
 // long query strings), but only the bare domain is ever shown — the
@@ -373,15 +374,17 @@ export function ProfilePage() {
       <div className="sticky top-0 z-30 bg-canvas shadow-[0_2px_8px_-4px_rgba(var(--shadow-ink-rgb),0.10)]">
         <div className={`max-w-xl md:max-w-2xl mx-auto px-4 ${TOOLBAR_HEIGHT_CLASS} flex items-center`}>
           {showOwnerView ? (
-            // justify-end here is deliberate, not incidental: everything
-            // left of the Plus/⋯ icons in this row is reserved space for
-            // a future ad banner slot — see AKO_VETERAN_UI_UX_AUDIT's
-            // "reserved profile ad space" requirement. Do not center
-            // these icons, do not fill this gap with other controls,
-            // and do not "fix" it as unused whitespace — it's intentional
-            // until the ad system is built.
-            <div className="flex items-center justify-end gap-1 w-full">
-              <Link to="/create" state={{ background: location }} aria-label="Create" className="p-2 text-ink-muted">
+            // The gap left of the Plus/⋯ icons is the reserved ad slot
+            // (see AKO_VETERAN_UI_UX_AUDIT's "reserved profile ad
+            // space" requirement) — ProfileAdSlot renders transparent
+            // until an admin has an active creative targeting this
+            // viewer (see useAdCreatives.ts / AdminProfileAds.tsx). Do
+            // not center these icons or fill this gap with other
+            // controls — it belongs to the ad slot even when it's
+            // currently showing nothing.
+            <div className="flex items-center gap-2 w-full">
+              <ProfileAdSlot className="flex-1 min-w-0" />
+              <Link to="/create" state={{ background: location }} aria-label="Create" className="p-2 text-ink-muted shrink-0">
                 <Plus size={22} />
               </Link>
 

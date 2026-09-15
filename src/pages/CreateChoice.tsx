@@ -2,6 +2,7 @@
 import { useNavigate } from "react-router-dom";
 import { useSmartBack } from "../hooks/useSmartBack";
 import { useScrollLock } from "../hooks/useScrollLock";
+import { useFeatureFlag } from "../hooks/useFeatureFlags";
 import { X, PenSquare, FolderPlus, ChevronRight } from "lucide-react";
 
 // The "+" on Feed's header opens this. Styled as a bottom sheet
@@ -29,6 +30,13 @@ export function CreateChoice() {
   const smartBack = useSmartBack();
   useScrollLock();
 
+  // Admin kill switch (see AdminFeatureFlags) — hides the "Project"
+  // entry point while new projects aren't being created. Someone who
+  // navigates to /projects/new directly still hits the same block
+  // there (see CreateProject.tsx).
+  const projectsEnabled = useFeatureFlag("projects_enabled");
+  const choices = projectsEnabled ? CHOICES : CHOICES.filter((c) => c.to !== "/projects/new");
+
   return (
     <div
       className="fixed inset-0 z-50 bg-canvas/70 backdrop-blur-overlay flex items-end justify-center"
@@ -50,7 +58,7 @@ export function CreateChoice() {
         </div>
 
         <div className="px-3 pb-2">
-          {CHOICES.map(({ to, icon: Icon, label, description }) => (
+          {choices.map(({ to, icon: Icon, label, description }) => (
             <button
               key={to}
               onClick={() => navigate(to)}

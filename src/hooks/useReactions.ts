@@ -39,8 +39,20 @@ const COLUMN_FOR: Record<TargetType, "post_id" | "comment_id" | "project_id"> = 
  * (see sql/29_page_identity_engagement.sql, reactions.acted_as_page_id).
  * Without this, switching into Page mode would show "already liked"
  * on things only the person, not the page, had liked, or vice versa.
+ *
+ * `enabled` (default true) lets a caller defer this — see PostCard's
+ * `active` prop, which Feed.tsx sets false for cards in a feed tab the
+ * visitor hasn't swiped to yet. Every PostCard calls this twice (like +
+ * dislike), so on a feed page with all tabs mounted at once (see
+ * SwipeableTabs.tsx) that's a real fan-out of simultaneous requests
+ * otherwise — most of it for tabs nobody's looking at yet.
  */
-export function useMyReaction(targetId: string, targetType: "post" | "project", type: ReactionType) {
+export function useMyReaction(
+  targetId: string,
+  targetType: "post" | "project",
+  type: ReactionType,
+  enabled: boolean = true
+) {
   const { user } = useAuth();
   const { data: identity } = useActiveIdentity();
   const actingAsPageId = identity?.mode === "page" ? identity.page.id : null;
@@ -60,7 +72,7 @@ export function useMyReaction(targetId: string, targetType: "post" | "project", 
       const { data } = await query.limit(1).maybeSingle();
       return data;
     },
-    enabled: !!user && !DEBUG_DISABLE_PER_CARD_QUERIES,
+    enabled: !!user && enabled && !DEBUG_DISABLE_PER_CARD_QUERIES,
   });
 }
 

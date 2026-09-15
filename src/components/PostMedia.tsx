@@ -46,11 +46,10 @@ function SlideCarousel({
 
   // Carousel frame follows the FIRST slide's aspect ratio (same
   // convention Instagram/Threads carousels use — one shared frame,
-  // not one height per slide) rather than the old fixed 380px box.
-  // Clamped to a sane range so one unusually tall/wide first image
-  // can't force every other slide into an awkward crop; a single
-  // posted image (the common case) isn't clamped at all — see
-  // PostMedia below.
+  // not one height per slide) rather than a fixed height. Clamped to
+  // a sane range so one unusually tall/wide first image can't force
+  // every other slide into an awkward crop; a single posted image
+  // (the common case) isn't clamped at all — see PostMedia below.
   const [frameAspect, setFrameAspect] = useState(1); // width / height, updated once the first slide's natural size is known
   function handleFirstImageLoad(e: SyntheticEvent<HTMLImageElement>) {
     const img = e.currentTarget;
@@ -201,6 +200,20 @@ function SlideCarousel({
       <div
         ref={containerRef}
         onClick={handleClick}
+        // Opts this gesture out of SwipeableTabs' capture (see
+        // IGNORE_SELECTOR in SwipeableTabs.tsx) — without it, a swipe
+        // started on a multi-image post bubbles up to the Feed tab
+        // row's own native touch listener at the same time this
+        // component's does, so both the slide *and* the tab track the
+        // same finger and a horizontal drag on the carousel also
+        // drags the page toward the next/previous tab. Marking the
+        // carousel ignored gives it sole ownership of horizontal
+        // drags that start here; tapping (as opposed to dragging)
+        // still opens the fullscreen MediaViewer via handleClick
+        // above, and that viewer is portaled to document.body (see
+        // Portal.tsx) so its own swipe is isolated from the tab row
+        // regardless.
+        data-swipeable-ignore
         className="w-full bg-canvas rounded-xl overflow-hidden border border-border cursor-pointer"
         style={{ aspectRatio: frameAspect }}
       >
@@ -307,8 +320,8 @@ export function PostMedia({ mediaUrls }: { mediaUrls: string[] }) {
       {mediaUrls.length === 1 ? (
         // Card width is fixed (the column width); height follows the
         // image's own aspect ratio — no crop, no letterboxing, no
-        // artificial cap. Portrait → tall card. 1:1 → square card.
-        // Landscape (16:9, etc.) → the image's long edge is forced to
+        // artificial cap. Portrait -> tall card. 1:1 -> square card.
+        // Landscape (16:9, etc.) -> the image's long edge is forced to
         // the card's width, height follows proportionally. `h-auto`
         // is what does this: the browser derives height from the
         // image's intrinsic aspect once it's fetched, same as it

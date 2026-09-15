@@ -6,7 +6,14 @@ import type { PostWithAuthor } from "../types/database";
 
 import { DEBUG_DISABLE_PER_CARD_QUERIES } from "../lib/debugFlags";
 
-export function useIsBookmarked(postId: string) {
+// `enabled` lets a caller defer this until the card is actually worth
+// fetching for — see PostCard's `active` prop, which Feed.tsx sets false
+// for cards in a feed tab the visitor hasn't swiped to yet. Without it,
+// SwipeableTabs mounting all three tabs' cards at once each fired this
+// (plus like/dislike/hasReshared below) immediately, so a fresh Feed
+// load could kick off dozens of simultaneous Supabase requests before
+// the visitor had even looked at two of the three tabs.
+export function useIsBookmarked(postId: string, enabled: boolean = true) {
   const { user } = useAuth();
 
   return useQuery({
@@ -21,7 +28,7 @@ export function useIsBookmarked(postId: string) {
         .maybeSingle();
       return !!data;
     },
-    enabled: !!user && !DEBUG_DISABLE_PER_CARD_QUERIES,
+    enabled: !!user && enabled && !DEBUG_DISABLE_PER_CARD_QUERIES,
   });
 }
 

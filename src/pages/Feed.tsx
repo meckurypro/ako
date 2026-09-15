@@ -62,7 +62,7 @@ function LoadMoreButton({ onClick }: { onClick: () => void }) {
 // lands on — not Following/Top Discussions, since there's no reliable
 // way to know which of the three tabs the originating post actually
 // came from.
-function FeedPostRow({ post, isTarget }: { post: any; isTarget: boolean }) {
+function FeedPostRow({ post, isTarget, active }: { post: any; isTarget: boolean; active: boolean }) {
   const ref = useRef<HTMLDivElement>(null);
   const [flashing, setFlashing] = useState(isTarget);
 
@@ -83,7 +83,7 @@ function FeedPostRow({ post, isTarget }: { post: any; isTarget: boolean }) {
         flashing ? "bg-highlight -mx-2 px-2 py-1.5" : ""
       }`}
     >
-      <PostCard post={post} />
+      <PostCard post={post} active={active} />
     </div>
   );
 }
@@ -92,10 +92,12 @@ function ForYouTab({
   interestId,
   justPostedId,
   scrollToPostId,
+  active,
 }: {
   interestId?: string;
   justPostedId?: string | null;
   scrollToPostId?: string | null;
+  active: boolean;
 }) {
   const [page, setPage] = useState(0);
   const { data: identity } = useActiveIdentity();
@@ -184,18 +186,23 @@ function ForYouTab({
       {fetchedScrollToPost && (
         <div className="mb-4">
           <p className="text-xs text-ink-muted font-medium mb-2">Continuing from where you left off</p>
-          <FeedPostRow post={fetchedScrollToPost} isTarget />
+          <FeedPostRow post={fetchedScrollToPost} isTarget active={active} />
         </div>
       )}
       {rankedPosts.map((post) => (
-        <FeedPostRow key={post.id} post={post} isTarget={!!scrollToPostId && post.id === scrollToPostId} />
+        <FeedPostRow
+          key={post.id}
+          post={post}
+          isTarget={!!scrollToPostId && post.id === scrollToPostId}
+          active={active}
+        />
       ))}
       {posts.length > 0 && <LoadMoreButton onClick={() => setPage((p) => p + 1)} />}
     </>
   );
 }
 
-function FollowingTab() {
+function FollowingTab({ active }: { active: boolean }) {
   const [page, setPage] = useState(0);
   const { data: identity } = useActiveIdentity();
   const activePageId = identity?.mode === "page" ? identity.page.id : undefined;
@@ -217,14 +224,14 @@ function FollowingTab() {
   return (
     <>
       {posts.map((post) => (
-        <PostCard key={post.id} post={post} />
+        <PostCard key={post.id} post={post} active={active} />
       ))}
       {posts.length > 0 && <LoadMoreButton onClick={() => setPage((p) => p + 1)} />}
     </>
   );
 }
 
-function TopDiscussionsTab() {
+function TopDiscussionsTab({ active }: { active: boolean }) {
   const [page, setPage] = useState(0);
   const { data: pagePosts, isLoading, error } = useTopDiscussionsFeed(page);
   const posts = useAccumulatedPages(pagePosts, page, "top");
@@ -238,7 +245,7 @@ function TopDiscussionsTab() {
   return (
     <>
       {posts.map((post) => (
-        <PostCard key={post.id} post={post} />
+        <PostCard key={post.id} post={post} active={active} />
       ))}
       {posts.length > 0 && <LoadMoreButton onClick={() => setPage((p) => p + 1)} />}
     </>
@@ -281,6 +288,22 @@ export function Feed() {
   const activeIndex = TABS.findIndex((t) => t.key === activeTab);
   const [tabProgress, setTabProgress] = useState(activeIndex);
   const [tabDragging, setTabDragging] = useState(false);
+
+  // Which of the three tabs have ever been the active one this visit —
+  // starts with just whichever tab is active on mount (usually For You,
+  // but a shared `?tab=` link can land elsewhere), and only ever grows.
+  // Passed down as each tab's `active` prop so PostCard can defer its
+  // bookmark/like/dislike/hasReshared queries for tabs still marked
+  // false. SwipeableTabs mounts all three tabs' cards immediately (see
+  // its own comment on why), so without this a fresh Feed load fired
+  // those queries for every card across all three tabs at once — most
+  // of it for tabs the visitor hadn't looked at yet. First swipe/tap
+  // into a tab flips it to true for good; already-visited tabs never
+  // re-fetch or get held back again.
+  const [visitedTabs, setVisitedTabs] = useState<boolean[]>(() => TABS.map((_, i) => i === activeIndex));
+  useEffect(() => {
+    setVisitedTabs((prev) => (prev[activeIndex] ? prev : prev.map((v, i) => v || i === activeIndex)));
+  }, [activeIndex]);
 
   useEffect(() => {
     if (interestId) setActiveTab("for-you");
@@ -362,9 +385,10 @@ export function Feed() {
               interestId={interestId}
               justPostedId={justPostedId}
               scrollToPostId={scrollToPostId}
+              active={visitedTabs[0]}
             />,
-            <TopDiscussionsTab key="top" />,
-            <FollowingTab key="following" />,
+            <TopDiscussionsTab key="top" active={visitedTabs[1]} />,
+            <FollowingTab key="following" active={visitedTabs[2]} />,
           ]}
         </SwipeableTabs>
       </div>

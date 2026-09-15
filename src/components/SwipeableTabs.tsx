@@ -75,20 +75,38 @@ export function SwipeableTabs({ index, onIndexChange, onProgress, children, clas
   const paneRefs = useRef<(HTMLDivElement | null)[]>([]);
   const isFirstRender = useRef(true);
 
-  // Whatever scroll position the previous tab was left at otherwise
-  // carries straight over — the new tab mounts already scrolled down,
-  // so its top content is effectively truncated out of view until the
-  // user scrolls back up themselves. Reset on every real tab change
-  // (swipe settling OR a tab button jump, both funnel through
-  // onIndexChange → this `index` prop) but not on first mount, where
-  // the page's own scroll position (top, from ScrollToTop) is already
-  // correct and shouldn't be second-guessed.
+  // Each tab keeps its own scroll position instead of always resetting
+  // to the top on switch. Previously this just did `window.scrollTo(0,
+  // 0)` on every tab change, which meant swiping over to another tab
+  // and back lost your place in a long feed/list — you'd land back on
+  // whatever was first, not the post you were actually reading.
+  //
+  // Recorded continuously (via a passive scroll listener) rather than
+  // read once at the moment of leaving, since by the time an effect
+  // keyed on `index` runs, the pane has already swapped and
+  // window.scrollY no longer reflects where the outgoing tab was
+  // scrolled to.
+  const scrollPositionsRef = useRef<number[]>(Array(count).fill(0));
+
+  useEffect(() => {
+    function handleScroll() {
+      scrollPositionsRef.current[index] = window.scrollY;
+    }
+    window.addEventListener("scroll", handleScroll, { passive: true });
+    return () => window.removeEventListener("scroll", handleScroll);
+  }, [index]);
+
+  // Restore on every real tab change (swipe settling OR a tab button
+  // jump, both funnel through onIndexChange → this `index` prop) but
+  // not on first mount, where the page's own scroll position (top,
+  // from ScrollToTop) is already correct and shouldn't be
+  // second-guessed.
   useEffect(() => {
     if (isFirstRender.current) {
       isFirstRender.current = false;
       return;
     }
-    window.scrollTo(0, 0);
+    window.scrollTo(0, scrollPositionsRef.current[index] ?? 0);
   }, [index]);
 
   // Panes render lazily: a pane's real content only mounts once it's
