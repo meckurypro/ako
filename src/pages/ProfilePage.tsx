@@ -3,7 +3,12 @@ import { useState, useRef, useEffect } from "react";
 import { useParams, Link, useNavigate, useLocation } from "react-router-dom";
 import { Settings, Wallet, MessageCircle, MoreHorizontal, Plus, Eye, X, Globe, UserCheck, Lock, Redo2, Building2, ArrowUp, Undo2 } from "lucide-react";
 import { useAuth } from "../hooks/useAuth";
-import { useProfileByUsername, useIsFollowing, useIsFollowedByUser, useToggleFollow } from "../hooks/useProfile";
+import {
+  useProfileByUsername,
+  useIsFollowingAsActiveIdentity,
+  useIsFollowedByUser,
+  useToggleFollowAsActiveIdentity,
+} from "../hooks/useProfile";
 import { useTabState } from "../hooks/useTabState";
 import { useBackDismiss } from "../hooks/useBackDismiss";
 import { useScrollLock } from "../hooks/useScrollLock";
@@ -183,9 +188,9 @@ export function ProfilePage() {
   const { data: profile, isLoading } = useProfileByUsername(username!);
   const [tabDragging, setTabDragging] = useState(false);
 
-  const isFollowingQuery = useIsFollowing(profile?.id ?? "");
+  const isFollowingQuery = useIsFollowingAsActiveIdentity(profile?.id ?? "");
   const isFollowedByUserQuery = useIsFollowedByUser(profile?.id ?? "");
-  const toggleFollow = useToggleFollow(profile?.id ?? "");
+  const toggleFollow = useToggleFollowAsActiveIdentity(profile?.id ?? "");
   const hasPendingRequestQuery = useHasPendingFollowRequest(profile?.id ?? "");
   const sendFollowRequest = useSendFollowRequest(profile?.id ?? "");
   const cancelFollowRequest = useCancelFollowRequest(profile?.id ?? "");
