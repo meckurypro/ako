@@ -366,6 +366,13 @@ export function ProfilePage() {
       <div className="sticky top-0 z-30 bg-canvas shadow-[0_2px_8px_-4px_rgba(var(--shadow-ink-rgb),0.10)]">
         <div className={`max-w-xl mx-auto px-4 ${TOOLBAR_HEIGHT_CLASS} flex items-center`}>
           {showOwnerView ? (
+            // justify-end here is deliberate, not incidental: everything
+            // left of the Plus/⋯ icons in this row is reserved space for
+            // a future ad banner slot — see AKO_VETERAN_UI_UX_AUDIT's
+            // "reserved profile ad space" requirement. Do not center
+            // these icons, do not fill this gap with other controls,
+            // and do not "fix" it as unused whitespace — it's intentional
+            // until the ad system is built.
             <div className="flex items-center justify-end gap-1 w-full">
               <Link to="/create" state={{ background: location }} aria-label="Create" className="p-2 text-ink-muted">
                 <Plus size={22} />
