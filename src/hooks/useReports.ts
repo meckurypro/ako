@@ -28,7 +28,11 @@ export function useReportReasons() {
 }
 
 interface SubmitReportInput {
-  targetType: "profile" | "post" | "comment";
+  // "project" added on top of the original set — see ReportModal.tsx,
+  // which reuses this same hook to let a reporter pick one of a
+  // profile's posts or projects specifically, rather than the profile
+  // as a whole (that flow is ShareProfileSheet's own "Report" step).
+  targetType: "profile" | "post" | "comment" | "project";
   targetId: string;
   reasonId: string;
   details?: string;
