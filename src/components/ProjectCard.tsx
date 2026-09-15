@@ -1,5 +1,5 @@
 // src/components/ProjectCard.tsx
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   Lock,
@@ -28,9 +28,11 @@ import {
   Check,
   Heart,
   Megaphone,
+  Play,
+  Pause,
+  Loader2,
 } from "lucide-react";
 import { useAuth } from "../hooks/useAuth";
-import { LikeHeart } from "./LikeHeart";
 import { ConfirmDialog } from "./ConfirmDialog";
 import { UnlockReveal } from "./UnlockReveal";
 import { renderFormattedText } from "../lib/formatText";
@@ -48,10 +50,9 @@ import {
   type Project,
 } from "../hooks/useProjects";
 import { useMediaDetails, usePitchDetails, usePitchRaised, useBookDetails } from "../hooks/useProjectTypeDetails";
-import { MediaPreviewPlayer } from "./MediaPreviewPlayer";
+import { MediaPreviewPlayer, PREVIEW_SECONDS } from "./MediaPreviewPlayer";
 import { useIsProjectSaved, useToggleSavedProject } from "../hooks/useSavedProjects";
 import { useProjectAccessCount, useLogFreeProjectAccess } from "../hooks/useProjectAccess";
-import { useMyReaction, useToggleReaction } from "../hooks/useReactions";
 import { useStartConversation } from "../hooks/useMessaging";
 import { ReactionTray, type EngagementAction } from "./ReactionTray";
 import { ReactionMoreSheet } from "./ReactionMoreSheet";
@@ -164,9 +165,146 @@ function MediaChannelBlock({
   );
 }
 
+// A "song" is a Media project with both an audio channel and a cover
+// image — common enough (and distinct enough from a bare audio/video
+// upload) to earn its own merged control: the cover art itself is the
+// play/pause button, playback starts the moment the project is
+// opened, and the 20s preview loops instead of stopping dead — same
+// preview-length paywall as MediaPreviewPlayer, just looped rather
+// than left sitting at "replay?". Only used in the project detail
+// view (see isDetailView on ProjectCard) — autoplaying audio for
+// every song card scrolling past in a feed would be a bad time for
+// everyone, and most browsers would just block it anyway.
+function SongCoverPlayer({
+  imageSrc,
+  isLoadingImage,
+  onLoadImage,
+  audioSrc,
+  isLoadingAudio,
+  onLoadAudio,
+}: {
+  imageSrc: string | null;
+  isLoadingImage: boolean;
+  onLoadImage: () => void;
+  audioSrc: string | null;
+  isLoadingAudio: boolean;
+  onLoadAudio: () => void;
+}) {
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const [isPlaying, setIsPlaying] = useState(false);
+  const requestedRef = useRef(false);
+
+  // Kick off both signed-URL fetches as soon as this mounts — "view
+  // the project" is the trigger, not a separate tap. Guarded so a
+  // re-render (e.g. isLoadingAudio flipping) doesn't re-request.
+  useEffect(() => {
+    if (requestedRef.current) return;
+    requestedRef.current = true;
+    if (!imageSrc) onLoadImage();
+    if (!audioSrc) onLoadAudio();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Autoplay once the audio stream is actually ready. Browsers can
+  // (and do) block unmuted autoplay outside a direct user gesture —
+  // .play() returns a rejected promise in that case, which we just
+  // swallow and fall back to showing the paused Play icon, same as if
+  // autoplay had never been attempted.
+  useEffect(() => {
+    if (!audioSrc) return;
+    const el = audioRef.current;
+    if (!el) return;
+    el.currentTime = 0;
+    const playPromise = el.play();
+    if (playPromise && typeof playPromise.then === "function") {
+      playPromise.then(() => setIsPlaying(true)).catch(() => setIsPlaying(false));
+    }
+  }, [audioSrc]);
+
+  // Loop within the preview cap: jump back to 0 and keep playing
+  // instead of pausing at the cap the way the plain MediaPreviewPlayer
+  // does.
+  function handleTimeUpdate() {
+    const el = audioRef.current;
+    if (!el) return;
+    if (el.currentTime >= PREVIEW_SECONDS) {
+      el.currentTime = 0;
+      void el.play();
+    }
+  }
+
+  // A file shorter than the cap ends on its own — loop that too.
+  function handleNativeEnded() {
+    const el = audioRef.current;
+    if (!el) return;
+    el.currentTime = 0;
+    void el.play();
+  }
+
+  function toggle() {
+    const el = audioRef.current;
+    if (!el || !audioSrc) return;
+    if (isPlaying) {
+      el.pause();
+      setIsPlaying(false);
+    } else {
+      void el.play();
+      setIsPlaying(true);
+    }
+  }
+
+  const isBusy = isLoadingImage || isLoadingAudio;
+
+  return (
+    <div className="flex flex-col gap-1">
+      {audioSrc && (
+        <audio
+          ref={audioRef}
+          src={audioSrc}
+          onTimeUpdate={handleTimeUpdate}
+          onEnded={handleNativeEnded}
+          className="hidden"
+        />
+      )}
+      <button
+        type="button"
+        onClick={toggle}
+        disabled={!audioSrc}
+        aria-label={isPlaying ? "Pause song" : "Play song"}
+        className="relative block w-full rounded-lg overflow-hidden bg-canvas disabled:cursor-default"
+      >
+        {imageSrc ? (
+          <img src={imageSrc} alt="" className="w-full max-h-72 object-contain" />
+        ) : (
+          <div className="w-full aspect-square flex items-center justify-center">
+            {isLoadingImage ? (
+              <Loader2 size={24} className="text-ink-muted animate-spin" />
+            ) : (
+              <Music size={32} className="text-ink-muted" />
+            )}
+          </div>
+        )}
+        <span className="absolute inset-0 flex items-center justify-center bg-ink/0 hover:bg-ink/10 transition-colors">
+          <span className="flex items-center justify-center w-14 h-14 rounded-full bg-ink/60 text-canvas backdrop-blur-sm">
+            {isBusy && !audioSrc ? (
+              <Loader2 size={22} className="animate-spin" />
+            ) : isPlaying ? (
+              <Pause size={22} fill="currentColor" />
+            ) : (
+              <Play size={22} fill="currentColor" className="ml-1" />
+            )}
+          </span>
+        </span>
+      </button>
+      <p className="text-xs text-ink-muted">Preview — {PREVIEW_SECONDS}s, looping</p>
+    </div>
+  );
+}
+
 export function ProjectCard({
   project,
   isOwnerView,
+  isDetailView,
 }: {
   project: Project;
   // Explicit owner-view flag from the caller (e.g. ProfilePage's
@@ -174,6 +312,12 @@ export function ProjectCard({
   // for every other call site that doesn't pass it, so this stays a
   // no-op everywhere except the profile page's visitor-preview mode.
   isOwnerView?: boolean;
+  // True only when this card IS the project detail page (ProjectDetail
+  // renders exactly one of these, full-focus). Scopes the
+  // autoplaying/looping song cover player to that single context —
+  // feed lists, grids, Archive, SavedProjects etc. render many
+  // ProjectCards at once and keep the old tap-to-preview buttons.
+  isDetailView?: boolean;
 }) {
   const { user } = useAuth();
   const navigate = useNavigate();
@@ -202,8 +346,6 @@ export function ProjectCard({
   const deleteProject = useDeleteProject();
   const isSavedQuery = useIsProjectSaved(project.id);
   const toggleSaved = useToggleSavedProject(project.id);
-  const isLikedQuery = useMyReaction(project.id, "project", "like");
-  const toggleLike = useToggleReaction(project.id, "project", "like");
   const toast = useToast();
   const accessCountQuery = useProjectAccessCount(project.id);
   const logFreeAccess = useLogFreeProjectAccess();
@@ -251,7 +393,6 @@ export function ProjectCard({
   const privacyBlocked = project.is_private && !isOwner && !isMember;
   const hasAccess = !privacyBlocked && (isOwner || hasPurchased || (isFree && !isRoom));
   const isSaved = !!isSavedQuery.data;
-  const isLiked = !!isLikedQuery.data;
 
   // Outside-click / back-dismiss for the kebab menu is handled
   // internally by <DropdownMenu> now.
@@ -557,41 +698,14 @@ export function ProjectCard({
     toggleSaved.mutate(isSaved);
   }
 
-  function handleToggleLike() {
-    if (!user) {
-      navigate(`/login?redirect=${encodeURIComponent(`/projects/${project.id}`)}`);
-      return;
-    }
-    // Same double-tap race guard as PostCard's Like button — this
-    // closes over `isLiked` from render time, so two taps landing
-    // close together can both read the same stale value and fire
-    // mutate(false) then mutate(true) (or vice versa) — liking, then
-    // instantly undoing itself. Ignoring a second tap while the first
-    // is still in flight closes that window.
-    if (toggleLike.isPending) return;
-    toggleLike.mutate(isLiked, {
-      onError: () => toast("Couldn't like this project. Try again in a moment.", { variant: "error" }),
-    });
-  }
-
   // Engagement row — same ReactionTray component and left/middle/right
   // shape as PostCard, for visual and interaction consistency across
-  // posts and projects: Like fixed left, Share fixed right, everything
-  // else (Save, and Join for rooms) in the middle. Like/Save don't make
-  // sense on your own project, same as PostCard hides its
-  // owner-irrelevant actions; Share and Join (as "Enter") stay
-  // available to the owner too.
-  const leftActions: EngagementAction[] = isOwner
-    ? []
-    : [
-        {
-          key: "like",
-          label: isLiked ? "Liked" : "Like",
-          icon: <LikeHeart active={isLiked} size={24} className="text-danger" />,
-          count: project.like_count > 0 ? project.like_count : null,
-          onClick: handleToggleLike,
-        },
-      ];
+  // posts and projects: Save/Join on the left-ish middle slot, Share
+  // fixed right. Projects have no Like action (removed — liking a
+  // project wasn't a meaningful signal here). Save doesn't make sense
+  // on your own project, same as PostCard hides its owner-irrelevant
+  // actions; Share and Join (as "Enter") stay available to the owner too.
+  const leftActions: EngagementAction[] = [];
 
   const middleActions: EngagementAction[] = [
     ...(!isOwner
@@ -898,116 +1012,136 @@ export function ProjectCard({
             fit the single-line pattern the other inline types use. */}
         {isMedia && mediaDetails && (
           <div className="flex flex-col gap-3 mt-3">
-            {/* Audio/video — a preview player (if an upload exists), a
-                "go to the full thing" link (if a redirect URL exists),
-                or both at once. Which of the two show up is driven
-                entirely by which of {*_file_path, *_url} are set —
-                see the hybrid-model comment on MediaDetails. */}
-            {mediaDetails.has_audio && (
-              <div>
-                {!hasAccess ? (
-                  <span className="flex items-center gap-1.5 text-sm text-ink-muted">
-                    <Lock size={15} />
-                    Audio locked
-                  </span>
-                ) : (
-                  <MediaChannelBlock
-                    icon={Music}
-                    label="Audio"
-                    hasPreview={!!mediaDetails.audio_file_path}
-                    hasLink={!!mediaDetails.audio_url}
-                    linkUrl={mediaDetails.audio_url}
-                    linkLabel="Go to full track"
-                    previewSrc={audioSrc}
-                    previewKind="audio"
-                    onLoadPreview={handlePlayAudio}
-                    isLoadingPreview={getAudioStream.isPending}
-                  />
-                )}
-              </div>
-            )}
-
-            {mediaDetails.has_video && (
-              <div>
-                {!hasAccess ? (
-                  <span className="flex items-center gap-1.5 text-sm text-ink-muted">
-                    <Lock size={15} />
-                    Video locked
-                  </span>
-                ) : (
-                  <MediaChannelBlock
-                    icon={Video}
-                    label="Video"
-                    hasPreview={!!mediaDetails.video_file_path}
-                    hasLink={!!mediaDetails.video_url}
-                    linkUrl={mediaDetails.video_url}
-                    linkLabel="Go to full video"
-                    previewSrc={videoSrc}
-                    previewKind="video"
-                    onLoadPreview={handlePlayVideo}
-                    isLoadingPreview={getVideoStream.isPending}
-                  />
-                )}
-              </div>
-            )}
-
-            {/* Image — always upload-only, never a redirect (see
-                MediaFields). Shown in full once loaded, plus an
-                explicit Download and Copy link, same pattern as
-                File/URL — on top of, not instead of, the ordinary
-                right-click-to-save every <img> already supports. */}
-            {mediaDetails.has_image && (
-              <div>
-                {!hasAccess ? (
-                  <span className="flex items-center gap-1.5 text-sm text-ink-muted">
-                    <Lock size={15} />
-                    Image locked
-                  </span>
-                ) : imageSrc ? (
-                  <div className="flex flex-col gap-2">
-                    <img src={imageSrc} alt="" className="w-full rounded-lg max-h-72 object-contain" />
-                    <div className="flex items-center gap-3">
-                      <a
-                        href={imageSrc}
-                        download
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="flex items-center gap-1.5 text-sm text-accent font-medium"
-                      >
-                        <Download size={15} />
-                        Download
-                      </a>
-                      <button
-                        type="button"
-                        onClick={handleCopyImageLink}
-                        className="flex items-center gap-1.5 text-sm text-ink-muted font-medium"
-                      >
-                        {imageLinkCopied ? (
-                          <>
-                            <Check size={15} className="text-accent" />
-                            Copied
-                          </>
-                        ) : (
-                          <>
-                            <Copy size={15} />
-                            Copy link
-                          </>
-                        )}
-                      </button>
-                    </div>
-                    <p className="text-xs text-ink-muted">Link expires after a while — copy again if it stops working.</p>
+            {/* A song — audio + cover image together, viewed on its own
+                detail page, with access — gets the merged
+                autoplay/loop/tap-cover-to-toggle player instead of the
+                two separate tap-to-load rows below. Every other Media
+                shape (video, audio without a cover, image without
+                audio, any of the above in a feed/grid/list card)
+                falls through to the unchanged existing UI. */}
+            {isDetailView && hasAccess && !!user && mediaDetails.has_audio && mediaDetails.has_image ? (
+              <SongCoverPlayer
+                imageSrc={imageSrc}
+                isLoadingImage={getImageStream.isPending}
+                onLoadImage={handleViewImage}
+                audioSrc={audioSrc}
+                isLoadingAudio={getAudioStream.isPending}
+                onLoadAudio={handlePlayAudio}
+              />
+            ) : (
+              <>
+                {/* Audio/video — a preview player (if an upload exists), a
+                    "go to the full thing" link (if a redirect URL exists),
+                    or both at once. Which of the two show up is driven
+                    entirely by which of {*_file_path, *_url} are set —
+                    see the hybrid-model comment on MediaDetails. */}
+                {mediaDetails.has_audio && (
+                  <div>
+                    {!hasAccess ? (
+                      <span className="flex items-center gap-1.5 text-sm text-ink-muted">
+                        <Lock size={15} />
+                        Audio locked
+                      </span>
+                    ) : (
+                      <MediaChannelBlock
+                        icon={Music}
+                        label="Audio"
+                        hasPreview={!!mediaDetails.audio_file_path}
+                        hasLink={!!mediaDetails.audio_url}
+                        linkUrl={mediaDetails.audio_url}
+                        linkLabel="Go to full track"
+                        previewSrc={audioSrc}
+                        previewKind="audio"
+                        onLoadPreview={handlePlayAudio}
+                        isLoadingPreview={getAudioStream.isPending}
+                      />
+                    )}
                   </div>
-                ) : (
-                  <button
-                    onClick={handleViewImage}
-                    disabled={getImageStream.isPending}
-                    className="flex items-center gap-1.5 text-sm text-accent font-medium disabled:opacity-50"
-                  >
-                    <ImageIcon size={15} />
-                    {getImageStream.isPending ? "Loading…" : "View image"}
-                  </button>
                 )}
-              </div>
+
+                {mediaDetails.has_video && (
+                  <div>
+                    {!hasAccess ? (
+                      <span className="flex items-center gap-1.5 text-sm text-ink-muted">
+                        <Lock size={15} />
+                        Video locked
+                      </span>
+                    ) : (
+                      <MediaChannelBlock
+                        icon={Video}
+                        label="Video"
+                        hasPreview={!!mediaDetails.video_file_path}
+                        hasLink={!!mediaDetails.video_url}
+                        linkUrl={mediaDetails.video_url}
+                        linkLabel="Go to full video"
+                        previewSrc={videoSrc}
+                        previewKind="video"
+                        onLoadPreview={handlePlayVideo}
+                        isLoadingPreview={getVideoStream.isPending}
+                      />
+                    )}
+                  </div>
+                )}
+
+                {/* Image — always upload-only, never a redirect (see
+                    MediaFields). Shown in full once loaded, plus an
+                    explicit Download and Copy link, same pattern as
+                    File/URL — on top of, not instead of, the ordinary
+                    right-click-to-save every <img> already supports. */}
+                {mediaDetails.has_image && (
+                  <div>
+                    {!hasAccess ? (
+                      <span className="flex items-center gap-1.5 text-sm text-ink-muted">
+                        <Lock size={15} />
+                        Image locked
+                      </span>
+                    ) : imageSrc ? (
+                      <div className="flex flex-col gap-2">
+                        <img src={imageSrc} alt="" className="w-full rounded-lg max-h-72 object-contain" />
+                        <div className="flex items-center gap-3">
+                          <a
+                            href={imageSrc}
+                            download
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="flex items-center gap-1.5 text-sm text-accent font-medium"
+                          >
+                            <Download size={15} />
+                            Download
+                          </a>
+                          <button
+                            type="button"
+                            onClick={handleCopyImageLink}
+                            className="flex items-center gap-1.5 text-sm text-ink-muted font-medium"
+                          >
+                            {imageLinkCopied ? (
+                              <>
+                                <Check size={15} className="text-accent" />
+                                Copied
+                              </>
+                            ) : (
+                              <>
+                                <Copy size={15} />
+                                Copy link
+                              </>
+                            )}
+                          </button>
+                        </div>
+                        <p className="text-xs text-ink-muted">Link expires after a while — copy again if it stops working.</p>
+                      </div>
+                    ) : (
+                      <button
+                        onClick={handleViewImage}
+                        disabled={getImageStream.isPending}
+                        className="flex items-center gap-1.5 text-sm text-accent font-medium disabled:opacity-50"
+                      >
+                        <ImageIcon size={15} />
+                        {getImageStream.isPending ? "Loading…" : "View image"}
+                      </button>
+                    )}
+                  </div>
+                )}
+              </>
             )}
           </div>
         )}
