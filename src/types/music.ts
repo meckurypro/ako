@@ -87,12 +87,16 @@ export interface MusicCatalogueEntry {
   updated_at: string;
 }
 
+export type MusicCreditStatus = "pending" | "accepted" | "declined";
+
 export interface MusicCatalogueContributor {
   id: string;
   catalogue_id: string;
   contributor_id: string;
   role: MusicContributorRole;
   split_percent: number;
+  status: MusicCreditStatus;
+  responded_at: string | null;
   created_at: string;
 }
 
@@ -111,6 +115,18 @@ export interface MusicCatalogueWithContributors extends MusicCatalogueEntry {
   contributors: MusicCatalogueContributorWithProfile[];
   clip_url: string;
   cover_url: string | null;
+}
+
+// What MusicCreditResponseModal needs to show someone a pending
+// credit request without exposing the full catalogue entry — just
+// enough to make an informed accept/decline decision.
+export interface PendingMusicCredit {
+  catalogue_id: string;
+  role: MusicContributorRole;
+  title: string;
+  primary_artist_name: string;
+  cover_url: string | null;
+  creator: Pick<AuthorSummary, "id" | "username" | "display_name" | "avatar_url">;
 }
 
 // A song the composer's "Add music" search returns — trimmed to the
