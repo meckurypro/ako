@@ -475,7 +475,12 @@ interface MediaDetailsInput {
 // the gig's detail page. price_usd = 0 means "Message to inquire"
 // only; > 0 additionally offers a payable deposit/booking fee via
 // the existing purchase flow (see PROJECT_TYPE_HINTS.gig).
+// role_id is required going forward (see AKO_DYNAMIC_PROFILE_PORTFOLIOS
+// spec) — it's what lets this Gig surface as a dynamic profile category
+// (e.g. a Cinematographer gig → the profile's "Film" tab). Optional only
+// in the type because a handful of pre-migration gigs have it null.
 interface GigDetailsInput {
+  role_id?: string;
   tagline?: string;
   delivery_estimate?: string;
   sample_project_ids?: string[];
