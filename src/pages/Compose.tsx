@@ -17,6 +17,9 @@ import { DropdownMenu, type DropdownMenuItem } from "../components/DropdownMenu"
 import { Modal } from "../components/Modal";
 import { useToast } from "../components/Toast";
 import { CONTENT_LIMIT, contentCounterClass } from "../lib/textLimits";
+import { AddMusicSheet } from "../components/music/AddMusicSheet";
+import { Music as MusicIcon } from "lucide-react";
+import type { MusicSearchResult } from "../types/music";
 
 const HEADING_LIMIT = 50;
 const MAX_MEDIA_FILES = 4;
@@ -47,6 +50,15 @@ export function Compose() {
     incomingTaggedProject
   );
   const [showProjectPicker, setShowProjectPicker] = useState(false);
+  // Optional soundtrack — either picked via AddMusicSheet in this
+  // session (attachedMusic has full display info), or arriving via
+  // location.state (e.g. MusicDiscoverySheet's "Use in my post"),
+  // same pattern as incomingTaggedProject above.
+  const incomingMusic =
+    (location.state as { attachMusicCatalogueId?: string } | null)?.attachMusicCatalogueId ?? null;
+  const [attachedMusic, setAttachedMusic] = useState<MusicSearchResult | null>(null);
+  const [musicCatalogueId, setMusicCatalogueId] = useState<string | null>(incomingMusic);
+  const [addMusicOpen, setAddMusicOpen] = useState(false);
   const createPost = useCreatePost();
   const deleteDraftOrScheduled = useDeleteDraftOrScheduledPost();
   const uploadMedia = useUploadPostMedia();
@@ -150,6 +162,7 @@ export function Compose() {
         media_urls: mediaUrls,
         posted_as_page_id: postingAsPage?.id,
         tagged_project_id: taggedProject?.id,
+        music_catalogue_id: musicCatalogueId ?? undefined,
         // Omitted entirely for the normal "Post now" path so a create-post
         // deployment that predates the drafts/scheduling migration (see
         // supabase-fixes/) keeps working exactly as it always did —
@@ -351,6 +364,46 @@ export function Compose() {
         </div>
 
         {uploadError && <p className="text-danger text-sm mt-2">{uploadError}</p>}
+
+        <div className="mt-6">
+          {musicCatalogueId ? (
+            <div className="flex items-center justify-between px-3 py-2 rounded-xl bg-accent-soft text-sm">
+              <span className="text-accent truncate">
+                ♫ {attachedMusic?.title ?? "Music attached"}
+                {attachedMusic && <span className="text-ink-muted"> · {attachedMusic.primary_artist_name}</span>}
+              </span>
+              <button
+                onClick={() => {
+                  setMusicCatalogueId(null);
+                  setAttachedMusic(null);
+                }}
+                className="text-ink-muted p-1"
+                aria-label="Remove music"
+              >
+                <X size={14} />
+              </button>
+            </div>
+          ) : (
+            <button
+              onClick={() => setAddMusicOpen(true)}
+              className="w-full flex items-center gap-2 text-sm font-medium text-ink-muted"
+            >
+              <MusicIcon size={16} />
+              Add music
+            </button>
+          )}
+        </div>
+
+        {addMusicOpen && (
+          <AddMusicSheet
+            onSelect={(song) => {
+              setMusicCatalogueId(song.id);
+              setAttachedMusic(song);
+              setAddMusicOpen(false);
+            }}
+            onClose={() => setAddMusicOpen(false)}
+          />
+        )}
 
         {categories && categories.length > 0 && (
           <div className="mt-6">
