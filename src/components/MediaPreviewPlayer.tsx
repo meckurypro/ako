@@ -2,7 +2,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Play, Pause, RotateCcw } from "lucide-react";
 
-const PREVIEW_SECONDS = 20;
+export const PREVIEW_SECONDS = 20;
 
 interface MediaPreviewPlayerProps {
   kind: "audio" | "video";
