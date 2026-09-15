@@ -24,7 +24,7 @@ export function AdminReports() {
   async function handleResolve(reportId: string, targetType: string, targetId: string) {
     await resolveReport.mutateAsync({
       reportId,
-      targetType: targetType as "post" | "comment" | "profile",
+      targetType: targetType as "post" | "comment" | "profile" | "project",
       targetId,
       action: selectedAction,
       reason: actionReason || `Resolved via moderation queue: ${selectedAction}`,
