@@ -127,6 +127,14 @@ export interface GigDetails {
   revisions_included: number | null;
   deliverables: string[] | null;
   faq: GigFaqItem[] | null;
+  // false for a gig that find_or_create_role_gig auto-created from a
+  // Project role or accepted collaboration credit (spec §10-11) —
+  // true (the default) for anything created through the normal
+  // Create Gig form. Doesn't gate editing, only public-portfolio
+  // visibility (see get_profile_portfolio_categories) — the owner
+  // completing and re-saving the form sets this back to true.
+  is_complete: boolean;
+  source: "manual" | "auto_project" | "auto_collaboration";
 }
 
 // Publicly readable, same as event/meeting/media above.
