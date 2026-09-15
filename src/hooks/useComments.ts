@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "../lib/supabase";
+import { resolveFunctionErrorMessage } from "../lib/functionErrors";
 import type { Comment, Stance } from "../types/database";
 
 export interface CommentWithAuthor extends Comment {
@@ -66,7 +67,13 @@ export function useCreateComment(postId: string) {
         body: input,
       });
 
-      if (error) throw error;
+      // See resolveFunctionErrorMessage (src/lib/functionErrors.ts) —
+      // without this, a moderation rejection's actual message (e.g. the
+      // word-filter's block message) never reaches the caller: on a
+      // non-2xx response supabase-js discards create-comment's real
+      // { error: "..." } body and only gives back a generic "Edge
+      // Function returned a non-2xx status code".
+      if (error) throw new Error(await resolveFunctionErrorMessage(error, "Couldn't post this."));
       if (data?.error) throw new Error(data.error);
 
       return data.comment;
