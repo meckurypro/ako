@@ -31,6 +31,7 @@ import { ReactionTray, type EngagementAction } from "./ReactionTray";
 import { ReactionMoreSheet } from "./ReactionMoreSheet";
 import { PostMedia } from "./PostMedia";
 import { PostContent } from "./PostContent";
+import { MusicAttribution } from "./music/MusicAttribution";
 import { StanceComposer, STANCE_COLORS } from "./StanceComposer";
 import { ReshareSheet } from "./ReshareSheet";
 import { GiftPicker } from "./GiftPicker";
@@ -689,6 +690,10 @@ export function PostCard({
       )}
 
       <PostMedia mediaUrls={post.media_urls} />
+
+      {post.music_catalogue_id && (
+        <MusicAttribution catalogueId={post.music_catalogue_id} postId={post.id} />
+      )}
 
       {/* Embedded original — for both a plain reshare and a quote. Handles
           its own "no longer available" state internally, and always
