@@ -40,6 +40,7 @@ import { ProjectCard } from "../components/ProjectCard";
 import { BottomNav } from "../components/BottomNav";
 import { AffiliateShareSheet } from "../components/AffiliateShareSheet";
 import { useAffiliateProgram } from "../hooks/useAffiliates";
+import { PublishMusicButton } from "../components/music/PublishMusicButton";
 
 // Compact, non-interactive project tile for the "similar projects"
 // rails — just enough to identify it and tap through. The full
@@ -481,6 +482,10 @@ export function ProjectDetail() {
             {project.project_type === "gig" && <GigReviewsSection projectId={project.id} />}
 
             {project.project_type === "event" && <EventHighlightsSection projectId={project.id} isOwner={isOwner} />}
+
+            {project.project_type === "media" && isOwner && (
+              <PublishMusicButton projectId={project.id} />
+            )}
 
             {project.topics.length > 0 && (
               <div className="flex flex-wrap gap-2 -mt-2 mb-4">
