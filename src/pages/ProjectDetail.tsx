@@ -365,7 +365,7 @@ export function ProjectDetail() {
           <p className="text-ink-muted">Loading…</p>
         ) : (
           <>
-            <ProjectCard project={project} />
+            <ProjectCard project={project} isDetailView />
 
             {canBecomeAffiliate && (
               <button
