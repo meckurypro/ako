@@ -16,7 +16,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "../lib/supabase";
 import { useAuth } from "./useAuth";
 
-export type FeatureFlagCategory = "pages" | "wallet" | "promotions" | "affiliates";
+export type FeatureFlagCategory = "pages" | "wallet" | "messaging" | "promotions" | "affiliates";
 
 export interface FeatureFlagDef {
   key: string;
@@ -49,6 +49,13 @@ export const FEATURE_FLAG_DEFS: FeatureFlagDef[] = [
     description:
       "Page inbox / page-to-profile direct messages. Existing threads stay readable. Toggled from Admin > Page settings.",
     category: "pages",
+  },
+  {
+    key: "messaging_enabled",
+    label: "Messaging",
+    description:
+      "Direct messages between profiles — the Messages tab, starting new conversations, and sending in existing threads. Existing conversations stay readable either way.",
+    category: "messaging",
   },
   {
     key: "wallet_enabled",
