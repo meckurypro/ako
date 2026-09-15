@@ -9,7 +9,12 @@ export function useUploadAvatar() {
   const { user } = useAuth();
 
   return useMutation({
-    meta: { blocking: true },
+    // No meta.blocking — was gating the entire app behind LoadingOverlay's
+    // full-screen blur for the whole upload. An avatar file upload can
+    // legitimately take a few seconds; the person should be free to keep
+    // navigating while it finishes in the background. The local
+    // "Uploading…" state on the picker button (see Settings.tsx) is
+    // enough to show it's in flight.
     mutationFn: async (file: File): Promise<string> => {
       if (!user) throw new Error("Not signed in");
 

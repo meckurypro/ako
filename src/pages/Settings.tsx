@@ -24,10 +24,12 @@ import {
   AlertTriangle,
   LogOut,
   Eye,
+  ShieldCheck,
 } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "../lib/supabase";
 import { useAuth } from "../hooks/useAuth";
+import { useIsAdmin } from "../hooks/useAdmin";
 import { removeSavedAccount } from "../lib/accountSessions";
 import { useUpdateProfile, useUpdateProfileRoles } from "../hooks/useProfile";
 import { useProfileVisitCount } from "../hooks/useProfileVisits";
@@ -189,6 +191,7 @@ export function Settings() {
   const navigate = useNavigate();
   const smartBack = useSmartBack();
   const { user } = useAuth();
+  const { data: isAdmin } = useIsAdmin();
 
   // Accordion: exactly one section open at a time. "profile" starts open
   // since it's the one people land on and edit most; opening another
@@ -882,10 +885,27 @@ export function Settings() {
           </SettingsSection>
         </div>
 
+        {/* Mobile's only entry point into /admin — the desktop Sidebar
+            has its own isAdmin-gated NavItem, but nothing equivalent
+            existed here, so an admin on mobile had no in-app way to
+            reach /admin/* (feature flags, profile ads, moderation,
+            etc.) short of typing the URL directly. */}
+        {isAdmin && (
+          <button
+            onClick={() => navigate("/admin")}
+            className="flex items-center gap-2 justify-center text-sm text-accent font-medium mt-8 mx-auto"
+          >
+            <ShieldCheck size={16} />
+            Admin
+          </button>
+        )}
+
         <button
           onClick={handleLogout}
           disabled={loggingOut}
-          className="flex items-center gap-2 justify-center text-sm text-ink-muted mt-8 mx-auto disabled:opacity-50"
+          className={`flex items-center gap-2 justify-center text-sm text-ink-muted mx-auto disabled:opacity-50 ${
+            isAdmin ? "mt-4" : "mt-8"
+          }`}
         >
           <LogOut size={16} />
           {loggingOut ? "Logging out…" : "Log out"}
