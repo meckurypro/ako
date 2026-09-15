@@ -31,6 +31,7 @@ import { Avatar } from "../components/Avatar";
 import { AccountSwitcher } from "../components/AccountSwitcher";
 import { ImageLightbox } from "../components/ImageLightbox";
 import { ShareProfileSheet } from "../components/ShareProfileSheet";
+import { ReportModal } from "../components/ReportModal";
 import { ProfileShareScreen } from "../components/ProfileShareScreen";
 import { useToast } from "../components/Toast";
 import { TierBadge } from "../components/TierBadge";
@@ -150,6 +151,7 @@ export function ProfilePage() {
   // — mutually exclusive, but kept as separate flags since they're
   // reached from different toolbar states and never both apply.
   const [shareSheetOpen, setShareSheetOpen] = useState(false);
+  const [reportContentOpen, setReportContentOpen] = useState(false);
   const [qrShareOpen, setQrShareOpen] = useState(false);
 
   // "Back to post" FAB — set once, from the router state a Feed post's
@@ -771,8 +773,13 @@ export function ProfilePage() {
           onRemoveFollower={handleRemoveFollower}
           onMessage={handleMessage}
           onOpenQR={() => setQrShareOpen(true)}
+          onReportContent={() => setReportContentOpen(true)}
           onClose={() => setShareSheetOpen(false)}
         />
+      )}
+
+      {reportContentOpen && (
+        <ReportModal profileId={profile.id} onClose={() => setReportContentOpen(false)} />
       )}
 
       {qrShareOpen && (
