@@ -31,8 +31,11 @@ import {
   Play,
   Pause,
   Loader2,
+  TrendingUp,
 } from "lucide-react";
 import { useAuth } from "../hooks/useAuth";
+import { useAffiliateProgram } from "../hooks/useAffiliates";
+import { AffiliateShareSheet } from "./AffiliateShareSheet";
 import { ConfirmDialog } from "./ConfirmDialog";
 import { UnlockReveal } from "./UnlockReveal";
 import { renderFormattedText } from "../lib/formatText";
@@ -368,6 +371,21 @@ export function ProjectCard({
   const menuButtonRef = useRef<HTMLButtonElement>(null);
   const [manageAccessOpen, setManageAccessOpen] = useState(false);
   const [supportSheetOpen, setSupportSheetOpen] = useState(false);
+  const [affiliateShareOpen, setAffiliateShareOpen] = useState(false);
+  // Same gate as ProjectDetail's "Share & earn" button — pitches never
+  // route through process_project_purchase, so there's no sale for a
+  // commission to attach to. This is the ONLY reachable entry point
+  // for media/file/url/gig: those four types never navigate into
+  // ProjectDetail from this card at all (media/file/url resolve fully
+  // inline; gig's card action is Message/Book, not a page link), so
+  // without this, a real, enabled affiliate program on one of those
+  // project types was completely unreachable — the toggle worked
+  // server-side, there was just no UI path to "fork" it from anywhere
+  // a visitor actually browses.
+  const { data: affiliateProgram } = useAffiliateProgram(
+    project.project_type !== "pitch" ? project.id : undefined
+  );
+  const canBecomeAffiliate = !!user && !isOwner && !!affiliateProgram?.enabled;
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [audioSrc, setAudioSrc] = useState<string | null>(null);
   const [videoSrc, setVideoSrc] = useState<string | null>(null);
@@ -1375,6 +1393,20 @@ export function ProjectCard({
           )}
         </div>
 
+        {/* Only when this card is NOT already inside ProjectDetail —
+            that page renders its own identical button right after
+            <ProjectCard isDetailView />, so this would otherwise
+            double up there. */}
+        {canBecomeAffiliate && !isDetailView && (
+          <button
+            onClick={() => setAffiliateShareOpen(true)}
+            className="w-full flex items-center justify-center gap-2 bg-accent-soft text-accent py-2.5 rounded-xl font-medium text-sm mb-2"
+          >
+            <TrendingUp size={15} />
+            Share & earn a commission
+          </button>
+        )}
+
         <ReactionTray
           leftActions={leftActions}
           middleActions={middleActions}
@@ -1404,6 +1436,14 @@ export function ProjectCard({
           projectTitle={project.title}
           onClose={() => setSupportSheetOpen(false)}
           onSupported={handleSupported}
+        />
+      )}
+
+      {affiliateShareOpen && (
+        <AffiliateShareSheet
+          projectId={project.id}
+          projectTitle={project.title}
+          onClose={() => setAffiliateShareOpen(false)}
         />
       )}
 
