@@ -451,6 +451,11 @@ export function EditProject() {
           revisions_included: revisions ? parseInt(revisions, 10) : null,
           deliverables: deliverables.length > 0 ? deliverables : null,
           faq: faq.length > 0 ? faq : null,
+          // Saving through this form — with the required role + tagline
+          // validated above — is what "completing" an auto-created Gig
+          // means (spec §10-11). Safe to always set true here; a
+          // manually-created gig was already true.
+          is_complete: true,
         });
         if (detailsError) throw detailsError;
 
@@ -646,7 +651,20 @@ export function EditProject() {
             </p>
           )}
           {project.project_type === "gig" && (
-            <GigFields value={gigFields} onChange={setGigFields} excludeProjectId={project.id} />
+            <>
+              {existingGigDetails?.is_complete === false && (
+                <div className="mb-4 p-3 rounded-xl bg-accent-soft border border-accent/30">
+                  <p className="text-sm text-ink font-medium">Finish setting up this Gig</p>
+                  <p className="text-xs text-ink-muted mt-0.5">
+                    {existingGigDetails.source === "auto_collaboration"
+                      ? "This was started automatically from a collaboration you were credited on."
+                      : "This Gig isn't complete yet."}{" "}
+                    Review the details below and save to publish it to your profile.
+                  </p>
+                </div>
+              )}
+              <GigFields value={gigFields} onChange={setGigFields} excludeProjectId={project.id} />
+            </>
           )}
           {project.project_type === "pitch" && (
             <PitchFields value={pitchFields} onChange={setPitchFields} />
