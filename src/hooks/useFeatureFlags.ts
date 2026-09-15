@@ -16,7 +16,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "../lib/supabase";
 import { useAuth } from "./useAuth";
 
-export type FeatureFlagCategory = "pages" | "wallet" | "messaging" | "promotions" | "affiliates";
+export type FeatureFlagCategory = "pages" | "wallet" | "messaging" | "promotions" | "affiliates" | "discovery";
 
 export interface FeatureFlagDef {
   key: string;
@@ -106,6 +106,13 @@ export const FEATURE_FLAG_DEFS: FeatureFlagDef[] = [
     description:
       "Global switch for the affiliate program feature. Per-project toggles (in each project's own settings) still apply on top of this.",
     category: "affiliates",
+  },
+  {
+    key: "feed_invitations_enabled",
+    label: "Soft Feed discovery",
+    description:
+      "The quiet 'there's more happening on Akọ' doorway shown at natural stopping points (course complete, book contents, ticket confirmation). Turning this off removes the invitation only — the underlying page and Feed itself are unaffected.",
+    category: "discovery",
   },
 ];
 

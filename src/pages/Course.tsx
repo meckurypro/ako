@@ -19,6 +19,8 @@ import {
 } from "lucide-react";
 import { useAuth } from "../hooks/useAuth";
 import { useProject, useHasPurchased, isProjectFree } from "../hooks/useProjects";
+import { useFeedDoorway } from "../hooks/useFeedDoorway";
+import { FeedDoorway } from "../components/FeedDoorway";
 import {
   useCourseModules,
   useAddModule,
@@ -224,6 +226,10 @@ export function Course() {
   const completedCount = flatLessons.filter((l) => completedIds.has(l.id)).length;
   const progressPct = totalLessons > 0 ? Math.round((completedCount / totalLessons) * 100) : 0;
   const allComplete = totalLessons > 0 && completedCount === totalLessons;
+  // Milestone completion only — deliberately not wired to individual
+  // lesson completion (spec: "avoid showing the invitation after
+  // every lesson; prefer milestone completion over micro-completion").
+  const courseDoorway = useFeedDoorway("course_complete");
 
   // "Continue where you left off": once the course and progress have
   // loaded, land on the first not-yet-completed lesson (or the very
@@ -336,6 +342,9 @@ export function Course() {
                 <PartyPopper size={15} />
                 Course complete!
               </div>
+            )}
+            {allComplete && courseDoorway.visible && (
+              <FeedDoorway context="course_complete" onEnter={courseDoorway.markEnteredFeed} />
             )}
           </div>
         )}
