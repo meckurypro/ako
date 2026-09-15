@@ -89,6 +89,7 @@ export function PostCard({
   post,
   isOwnerView = false,
   showStats = false,
+  active = true,
 }: {
   post: PostWithAuthor;
   // Accepted so callers like ProfilePage can flag the viewer as the post's
@@ -98,6 +99,13 @@ export function PostCard({
   // pass this — shows the X-style time/date/views line just above the
   // engagement tray. Feed-context cards leave it off.
   showStats?: boolean;
+  // False defers this card's bookmark/like/dislike/hasReshared queries
+  // (see their `enabled` params) until it's true. Only Feed passes false
+  // — for cards sitting in a tab the visitor hasn't swiped to yet, since
+  // SwipeableTabs mounts all three feed tabs' cards at once. Everywhere
+  // else a PostCard is genuinely on screen the moment it mounts, so the
+  // default is true and every other call site is unaffected.
+  active?: boolean;
 }) {
   const { user } = useAuth();
   const navigate = useNavigate();
@@ -180,12 +188,12 @@ export function PostCard({
   const identityName = postedAsPage ? postedAsPage.name : post.author.display_name;
   const identityAvatar = postedAsPage ? postedAsPage.avatar_url : post.author.avatar_url;
 
-  const isBookmarkedQuery = useIsBookmarked(post.id);
+  const isBookmarkedQuery = useIsBookmarked(post.id, active);
   const toggleBookmark = useToggleBookmark(post.id);
   const isBookmarked = !!isBookmarkedQuery.data;
 
-  const likeQuery   = useMyReaction(post.id, "post", "like");
-  const dislikeQuery = useMyReaction(post.id, "post", "dislike");
+  const likeQuery   = useMyReaction(post.id, "post", "like", active);
+  const dislikeQuery = useMyReaction(post.id, "post", "dislike", active);
   const toggleLike   = useToggleReaction(post.id, "post", "like");
   const toggleDislike = useToggleReaction(post.id, "post", "dislike");
   const toggleShare  = useToggleReaction(post.id, "post", "share");
@@ -208,7 +216,7 @@ export function PostCard({
 
   // Only relevant when Reshare would otherwise show at all (non-owners) —
   // no need to query this for your own posts.
-  const hasResharedQuery = useHasReshared(reshareTarget.id, !isOwner);
+  const hasResharedQuery = useHasReshared(reshareTarget.id, !isOwner && active);
   const hasReshared = !!hasResharedQuery.data;
 
   const viewCountQuery = usePostViewCount(post.id, showStats);

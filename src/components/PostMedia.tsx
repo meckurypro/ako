@@ -185,6 +185,20 @@ function SlideCarousel({
       <div
         ref={containerRef}
         onClick={handleClick}
+        // Opts this gesture out of SwipeableTabs' capture (see
+        // IGNORE_SELECTOR in SwipeableTabs.tsx) — without it, a swipe
+        // started on a multi-image post bubbles up to the Feed tab
+        // row's own native touch listener at the same time this
+        // component's does, so both the slide *and* the tab track the
+        // same finger and a horizontal drag on the carousel also
+        // drags the page toward the next/previous tab. Marking the
+        // carousel ignored gives it sole ownership of horizontal
+        // drags that start here; tapping (as opposed to dragging)
+        // still opens the fullscreen MediaViewer via handleClick
+        // above, and that viewer is portaled to document.body (see
+        // Portal.tsx) so its own swipe is isolated from the tab row
+        // regardless.
+        data-swipeable-ignore
         className="w-full h-[380px] bg-canvas rounded-xl overflow-hidden border border-border cursor-pointer"
       >
         <div
