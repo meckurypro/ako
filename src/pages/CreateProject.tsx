@@ -185,6 +185,9 @@ export function CreateProject() {
     if (projectType === "meeting" && !meetingFields.scheduled_at) {
       return "Set when this meeting happens.";
     }
+    if (projectType === "gig" && !gigFields.role_id) {
+      return "Select the professional role this gig represents.";
+    }
     if (projectType === "gig" && !gigFields.tagline.trim()) {
       return "Add a short tagline for this gig.";
     }
@@ -374,6 +377,7 @@ export function CreateProject() {
         gig_details:
           projectType === "gig"
             ? {
+                role_id: gigFields.role_id,
                 tagline: gigFields.tagline.trim(),
                 delivery_estimate: gigFields.delivery_estimate.trim() || undefined,
                 sample_project_ids: gigFields.sample_project_ids,
