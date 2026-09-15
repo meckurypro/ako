@@ -6,35 +6,13 @@
 // You" and "Following" while in page mode should rank by the PAGE's
 // interests/network, not the acting human's.
 //
-// BACKEND NOT YET BUILT. Needed on the backend before these hooks work:
-//
-//   create table public.page_interests (
-//     page_id uuid not null references public.pages(id),
-//     interest_id uuid not null references public.interests(id),
-//     created_at timestamptz not null default now(),
-//     primary key (page_id, interest_id)
-//   );
-//   -- mirrors user_interests, but for a page's own topic/niche signal.
-//
-//   create table public.page_follows_target (
-//     page_id uuid not null references public.pages(id),
-//     followed_profile_id uuid references public.profiles(id),
-//     followed_page_id uuid references public.pages(id),
-//     created_at timestamptz not null default now(),
-//     check (
-//       (followed_profile_id is not null) <> (followed_page_id is not null)
-//     )
-//   );
-//   -- lets a PAGE follow either an account or another page — distinct
-//   -- from page_follows, which is the reverse (an account following a
-//   -- page). Powers get_page_following_feed below.
-//
-//   -- RPCs, mirroring get_ranked_feed / get_following_feed but keyed to
-//   -- a page rather than a viewer profile:
-//   get_page_ranked_feed(p_page_id uuid, p_limit int, p_offset int)
-//     returns table(post_id uuid)
-//   get_page_following_feed(p_page_id uuid, p_limit int, p_offset int)
-//     returns table(post_id uuid)
+// Backend is live: public.page_interests (page_id, interest_id) and
+// public.page_follows_target (page_id, followed_profile_id OR
+// followed_page_id — a page follows an account or another page, the
+// reverse of page_follows) both exist, and get_page_ranked_feed /
+// get_page_following_feed RPCs are deployed mirroring get_ranked_feed
+// / get_following_feed but keyed to a page rather than a viewer
+// profile.
 //
 // Top Discussions (get_trending_feed) is deliberately NOT duplicated
 // here — it's already a global "what's hot this week" ranking with no
@@ -46,14 +24,15 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "../lib/supabase";
 import type { PostWithAuthor } from "../types/database";
+// Reuse the personal feed's select string + normalizer rather than
+// keeping a second hand-copied version here — a prior drift between
+// the two (this file was missing profile_roles and tagged_project)
+// left post.author.roles undefined in page mode, crashing PostCard's
+// `post.author.roles.length` check. Importing the real ones means
+// page-mode posts are always shaped identically to personal-mode ones.
+import { FEED_SELECT, normalizePost } from "./usePosts";
 
 const PAGE_SIZE = 15;
-const AUTHOR_SELECT = `id, username, display_name, avatar_url, tier, is_private`;
-const FEED_SELECT = `*, author:profiles!posts_author_id_fkey(${AUTHOR_SELECT}), posted_as_page:pages(id, username, name, avatar_url, page_type, is_verified), reshared_post(*, author:profiles!posts_author_id_fkey(${AUTHOR_SELECT}))`;
-
-function normalizePost(raw: any): PostWithAuthor {
-  return raw as PostWithAuthor;
-}
 
 async function fetchByRankedIds(
   rpcName: string,
