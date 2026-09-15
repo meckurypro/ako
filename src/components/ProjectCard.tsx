@@ -593,23 +593,6 @@ export function ProjectCard({
         },
       ];
 
-  // Nothing pinned right anymore — Share used to be a fixed right slot,
-  // now it joins the middle group with everything else (see
-  // middleActions below). Only Like stays pinned left.
-  // Fixed right slot: "···" opens the same ReactionMoreSheet as
-  // long-pressing any of the other 4 icons — a plain tap now, no hold
-  // required, always in the same place regardless of how the ranked
-  // middle actions reorder themselves. Matches PostCard's tray.
-  const rightActions: EngagementAction[] = [
-    {
-      key: "more",
-      label: "More",
-      icon: <MoreHorizontal size={24} className="text-ink" />,
-      count: null,
-      onClick: () => setShowMoreActions(true),
-    },
-  ];
-
   const middleActions: EngagementAction[] = [
     ...(!isOwner
       ? [
@@ -645,18 +628,45 @@ export function ProjectCard({
           } satisfies EngagementAction,
         ]
       : []),
-    // Share always makes sense (owner or not), so it's unconditional —
-    // last in this list only because Save/Join are the two conditional
-    // ones above; there's no per-project usage signal to genuinely rank
-    // against yet, unlike PostCard's engagement-order-backed version.
-    {
-      key: "share",
-      label: "Share",
-      icon: <Redo2 size={24} className="text-ink" />,
-      count: null,
-      onClick: () => void handleShare(),
-    },
+    // Share always makes sense for a non-owner (no header kebab exists
+    // for them to find it in instead). For the owner it's dropped here
+    // on purpose — it's already the header "···" menu's Share item, and
+    // having the identical action reachable from two separate "···"
+    // affordances on the same card was exactly the redundant-menu
+    // confusion this consolidates. See rightActions below, which hides
+    // the tray's own "···" entirely once this leaves it with nothing.
+    ...(!isOwner
+      ? [
+          {
+            key: "share",
+            label: "Share",
+            icon: <Redo2 size={24} className="text-ink" />,
+            count: null,
+            onClick: () => void handleShare(),
+          } satisfies EngagementAction,
+        ]
+      : []),
   ];
+
+  // Fixed right slot: "···" opens the same ReactionMoreSheet as
+  // long-pressing any of the other icons. Only rendered when there's
+  // actually something in middleActions to show — an owner with
+  // nothing left there (Share moved to the header kebab, no Save on
+  // your own project, not a Room) would otherwise get a second "···"
+  // that opens an empty sheet, which is the exact redundant-menu
+  // problem this whole change exists to fix.
+  const rightActions: EngagementAction[] =
+    middleActions.length > 0
+      ? [
+          {
+            key: "more",
+            label: "More",
+            icon: <MoreHorizontal size={24} className="text-ink" />,
+            count: null,
+            onClick: () => setShowMoreActions(true),
+          },
+        ]
+      : [];
 
   const aspectRatio =
     project.thumbnail_width && project.thumbnail_height
@@ -1235,11 +1245,11 @@ export function ProjectCard({
           leftActions={leftActions}
           middleActions={middleActions}
           rightActions={rightActions}
-          onOpenMore={isArchivedFrozen ? undefined : () => setShowMoreActions(true)}
+          onOpenMore={isArchivedFrozen || middleActions.length === 0 ? undefined : () => setShowMoreActions(true)}
           disabled={isArchivedFrozen}
         />
 
-        {showMoreActions && !isArchivedFrozen && (
+        {showMoreActions && !isArchivedFrozen && middleActions.length > 0 && (
           <ReactionMoreSheet actions={middleActions} onClose={() => setShowMoreActions(false)} />
         )}
           </UnlockReveal>
