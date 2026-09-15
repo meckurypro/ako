@@ -16,11 +16,35 @@
 // Deliberately a SEPARATE table rather than a nullable page_id column
 // on notifications — keeps the existing personal-notifications RLS
 // policy untouched and avoids a mutually-exclusive-columns constraint.
+import { useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "../lib/supabase";
 import type { NotificationWithActor } from "./useNotifications";
 
 export function usePageNotifications(pageId: string | undefined) {
+  const queryClient = useQueryClient();
+
+  // Same reasoning as useNotifications' realtime subscription — team
+  // members shouldn't need to refresh to see a page's activity land.
+  useEffect(() => {
+    if (!pageId) return;
+
+    const channel = supabase
+      .channel(`page-notifications:${pageId}`)
+      .on(
+        "postgres_changes",
+        { event: "INSERT", schema: "public", table: "page_notifications", filter: `page_id=eq.${pageId}` },
+        () => {
+          queryClient.invalidateQueries({ queryKey: ["page-notifications", pageId] });
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [pageId, queryClient]);
+
   return useQuery({
     queryKey: ["page-notifications", pageId],
     queryFn: async (): Promise<NotificationWithActor[]> => {
@@ -37,7 +61,8 @@ export function usePageNotifications(pageId: string | undefined) {
       return (data ?? []) as unknown as NotificationWithActor[];
     },
     enabled: !!pageId,
-    refetchInterval: 30_000,
+    // Realtime handles the instant case; this is a safety net.
+    refetchInterval: 2 * 60_000,
   });
 }
 
