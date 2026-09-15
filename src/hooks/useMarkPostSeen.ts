@@ -59,6 +59,12 @@ export function useMarkPostSeen(postId: string, authorId: string | undefined) {
 
         queryClient.invalidateQueries({ queryKey: ["unseen-posts"] });
         queryClient.invalidateQueries({ queryKey: ["view-history"] });
+        // The count shown alongside comments (see usePostViewCount) was
+        // never told a view had just been recorded — it would sit on
+        // whatever it fetched at mount until its 60s staleTime expired,
+        // so your own view (or anyone else's, in the same window)
+        // wouldn't show up until a later, unrelated refetch.
+        queryClient.invalidateQueries({ queryKey: ["post-view-count", postId] });
       } catch (err) {
         console.error("Failed to mark post as seen:", err);
       }
