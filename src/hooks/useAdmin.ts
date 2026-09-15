@@ -282,7 +282,7 @@ export function usePendingReports() {
 
 interface ResolveReportInput {
   reportId: string;
-  targetType: "post" | "comment" | "profile";
+  targetType: "post" | "comment" | "profile" | "project";
   targetId: string;
   action: "none" | "content_removed" | "content_restricted" | "account_warned" | "account_restricted" | "account_suspended" | "account_banned";
   reason: string;
@@ -290,10 +290,12 @@ interface ResolveReportInput {
 
 /**
  * Resolves a report: records a moderation_action and updates the
- * report's status. If the action is content_removed, also soft-deletes
- * the underlying post/comment — admins can do this via the RLS
- * carve-out added in 15_admin_moderation_bypass.sql (author-only
- * policies otherwise block this for anyone but the content's owner).
+ * report's status. If the action is content_removed, also removes the
+ * underlying content — soft-delete (is_deleted) for posts/comments via
+ * the RLS carve-out in 15_admin_moderation_bypass.sql, or archiving
+ * (status='archived') for projects, which have no is_deleted column
+ * and where a hard delete would be an unrecoverable, much bigger
+ * action than a moderation report should trigger on its own.
  */
 export function useResolveReport() {
   const { user } = useAuth();
@@ -313,12 +315,20 @@ export function useResolveReport() {
       if (actionError) throw actionError;
 
       if (input.action === "content_removed") {
-        const table = input.targetType === "comment" ? "comments" : "posts";
-        const { error: removeError } = await supabase
-          .from(table)
-          .update({ is_deleted: true })
-          .eq("id", input.targetId);
-        if (removeError) throw removeError;
+        if (input.targetType === "project") {
+          const { error: removeError } = await supabase
+            .from("projects")
+            .update({ status: "archived" })
+            .eq("id", input.targetId);
+          if (removeError) throw removeError;
+        } else {
+          const table = input.targetType === "comment" ? "comments" : "posts";
+          const { error: removeError } = await supabase
+            .from(table)
+            .update({ is_deleted: true })
+            .eq("id", input.targetId);
+          if (removeError) throw removeError;
+        }
       }
 
       const { error: reportError } = await supabase
@@ -382,10 +392,17 @@ export function useToggleProjectTypeActive() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async ({ project_type, is_active }: { project_type: ProjectType; is_active: boolean }) => {
+      // upsert, not update: a project type with no settings row yet
+      // (e.g. one added after this table was last seeded) would match
+      // zero rows on a plain update — no error, but the toggle snaps
+      // back on next refetch since the UI falls back to "on" for a
+      // missing row. Upserting guarantees the row exists going forward.
       const { error } = await supabase
         .from("project_type_settings")
-        .update({ is_active, updated_at: new Date().toISOString() })
-        .eq("project_type", project_type);
+        .upsert(
+          { project_type, is_active, updated_at: new Date().toISOString() },
+          { onConflict: "project_type" }
+        );
       if (error) throw error;
     },
     onSuccess: () => {
@@ -410,8 +427,10 @@ export function useToggleHideWhenIneligible() {
     }) => {
       const { error } = await supabase
         .from("project_type_settings")
-        .update({ hide_when_ineligible, updated_at: new Date().toISOString() })
-        .eq("project_type", project_type);
+        .upsert(
+          { project_type, hide_when_ineligible, updated_at: new Date().toISOString() },
+          { onConflict: "project_type" }
+        );
       if (error) throw error;
     },
     onSuccess: () => {
