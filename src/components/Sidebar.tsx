@@ -114,10 +114,12 @@ export function Sidebar({ collapsed, onToggleCollapsed }: SidebarProps) {
         collapsed ? "w-[76px]" : "w-64"
       }`}
     >
-      {/* Brand */}
-      <div className={`flex items-center gap-2.5 px-4 pt-6 pb-4 ${collapsed ? "justify-center px-0" : ""}`}>
-        <AkoMark size={26} />
-        {!collapsed && <span className="font-display font-medium text-lg text-ink">Akọ</span>}
+      {/* Brand — icon only. The mark already reads as "Akọ" on its own,
+          so pairing it with a separate text label was pure redundancy.
+          Sized up from the old 26px so it reads as a real brand mark,
+          not an afterthought, in this persistent rail. */}
+      <div className={`flex items-center px-4 pt-6 pb-4 ${collapsed ? "justify-center px-0" : ""}`}>
+        <AkoMark size={36} />
       </div>
 
       {/* Primary destinations */}

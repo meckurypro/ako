@@ -65,7 +65,7 @@ export function AdminLogin() {
       <AuthPattern />
       <div className="relative z-10 w-full max-w-sm">
         <div className="mb-10 flex flex-col items-center gap-2">
-          <Wordmark asIcon />
+          <Wordmark />
           <p className="text-sm text-ink-muted">Admin</p>
         </div>
 

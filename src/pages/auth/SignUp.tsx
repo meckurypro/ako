@@ -188,7 +188,7 @@ export function SignUp() {
       <AuthPattern />
       <div className="relative z-10 w-full max-w-sm">
         <div className="mb-10">
-          <Wordmark asIcon />
+          <Wordmark />
         </div>
 
         {addMode && (

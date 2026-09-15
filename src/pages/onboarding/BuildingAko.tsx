@@ -47,7 +47,7 @@ export function BuildingAko() {
   return (
     <div className="min-h-screen flex flex-col items-center justify-center bg-canvas px-6 text-center">
       <div className="mb-8">
-        <Wordmark asIcon iconTagline={false} />
+        <Wordmark />
       </div>
 
       {!failed ? (

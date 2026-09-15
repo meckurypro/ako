@@ -85,7 +85,7 @@ export function WalletPage() {
       <div className="min-h-screen bg-canvas pb-24">
         <div className="md:hidden">
           <header className="px-4 pt-6 pb-3 sticky top-0 bg-canvas z-30 border-b border-border">
-            <Wordmark size="sm" asIcon iconTagline={false} />
+            <Wordmark size="sm" />
           </header>
         </div>
         <div className="max-w-xl mx-auto px-4 pt-10 text-center">
@@ -100,7 +100,7 @@ export function WalletPage() {
     <div className="min-h-screen bg-canvas pb-24">
       <div className="md:hidden">
         <header className="px-4 pt-6 pb-3 sticky top-0 bg-canvas z-30 border-b border-border">
-          <Wordmark size="sm" asIcon iconTagline={false} />
+          <Wordmark size="sm" />
         </header>
       </div>
 
