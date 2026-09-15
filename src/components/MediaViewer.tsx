@@ -14,6 +14,12 @@ interface MediaViewerProps {
 }
 
 const SWIPE_THRESHOLD = 50;
+const DISMISS_THRESHOLD = 120;
+// Below this, a touch could still turn into either gesture — above it,
+// whichever axis is ahead wins and the other is locked out for the
+// rest of that touch, so a mostly-vertical drag can't also nudge the
+// slide index, and vice versa.
+const AXIS_LOCK_THRESHOLD = 12;
 
 /**
  * Almost-full-screen media viewer — media only, no caption/author/
@@ -23,7 +29,9 @@ const SWIPE_THRESHOLD = 50;
  * itself — tapping the middle third does nothing, so it doesn't
  * fight with swipe gestures. Close lives in a fixed bar at the
  * bottom center rather than a top-right corner, easier to reach
- * one-handed on a tall screen.
+ * one-handed on a tall screen — and, per this update, dragging the
+ * media itself downward closes the viewer too, matching the
+ * WhatsApp/Instagram convention people already expect here.
  *
  * bg-black/text-white below are intentional, not a missed theme token
  * — same reasoning as ImageLightbox: photo/video-viewer chrome stays a
@@ -33,7 +41,10 @@ export function MediaViewer({ mediaUrls, startIndex, onClose }: MediaViewerProps
   useBackDismiss(onClose);
   useScrollLock();
   const [index, setIndex] = useState(startIndex);
-  const [touchStartX, setTouchStartX] = useState<number | null>(null);
+  const [touchStart, setTouchStart] = useState<{ x: number; y: number } | null>(null);
+  const [axis, setAxis] = useState<"horizontal" | "vertical" | null>(null);
+  const [dragY, setDragY] = useState(0);
+  const [isDismissing, setIsDismissing] = useState(false);
 
   const hasMultiple = mediaUrls.length > 1;
 
@@ -42,16 +53,52 @@ export function MediaViewer({ mediaUrls, startIndex, onClose }: MediaViewerProps
   }
 
   function handleTouchStart(e: React.TouchEvent) {
-    setTouchStartX(e.touches[0].clientX);
+    setTouchStart({ x: e.touches[0].clientX, y: e.touches[0].clientY });
+    setAxis(null);
+  }
+
+  function handleTouchMove(e: React.TouchEvent) {
+    if (!touchStart) return;
+    const deltaX = e.touches[0].clientX - touchStart.x;
+    const deltaY = e.touches[0].clientY - touchStart.y;
+
+    // Decide (once) which gesture this touch is, the first time it
+    // moves far enough to tell — then stick with that for the rest of
+    // the gesture so it can't waver between dragging the slide down
+    // and nudging it sideways.
+    let currentAxis = axis;
+    if (!currentAxis && (Math.abs(deltaX) > AXIS_LOCK_THRESHOLD || Math.abs(deltaY) > AXIS_LOCK_THRESHOLD)) {
+      currentAxis = Math.abs(deltaY) > Math.abs(deltaX) ? "vertical" : "horizontal";
+      setAxis(currentAxis);
+    }
+
+    // Only a downward drag dismisses — dragging up doesn't do anything
+    // (nothing above the media to reveal), so don't fight the user's
+    // thumb with a bogus offset for that direction.
+    if (currentAxis === "vertical" && deltaY > 0) {
+      setDragY(deltaY);
+    }
   }
 
   function handleTouchEnd(e: React.TouchEvent) {
-    if (touchStartX === null) return;
-    const deltaX = e.changedTouches[0].clientX - touchStartX;
-    if (Math.abs(deltaX) > SWIPE_THRESHOLD) {
-      goTo(deltaX < 0 ? index + 1 : index - 1);
+    if (!touchStart) return;
+
+    if (axis === "vertical") {
+      if (dragY > DISMISS_THRESHOLD) {
+        setIsDismissing(true);
+        onClose();
+      } else {
+        setDragY(0); // snap back — transition handles the animation
+      }
+    } else {
+      const deltaX = e.changedTouches[0].clientX - touchStart.x;
+      if (Math.abs(deltaX) > SWIPE_THRESHOLD) {
+        goTo(deltaX < 0 ? index + 1 : index - 1);
+      }
     }
-    setTouchStartX(null);
+
+    setTouchStart(null);
+    setAxis(null);
   }
 
   function handleZoneTap(direction: "prev" | "next") {
@@ -60,12 +107,21 @@ export function MediaViewer({ mediaUrls, startIndex, onClose }: MediaViewerProps
   }
 
   const url = mediaUrls[index];
+  // Progress toward dismissal, for fading the scrim as the media is
+  // dragged down — fully transparent by the point release would close it,
+  // so the fade finishes exactly as the gesture would otherwise commit.
+  const dismissProgress = Math.min(1, dragY / DISMISS_THRESHOLD);
 
   return (
     <Portal>
       <div
         className="fixed inset-0 bg-black z-50 flex items-center justify-center"
+        style={{
+          backgroundColor: `rgba(0,0,0,${(1 - dismissProgress * 0.85).toFixed(2)})`,
+          transition: dragY === 0 ? "background-color 200ms ease-out" : "none",
+        }}
         onTouchStart={handleTouchStart}
+        onTouchMove={handleTouchMove}
         onTouchEnd={handleTouchEnd}
       >
         {hasMultiple && (
@@ -74,11 +130,20 @@ export function MediaViewer({ mediaUrls, startIndex, onClose }: MediaViewerProps
           </div>
         )}
 
-        {isVideoUrl(url) ? (
-          <video src={url} controls autoPlay className="max-w-full max-h-full" />
-        ) : (
-          <img src={url} alt="" className="max-w-full max-h-full object-contain" />
-        )}
+        <div
+          style={{
+            transform: `translateY(${dragY}px) scale(${1 - dismissProgress * 0.1})`,
+            transition: dragY === 0 && !isDismissing ? "transform 200ms ease-out" : "none",
+            opacity: isDismissing ? 0 : 1,
+            touchAction: "none",
+          }}
+        >
+          {isVideoUrl(url) ? (
+            <video src={url} controls autoPlay className="max-w-full max-h-full" />
+          ) : (
+            <img src={url} alt="" className="max-w-full max-h-full object-contain" draggable={false} />
+          )}
+        </div>
 
         {hasMultiple && (
           <>
