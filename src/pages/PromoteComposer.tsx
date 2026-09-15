@@ -1,6 +1,6 @@
 // src/pages/PromoteComposer.tsx
-import { useMemo, useState, type FormEvent } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useMemo, useState, type FormEvent, type ReactNode } from "react";
+import { Link, useNavigate, useParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { ArrowLeft, Megaphone, Pause, Play, XCircle, TimerReset } from "lucide-react";
 import { useSmartBack } from "../hooks/useSmartBack";
@@ -80,7 +80,7 @@ export function PromoteComposer() {
   const [dailyBudget, setDailyBudget] = useState(String(PROMOTION_DAILY_BUDGET_MIN_USD));
   const [durationDays, setDurationDays] = useState(String(PROMOTION_DURATION_MIN_DAYS));
   const [selectedInterests, setSelectedInterests] = useState<Set<string>>(new Set());
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<ReactNode | null>(null);
   const [lifecycleError, setLifecycleError] = useState<string | null>(null);
   const [showExtendForm, setShowExtendForm] = useState(false);
   const [extendDays, setExtendDays] = useState("1");
@@ -176,7 +176,15 @@ export function PromoteComposer() {
       return;
     }
     if (wallet && totalCost > wallet.balance) {
-      setError(`This campaign costs ${formatUsd(totalCost)}, but your wallet balance is ${formatUsd(wallet.balance)}.`);
+      setError(
+        <>
+          This campaign costs {formatUsd(totalCost)}, but your{" "}
+          <Link to="/wallet" className="underline underline-offset-2">
+            wallet
+          </Link>{" "}
+          balance is {formatUsd(wallet.balance)}.
+        </>
+      );
       return;
     }
 
