@@ -12,7 +12,7 @@ import {
   usePageCreationEligibility,
   getPageCreationEligibilityReasons,
 } from "../hooks/usePages";
-import { useCategories } from "../hooks/useCategories";
+import { TopicPicker, MAX_TOPICS } from "../components/TopicPicker";
 import { usePagesFeatureSettings } from "../hooks/useAdmin";
 import { useFeatureFlag } from "../hooks/useFeatureFlags";
 import { useToast } from "../components/Toast";
@@ -79,7 +79,6 @@ export function CreatePage() {
   const [searchParams] = useSearchParams();
   const createPage = useCreatePage();
   const toast = useToast();
-  const { data: categories } = useCategories();
   const { data: myPages } = useMyPages();
   const { data: pagesFeature, isLoading: loadingPagesFeature } = usePagesFeatureSettings();
   // Separate from pages_creation_enabled above: this can be off while
@@ -107,7 +106,7 @@ export function CreatePage() {
   const [showRoleSuggestions, setShowRoleSuggestions] = useState(false);
   const [tagline, setTagline] = useState("");
   const [bio, setBio] = useState("");
-  const [categoryId, setCategoryId] = useState("");
+  const [topicIds, setTopicIds] = useState<Set<string>>(new Set());
   const [parentOrgId, setParentOrgId] = useState("");
   const [error, setError] = useState<string | null>(null);
 
@@ -159,6 +158,21 @@ export function CreatePage() {
 
     return () => clearTimeout(timeout);
   }, [username]);
+
+  function toggleTopic(interestId: string) {
+    setTopicIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(interestId)) {
+        next.delete(interestId);
+      } else {
+        // TopicPicker already disables the pill past the cap — this is
+        // a second guard at the state layer so the two never drift.
+        if (next.size >= MAX_TOPICS) return prev;
+        next.add(interestId);
+      }
+      return next;
+    });
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -218,7 +232,7 @@ export function CreatePage() {
         role_label: roleLabel.trim(),
         tagline: tagline.trim() || undefined,
         bio: bio.trim() || undefined,
-        category_id: categoryId || undefined,
+        topic_ids: Array.from(topicIds),
         parent_organization_id: presetParentId || parentOrgId || undefined,
       });
       navigate(`/page/${page.username}`);
@@ -424,23 +438,7 @@ export function CreatePage() {
             />
           </div>
 
-          {categories && categories.length > 0 && (
-            <div>
-              <label className="block text-xs font-medium text-ink-muted mb-1">Category</label>
-              <select
-                value={categoryId}
-                onChange={(e) => setCategoryId(e.target.value)}
-                className="w-full bg-surface rounded-xl px-4 py-3 text-sm text-ink"
-              >
-                <option value="">None</option>
-                {categories.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-          )}
+          <TopicPicker selected={topicIds} onToggle={toggleTopic} />
 
           {presetParentId ? (
             presetParent && (
