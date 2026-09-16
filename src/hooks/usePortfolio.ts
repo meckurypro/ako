@@ -191,3 +191,38 @@ export function useMyGigs() {
     enabled: !!user,
   });
 }
+
+/**
+ * Every sample Project id already shown under one of this account's
+ * dynamic portfolio category tabs — i.e. a sample_project_id attached
+ * to one of the account's active, *complete* Gigs. The generic
+ * Projects fallback tab (spec section 44: "Do not let a fallback
+ * become a dumping ground") should exclude these, or a Project like a
+ * published song shows twice: once correctly under its dynamic
+ * category (e.g. "Artist"), and once more under the catch-all
+ * "Projects" tab because the old filter only checked
+ * project_type !== 'gig'.
+ */
+export function useCategorizedProjectIds(accountId: string | undefined) {
+  return useQuery({
+    queryKey: ["categorized-project-ids", accountId],
+    queryFn: async (): Promise<Set<string>> => {
+      if (!accountId) return new Set();
+      const { data, error } = await supabase
+        .from("project_gig_details")
+        .select("is_complete, projects!inner(owner_id, status), project_gig_samples(sample_project_id)")
+        .eq("projects.owner_id", accountId)
+        .eq("projects.status", "active")
+        .eq("is_complete", true);
+      if (error) throw error;
+      const ids = new Set<string>();
+      for (const row of (data ?? []) as any[]) {
+        for (const s of row.project_gig_samples ?? []) {
+          ids.add(s.sample_project_id);
+        }
+      }
+      return ids;
+    },
+    enabled: !!accountId,
+  });
+}

@@ -40,7 +40,7 @@ export function PublishMusicButton({ projectId }: { projectId: string }) {
         </button>
       )}
 
-      {open && <PublishMusicSheet onClose={() => setOpen(false)} />}
+      {open && <PublishMusicSheet projectId={projectId} onClose={() => setOpen(false)} />}
     </div>
   );
 }

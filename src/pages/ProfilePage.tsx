@@ -25,7 +25,7 @@ import { useStartConversation } from "../hooks/useMessaging";
 import { useIsBlocked, useToggleBlock, useIsMuted, useToggleMute, useRemoveFollower } from "../hooks/usePrivacy";
 import { useContactNickname } from "../hooks/useContactNicknames";
 import { useUserProjects } from "../hooks/useProjects";
-import { usePortfolioCategories, usePortfolioCategoryProjects } from "../hooks/usePortfolio";
+import { usePortfolioCategories, usePortfolioCategoryProjects, useCategorizedProjectIds } from "../hooks/usePortfolio";
 import { useRecordProfileVisit } from "../hooks/useProfileVisits";
 import { Avatar } from "../components/Avatar";
 import { AccountSwitcher } from "../components/AccountSwitcher";
@@ -258,6 +258,7 @@ export function ProfilePage() {
   const { data: projects } = useUserProjects(isPrivateLocked ? "" : profile?.id ?? "", showOwnerView);
   const { data: posts } = useUserPostsWithArchived(isPrivateLocked ? "" : profile?.id ?? "", false);
   const { data: portfolioCategories } = usePortfolioCategories(isPrivateLocked ? undefined : profile?.id);
+  const { data: categorizedProjectIds } = useCategorizedProjectIds(isPrivateLocked ? undefined : profile?.id);
 
   // Archived projects have their own home on the merged Archive page
   // now (see Archive.tsx) — this tab only ever shows active/draft/
@@ -265,8 +266,13 @@ export function ProfilePage() {
   const visibleProjects = projects?.filter((p) => p.status !== "archived");
 
   // Non-gig work with no category home yet — a deliberate fallback
-  // (spec section 44), never shown when empty.
-  const fallbackProjects = visibleProjects?.filter((p) => p.project_type !== "gig");
+  // (spec section 44), never shown when empty. Also excludes anything
+  // already surfaced under a dynamic category tab (e.g. a published
+  // song showing under "Artist"), so the fallback doesn't become a
+  // dumping ground / duplicate of a category tab.
+  const fallbackProjects = visibleProjects?.filter(
+    (p) => p.project_type !== "gig" && !categorizedProjectIds?.has(p.id)
+  );
 
   // Posts is always first. Dynamic categories come from the account's
   // active Gigs (spec sections 2-5) — never an empty one. The
