@@ -75,6 +75,31 @@
     what I was doing" concern the same way an actual sheet/modal is.
   */
   --blur-overlay: 1.2px;
+
+  /*
+    Overlay chrome — every dismissible surface (Modal.tsx's centered
+    dialogs, DropdownMenu.tsx's kebab/anchored menus, and anything
+    built on either) reads from these instead of the light/dark
+    palette above. Deliberately theme-independent: NOT touched in
+    .dark or .page-mode below, so a confirmation, a menu, or a bottom
+    sheet looks identical regardless of which theme or account mode
+    the rest of the app is currently in — a fixed dark-glass panel
+    with light text, iOS-notification/Control-Center style, rather
+    than a lighter "card on canvas" look. This is the one place to
+    retune the whole app's overlay look at once.
+  */
+  --color-overlay-surface: #1C1C1E;        /* panel background */
+  --color-overlay-surface-raised: #2C2C2E; /* hover/active row, secondary chip */
+  --color-overlay-ink: #F5F5F7;            /* primary text on overlay */
+  --color-overlay-ink-muted: #98989D;      /* secondary text on overlay */
+  --color-overlay-border: #FFFFFF1F;       /* hairline divider (~12% white) */
+  /* Desaturated relative to --color-danger/--color-accent — a warning
+     or confirm action inside an overlay should read as calm and
+     intentional, not alarming; see AKO_UI_OVERLAY_REVAMP notes. */
+  --color-overlay-danger: #D6968A;
+  --color-overlay-danger-soft: #4A2E2A;    /* low-key icon-chip background */
+  --color-overlay-accent: #8FB89C;
+  --color-overlay-accent-soft: #263831;
 }
 
 /*
@@ -89,6 +114,29 @@
 :root {
   --shadow-ink-rgb: 31, 29, 26;   /* == --color-ink, light mode */
   --accent-rgb: 61, 90, 69;       /* == --color-accent, light mode */
+  --overlay-surface-rgb: 28, 28, 30; /* == --color-overlay-surface, for rgba() transparency below */
+}
+
+/*
+  The shared overlay panel — background + border + "4D" layered
+  shadow + frosted blur, in one class instead of every Modal/
+  DropdownMenu/sheet re-declaring bg/border/shadow utilities that then
+  drift apart over time. Apply alongside layout classes (rounded-*,
+  p-*, max-w-*, w-*) which stay per-component since those genuinely
+  differ (a centered dialog vs. a bottom sheet vs. an anchored menu).
+  The two-layer shadow (tight+dark, then large+soft) is what reads as
+  "lifted off the page" rather than flat — a single shadow-lg reads
+  flatter no matter how large its blur radius gets.
+*/
+.ako-overlay-panel {
+  background: rgba(var(--overlay-surface-rgb), 0.96);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border: 1px solid var(--color-overlay-border);
+  box-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.3),
+    0 24px 48px -12px rgba(0, 0, 0, 0.55),
+    0 8px 24px -8px rgba(0, 0, 0, 0.35);
 }
 
 /*
