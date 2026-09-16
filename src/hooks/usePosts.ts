@@ -531,6 +531,9 @@ interface UpdatePostInput {
   content: string;
   category_id?: string | null;
   media_urls?: string[];
+  // Omit to leave topics untouched; pass an array (including empty,
+  // to clear them all) to replace the full set — see update-post.
+  interest_ids?: string[];
 }
 
 export function useUpdatePost() {
@@ -550,7 +553,26 @@ export function useUpdatePost() {
       queryClient.invalidateQueries({ queryKey: ["feed-posts"] });
       queryClient.invalidateQueries({ queryKey: ["user-posts"] });
       queryClient.invalidateQueries({ queryKey: ["post", post.id] });
+      queryClient.invalidateQueries({ queryKey: ["post-topics", post.id] });
     },
+  });
+}
+
+// A post's currently-attached topics (interests) — same shape and
+// purpose as useProjectTopics, used to prefill TopicPicker when
+// editing a post that already has some set.
+export function usePostTopics(postId: string | undefined) {
+  return useQuery({
+    queryKey: ["post-topics", postId],
+    queryFn: async (): Promise<string[]> => {
+      const { data, error } = await supabase
+        .from("post_topics")
+        .select("interest_id")
+        .eq("post_id", postId);
+      if (error) throw error;
+      return data.map((row) => row.interest_id);
+    },
+    enabled: !!postId,
   });
 }
 
