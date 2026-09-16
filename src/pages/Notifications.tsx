@@ -217,7 +217,7 @@ function NotificationRowContent({ n, config }: { n: NotificationWithActor; confi
           {showActor && <span className="font-medium">{n.actor!.display_name}</span>}
           {n.type === "admin_message" && (
             <span className="inline-flex items-center gap-1 font-medium">
-              <AkoMark size={22} />
+              <AkoMark size={44} />
             </span>
           )}{" "}
           {verbFor(n, config)}
@@ -373,7 +373,7 @@ export function Notifications() {
         )}
       </header>
 
-      <div className="max-w-xl mx-auto px-4 pt-2">
+      <div className="max-w-xl md:max-w-2xl mx-auto px-4 pt-2">
         {isLoading ? (
           <p className="text-ink-muted text-center py-10">Loading…</p>
         ) : !notifications || notifications.length === 0 ? (
