@@ -12,7 +12,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "../lib/supabase";
 import { useAuth } from "./useAuth";
-import type { Project } from "./useProjects";
+import type { Project, ProjectType } from "./useProjects";
 
 export interface GigRole {
   id: string;
@@ -128,6 +128,123 @@ export function usePortfolioCategoryProjects(accountId: string | undefined, cate
       return (projects ?? []) as Project[];
     },
     enabled: !!accountId && !!category,
+  });
+}
+
+export interface TypePortfolioCategory {
+  category: string;
+  project_type: ProjectType;
+  project_count: number;
+}
+
+/**
+ * The other half of the dynamic tab set (spec section 2/44) — a
+ * category derived straight from project_type for the five types
+ * that don't route through a professional Gig role at all (Book,
+ * Course, Event, Room, File). Without this, an account with a
+ * published Book and no Gig had no way to get a "Books" tab — which
+ * contradicts the spec's own first example ("Books only -> Posts |
+ * Books"). See get_profile_type_categories; same "never empty"
+ * guarantee as usePortfolioCategories, just a different eligibility
+ * rule (published + public, no Gig/role/completion state involved).
+ */
+export function useTypePortfolioCategories(accountId: string | undefined) {
+  return useQuery({
+    queryKey: ["type-portfolio-categories", accountId],
+    queryFn: async (): Promise<TypePortfolioCategory[]> => {
+      if (!accountId) return [];
+      const { data, error } = await supabase.rpc("get_profile_type_categories", {
+        p_account_id: accountId,
+      });
+      if (error) throw error;
+      return (data ?? []) as TypePortfolioCategory[];
+    },
+    enabled: !!accountId,
+  });
+}
+
+/** The published/public projects behind one type-based tab (e.g. "Books"). */
+export function useTypeCategoryProjects(accountId: string | undefined, projectType: ProjectType | undefined) {
+  return useQuery({
+    queryKey: ["type-category-projects", accountId, projectType],
+    queryFn: async (): Promise<Project[]> => {
+      if (!accountId || !projectType) return [];
+      const { data, error } = await supabase
+        .from("projects")
+        .select("*")
+        .eq("owner_id", accountId)
+        .eq("project_type", projectType)
+        .eq("status", "active")
+        .eq("is_private", false)
+        .order("created_at", { ascending: false });
+      if (error) throw error;
+      return (data ?? []) as Project[];
+    },
+    enabled: !!accountId && !!projectType,
+  });
+}
+
+export interface EligibleGigSample {
+  id: string;
+  title: string;
+  thumbnail_url: string | null;
+  project_type: ProjectType;
+}
+
+/**
+ * Everything the signed-in user can legitimately show as gig proof-
+ * of-work: projects they own, plus projects they have an *accepted*
+ * collaboration credit on (spec section 13 — one canonical Project
+ * can back more than one contributor's portfolio). The server-side
+ * can_use_as_gig_sample() check enforces the same rule, so this is
+ * the picker matching what the backend will actually accept — before
+ * this, a collaborator's own gig could only ever get the one sample
+ * auto-attached on acceptance, with no way to add a second one.
+ */
+export function useEligibleGigSampleProjects(excludeProjectId?: string) {
+  const { user } = useAuth();
+  return useQuery({
+    queryKey: ["eligible-gig-samples", user?.id, excludeProjectId],
+    queryFn: async (): Promise<EligibleGigSample[]> => {
+      if (!user) return [];
+      const [ownRes, collabRes] = await Promise.all([
+        supabase
+          .from("projects")
+          .select("id, title, thumbnail_url, project_type")
+          .eq("owner_id", user.id)
+          .neq("project_type", "gig"),
+        supabase
+          .from("project_collaborators")
+          .select(
+            "project:projects!project_collaborators_project_id_fkey(id, title, thumbnail_url, project_type, status)"
+          )
+          .eq("user_id", user.id)
+          .eq("status", "accepted"),
+      ]);
+      if (ownRes.error) throw ownRes.error;
+      if (collabRes.error) throw collabRes.error;
+
+      const own = (ownRes.data ?? []) as EligibleGigSample[];
+      const collaborated = ((collabRes.data ?? []) as any[])
+        .map((row) => (Array.isArray(row.project) ? row.project[0] : row.project))
+        .filter((p): p is any => !!p && p.project_type !== "gig" && p.status === "active")
+        .map((p): EligibleGigSample => ({
+          id: p.id,
+          title: p.title,
+          thumbnail_url: p.thumbnail_url,
+          project_type: p.project_type,
+        }));
+
+      // De-dupe (shouldn't overlap in practice — you can't collaborate
+      // on your own project — but a Map keeps this safe either way)
+      // and drop the gig being edited so it can't showcase itself.
+      const byId = new Map<string, EligibleGigSample>();
+      for (const p of [...own, ...collaborated]) {
+        if (p.id !== excludeProjectId) byId.set(p.id, p);
+      }
+      return [...byId.values()];
+    },
+    enabled: !!user,
   });
 }
 

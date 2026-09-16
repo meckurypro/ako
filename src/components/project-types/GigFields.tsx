@@ -1,9 +1,8 @@
 // src/components/project-types/GigFields.tsx
 import { ImageIcon, Check, Plus, X } from "lucide-react";
 import { FormField } from "../FormField";
-import { useAuth } from "../../hooks/useAuth";
-import { useUserProjects, PROJECT_TYPE_LABELS } from "../../hooks/useProjects";
-import { useGigRolesByCategory } from "../../hooks/usePortfolio";
+import { PROJECT_TYPE_LABELS } from "../../hooks/useProjects";
+import { useGigRolesByCategory, useEligibleGigSampleProjects } from "../../hooks/usePortfolio";
 import type { GigFaqItem } from "../../hooks/useProjectTypeDetails";
 
 export interface GigFieldsValue {
@@ -44,12 +43,11 @@ interface GigFieldsProps {
 // works, same as before — but each one a host fills in removes a
 // reason to bounce before messaging.
 export function GigFields({ value, onChange, excludeProjectId }: GigFieldsProps) {
-  const { user } = useAuth();
-  const { data: ownProjects } = useUserProjects(user?.id ?? "", true);
   const { grouped: roleGroups } = useGigRolesByCategory();
-  const candidates = (ownProjects ?? []).filter(
-    (p) => p.project_type !== "gig" && p.id !== excludeProjectId
-  );
+  // Own projects plus anything with an accepted collaboration credit
+  // (spec section 13) — the hook already excludes gig projects and
+  // this gig itself.
+  const { data: candidates } = useEligibleGigSampleProjects(excludeProjectId);
 
   function toggleSample(id: string) {
     const isSelected = value.sample_project_ids.includes(id);
@@ -211,9 +209,10 @@ export function GigFields({ value, onChange, excludeProjectId }: GigFieldsProps)
         <label className="block text-sm font-medium text-ink-muted mb-1.5">
           Work samples <span className="font-normal">(optional, up to {MAX_GIG_SAMPLES})</span>
         </label>
-        {candidates.length === 0 ? (
+        {!candidates || candidates.length === 0 ? (
           <p className="text-xs text-ink-muted px-4 py-3 rounded-xl border border-border bg-surface">
-            You don't have any other projects yet to show as samples. You can add these later from Edit.
+            You don't have any other projects yet to show as samples — your own work, or anything you've
+            been credited on and accepted. You can add these later from Edit.
           </p>
         ) : (
           <div className="flex flex-col gap-2 max-h-72 overflow-y-auto">

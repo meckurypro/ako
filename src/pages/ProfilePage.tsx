@@ -25,7 +25,14 @@ import { useStartConversation } from "../hooks/useMessaging";
 import { useIsBlocked, useToggleBlock, useIsMuted, useToggleMute, useRemoveFollower } from "../hooks/usePrivacy";
 import { useContactNickname } from "../hooks/useContactNicknames";
 import { useUserProjects } from "../hooks/useProjects";
-import { usePortfolioCategories, usePortfolioCategoryProjects, useCategorizedProjectIds } from "../hooks/usePortfolio";
+import type { ProjectType } from "../hooks/useProjects";
+import {
+  usePortfolioCategories,
+  usePortfolioCategoryProjects,
+  useCategorizedProjectIds,
+  useTypePortfolioCategories,
+  useTypeCategoryProjects,
+} from "../hooks/usePortfolio";
 import { useRecordProfileVisit } from "../hooks/useProfileVisits";
 import { Avatar } from "../components/Avatar";
 import { AccountSwitcher } from "../components/AccountSwitcher";
@@ -102,6 +109,32 @@ function PortfolioCategoryPane({
   );
 }
 
+// The type-based half of the dynamic tab set (spec section 2/44) —
+// for Book/Course/Event/Room/File, which don't route through a
+// professional Gig role at all. See useTypePortfolioCategories.
+function TypeCategoryPane({
+  accountId,
+  projectType,
+  showOwnerView,
+}: {
+  accountId: string;
+  projectType: ProjectType;
+  showOwnerView: boolean;
+}) {
+  const { data: projects, isLoading } = useTypeCategoryProjects(accountId, projectType);
+  if (isLoading) return null;
+  if (!projects || projects.length === 0) {
+    return <p className="text-ink-muted text-center py-10 text-sm">Nothing here yet.</p>;
+  }
+  return (
+    <>
+      {projects.map((project) => (
+        <ProjectCard key={project.id} project={project} isOwnerView={showOwnerView} />
+      ))}
+    </>
+  );
+}
+
 // How far down the page (px, plain window.scrollY) before the
 // "scroll to top" FAB appears.
 const SCROLL_TOP_THRESHOLD = 480;
@@ -154,6 +187,16 @@ export function ProfilePage() {
   const [showRemoveFollowerConfirm, setShowRemoveFollowerConfirm] = useState(false);
   useBackDismiss(() => setShowRemoveFollowerConfirm(false), showRemoveFollowerConfirm);
   useScrollLock(showRemoveFollowerConfirm);
+
+  // Blocking cuts the relationship in both directions at once (they
+  // stop following you, you stop following them, messaging closes) —
+  // always worth a pause. Unblocking gets no confirm: it's the
+  // reversible, non-punitive direction, same reasoning as Mute. See
+  // ConfirmDialog.tsx's own doc comment for the "when does this get a
+  // confirm" rule this follows.
+  const [showBlockConfirm, setShowBlockConfirm] = useState(false);
+  useBackDismiss(() => setShowBlockConfirm(false), showBlockConfirm);
+  useScrollLock(showBlockConfirm);
 
   // The visitor-side "you're following them" control — Message,
   // Unfollow, Mute, and (when applicable) Remove follower live behind
@@ -259,28 +302,51 @@ export function ProfilePage() {
   const { data: posts } = useUserPostsWithArchived(isPrivateLocked ? "" : profile?.id ?? "", false);
   const { data: portfolioCategories } = usePortfolioCategories(isPrivateLocked ? undefined : profile?.id);
   const { data: categorizedProjectIds } = useCategorizedProjectIds(isPrivateLocked ? undefined : profile?.id);
+  const { data: typeCategories } = useTypePortfolioCategories(isPrivateLocked ? undefined : profile?.id);
 
   // Archived projects have their own home on the merged Archive page
   // now (see Archive.tsx) — this tab only ever shows active/draft/
   // cancelled ones.
   const visibleProjects = projects?.filter((p) => p.status !== "archived");
 
-  // Non-gig work with no category home yet — a deliberate fallback
-  // (spec section 44), never shown when empty. Also excludes anything
-  // already surfaced under a dynamic category tab (e.g. a published
-  // song showing under "Artist"), so the fallback doesn't become a
-  // dumping ground / duplicate of a category tab.
-  const fallbackProjects = visibleProjects?.filter(
-    (p) => p.project_type !== "gig" && !categorizedProjectIds?.has(p.id)
-  );
+  // Types that now get their own dynamic tab via typeCategories (spec
+  // section 2/44's other half — Book/Course/Event/Room/File). Only
+  // drop one of these from the fallback once it's actually
+  // active+public, same eligibility get_profile_type_categories uses
+  // server-side — a draft/private one has no tab home yet, so it
+  // stays visible to its owner here instead of disappearing.
+  const TYPE_CATEGORY_TYPES = new Set<ProjectType>(["book", "course", "event", "room", "file"]);
+  const typeCategoriesPresent = new Set((typeCategories ?? []).map((c) => c.project_type));
+
+  // Non-gig, non-type-categorized work with no category home yet — a
+  // deliberate fallback (spec section 44), never shown when empty.
+  // Also excludes anything already surfaced under a dynamic
+  // role-based category tab (e.g. a published song showing under
+  // "Artist"), so the fallback doesn't become a dumping ground /
+  // duplicate of a category tab.
+  const fallbackProjects = visibleProjects?.filter((p) => {
+    if (p.project_type === "gig") return false;
+    if (categorizedProjectIds?.has(p.id)) return false;
+    if (
+      TYPE_CATEGORY_TYPES.has(p.project_type) &&
+      typeCategoriesPresent.has(p.project_type) &&
+      p.status === "active" &&
+      !p.is_private
+    ) {
+      return false;
+    }
+    return true;
+  });
 
   // Posts is always first. Dynamic categories come from the account's
-  // active Gigs (spec sections 2-5) — never an empty one. The
-  // uncategorized-work fallback comes last, only if there's anything
-  // in it.
+  // active Gigs (spec sections 2-5), then the type-based categories
+  // (Books/Courses/Events/Rooms/Files) — never an empty one either
+  // way. The uncategorized-work fallback comes last, only if there's
+  // anything left in it.
   const tabDefs: { id: string; label: string }[] = [
     { id: "posts", label: "Posts" },
     ...(portfolioCategories ?? []).map((c) => ({ id: categoryToTabId(c.category), label: c.category })),
+    ...(typeCategories ?? []).map((c) => ({ id: `type-${c.project_type}`, label: c.category })),
     ...(fallbackProjects && fallbackProjects.length > 0 ? [{ id: "projects", label: "Projects" }] : []),
   ];
   const TAB_IDS = tabDefs.map((t) => t.id);
@@ -382,6 +448,28 @@ export function ProfilePage() {
       onSuccess: () => {
         setShowRemoveFollowerConfirm(false);
         toast(`Removed ${firstName || "this follower"}.`, { variant: "success" });
+      },
+    });
+  }
+
+  // Unblocking fires immediately (reversible, no confirm needed).
+  // Blocking opens the confirm instead — the actual mutation is
+  // confirmBlock below. Closes the sheet it was opened from first,
+  // same as handleRemoveFollower.
+  function handleToggleBlock() {
+    if (isBlocked) {
+      toggleBlock.mutate(true);
+      return;
+    }
+    setShareSheetOpen(false);
+    setShowBlockConfirm(true);
+  }
+
+  function confirmBlock() {
+    toggleBlock.mutate(false, {
+      onSuccess: () => {
+        setShowBlockConfirm(false);
+        toast(`Blocked ${firstName || "this account"}.`, { variant: "success" });
       },
     });
   }
@@ -803,6 +891,18 @@ export function ProfilePage() {
                     </div>
                   );
                 }
+                if (tab.id.startsWith("type-")) {
+                  const projectType = tab.id.slice("type-".length) as ProjectType;
+                  return (
+                    <div key={tab.id}>
+                      <TypeCategoryPane
+                        accountId={profile.id}
+                        projectType={projectType}
+                        showOwnerView={showOwnerView}
+                      />
+                    </div>
+                  );
+                }
                 // A dynamic portfolio category — everything published
                 // under an active Gig in this category.
                 return (
@@ -872,7 +972,7 @@ export function ProfilePage() {
           isFollowedByUser={isFollowedByUser}
           isBlocked={isBlocked}
           isMuted={isMuted}
-          onToggleBlock={() => toggleBlock.mutate(isBlocked)}
+          onToggleBlock={handleToggleBlock}
           onToggleMute={() => toggleMute.mutate(isMuted)}
           onRemoveFollower={handleRemoveFollower}
           onOpenQR={() => setQrShareOpen(true)}
@@ -926,6 +1026,18 @@ export function ProfilePage() {
           confirmLabel={removeFollower.isPending ? "Removing…" : "Remove"}
           onConfirm={confirmRemoveFollower}
           onCancel={() => setShowRemoveFollowerConfirm(false)}
+        />
+      )}
+
+      {showBlockConfirm && (
+        <ConfirmDialog
+          title={`Block ${firstName || "this account"}?`}
+          description={`${
+            firstName || "They"
+          } won't be able to find your profile, message you, or see anything you post. You'll also unfollow each other. You can unblock them anytime from Settings.`}
+          confirmLabel={toggleBlock.isPending ? "Blocking…" : "Block"}
+          onConfirm={confirmBlock}
+          onCancel={() => setShowBlockConfirm(false)}
         />
       )}
     </div>
