@@ -15,9 +15,9 @@ interface ModalProps {
    *  PageInviteResponseModal) — only override for something that
    *  genuinely needs more room (a form with several fields, say). */
   maxWidthClass?: string;
-  /** Skip the default bg-surface/border/rounded-2xl/p-5 card styling
-   *  and just provide the centered, scrollable positioning box —
-   *  for content that already brings its own card chrome (e.g.
+  /** Skip the default .ako-overlay-panel/rounded-[28px]/p-6 card
+   *  styling and just provide the centered, scrollable positioning
+   *  box — for content that already brings its own card chrome (e.g.
    *  ArchivedPostModal wrapping a real PostCard, which has its own
    *  border/background/padding and would look double-boxed inside
    *  another card). */
@@ -65,6 +65,11 @@ interface ModalProps {
  * overflow itself) and an Escape-key close that only two of the four
  * previously had.
  *
+ * Card chrome is the shared .ako-overlay-panel (see index.css) — a
+ * fixed dark-glass panel with light text, the same one DropdownMenu
+ * uses, so a centered confirmation and an anchored kebab menu read as
+ * the same design language instead of two different overlay styles.
+ *
  * Deliberately NOT used for bottom sheets (GiftPicker,
  * ReactionMoreSheet, DropdownMenu, ManageAccessSheet, and the rest) —
  * those anchor to the bottom by design, same as WhatsApp/most native
@@ -94,12 +99,12 @@ export function Modal({
   return (
     <Portal>
       <div className={`fixed inset-0 ${zIndexClass} flex items-center justify-center px-6`} role={role} aria-modal="true" aria-label={ariaLabel}>
-        <div className="absolute inset-0 bg-canvas/70 backdrop-blur-overlay" onClick={onClose} />
+        <div className="absolute inset-0 bg-black/40 backdrop-blur-overlay" onClick={onClose} />
         <div
           className={
             bare
               ? `relative w-full ${maxWidthClass} max-h-[85vh] overflow-y-auto`
-              : `relative w-full ${maxWidthClass} max-h-[85vh] overflow-y-auto bg-surface rounded-2xl border border-border p-5 shadow-xl`
+              : `relative w-full ${maxWidthClass} max-h-[85vh] overflow-y-auto ako-overlay-panel text-overlay-ink rounded-[28px] p-6`
           }
         >
           {children}
