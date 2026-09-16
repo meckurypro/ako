@@ -59,7 +59,7 @@ export function Search() {
           </div>
         </div>
 
-        <div className="flex gap-4 max-w-xl mx-auto">
+        <div className="flex gap-4 max-w-xl md:max-w-2xl mx-auto">
           <button
             onClick={() => setTab("posts")}
             className={`text-sm font-medium pb-2 border-b-2 ${
@@ -79,7 +79,7 @@ export function Search() {
         </div>
       </header>
 
-      <div className="max-w-xl mx-auto px-4 pt-4">
+      <div className="max-w-xl md:max-w-2xl mx-auto px-4 pt-4">
         {query.trim().length <= 1 ? (
           <div className="flex flex-col items-center text-center py-14 px-6">
             <span className="flex items-center justify-center w-14 h-14 rounded-full bg-accent-soft text-accent mb-3">
