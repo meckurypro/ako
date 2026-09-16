@@ -3,9 +3,9 @@
 import { useRef, useState, useEffect } from "react";
 import { useNavigate, useLocation, Link } from "react-router-dom";
 import { useSmartBack } from "../hooks/useSmartBack";
-import { X, Image as ImageIcon, ChevronDown, ChevronRight, Link2, MoreHorizontal } from "lucide-react";
+import { X, Image as ImageIcon, Link2, MoreHorizontal } from "lucide-react";
 import { useCreatePost, useDeleteDraftOrScheduledPost } from "../hooks/usePosts";
-import { useCategories } from "../hooks/useCategories";
+import { TopicPicker, MAX_TOPICS } from "../components/TopicPicker";
 import { useUploadPostMedia, isVideoUrl } from "../hooks/useUploadPostMedia";
 import { useActiveIdentity } from "../hooks/usePages";
 import { useMyProfile } from "../hooks/useProfile";
@@ -31,8 +31,7 @@ export function Compose() {
   const smartBack = useSmartBack();
   const [heading, setHeading] = useState("");
   const [content, setContent] = useState("");
-  const [categoryId, setCategoryId] = useState<string | null>(null);
-  const [categoriesOpen, setCategoriesOpen] = useState(false);
+  const [topicIds, setTopicIds] = useState<Set<string>>(new Set());
   const [mediaUrls, setMediaUrls] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [uploadError, setUploadError] = useState<string | null>(null);
@@ -68,7 +67,6 @@ export function Compose() {
   const createPost = useCreatePost();
   const deleteDraftOrScheduled = useDeleteDraftOrScheduledPost();
   const uploadMedia = useUploadPostMedia();
-  const { data: categories } = useCategories();
   const { data: identity } = useActiveIdentity();
   const { data: me } = useMyProfile();
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -101,7 +99,7 @@ export function Compose() {
       const { data, error: fetchError } = await supabase
         .from("posts")
         .select(
-          "heading, content, category_id, media_urls, tagged_project:projects!posts_tagged_project_id_fkey(id, title)"
+          "heading, content, media_urls, tagged_project:projects!posts_tagged_project_id_fkey(id, title), post_topics(interest_id)"
         )
         .eq("id", resumingPostId)
         .single();
@@ -111,8 +109,9 @@ export function Compose() {
       }
       setHeading(data.heading ?? "");
       setContent(data.content ?? "");
-      setCategoryId(data.category_id ?? null);
       setMediaUrls(data.media_urls ?? []);
+      const resumedTopics = (data as any).post_topics as { interest_id: string }[] | null;
+      if (resumedTopics?.length) setTopicIds(new Set(resumedTopics.map((row) => row.interest_id)));
       const resumedProject = (data as any).tagged_project;
       if (resumedProject) setTaggedProject({ id: resumedProject.id, title: resumedProject.title });
     })();
@@ -126,9 +125,23 @@ export function Compose() {
   // confusing, so we don't watch for that here).
   const postingAsPage = identity?.mode === "page" ? identity.page : null;
 
-  const selectedCategory = categories?.find((c) => c.id === categoryId);
   // A post can be heading-only or details-only — either is enough to post.
   const canPost = heading.trim().length > 0 || content.trim().length > 0;
+
+  function toggleTopic(interestId: string) {
+    setTopicIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(interestId)) {
+        next.delete(interestId);
+      } else {
+        // TopicPicker already disables the pill past the cap — this is
+        // a second guard at the state layer so the two never drift.
+        if (next.size >= MAX_TOPICS) return prev;
+        next.add(interestId);
+      }
+      return next;
+    });
+  }
 
   async function handleFileSelect(e: React.ChangeEvent<HTMLInputElement>) {
     const files = Array.from(e.target.files ?? []);
@@ -164,7 +177,7 @@ export function Compose() {
       const createdPost = await createPost.mutateAsync({
         heading: heading.trim() || undefined,
         content,
-        category_id: categoryId ?? undefined,
+        interest_ids: Array.from(topicIds),
         media_urls: mediaUrls,
         posted_as_page_id: postingAsPage?.id,
         tagged_project_id: taggedProject?.id,
@@ -413,42 +426,9 @@ export function Compose() {
           />
         )}
 
-        {categories && categories.length > 0 && (
-          <div className="mt-6">
-            <button
-              onClick={() => setCategoriesOpen((o) => !o)}
-              className="w-full flex items-center justify-between text-sm font-medium text-ink-muted mb-2"
-            >
-              <span>
-                Category (optional)
-                {selectedCategory && !categoriesOpen && (
-                  <span className="text-ink"> · {selectedCategory.name}</span>
-                )}
-              </span>
-              {categoriesOpen ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
-            </button>
-
-            {categoriesOpen && (
-              <div className="flex flex-wrap gap-2">
-                {categories.map((category) => (
-                  <button
-                    key={category.id}
-                    onClick={() =>
-                      setCategoryId(categoryId === category.id ? null : category.id)
-                    }
-                    className={`px-3 py-1.5 rounded-full text-sm border transition-colors ${
-                      categoryId === category.id
-                        ? "bg-accent text-canvas border-accent"
-                        : "bg-surface text-ink border-border"
-                    }`}
-                  >
-                    {category.name}
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
-        )}
+        <div className="mt-6">
+          <TopicPicker selected={topicIds} onToggle={toggleTopic} />
+        </div>
 
         {error && (
           <p className="text-danger text-sm mt-4 bg-danger/10 rounded-xl p-3" role="alert">
