@@ -308,6 +308,7 @@ export function ProjectCard({
   project,
   isOwnerView,
   isDetailView,
+  shareUrl,
 }: {
   project: Project;
   // Explicit owner-view flag from the caller (e.g. ProfilePage's
@@ -321,6 +322,12 @@ export function ProjectCard({
   // feed lists, grids, Archive, SavedProjects etc. render many
   // ProjectCards at once and keep the old tap-to-preview buttons.
   isDetailView?: boolean;
+  // The canonical public link for this project, when the caller
+  // already has enough context (owner/page username) to build one —
+  // see src/lib/projectLinks.ts. Falls back to the plain /projects/:id
+  // route below when omitted, so every other existing call site keeps
+  // working exactly as before.
+  shareUrl?: string;
 }) {
   const { user } = useAuth();
   const navigate = useNavigate();
@@ -513,7 +520,7 @@ export function ProjectCard({
     // Ako — never project.external_url, which points AWAY from Ako to
     // wherever the project itself links out to. Those are two
     // different things and only one of them is "sharing the project."
-    const url = `${window.location.origin}/projects/${project.id}`;
+    const url = shareUrl ?? `${window.location.origin}/projects/${project.id}`;
     if (navigator.share) {
       try {
         await navigator.share({ title: project.title, url });

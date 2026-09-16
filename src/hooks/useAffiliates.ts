@@ -69,7 +69,10 @@ export interface CreatorAffiliateAnalytics {
 }
 
 // A relationship joined with just enough of the project to render it
-// in "my affiliate links" without a separate fetch per row.
+// in "my affiliate links" without a separate fetch per row. Includes
+// slug + owner/page username so the link itself can be the pretty
+// canonical one (see getProjectUrl in src/lib/projectLinks.ts) rather
+// than always falling back to the bare /projects/:id form.
 export interface AffiliateRelationshipWithProject extends AffiliateRelationship {
   project: {
     id: string;
@@ -77,14 +80,22 @@ export interface AffiliateRelationshipWithProject extends AffiliateRelationship 
     thumbnail_url: string | null;
     price_usd: number;
     promo_price_usd: number | null;
+    slug: string | null;
+    owner: { username: string } | null;
+    posted_as_page: { username: string } | null;
   } | null;
 }
 
-// Builds the shareable link for a referral token. Kept in one place
-// so every surface (share sheet, "my links" list, copy button) always
-// points at the same URL shape.
-export function affiliateLinkFor(projectId: string, referralToken: string): string {
-  return `${window.location.origin}/projects/${projectId}?ref=${referralToken}`;
+// Builds the shareable, ref-tagged affiliate link for a referral
+// token. Takes the project's own canonical URL (see getProjectUrl in
+// src/lib/projectLinks.ts) rather than building a path itself, so
+// this has no idea — and doesn't need one — whether that URL is a
+// pretty slug or the plain /projects/:id fallback; either way,
+// attribution is resolved by project id downstream once the link is
+// opened, same as it always was.
+export function affiliateLinkFor(projectUrl: string, referralToken: string): string {
+  const separator = projectUrl.includes("?") ? "&" : "?";
+  return `${projectUrl}${separator}ref=${referralToken}`;
 }
 
 const CLICK_TOKEN_STORAGE_KEY = "ako_pending_affiliate_click_token";
@@ -268,7 +279,9 @@ export function useMyAffiliateRelationships() {
     queryFn: async (): Promise<AffiliateRelationshipWithProject[]> => {
       const { data, error } = await supabase
         .from("affiliate_relationships")
-        .select("*, project:projects(id, title, thumbnail_url, price_usd, promo_price_usd)")
+        .select(
+          "*, project:projects(id, title, thumbnail_url, price_usd, promo_price_usd, slug, owner:profiles!projects_owner_id_fkey(username), posted_as_page:pages(username))"
+        )
         .eq("affiliate_user_id", user!.id)
         .order("created_at", { ascending: false });
       if (error) throw error;

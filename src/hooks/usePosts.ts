@@ -23,7 +23,7 @@ const PAGE_SELECT = `posted_as_page:pages(id, username, name, avatar_url, page_t
 // it to what TaggedProjectEmbed.tsx actually renders (thumbnail,
 // title, type, price, status, owner byline) matters for payload size
 // on a feed page of 15 posts.
-const TAGGED_PROJECT_SELECT = `tagged_project:projects!posts_tagged_project_id_fkey(id, title, thumbnail_url, project_type, price_usd, promo_price_usd, status, owner:profiles!projects_owner_id_fkey(username, display_name))`;
+const TAGGED_PROJECT_SELECT = `tagged_project:projects!posts_tagged_project_id_fkey(id, title, thumbnail_url, project_type, price_usd, promo_price_usd, status, slug, owner:profiles!projects_owner_id_fkey(username, display_name), posted_as_page:pages(username))`;
 
 // One level deep: the embedded reshared_post carries its own author but
 // not a further-nested reshared_post, so repost-of-a-repost links to the

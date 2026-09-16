@@ -42,6 +42,7 @@ import { AffiliateShareSheet } from "../components/AffiliateShareSheet";
 import { useAffiliateProgram } from "../hooks/useAffiliates";
 import { PublishMusicButton } from "../components/music/PublishMusicButton";
 import { ProjectFaqSection } from "../components/ProjectFaqSection";
+import { getProjectUrl, type ProjectSlugHolder } from "../lib/projectLinks";
 
 // Compact, non-interactive project tile for the "similar projects"
 // rails — just enough to identify it and tap through. The full
@@ -327,8 +328,14 @@ function EventHighlightsSection({ projectId, isOwner }: { projectId: string; isO
   );
 }
 
-export function ProjectDetail() {
-  const { projectId } = useParams<{ projectId: string }>();
+export function ProjectDetail({ resolvedProjectId }: { resolvedProjectId?: string } = {}) {
+  // resolvedProjectId comes from ProjectBySlug when this page is
+  // reached via a /profile/:username/:slug or /page/:username/:slug
+  // public link rather than directly via /projects/:projectId — see
+  // src/lib/projectLinks.ts. Everything below is unaware of which
+  // route got it here; it just needs an id.
+  const { projectId: routeProjectId } = useParams<{ projectId: string }>();
+  const projectId = resolvedProjectId ?? routeProjectId;
   const smartBack = useSmartBack();
   const { user } = useAuth();
   const { data: project, isLoading } = useProjectDetail(projectId);
@@ -354,6 +361,18 @@ export function ProjectDetail() {
   const canBecomeAffiliate =
     !!user && !!project && !isOwner && !!affiliateProgram?.enabled && project.price_usd > 0;
 
+  // The canonical public link for this project — pretty (slug-based)
+  // once one's been set, the immutable /projects/:id route otherwise.
+  // Computed straight from the already-joined owner/posted_as_page
+  // data on `project` rather than a second query — see
+  // src/lib/projectLinks.ts.
+  const holder: ProjectSlugHolder | null = project
+    ? project.posted_as_page
+      ? { type: "page", username: project.posted_as_page.username }
+      : { type: "profile", username: project.owner.username }
+    : null;
+  const shareUrl = project ? getProjectUrl(project, holder) : undefined;
+
   // Powers the Activity hub's "History" tab (see useViewHistory) —
   // same idea as useMarkPostSeen for posts.
   useMarkProjectSeen(projectId!, project?.owner?.id);
@@ -369,7 +388,7 @@ export function ProjectDetail() {
           <p className="text-ink-muted">Loading…</p>
         ) : (
           <>
-            <ProjectCard project={project} isDetailView />
+            <ProjectCard project={project} isDetailView shareUrl={shareUrl} />
 
             {canBecomeAffiliate && (
               <button
@@ -564,6 +583,7 @@ export function ProjectDetail() {
         <AffiliateShareSheet
           projectId={project.id}
           projectTitle={project.title}
+          shareUrl={shareUrl}
           onClose={() => setShareSheetOpen(false)}
         />
       )}
