@@ -254,7 +254,7 @@ interface ToggleCommentReactionInput {
 }
 
 // Toggles a like or dislike on one comment. Shared across every
-// comment in the thread (CommentThread creates one instance and
+// comment in the sheet (CommentSheet creates one instance and
 // passes it down), so a tap on any comment's button hits the same
 // optimistic-update path.
 export function useToggleCommentReaction(postId: string) {

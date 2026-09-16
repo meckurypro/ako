@@ -17,7 +17,7 @@ const SPARK_RADIUS = 15;
  * initial mount) — a quick overshoot pop plus a small burst of sparks, so
  * liking something reads as a tiny rewarded moment instead of a color swap.
  *
- * Used by PostCard, ProjectCard, and CommentThread — all three previously
+ * Used by PostCard, ProjectCard, and CommentSheet — all three previously
  * rendered the same bare <Heart> with the same fill logic.
  */
 export function LikeHeart({ active, size = 24, className }: LikeHeartProps) {

@@ -1,14 +1,13 @@
 // src/pages/PostDetail.tsx
-import { useParams } from "react-router-dom";
+import { useParams, useLocation } from "react-router-dom";
 import { useSmartBack } from "../hooks/useSmartBack";
 import { ArrowLeft } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "../lib/supabase";
 import { useAuth } from "../hooks/useAuth";
-import { useComments } from "../hooks/useComments";
 import { useMarkPostSeen } from "../hooks/useMarkPostSeen";
 import { PostCard } from "../components/PostCard";
-import { CommentThread } from "../components/CommentThread";
+import { CommentSheet } from "../components/CommentSheet";
 import { BottomNav } from "../components/BottomNav";
 import { UnavailableNotice } from "../components/UnavailableNotice";
 import { PROFILE_ROLES_SELECT, toProfileRoles } from "../lib/profileRoles";
@@ -47,12 +46,23 @@ function usePost(postId: string) {
   });
 }
 
+// Notifications link here as /post/{id}#comment-{targetId} (see
+// Notifications.tsx) — pulled out so the sheet can auto-open the right
+// Replies panel and flash the target comment instead of relying on the
+// browser's native anchor scroll, which doesn't reach into a portaled
+// fixed-position sheet.
+function highlightIdFromHash(hash: string): string | null {
+  const match = /^#comment-(.+)$/.exec(hash);
+  return match ? match[1] : null;
+}
+
 export function PostDetail() {
   const { postId } = useParams<{ postId: string }>();
+  const location = useLocation();
   const smartBack = useSmartBack();
   const { user } = useAuth();
   const { data: post, isLoading: postLoading } = usePost(postId!);
-  const { data: comments, isLoading: commentsLoading } = useComments(postId!);
+  const highlightId = highlightIdFromHash(location.hash);
 
   useMarkPostSeen(postId!, post?.author?.id);
 
@@ -93,20 +103,18 @@ export function PostDetail() {
 
             <PostCard post={post} showStats />
 
-            {/* id="discussion" + scroll-mt-4 lets PostCard's comment tray
-                button scroll here smoothly when already on the detail page. */}
-            <h3
-              id="discussion"
-              className="font-display text-lg text-ink mt-6 mb-2 scroll-mt-4"
-            >
-              Discussion
-            </h3>
-
-            {commentsLoading ? (
-              <p className="text-ink-muted text-sm">Loading responses…</p>
-            ) : (
-              <CommentThread comments={comments ?? []} postId={post.id} />
-            )}
+            {/* The whole point of this page is the discussion, so the
+                comment overlay opens by itself over the post above —
+                same immersive sheet PostCard opens inline elsewhere,
+                just without a tap needed to get here. Closing it goes
+                back rather than leaving an empty page behind. */}
+            <CommentSheet
+              postId={post.id}
+              commentCount={post.comment_count}
+              isOwner={!!user && post.author?.id === user.id}
+              highlightId={highlightId}
+              onClose={smartBack}
+            />
           </>
         )}
       </div>

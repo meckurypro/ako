@@ -1,6 +1,6 @@
 // src/components/PostCard.tsx
 import { useRef, useState } from "react";
-import { Link, useNavigate, useLocation } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import {
 
   ThumbsDown,
@@ -33,6 +33,7 @@ import { PostMedia } from "./PostMedia";
 import { PostContent } from "./PostContent";
 import { MusicAttribution } from "./music/MusicAttribution";
 import { StanceComposer, STANCE_COLORS } from "./StanceComposer";
+import { CommentSheet } from "./CommentSheet";
 import { ReshareSheet } from "./ReshareSheet";
 import { GiftPicker } from "./GiftPicker";
 import { RepostEmbed } from "./RepostEmbed";
@@ -109,8 +110,8 @@ export function PostCard({
 }) {
   const { user } = useAuth();
   const navigate = useNavigate();
-  const location = useLocation();
   const [activeStance, setActiveStance] = useState<Stance | null>(null);
+  const [showComments, setShowComments] = useState(false);
   const [showReshareSheet, setShowReshareSheet] = useState(false);
   const [showGiftPicker, setShowGiftPicker] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
@@ -234,13 +235,15 @@ export function PostCard({
     lastTapRef.current = now;
   }
 
-  // Already on the post page → scroll to discussion; otherwise navigate there.
+  // Opens the immersive comment overlay in place — from the Feed, a
+  // profile grid, anywhere a PostCard renders — instead of navigating
+  // away to the full post page. On PostDetail itself (showStats, the
+  // "expanded" view) the page already keeps this same sheet open on
+  // its own, so tapping the count there is a no-op rather than
+  // stacking a second identical sheet on top of it.
   function handleCommentTap() {
-    if (location.pathname === `/post/${post.id}`) {
-      document.getElementById("discussion")?.scrollIntoView({ behavior: "smooth" });
-    } else {
-      navigate(`/post/${post.id}`);
-    }
+    if (showStats) return;
+    setShowComments(true);
   }
 
   async function handleShare() {
@@ -325,7 +328,7 @@ export function PostCard({
 
   // ─── Secondary action definitions (all 7, passed to scrollable tray) ──────
   // Stance icons carry STANCE_COLORS.iconClass so they stay in sync with
-  // StanceComposer tabs and CommentThread pills.
+  // StanceComposer tabs and CommentSheet pills.
 
   const secondaryDefs: Record<SecondaryActionKey, ActionDef> = {
     support: {
@@ -750,6 +753,15 @@ export function PostCard({
           stance={activeStance}
           stances={isOwner ? ["support"] : undefined}
           onClose={() => setActiveStance(null)}
+        />
+      )}
+
+      {showComments && (
+        <CommentSheet
+          postId={post.id}
+          commentCount={post.comment_count}
+          isOwner={isOwner}
+          onClose={() => setShowComments(false)}
         />
       )}
 
