@@ -25,13 +25,39 @@ const SHELL_EXCLUDED_PREFIXES = [
   "/onboarding",
 ];
 
+const SIDEBAR_PINNED_KEY = "ako:sidebar-expanded";
+
 function shouldShowShell(pathname: string) {
   return !SHELL_EXCLUDED_PREFIXES.some((p) => pathname === p || pathname.startsWith(p + "/"));
 }
 
 export function AppShell({ children }: { children: ReactNode }) {
   const location = useLocation();
-  const [collapsed, setCollapsed] = useState(false);
+  // Defaults to collapsed (icons only) — hovering the rail reveals
+  // labels without needing this pinned open (see Sidebar's
+  // showLabels). Once a person explicitly pins it one way or the
+  // other, that sticks across visits.
+  const [collapsed, setCollapsed] = useState(() => {
+    try {
+      const stored = localStorage.getItem(SIDEBAR_PINNED_KEY);
+      return stored === null ? true : stored !== "true";
+    } catch {
+      return true;
+    }
+  });
+
+  function toggleCollapsed() {
+    setCollapsed((c) => {
+      const next = !c;
+      try {
+        localStorage.setItem(SIDEBAR_PINNED_KEY, String(!next));
+      } catch {
+        // localStorage unavailable (privacy mode) — falls back to
+        // in-memory only for this session, same as elsewhere in the app.
+      }
+      return next;
+    });
+  }
 
   // When /create is open as a modal over a background page (see App.tsx's
   // AppRoutes), decide shell visibility off the page underneath, not the
@@ -45,7 +71,7 @@ export function AppShell({ children }: { children: ReactNode }) {
 
   return (
     <>
-      <Sidebar collapsed={collapsed} onToggleCollapsed={() => setCollapsed((c) => !c)} />
+      <Sidebar collapsed={collapsed} onToggleCollapsed={toggleCollapsed} />
       {/* Sidebar is `fixed`, so it's out of flow — this left padding is what
           actually reserves its space on md+ (pure CSS, so it responds to
           viewport width without any JS resize listener). Below md it's 0
