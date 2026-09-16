@@ -6,7 +6,7 @@
 // sign it back out immediately rather than leaving a non-admin
 // session sitting around from an admin-login attempt.
 import { useState, type FormEvent } from "react";
-import { Navigate, useNavigate } from "react-router-dom";
+import { Navigate, useLocation, useNavigate, type Location } from "react-router-dom";
 import { useAuth } from "../../hooks/useAuth";
 import { useIsAdmin } from "../../hooks/useAdmin";
 import { supabase } from "../../lib/supabase";
@@ -18,6 +18,7 @@ import { Button } from "../../components/Button";
 
 export function AdminLogin() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { user, loading: authLoading } = useAuth();
   const { data: isAdmin, isLoading: adminLoading } = useIsAdmin();
   const [email, setEmail] = useState("");
@@ -25,9 +26,16 @@ export function AdminLogin() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
+  // Where RequireAdmin sent this admin from, if that's how they got
+  // here — always an internal Location our own app constructed (see
+  // RequireAdmin.tsx), never a user-controlled string, so there's no
+  // open-redirect risk in trusting it directly.
+  const from = (location.state as { from?: Location } | null)?.from;
+  const destination = from ? `${from.pathname}${from.search}` : "/admin";
+
   // Already signed in as a confirmed admin — skip the form.
   if (!authLoading && user && !adminLoading && isAdmin) {
-    return <Navigate to="/admin" replace />;
+    return <Navigate to={destination} replace />;
   }
 
   async function handleSubmit(e: FormEvent) {
@@ -57,7 +65,7 @@ export function AdminLogin() {
       return;
     }
 
-    navigate("/admin", { replace: true });
+    navigate(destination, { replace: true });
   }
 
   return (
