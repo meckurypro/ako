@@ -11,6 +11,7 @@
 // (Film). See section 3 of the spec doc for the full mapping.
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "../lib/supabase";
+import { useAuth } from "./useAuth";
 import type { Project } from "./useProjects";
 
 export interface GigRole {
@@ -127,5 +128,66 @@ export function usePortfolioCategoryProjects(accountId: string | undefined, cate
       return (projects ?? []) as Project[];
     },
     enabled: !!accountId && !!category,
+  });
+}
+
+export interface MyGig {
+  id: string;
+  title: string;
+  thumbnail_url: string | null;
+  status: string;
+  created_at: string;
+  role_label: string | null;
+  category: string | null;
+  is_complete: boolean;
+  source: "manual" | "auto_project" | "auto_collaboration";
+}
+
+/**
+ * "Your Gigs" — every project_type='gig' Project the account owns,
+ * across every status and completion state, in one query. This is
+ * the missing piece flagged by the AKO_GIG_ROLE_EXPANSION audit
+ * (spec section 21): an auto-created draft Gig (source =
+ * auto_collaboration/auto_project, is_complete = false) never
+ * appears in the dynamic profile tabs above — get_profile_portfolio_
+ * categories deliberately only surfaces complete, published Gigs —
+ * so without this list the one-time notification is the only way an
+ * owner could ever find it again. Ordered incomplete-first so
+ * anything needing attention surfaces at the top.
+ */
+export function useMyGigs() {
+  const { user } = useAuth();
+  return useQuery({
+    queryKey: ["my-gigs", user?.id],
+    queryFn: async (): Promise<MyGig[]> => {
+      if (!user) return [];
+      const { data, error } = await supabase
+        .from("projects")
+        .select(
+          "id, title, thumbnail_url, status, created_at, project_gig_details!inner(is_complete, source, gig_roles(label, category))"
+        )
+        .eq("owner_id", user.id)
+        .eq("project_type", "gig")
+        .order("created_at", { ascending: false });
+      if (error) throw error;
+      return (data ?? [])
+        .map((row: any) => {
+          const details = Array.isArray(row.project_gig_details) ? row.project_gig_details[0] : row.project_gig_details;
+          const role = Array.isArray(details?.gig_roles) ? details.gig_roles[0] : details?.gig_roles;
+          return {
+            id: row.id,
+            title: row.title,
+            thumbnail_url: row.thumbnail_url,
+            status: row.status,
+            created_at: row.created_at,
+            role_label: role?.label ?? null,
+            category: role?.category ?? null,
+            is_complete: details?.is_complete ?? true,
+            source: details?.source ?? "manual",
+          };
+        })
+        .sort((a, b) => Number(a.is_complete) - Number(b.is_complete));
+    },
+    enabled: !!user,
   });
 }

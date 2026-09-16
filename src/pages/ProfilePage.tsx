@@ -1,7 +1,7 @@
 // src/pages/ProfilePage.tsx
 import { useState, useRef, useEffect } from "react";
 import { useParams, Link, useNavigate, useLocation } from "react-router-dom";
-import { Settings, Wallet, MessageCircle, MoreHorizontal, Plus, Eye, X, Globe, UserCheck, Lock, Redo2, Building2, ArrowUp, Undo2, ChevronDown, UserMinus, Bell, BellOff, Send } from "lucide-react";
+import { Settings, Wallet, MessageCircle, MoreHorizontal, Plus, Eye, X, Globe, UserCheck, Lock, Redo2, Building2, ArrowUp, Undo2, ChevronDown, UserMinus, Bell, BellOff, Send, Briefcase } from "lucide-react";
 import { useAuth } from "../hooks/useAuth";
 import {
   useProfileByUsername,
@@ -478,6 +478,12 @@ export function ProfilePage() {
                             },
                           ] satisfies DropdownMenuItem[])
                         : []),
+                      {
+                        key: "gigs",
+                        label: "Your Gigs",
+                        icon: <Briefcase />,
+                        onSelect: () => navigate("/gigs"),
+                      },
                       { key: "wallet", label: "Wallet", icon: <Wallet />, onSelect: () => navigate("/wallet") },
                       { key: "settings", label: "Settings", icon: <Settings />, onSelect: () => navigate("/settings/profile") },
                     ]}

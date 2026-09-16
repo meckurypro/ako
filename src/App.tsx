@@ -104,6 +104,7 @@ import { SavedHub } from "./pages/SavedHub";
 import { LikedHub } from "./pages/LikedHub";
 import { EventsActivity } from "./pages/EventsActivity";
 import { LibraryActivity } from "./pages/LibraryActivity";
+import { MyGigs } from "./pages/MyGigs";
 import { HistoryActivity } from "./pages/HistoryActivity";
 
 const queryClient = new QueryClient({
@@ -903,6 +904,19 @@ function AppRoutes() {
               element={
                 <RequireAuth>
                   <MyAffiliateLinks />
+                </RequireAuth>
+              }
+            />
+            {/* "Your Gigs" management hub — see AKO_GIG_ROLE_EXPANSION_
+                AND_COLLABORATION_SYSTEM.md section 21. Reached from the
+                profile owner menu (ProfilePage.tsx), not Activity — a
+                Gig is a professional identity you manage, not a log of
+                something that happened. */}
+            <Route
+              path="/gigs"
+              element={
+                <RequireAuth>
+                  <MyGigs />
                 </RequireAuth>
               }
             />
