@@ -65,7 +65,7 @@ export function Discover() {
         <TopHeader />
       </div>
 
-      <div className="max-w-xl mx-auto px-4 pt-4">
+      <div className="max-w-xl md:max-w-2xl mx-auto px-4 pt-4">
         {/* Search bar */}
         <div className="relative mb-6">
           <Search
