@@ -350,7 +350,7 @@ export function ConversationList() {
           </button>
           <h2 className="font-display text-2xl text-ink flex-1">Messages</h2>
         </header>
-        <div className="max-w-xl mx-auto px-4 pt-10 text-center">
+        <div className="max-w-xl md:max-w-2xl mx-auto px-4 pt-10 text-center">
           <p className="text-sm text-ink-muted">Messaging is temporarily unavailable. Check back later.</p>
         </div>
         <BottomNav />
@@ -409,7 +409,7 @@ export function ConversationList() {
         {!selectMode && (
           <button
             onClick={() => navigate("/messages/archive")}
-            className="w-full flex items-center gap-3 px-4 py-3 max-w-xl mx-auto border-t border-border/60"
+            className="w-full flex items-center gap-3 px-4 py-3 max-w-xl md:max-w-2xl mx-auto border-t border-border/60"
           >
             <span className="flex-shrink-0 w-11 h-11 rounded-full bg-accent-soft text-accent flex items-center justify-center">
               <Archive size={18} />
@@ -426,7 +426,7 @@ export function ConversationList() {
       </header>
 
       {!selectMode && conversations && conversations.length > 0 && (
-        <div className="max-w-xl mx-auto px-4 pt-3">
+        <div className="max-w-xl md:max-w-2xl mx-auto px-4 pt-3">
           <div className="relative">
             <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-ink-muted" />
             <input
@@ -449,7 +449,7 @@ export function ConversationList() {
         </div>
       )}
 
-      <div className="max-w-xl mx-auto px-4 pt-2">
+      <div className="max-w-xl md:max-w-2xl mx-auto px-4 pt-2">
         {isLoading ? (
           <p className="text-ink-muted text-center py-10">Loading…</p>
         ) : !conversations || conversations.length === 0 ? (
