@@ -10,6 +10,7 @@ import {
   PROJECT_TYPE_LABELS,
   type ProjectStatus,
 } from "../hooks/useProjects";
+import { useAffiliateProgram } from "../hooks/useAffiliates";
 import { useEventDetails, useMeetingDetails, useMediaDetails, useGigDetails, useGigSamples, usePitchDetails, useBookDetails } from "../hooks/useProjectTypeDetails";
 import { useRoomDetails } from "../hooks/useRoom";
 import { supabase } from "../lib/supabase";
@@ -55,6 +56,11 @@ export function EditProject() {
   const { data: project, isLoading } = useProject(projectId);
   const [manageAccessOpen, setManageAccessOpen] = useState(false);
   const [affiliateSheetOpen, setAffiliateSheetOpen] = useState(false);
+  // Only used to decide whether to still surface the entry point for a
+  // project that's currently free — see the price===0 branch below.
+  const { data: affiliateProgram } = useAffiliateProgram(
+    project && project.project_type !== "pitch" ? project.id : undefined
+  );
   const { data: existingTopicIds } = useProjectTopics(projectId);
   const { data: existingEventDetails } = useEventDetails(project?.project_type === "event" ? projectId : undefined);
   const { data: existingMeetingDetails } = useMeetingDetails(
@@ -746,15 +752,30 @@ export function EditProject() {
 
           {/* Pitches route through add_supporter_to_pitch_room, not
               process_project_purchase — there's no sale for a
-              commission to attach to, so no affiliate program for them. */}
+              commission to attach to, so no affiliate program for them.
+              Free projects (priceUsd === "0") are blocked the same
+              way — read off the live form value rather than
+              project.price_usd so this updates the moment the price
+              field is edited, before Save is even pressed. Exception:
+              if a program already exists (e.g. it was enabled back
+              when this project had a price), keep the entry point
+              reachable so the creator can still get in and turn it
+              off — AffiliateProgramSheet itself blocks re-enabling
+              while the project is free. */}
           {project.project_type !== "pitch" && (
-            <button
-              type="button"
-              onClick={() => setAffiliateSheetOpen(true)}
-              className="w-full text-left text-sm font-medium text-accent px-1 mb-6"
-            >
-              Affiliate program →
-            </button>
+            (parseFloat(priceUsd) || 0) > 0 || !!affiliateProgram ? (
+              <button
+                type="button"
+                onClick={() => setAffiliateSheetOpen(true)}
+                className="w-full text-left text-sm font-medium text-accent px-1 mb-6"
+              >
+                Affiliate program →
+              </button>
+            ) : (
+              <p className="text-sm text-ink-muted px-1 mb-6">
+                Affiliate program — set a price above to enable this.
+              </p>
+            )
           )}
 
           <PrivacyToggle checked={isPrivate} onChange={setIsPrivate} />
@@ -793,6 +814,7 @@ export function EditProject() {
         <AffiliateProgramSheet
           projectId={projectId}
           projectTitle={project.title}
+          priceUsd={parseFloat(priceUsd) || 0}
           onClose={() => setAffiliateSheetOpen(false)}
         />
       )}

@@ -877,6 +877,18 @@ function AppRoutes() {
                 </RequireAuth>
               }
             />
+            {/* Same page as /wallet/affiliate-links (kept mounted there
+                too, since Wallet still links to it directly) — surfaced
+                here as well so forking a project has an obvious home in
+                the Activity hub, not just buried under Wallet. */}
+            <Route
+              path="/activity/affiliates"
+              element={
+                <RequireAuth>
+                  <MyAffiliateLinks />
+                </RequireAuth>
+              }
+            />
             {/* Folded into the Activity hub's Saved tab now — kept as a
                 redirect so any stale links still land somewhere valid. */}
             <Route path="/saved-projects" element={<Navigate to="/activity/saved" replace />} />

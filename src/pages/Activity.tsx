@@ -1,7 +1,7 @@
 // src/pages/Activity.tsx
 import { useNavigate } from "react-router-dom";
 import { useSmartBack } from "../hooks/useSmartBack";
-import { ArrowLeft, Bookmark, Heart, History, CalendarClock, ChevronRight, FileEdit, Send, LibraryBig } from "lucide-react";
+import { ArrowLeft, Bookmark, Heart, History, CalendarClock, ChevronRight, FileEdit, Send, LibraryBig, TrendingUp } from "lucide-react";
 import { BottomNav } from "../components/BottomNav";
 import { useMyDraftPosts, useMyScheduledPosts } from "../hooks/usePosts";
 
@@ -51,6 +51,12 @@ const ROWS = [
     icon: CalendarClock,
     label: "Events & meetings",
     description: "Tickets, meetings, and rooms you're part of",
+  },
+  {
+    to: "/activity/affiliates",
+    icon: TrendingUp,
+    label: "Affiliates",
+    description: "Projects you've forked to earn a commission on",
   },
 ] as const;
 

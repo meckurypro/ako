@@ -16,6 +16,7 @@ import { formatUsd } from "../lib/money";
 interface AffiliateProgramSheetProps {
   projectId: string;
   projectTitle: string;
+  priceUsd: number;
   onClose: () => void;
 }
 
@@ -31,7 +32,7 @@ interface AffiliateProgramSheetProps {
  * affects sales from this point forward; past commissions already
  * paid out keep whatever rate was live when they happened.
  */
-export function AffiliateProgramSheet({ projectId, projectTitle, onClose }: AffiliateProgramSheetProps) {
+export function AffiliateProgramSheet({ projectId, projectTitle, priceUsd, onClose }: AffiliateProgramSheetProps) {
   useBackDismiss(onClose);
   const toast = useToast();
 
@@ -42,6 +43,11 @@ export function AffiliateProgramSheet({ projectId, projectTitle, onClose }: Affi
   // turning a program ON, never when turning one off, so an existing
   // program can always be disabled here regardless of this flag.
   const affiliateProgramsEnabled = useFeatureFlag("affiliate_programs_enabled");
+  // A free project has nothing for a commission to come out of — same
+  // rule as the global switch below: this only blocks turning a
+  // program ON, never turning an already-enabled one off, in case a
+  // program was enabled back when the project still had a price.
+  const isFree = priceUsd <= 0;
 
   const [enabled, setEnabled] = useState(false);
   const [commissionPct, setCommissionPct] = useState("20");
@@ -69,6 +75,11 @@ export function AffiliateProgramSheet({ projectId, projectTitle, onClose }: Affi
 
     if (enabled && !affiliateProgramsEnabled) {
       setError("Affiliate programs are temporarily disabled.");
+      return;
+    }
+
+    if (enabled && isFree) {
+      setError("Free projects can't have an affiliate program — there's no sale for a commission to come from.");
       return;
     }
 
@@ -125,7 +136,12 @@ export function AffiliateProgramSheet({ projectId, projectTitle, onClose }: Affi
                       <p className="text-xs text-ink-muted">
                         Anyone can fork it for their own referral link — you only pay a commission on sales it actually brings in.
                       </p>
-                      {!affiliateProgramsEnabled && !enabled && (
+                      {!enabled && isFree && (
+                        <p className="text-xs text-danger mt-1">
+                          This project is free — set a price before turning on an affiliate program.
+                        </p>
+                      )}
+                      {!affiliateProgramsEnabled && !enabled && !isFree && (
                         <p className="text-xs text-danger mt-1">
                           Affiliate programs are temporarily disabled platform-wide.
                         </p>
@@ -135,14 +151,15 @@ export function AffiliateProgramSheet({ projectId, projectTitle, onClose }: Affi
                   <button
                     type="button"
                     onClick={() => {
-                      // Turning ON is blocked while the global switch
-                      // is off; turning an already-on program OFF
-                      // always works, matching the server rule.
-                      if (!enabled && !affiliateProgramsEnabled) return;
+                      // Turning ON is blocked while the project is
+                      // free, or while the global switch is off;
+                      // turning an already-on program OFF always
+                      // works, matching the server rule.
+                      if (!enabled && (isFree || !affiliateProgramsEnabled)) return;
                       setEnabled(!enabled);
                     }}
                     aria-pressed={enabled}
-                    disabled={!enabled && !affiliateProgramsEnabled}
+                    disabled={!enabled && (isFree || !affiliateProgramsEnabled)}
                     className={`w-11 h-6 rounded-full transition-colors relative flex-shrink-0 overflow-hidden disabled:opacity-50 ${
                       enabled ? "bg-accent" : "bg-border"
                     }`}
