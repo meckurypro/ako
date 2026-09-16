@@ -132,7 +132,7 @@ export function TopicPicker({
             )}
 
             <p className="text-xs text-ink-muted mt-2">
-              Helps people browsing find this project, and powers "similar projects" for it.
+              Helps people browsing find this, and powers recommendations for it.
             </p>
           </div>
         </div>
