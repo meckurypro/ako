@@ -7,46 +7,94 @@ export interface CommentWithAuthor extends Comment {
   author: { id: string; username: string; display_name: string; avatar_url: string | null };
 }
 
-export interface CommentNode extends CommentWithAuthor {
-  replies: CommentNode[];
-}
+const COMMENT_SELECT = `*, author:profiles!comments_author_id_fkey(id, username, display_name, avatar_url)`;
 
 /**
- * Fetches ALL comments for a post in one query and builds the reply
- * tree client-side. Simpler than paginated nested queries, and fine
- * at V1 scale — worth revisiting if threads get genuinely huge.
+ * Top-level (root) comments only — parent_comment_id IS NULL. Replies
+ * are fetched separately, per comment, only once that specific
+ * comment's thread is expanded (see useCommentReplies below). Opening
+ * the sheet on a post with a huge discussion used to pull down every
+ * reply at every depth just to render the top level; now it only ever
+ * costs what's actually rendered.
  */
-export function useComments(postId: string) {
+export function useRootComments(postId: string) {
   return useQuery({
     queryKey: ["comments", postId],
-    queryFn: async (): Promise<CommentNode[]> => {
+    queryFn: async (): Promise<CommentWithAuthor[]> => {
       const { data, error } = await supabase
         .from("comments")
-        .select(`*, author:profiles!comments_author_id_fkey(id, username, display_name, avatar_url)`)
+        .select(COMMENT_SELECT)
         .eq("post_id", postId)
+        .is("parent_comment_id", null)
         .eq("is_deleted", false)
         .order("created_at", { ascending: true });
 
       if (error) throw error;
-
-      const flat = data as unknown as CommentWithAuthor[];
-      const byId = new Map<string, CommentNode>();
-      const roots: CommentNode[] = [];
-
-      for (const c of flat) {
-        byId.set(c.id, { ...c, replies: [] });
-      }
-      for (const c of flat) {
-        const node = byId.get(c.id)!;
-        if (c.parent_comment_id) {
-          byId.get(c.parent_comment_id)?.replies.push(node);
-        } else {
-          roots.push(node);
-        }
-      }
-
-      return roots;
+      return data as unknown as CommentWithAuthor[];
     },
+    enabled: !!postId,
+  });
+}
+
+/**
+ * A single comment's IMMEDIATE replies only — never its replies'
+ * replies. `enabled` is driven by whether that comment's thread is
+ * currently expanded in the UI (see CommentThread in CommentSheet.tsx),
+ * so a node with 50 replies-of-replies costs nothing until each of
+ * those 50 is individually opened. Each rendered reply gets its own
+ * call of this same hook (keyed off its own id) for its own children —
+ * the thread is walked one level at a time, comment-specific, rather
+ * than the whole subtree arriving in one shot.
+ */
+export function useCommentReplies(postId: string, parentCommentId: string, enabled: boolean) {
+  return useQuery({
+    queryKey: ["comment-replies", postId, parentCommentId],
+    queryFn: async (): Promise<CommentWithAuthor[]> => {
+      const { data, error } = await supabase
+        .from("comments")
+        .select(COMMENT_SELECT)
+        .eq("post_id", postId)
+        .eq("parent_comment_id", parentCommentId)
+        .eq("is_deleted", false)
+        .order("created_at", { ascending: true });
+
+      if (error) throw error;
+      return data as unknown as CommentWithAuthor[];
+    },
+    enabled: enabled && !!parentCommentId,
+  });
+}
+
+/**
+ * Walks a single comment's ancestor chain (immediate parent, then its
+ * parent, and so on up to the root) by id — one lightweight
+ * row-per-hop lookup rather than pulling the whole tree just to find
+ * a lineage. Used only to auto-expand the right nested threads when
+ * arriving via a notification link that points at a reply buried a
+ * few levels down (see highlightId in CommentSheet.tsx). Returns ids
+ * ordered root-first, immediate-parent-last.
+ */
+export function useCommentAncestors(commentId: string | null | undefined) {
+  return useQuery({
+    queryKey: ["comment-ancestors", commentId],
+    queryFn: async (): Promise<string[]> => {
+      const chain: string[] = [];
+      let currentId = commentId!;
+      // Bounded to be safe against any unexpected cyclical data —
+      // threads don't realistically nest this deep.
+      for (let i = 0; i < 50; i++) {
+        const { data, error } = await supabase
+          .from("comments")
+          .select("id, parent_comment_id")
+          .eq("id", currentId)
+          .maybeSingle();
+        if (error || !data?.parent_comment_id) break;
+        chain.push(data.parent_comment_id);
+        currentId = data.parent_comment_id;
+      }
+      return chain.reverse(); // root-first
+    },
+    enabled: !!commentId,
   });
 }
 
@@ -80,6 +128,11 @@ export function useCreateComment(postId: string) {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["comments", postId] });
+      // Prefix match — refreshes every currently-open reply thread for
+      // this post (["comment-replies", postId, <any parent>]) so a new
+      // reply shows up immediately in whichever panel it landed in,
+      // without eagerly touching threads nobody has expanded.
+      queryClient.invalidateQueries({ queryKey: ["comment-replies", postId] });
       queryClient.invalidateQueries({ queryKey: ["feed-posts"] });
     },
   });
