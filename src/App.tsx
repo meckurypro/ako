@@ -318,18 +318,6 @@ function AppRoutes() {
                 </RequireAuth>
               }
             />
-            {/* A Project's public link, when posted personally — see
-                src/lib/projectLinks.ts. Deliberately NOT wrapped in
-                RequireAuth, unlike its /profile/:username siblings
-                above: this renders the exact same ProjectDetail page
-                /projects/:projectId does today (public), just reached
-                by a prettier address. Must stay ordered after the
-                static /followers and /following routes above — React
-                Router ranks a literal segment over a dynamic :slug at
-                the same position, so those keep matching first
-                regardless, but keeping the specific routes first here
-                too avoids relying on that subtlety. */}
-            <Route path="/profile/:username/:slug" element={<ProjectBySlug holderType="profile" />} />
             <Route
               path="/settings/profile"
               element={
@@ -375,11 +363,6 @@ function AppRoutes() {
                 </RequireAuth>
               }
             />
-            {/* A Project's public link, when posted as a page — see the
-                /profile/:username/:slug comment above; same reasoning,
-                mirrored for the page namespace. */}
-            <Route path="/page/:username/:slug" element={<ProjectBySlug holderType="page" />} />
-
             {/* Wallet */}
             <Route
               path="/wallet"
@@ -923,6 +906,24 @@ function AppRoutes() {
             {/* Folded into the Activity hub's Saved tab now — kept as a
                 redirect so any stale links still land somewhere valid. */}
             <Route path="/saved-projects" element={<Navigate to="/activity/saved" replace />} />
+
+            {/* A Project's public custom URL — a flat, globally unique
+                address like /calling, not scoped under any
+                /profile/:username or /page/:username prefix. See
+                src/lib/projectLinks.ts and the global_project_slugs
+                migration. Deliberately NOT wrapped in RequireAuth:
+                this renders the exact same ProjectDetail page
+                /projects/:projectId does today (public), just reached
+                by a prettier address. Must stay ordered after every
+                other route above — React Router ranks a literal
+                segment over a dynamic :slug at the same top level, so
+                a real path like /feed or /settings always wins over
+                this, but keeping it last here too avoids relying on
+                that subtlety. Slugs can never collide with a route
+                segment anyway (see is_reserved_project_slug /
+                RESERVED_PROJECT_SLUGS), so this is purely a fallback
+                for the "nothing else matched" case. */}
+            <Route path="/:slug" element={<ProjectBySlug />} />
 
             {/* Catch-all — must stay last. Previously absent, so any
                 unmatched URL (typo, stale bookmark to something removed
