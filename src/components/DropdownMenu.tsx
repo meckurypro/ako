@@ -53,6 +53,10 @@ const VIEWPORT_MARGIN = 8;
  * <DropdownMenu ... />}` — matching the existing pattern everywhere
  * else in the app, since `useBackDismiss` requires being mounted only
  * while actually open.
+ *
+ * Panel chrome is the shared .ako-overlay-panel (see index.css) — the
+ * same fixed dark-glass/light-text treatment Modal.tsx uses, so this
+ * kebab menu and a centered confirmation read as one design language.
  */
 export function DropdownMenu({ anchorRef, items, onClose, widthClass = "w-56" }: DropdownMenuProps) {
   useBackDismiss(onClose);
@@ -112,15 +116,15 @@ export function DropdownMenu({ anchorRef, items, onClose, widthClass = "w-56" }:
           (see ConfirmDialog, ReactionMoreSheet) — a kebab menu is
           still a modal interaction, it just anchors near the trigger
           instead of centering, so it gets the same backdrop. */}
-      <div className="fixed inset-0 z-50 bg-canvas/70 backdrop-blur-overlay" onClick={onClose} />
+      <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-overlay" onClick={onClose} />
       <div
         ref={panelRef}
         style={style ?? { position: "fixed", opacity: 0 }}
-        className={`${widthClass} z-50 bg-canvas border border-border rounded-xl shadow-lg py-2 overflow-y-auto overscroll-contain scroll-smooth`}
+        className={`${widthClass} z-50 ako-overlay-panel rounded-2xl py-2 overflow-y-auto overscroll-contain scroll-smooth`}
       >
         {items.map((item, i) =>
           item === "divider" ? (
-            <div key={`divider-${i}`} className="h-px bg-border my-2" />
+            <div key={`divider-${i}`} className="h-px bg-overlay-border my-2" />
           ) : (
             <button
               key={item.key}
@@ -132,8 +136,8 @@ export function DropdownMenu({ anchorRef, items, onClose, widthClass = "w-56" }:
                 runAfterDismiss(onClose, item.onSelect);
               }}
               disabled={item.disabled}
-              className={`w-full flex items-center gap-4 text-left px-5 py-3.5 text-base leading-snug hover:bg-surface active:bg-surface disabled:opacity-40 ${
-                item.variant === "danger" ? "text-danger" : "text-ink"
+              className={`w-full flex items-center gap-4 text-left px-5 py-3.5 text-base leading-snug hover:bg-overlay-surface-raised active:bg-overlay-surface-raised disabled:opacity-40 ${
+                item.variant === "danger" ? "text-overlay-danger" : "text-overlay-ink"
               }`}
             >
               {/* Fixed-size slot rendered for every row, icon or not —
