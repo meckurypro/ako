@@ -8,6 +8,7 @@ import { useProject, useHasPurchased, isProjectFree, useGetProjectFile } from ".
 import { useBookDetails, usePdfReadingProgress, useSavePdfReadingProgress } from "../hooks/useProjectTypeDetails";
 import { useIsProjectMember } from "../hooks/useProjectMembers";
 import { useAuth } from "../hooks/useAuth";
+import { resolveFunctionErrorMessage } from "../lib/functionErrors";
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
   "pdfjs-dist/build/pdf.worker.min.mjs",
@@ -117,7 +118,7 @@ export function BookReader() {
         setPdf(doc);
         setNumPages(doc.numPages);
       } catch (err) {
-        if (!cancelled) setError(err instanceof Error ? err.message : "Couldn't open this book.");
+        if (!cancelled) setError(await resolveFunctionErrorMessage(err, "Couldn't open this book."));
       } finally {
         if (!cancelled) setLoading(false);
       }

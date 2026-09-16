@@ -22,6 +22,7 @@ import { useScrollLock } from "../../hooks/useScrollLock";
 import { useToast } from "../Toast";
 import { useMyProfile } from "../../hooks/useProfile";
 import { useGetProjectFile } from "../../hooks/useProjects";
+import { resolveFunctionErrorMessage } from "../../lib/functionErrors";
 import {
   useCurrentLicenceAgreement,
   useMyAudioProjects,
@@ -119,7 +120,7 @@ export function PublishMusicSheet({ onClose, onPublished, projectId }: PublishMu
       const url = await getProjectFile.mutateAsync({ projectId: p.id, kind: "audio", action: "stream" });
       setSignedAudioUrl(url);
     } catch (err) {
-      setAudioError(err instanceof Error ? err.message : "Couldn't load this Project's audio.");
+      setAudioError(await resolveFunctionErrorMessage(err, "Couldn't load this Project's audio."));
     }
   }
 

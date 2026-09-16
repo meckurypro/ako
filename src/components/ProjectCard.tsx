@@ -67,6 +67,7 @@ import { SupportPitchSheet } from "./SupportPitchSheet";
 import { PrivateProjectNotice } from "./PrivateProjectNotice";
 import { useToast } from "./Toast";
 import { useIsProjectMember } from "../hooks/useProjectMembers";
+import { resolveFunctionErrorMessage } from "../lib/functionErrors";
 
 // File and URL keep the original single-link/download "unlock"
 // pattern inline in the action row. Media gets its own block above
@@ -188,6 +189,7 @@ function SongCoverPlayer({
   imageSrc,
   isLoadingImage,
   onLoadImage,
+  hasImage,
   audioSrc,
   isLoadingAudio,
   onLoadAudio,
@@ -196,6 +198,13 @@ function SongCoverPlayer({
   imageSrc: string | null;
   isLoadingImage: boolean;
   onLoadImage: () => void;
+  // Whether this Media project actually has an uploaded cover image
+  // at all. Without this, the player would unconditionally try to
+  // fetch one on mount/first-tap, and an audio-only project with no
+  // image channel would 404 on every single load — see
+  // get-project-file's "This project has no hosted file" — surfacing
+  // as a spurious error the person never caused.
+  hasImage: boolean;
   audioSrc: string | null;
   isLoadingAudio: boolean;
   onLoadAudio: () => void;
@@ -213,7 +222,7 @@ function SongCoverPlayer({
     if (!autoLoadOnMount) return;
     if (requestedRef.current) return;
     requestedRef.current = true;
-    if (!imageSrc) onLoadImage();
+    if (!imageSrc && hasImage) onLoadImage();
     if (!audioSrc) onLoadAudio();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [autoLoadOnMount]);
@@ -261,7 +270,7 @@ function SongCoverPlayer({
     // the request. The isBusy spinner covers the wait, and the
     // audioSrc-ready effect above plays it the moment it lands.
     if (!audioSrc) {
-      if (!imageSrc) onLoadImage();
+      if (!imageSrc && hasImage) onLoadImage();
       onLoadAudio();
       return;
     }
@@ -318,7 +327,6 @@ function SongCoverPlayer({
           </span>
         </span>
       </button>
-      <p className="text-xs text-ink-muted">Preview — {PREVIEW_SECONDS}s, looping</p>
     </div>
   );
 }
@@ -593,7 +601,7 @@ export function ProjectCard({
       logFreeAccessIfNeeded("download");
     } catch (err) {
       tab?.close();
-      setError(err instanceof Error ? err.message : "Couldn't access file.");
+      setError(await resolveFunctionErrorMessage(err, "Couldn't access file."));
     }
   }
 
@@ -618,7 +626,7 @@ export function ProjectCard({
       logFreeAccessIfNeeded("download");
     } catch (err) {
       tab?.close();
-      setError(err instanceof Error ? err.message : "Couldn't access file.");
+      setError(await resolveFunctionErrorMessage(err, "Couldn't access file."));
     }
   }
 
@@ -680,7 +688,7 @@ export function ProjectCard({
       setAudioSrc(url);
       logFreeAccessIfNeeded("stream");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Couldn't load audio.");
+      setError(await resolveFunctionErrorMessage(err, "Couldn't load audio."));
     }
   }
 
@@ -695,7 +703,7 @@ export function ProjectCard({
       setVideoSrc(url);
       logFreeAccessIfNeeded("stream");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Couldn't load video.");
+      setError(await resolveFunctionErrorMessage(err, "Couldn't load video."));
     }
   }
 
@@ -710,7 +718,7 @@ export function ProjectCard({
       setImageSrc(url);
       logFreeAccessIfNeeded("stream");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Couldn't load image.");
+      setError(await resolveFunctionErrorMessage(err, "Couldn't load image."));
     }
   }
 
@@ -1154,6 +1162,7 @@ export function ProjectCard({
                     imageSrc={imageSrc}
                     isLoadingImage={getImageStream.isPending}
                     onLoadImage={handleViewImage}
+                    hasImage={mediaDetails.has_image}
                     audioSrc={audioSrc}
                     isLoadingAudio={getAudioStream.isPending}
                     onLoadAudio={handlePlayAudio}
