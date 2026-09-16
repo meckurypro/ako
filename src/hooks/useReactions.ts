@@ -205,14 +205,29 @@ export interface CommentReactionState {
 
 type CommentReactionMap = Map<string, CommentReactionState>;
 
-function commentReactionsQueryKey(postId: string, userId: string | undefined, actingAsPageId: string | null) {
-  return ["my-comment-reactions", postId, userId, actingAsPageId] as const;
+// The set of comment ids CommentSheet knows about only ever grows
+// (roots on load, plus each reply batch as a thread gets expanded —
+// see the knownIds accumulator in CommentSheet.tsx), so the id
+// COUNT is a safe, cheap stand-in for "which ids" in the query key:
+// it changes exactly when there's genuinely new coverage to fetch,
+// and never shrinks back into colliding with an earlier, smaller
+// request the way reusing a mid-session snapshot of the array could.
+function commentReactionsQueryKey(
+  postId: string,
+  userId: string | undefined,
+  actingAsPageId: string | null,
+  knownCommentCount: number
+) {
+  return ["my-comment-reactions", postId, userId, actingAsPageId, knownCommentCount] as const;
 }
 
-// Fetches every comment reaction the current user has anywhere in one
-// post's thread, in a single request, instead of one request per
-// comment per reaction type. Item 7: scoped to the active identity,
-// same reasoning as useMyReaction above.
+// Fetches every comment reaction the current user has among the
+// currently-known comment ids for one post's thread, in a single
+// request, instead of one request per comment per reaction type. As
+// more replies get lazily expanded and commentIds grows, this
+// naturally re-fetches (see the key above) to cover the newly-visible
+// ones too. Item 7: scoped to the active identity, same reasoning as
+// useMyReaction above.
 export function useMyCommentReactions(postId: string, commentIds: string[]) {
   const { user } = useAuth();
   const { data: identity } = useActiveIdentity();
@@ -220,7 +235,7 @@ export function useMyCommentReactions(postId: string, commentIds: string[]) {
   const hasComments = commentIds.length > 0;
 
   return useQuery({
-    queryKey: commentReactionsQueryKey(postId, user?.id, actingAsPageId),
+    queryKey: commentReactionsQueryKey(postId, user?.id, actingAsPageId, commentIds.length),
     queryFn: async (): Promise<CommentReactionMap> => {
       const map: CommentReactionMap = new Map();
       if (!user || !hasComments) return map;
@@ -256,13 +271,16 @@ interface ToggleCommentReactionInput {
 // Toggles a like or dislike on one comment. Shared across every
 // comment in the sheet (CommentSheet creates one instance and
 // passes it down), so a tap on any comment's button hits the same
-// optimistic-update path.
-export function useToggleCommentReaction(postId: string) {
+// optimistic-update path. `knownCommentCount` must be the same value
+// CommentSheet is currently passing to useMyCommentReactions, so the
+// optimistic write below lands on the exact cache entry that's
+// actually being read.
+export function useToggleCommentReaction(postId: string, knownCommentCount: number) {
   const { user } = useAuth();
   const { data: identity } = useActiveIdentity();
   const actingAsPageId = identity?.mode === "page" ? identity.page.id : null;
   const queryClient = useQueryClient();
-  const queryKey = commentReactionsQueryKey(postId, user?.id, actingAsPageId);
+  const queryKey = commentReactionsQueryKey(postId, user?.id, actingAsPageId, knownCommentCount);
   const { play } = useSound();
 
   return useMutation({
