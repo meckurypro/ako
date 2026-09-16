@@ -862,14 +862,19 @@ function AppRoutes() {
                 </RequireAuth>
               }
             />
+            {/* Library now has its own bottom-nav slot (replacing
+                Activity there — see BottomNav.tsx) instead of living
+                inside the Activity hub. Old /activity/library links
+                still redirect below. */}
             <Route
-              path="/activity/library"
+              path="/library"
               element={
                 <RequireAuth>
                   <LibraryActivity />
                 </RequireAuth>
               }
             />
+            <Route path="/activity/library" element={<Navigate to="/library" replace />} />
             <Route
               path="/activity/events"
               element={
