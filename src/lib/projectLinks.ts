@@ -4,23 +4,25 @@
 // AKO_CUSTOM_PROJECT_LINKS_AND_PUBLIC_SLUGS.md for the full spec this
 // implements.
 //
-// A project's public address is:
+// A project's public address is a flat, global custom URL:
 //
-//   /profile/:username/:slug   — posted personally
-//   /page/:username/:slug      — posted as a page
+//   /:slug
 //
 // falling back to the immutable id-based route:
 //
 //   /projects/:id
 //
-// whenever a slug hasn't been set yet (or the holder's username isn't
-// known in the current context — see getProjectPath below). The id
-// route is never removed or deprecated; it's the thing the slug is
-// always an alias *for*, and it's what every internal "go straight to
-// this project" navigation (notifications, library, edit, ticket
-// scan, post-purchase redirects, etc.) keeps using on purpose — those
+// whenever a slug hasn't been set yet. The id route is never removed
+// or deprecated; it's the thing the slug is always an alias *for*,
+// and it's what every internal "go straight to this project"
+// navigation (notifications, library, edit, ticket scan,
+// post-purchase redirects, etc.) keeps using on purpose — those
 // aren't public/shareable links, so there's no reason for them to
 // depend on a slug existing.
+//
+// Slugs are unique GLOBALLY, not per-creator — /calling belongs to
+// exactly one project on all of Ako, the same way a username does.
+// See the global_project_slugs migration.
 //
 // This file is the ONLY place that should ever construct a project's
 // public path. Adding a new project type never requires touching
@@ -29,25 +31,17 @@
 // link for free the moment it has a row in `projects`.
 //
 // Kept in sync with the server: is_reserved_project_slug() and the
-// format check in set_project_slug() (see the
-// add_project_slug_rpcs / add_project_public_slug_schema
-// migrations). The server is what actually enforces this — this
-// copy exists purely so the UI can validate as the user types
-// without a round trip.
-
-export type ProjectSlugHolderType = "profile" | "page";
-
-export interface ProjectSlugHolder {
-  type: ProjectSlugHolderType;
-  username: string;
-}
+// format check in set_project_slug() (see the global_project_slugs
+// migration). The server is what actually enforces this — this copy
+// exists purely so the UI can validate as the user types without a
+// round trip.
 
 const SLUG_FORMAT = /^[a-z0-9]+(-[a-z0-9]+)*$/;
 
 // Mirrors is_reserved_project_slug() in Postgres. Not a security
-// boundary (the unique index is) — just keeps a slug from shadowing a
-// sibling static route under /profile/:username/* or /page/:username/*
-// (e.g. "followers", "edit"), plus a few obviously-confusing ones.
+// boundary (the unique index is) — just keeps a custom URL from
+// shadowing one of the app's own top-level routes (e.g. "settings",
+// "feed"), since a slug now lives at the same flat level as those.
 export const RESERVED_PROJECT_SLUGS = new Set([
   "new", "edit", "delete", "settings", "admin", "login", "signup", "logout",
   "api", "app", "www", "null", "undefined", "me", "support", "help", "about",
@@ -55,6 +49,10 @@ export const RESERVED_PROJECT_SLUGS = new Set([
   "project", "profile", "page", "pages", "wallet", "messages", "message",
   "notifications", "feed", "search", "explore", "activity", "archive",
   "saved", "liked", "library",
+  "verify-email", "reset-password", "auth", "onboarding", "compose",
+  "promote", "hashtag", "topics", "post", "requests", "bookmarks", "inbox",
+  "page-inbox", "rooms", "courses", "books", "meetings", "gigs",
+  "saved-projects", "settings-advanced", "settings-appearance",
 ]);
 
 export function normalizeProjectSlug(raw: string): string {
@@ -86,25 +84,17 @@ export function getProjectSlugFormatError(rawSlug: string): string | null {
 }
 
 /**
- * The path portion of a project's canonical public link. `holder` is
- * whoever the project is publicly addressed under — omit it (or leave
- * `slug` unset) and this degrades gracefully to the immutable
- * id-based route, which always works regardless of project_type.
+ * The path portion of a project's canonical public link. Degrades
+ * gracefully to the immutable id-based route when no slug is set,
+ * which always works regardless of project_type.
  */
-export function getProjectPath(
-  project: { id: string; slug?: string | null },
-  holder?: ProjectSlugHolder | null
-): string {
-  if (project.slug && holder?.username) {
-    const prefix = holder.type === "page" ? "/page" : "/profile";
-    return `${prefix}/${holder.username}/${project.slug}`;
+export function getProjectPath(project: { id: string; slug?: string | null }): string {
+  if (project.slug) {
+    return `/${project.slug}`;
   }
   return `/projects/${project.id}`;
 }
 
-export function getProjectUrl(
-  project: { id: string; slug?: string | null },
-  holder?: ProjectSlugHolder | null
-): string {
-  return `${window.location.origin}${getProjectPath(project, holder)}`;
+export function getProjectUrl(project: { id: string; slug?: string | null }): string {
+  return `${window.location.origin}${getProjectPath(project)}`;
 }

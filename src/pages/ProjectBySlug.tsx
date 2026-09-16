@@ -1,24 +1,24 @@
 // src/pages/ProjectBySlug.tsx
 import { useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { useResolveProjectSlug, useProjectSlugHolder } from "../hooks/useProjects";
-import { getProjectPath, normalizeProjectSlug, type ProjectSlugHolderType } from "../lib/projectLinks";
+import { useResolveProjectSlug } from "../hooks/useProjects";
+import { getProjectPath, normalizeProjectSlug } from "../lib/projectLinks";
 import { ProjectDetail } from "./ProjectDetail";
 
 /**
- * Mounted at /profile/:username/:slug and /page/:username/:slug (see
- * App.tsx). Not a second URL system alongside /projects/:id — it's
+ * Mounted at the flat /:slug route (see App.tsx, listed after every
+ * other top-level route so it only catches what nothing else
+ * claimed). Not a second URL system alongside /projects/:id — it's
  * the human-readable front door to the exact same page. ProjectDetail
  * already renders any project_type generically, so this dispatcher
  * doesn't need to know about project types at all; a new type gets a
  * working public link the moment it has a slug, with nothing to add
  * here.
  */
-export function ProjectBySlug({ holderType }: { holderType: ProjectSlugHolderType }) {
-  const { username, slug } = useParams<{ username: string; slug: string }>();
+export function ProjectBySlug() {
+  const { slug } = useParams<{ slug: string }>();
   const navigate = useNavigate();
-  const { data: project, isLoading, isError } = useResolveProjectSlug(holderType, username, slug);
-  const { data: holder } = useProjectSlugHolder(project ?? undefined);
+  const { data: project, isLoading, isError } = useResolveProjectSlug(slug);
 
   // A retired slug still resolves (to its project's current one) —
   // see resolve_project_slug. When that's what happened, swap the
@@ -27,10 +27,10 @@ export function ProjectBySlug({ holderType }: { holderType: ProjectSlugHolderTyp
   const isStaleSlug = !!project && !!slug && normalizeProjectSlug(project.slug ?? "") !== normalizeProjectSlug(slug);
 
   useEffect(() => {
-    if (project && isStaleSlug && holder) {
-      navigate(getProjectPath(project, holder), { replace: true });
+    if (project && isStaleSlug) {
+      navigate(getProjectPath(project), { replace: true });
     }
-  }, [project, isStaleSlug, holder, navigate]);
+  }, [project, isStaleSlug, navigate]);
 
   if (isLoading) {
     return (

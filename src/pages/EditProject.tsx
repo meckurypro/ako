@@ -786,7 +786,7 @@ export function EditProject() {
               onClick={() => setLinkSheetOpen(true)}
               className="w-full text-left text-sm font-medium text-accent px-1 mb-6"
             >
-              {project?.slug ? "Project link →" : "Choose your project link →"}
+              {project?.slug ? "Custom URL →" : "Choose your custom URL →"}
             </button>
           )}
 
