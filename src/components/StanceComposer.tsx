@@ -15,7 +15,7 @@ const STANCES: Stance[] = ["support", "disagree", "pushback"];
 // Single source of truth for stance colours. Imported by:
 //   • StanceComposer  — tabs, top border, textarea ring, submit button
 //   • PostCard        — tray icon stroke colour
-//   • CommentThread   — stance pill on each comment, reply button colour
+//   • CommentSheet    — stance pill on each comment, reply button colour
 export const STANCE_COLORS: Record<
   Stance,
   {

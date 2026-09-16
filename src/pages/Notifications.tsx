@@ -125,7 +125,7 @@ function timeAgo(dateString: string): string {
 //     comment) has target_id === the COMMENT id, which isn't a route on
 //     its own — useNotifications() resolves comment_post_id for these,
 //     so we route to the parent post with a `#comment-{id}` anchor that
-//     PostDetail/CommentThread scroll to and briefly highlight.
+//     PostDetail/CommentSheet scroll to and briefly highlight.
 // Rooms, courses, books, and meetings each have a dedicated page
 // distinct from the generic project detail page — see project_type
 // on NotificationWithActor. Anything else (media/file/url/event/gig/
