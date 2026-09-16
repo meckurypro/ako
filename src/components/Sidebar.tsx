@@ -8,7 +8,7 @@
 //
 // Rendered once, at the shell level (see AppShell.tsx), not per-page — so
 // unlike TopHeader/BottomNav it is NOT imported by individual pages.
-import { type ComponentType } from "react";
+import { useState, type ComponentType } from "react";
 import { Link, NavLink, useLocation, useMatch } from "react-router-dom";
 import { Search, Activity as ActivityIcon, MessageCircle, User, Bell, Plus, Wallet as WalletIcon, Settings as SettingsIcon, Radio } from "lucide-react";
 import { AkoMark } from "./AkoMark";
@@ -95,6 +95,21 @@ export function Sidebar({ collapsed, onToggleCollapsed }: SidebarProps) {
   const { data: isAdmin } = useIsAdmin();
   const location = useLocation();
 
+  // `collapsed` is the pinned preference (persisted — see AppShell),
+  // toggled explicitly via the button at the bottom. `isHovering` is
+  // purely transient hover state. `showLabels` is what actually
+  // drives rendering below: pinned-expanded always shows labels;
+  // pinned-collapsed shows them only while the pointer is over the
+  // rail, same "mini variant that flies out on hover" pattern as
+  // VS Code's activity bar or Notion's sidebar. The rail is
+  // `fixed` (out of document flow), so growing its width on hover
+  // overlays the page content beneath it rather than pushing it —
+  // AppShell's reserved padding-left is keyed off `collapsed` alone
+  // and deliberately doesn't react to hover, or every mouse-over
+  // would reflow the whole page.
+  const [isHovering, setIsHovering] = useState(false);
+  const showLabels = !collapsed || isHovering;
+
   // Same active-state disambiguation BottomNav uses: /me and /page/:username
   // both represent "your own identity" depending on acting-as-page mode.
   const profileMatch = useMatch("/profile/:username/*");
@@ -110,31 +125,38 @@ export function Sidebar({ collapsed, onToggleCollapsed }: SidebarProps) {
 
   return (
     <aside
+      onMouseEnter={() => setIsHovering(true)}
+      onMouseLeave={() => setIsHovering(false)}
       className={`hidden md:flex md:flex-col fixed left-0 top-0 h-screen z-30 border-r border-border bg-surface transition-[width] duration-150 ${
-        collapsed ? "w-[76px]" : "w-64"
+        showLabels ? "w-64" : "w-[76px]"
+      } ${
+        // Only pinned-collapsed-but-hovering needs to visually float
+        // over the content behind it — pinned-expanded already has
+        // that space reserved for it, no shadow needed.
+        collapsed && isHovering ? "shadow-xl" : ""
       }`}
     >
       {/* Brand — icon only. The mark already reads as "Akọ" on its own,
           so pairing it with a separate text label was pure redundancy.
           Sized up from the old 26px so it reads as a real brand mark,
           not an afterthought, in this persistent rail. */}
-      <div className={`flex items-center px-4 pt-6 pb-4 ${collapsed ? "justify-center px-0" : ""}`}>
+      <div className={`flex items-center px-4 pt-6 pb-4 ${!showLabels ? "justify-center px-0" : ""}`}>
         <AkoMark size={36} />
       </div>
 
       {/* Primary destinations */}
       <nav className="flex flex-col gap-1 px-3">
-        <NavItem to="/feed" icon={FeedIcon} label="Feed" collapsed={collapsed} />
-        <NavItem to="/topics" icon={Search} label="Discover" collapsed={collapsed} />
+        <NavItem to="/feed" icon={FeedIcon} label="Feed" collapsed={!showLabels} />
+        <NavItem to="/topics" icon={Search} label="Discover" collapsed={!showLabels} />
         <NavItem
           to={activePageId ? "/page-inbox" : "/inbox"}
           icon={MessageCircle}
           label="Messages"
           isActive={isMessagesActive}
           badge={messagesUnread}
-          collapsed={collapsed}
+          collapsed={!showLabels}
         />
-        <NavItem to="/notifications" icon={Bell} label="Notifications" badge={notifUnread} collapsed={collapsed} />
+        <NavItem to="/notifications" icon={Bell} label="Notifications" badge={notifUnread} collapsed={!showLabels} />
       </nav>
 
       {/* Create — primary action, not buried in a submenu */}
@@ -143,34 +165,34 @@ export function Sidebar({ collapsed, onToggleCollapsed }: SidebarProps) {
           to="/create"
           state={{ background: location }}
           className={`flex items-center gap-3 rounded-full bg-accent text-canvas font-semibold px-3 py-2.5 transition-opacity hover:opacity-90 ${
-            collapsed ? "justify-center" : ""
+            !showLabels ? "justify-center" : ""
           }`}
-          title={collapsed ? "Create" : undefined}
+          title={!showLabels ? "Create" : undefined}
         >
           <Plus size={22} strokeWidth={2} />
-          {!collapsed && <span>Create</span>}
+          {showLabels && <span>Create</span>}
         </Link>
       </div>
 
       {/* Your Akọ */}
       <div className="px-3 pt-5">
-        {!collapsed && (
+        {showLabels && (
           <div className="px-3 pb-1.5 text-[11px] font-semibold uppercase tracking-wide text-ink-muted/70">
             Your Akọ
           </div>
         )}
         <nav className="flex flex-col gap-1">
-          <NavItem to={profileHref} icon={User} label="Profile" isActive={isOwnProfileActive} collapsed={collapsed} />
-          <NavItem to="/pages" icon={Radio} label="Pages" collapsed={collapsed} />
-          <NavItem to="/activity/library" icon={ActivityIcon} label="Library" collapsed={collapsed} />
-          <NavItem to="/wallet" icon={WalletIcon} label="Wallet" collapsed={collapsed} />
+          <NavItem to={profileHref} icon={User} label="Profile" isActive={isOwnProfileActive} collapsed={!showLabels} />
+          <NavItem to="/pages" icon={Radio} label="Pages" collapsed={!showLabels} />
+          <NavItem to="/activity/library" icon={ActivityIcon} label="Library" collapsed={!showLabels} />
+          <NavItem to="/wallet" icon={WalletIcon} label="Wallet" collapsed={!showLabels} />
         </nav>
       </div>
 
       <div className="mt-auto px-3 pb-4">
         <nav className="flex flex-col gap-1">
-          <NavItem to="/settings" icon={SettingsIcon} label="Settings" collapsed={collapsed} />
-          {isAdmin && <NavItem to="/admin" icon={SettingsIcon} label="Admin" collapsed={collapsed} />}
+          <NavItem to="/settings" icon={SettingsIcon} label="Settings" collapsed={!showLabels} />
+          {isAdmin && <NavItem to="/admin" icon={SettingsIcon} label="Admin" collapsed={!showLabels} />}
         </nav>
 
         {/* Own identity, bottom of rail — mirrors where Instagram/TikTok
@@ -179,11 +201,11 @@ export function Sidebar({ collapsed, onToggleCollapsed }: SidebarProps) {
         <Link
           to={profileHref}
           className={`mt-2 flex items-center gap-2.5 rounded-full px-3 py-2 hover:bg-canvas ${
-            collapsed ? "justify-center" : ""
+            !showLabels ? "justify-center" : ""
           }`}
         >
           <Avatar src={profile?.avatar_url} name={profile?.username ?? "You"} size="sm" />
-          {!collapsed && (
+          {showLabels && (
             <span className="truncate text-sm font-medium text-ink">
               {profile?.username ? `@${profile.username}` : "You"}
             </span>
@@ -192,10 +214,11 @@ export function Sidebar({ collapsed, onToggleCollapsed }: SidebarProps) {
 
         <button
           onClick={onToggleCollapsed}
-          aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+          aria-label={collapsed ? "Pin sidebar open" : "Collapse sidebar"}
+          title={collapsed ? "Pin sidebar open" : "Collapse sidebar"}
           className="mt-2 w-full text-left text-xs text-ink-muted hover:text-ink px-3 py-1.5"
         >
-          {collapsed ? "»" : "« Collapse"}
+          {showLabels ? (collapsed ? "Pin open »" : "« Collapse") : "»"}
         </button>
       </div>
     </aside>
