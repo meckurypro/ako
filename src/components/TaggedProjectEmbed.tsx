@@ -2,6 +2,7 @@
 import { Link } from "react-router-dom";
 import { ImageIcon } from "lucide-react";
 import { PROJECT_TYPE_LABELS, getEffectivePrice, isProjectFree, type ProjectType } from "../hooks/useProjects";
+import { getProjectPath, type ProjectSlugHolder } from "../lib/projectLinks";
 
 export interface TaggedProjectSummary {
   id: string;
@@ -11,6 +12,8 @@ export interface TaggedProjectSummary {
   price_usd: number;
   promo_price_usd: number | null;
   status: "active" | "draft" | "archived" | "cancelled";
+  slug?: string | null;
+  posted_as_page?: { username: string } | null;
   owner: {
     username: string;
     display_name: string;
@@ -46,10 +49,13 @@ export function TaggedProjectEmbed({ project }: { project: TaggedProjectSummary 
 
   const free = isProjectFree(project);
   const price = getEffectivePrice(project);
+  const holder: ProjectSlugHolder = project.posted_as_page
+    ? { type: "page", username: project.posted_as_page.username }
+    : { type: "profile", username: project.owner.username };
 
   return (
     <Link
-      to={`/projects/${project.id}`}
+      to={getProjectPath(project, holder)}
       onClick={(e) => e.stopPropagation()}
       className="mt-3 flex items-center gap-2.5 rounded-xl border border-border bg-canvas px-2.5 py-2 hover:bg-canvas/80 transition-colors"
     >

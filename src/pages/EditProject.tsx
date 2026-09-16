@@ -20,6 +20,7 @@ import { Button } from "../components/Button";
 import { PrivacyToggle } from "../components/PrivacyToggle";
 import { ManageAccessSheet } from "../components/ManageAccessSheet";
 import { AffiliateProgramSheet } from "../components/AffiliateProgramSheet";
+import { ProjectLinkSheet } from "../components/ProjectLinkSheet";
 import { TopicPicker, MAX_TOPICS } from "../components/TopicPicker";
 import { FormatToolbar } from "../components/FormatToolbar";
 import { CONTENT_LIMIT, contentCounterClass } from "../lib/textLimits";
@@ -56,6 +57,7 @@ export function EditProject() {
   const { data: project, isLoading } = useProject(projectId);
   const [manageAccessOpen, setManageAccessOpen] = useState(false);
   const [affiliateSheetOpen, setAffiliateSheetOpen] = useState(false);
+  const [linkSheetOpen, setLinkSheetOpen] = useState(false);
   // Only used to decide whether to still surface the entry point for a
   // project that's currently free — see the price===0 branch below.
   const { data: affiliateProgram } = useAffiliateProgram(
@@ -778,6 +780,16 @@ export function EditProject() {
             )
           )}
 
+          {projectId && (
+            <button
+              type="button"
+              onClick={() => setLinkSheetOpen(true)}
+              className="w-full text-left text-sm font-medium text-accent px-1 mb-6"
+            >
+              {project?.slug ? "Project link →" : "Choose your project link →"}
+            </button>
+          )}
+
           <PrivacyToggle checked={isPrivate} onChange={setIsPrivate} />
 
           {isPrivate && projectId && (
@@ -818,6 +830,8 @@ export function EditProject() {
           onClose={() => setAffiliateSheetOpen(false)}
         />
       )}
+
+      {linkSheetOpen && project && <ProjectLinkSheet project={project} onClose={() => setLinkSheetOpen(false)} />}
     </div>
   );
 }

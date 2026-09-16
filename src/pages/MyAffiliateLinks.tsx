@@ -12,6 +12,7 @@ import {
 import { useToast } from "../components/Toast";
 import { formatUsd } from "../lib/money";
 import { getEffectivePrice } from "../hooks/useProjects";
+import { getProjectUrl, type ProjectSlugHolder } from "../lib/projectLinks";
 
 function AffiliateLinkRow({ relationship }: { relationship: AffiliateRelationshipWithProject }) {
   const toast = useToast();
@@ -21,7 +22,15 @@ function AffiliateLinkRow({ relationship }: { relationship: AffiliateRelationshi
   );
 
   async function handleCopy() {
-    const link = affiliateLinkFor(relationship.project_id, relationship.referral_token);
+    const holder: ProjectSlugHolder | null = relationship.project?.posted_as_page
+      ? { type: "page", username: relationship.project.posted_as_page.username }
+      : relationship.project?.owner
+        ? { type: "profile", username: relationship.project.owner.username }
+        : null;
+    const baseUrl = relationship.project
+      ? getProjectUrl(relationship.project, holder)
+      : `${window.location.origin}/projects/${relationship.project_id}`;
+    const link = affiliateLinkFor(baseUrl, relationship.referral_token);
     try {
       if (navigator.share) {
         await navigator.share({ title: relationship.project?.title, url: link });

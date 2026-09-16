@@ -87,6 +87,7 @@ import { AdminSendNotification } from "./pages/admin/AdminSendNotification";
 import { CreateProject } from "./pages/CreateProject";
 import { EditProject } from "./pages/EditProject";
 import { ProjectDetail } from "./pages/ProjectDetail";
+import { ProjectBySlug } from "./pages/ProjectBySlug";
 import { Room } from "./pages/Room";
 import { Course } from "./pages/Course";
 import { Book } from "./pages/Book";
@@ -316,6 +317,18 @@ function AppRoutes() {
                 </RequireAuth>
               }
             />
+            {/* A Project's public link, when posted personally — see
+                src/lib/projectLinks.ts. Deliberately NOT wrapped in
+                RequireAuth, unlike its /profile/:username siblings
+                above: this renders the exact same ProjectDetail page
+                /projects/:projectId does today (public), just reached
+                by a prettier address. Must stay ordered after the
+                static /followers and /following routes above — React
+                Router ranks a literal segment over a dynamic :slug at
+                the same position, so those keep matching first
+                regardless, but keeping the specific routes first here
+                too avoids relying on that subtlety. */}
+            <Route path="/profile/:username/:slug" element={<ProjectBySlug holderType="profile" />} />
             <Route
               path="/settings/profile"
               element={
@@ -361,6 +374,10 @@ function AppRoutes() {
                 </RequireAuth>
               }
             />
+            {/* A Project's public link, when posted as a page — see the
+                /profile/:username/:slug comment above; same reasoning,
+                mirrored for the page namespace. */}
+            <Route path="/page/:username/:slug" element={<ProjectBySlug holderType="page" />} />
 
             {/* Wallet */}
             <Route

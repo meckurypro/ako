@@ -19,6 +19,11 @@ import { formatUsd } from "../lib/money";
 interface AffiliateShareSheetProps {
   projectId: string;
   projectTitle: string;
+  // The project's own canonical URL (see getProjectUrl in
+  // src/lib/projectLinks.ts) to hang ?ref= off of. Optional so any
+  // existing caller that doesn't have owner/page context handy keeps
+  // working exactly as before, just without the pretty link.
+  shareUrl?: string;
   onClose: () => void;
 }
 
@@ -29,11 +34,12 @@ interface AffiliateShareSheetProps {
  * "Share & earn" button there), same division of responsibility as
  * ManageAccessSheet/AffiliateProgramSheet being owner-only.
  */
-export function AffiliateShareSheet({ projectId, projectTitle, onClose }: AffiliateShareSheetProps) {
+export function AffiliateShareSheet({ projectId, projectTitle, shareUrl, onClose }: AffiliateShareSheetProps) {
   useBackDismiss(onClose);
   const toast = useToast();
   const [copied, setCopied] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const baseUrl = shareUrl ?? `${window.location.origin}/projects/${projectId}`;
 
   const { data: program } = useAffiliateProgram(projectId);
   const { data: commissionPct } = useCurrentCommissionPct(program?.id);
@@ -99,9 +105,9 @@ export function AffiliateShareSheet({ projectId, projectTitle, onClose }: Affili
             ) : relationship?.status === "active" ? (
               <>
                 <div className="mt-3 mb-4 p-3 rounded-xl bg-canvas border border-border flex items-center gap-2">
-                  <p className="flex-1 text-sm text-ink truncate">{affiliateLinkFor(projectId, relationship.referral_token)}</p>
+                  <p className="flex-1 text-sm text-ink truncate">{affiliateLinkFor(baseUrl, relationship.referral_token)}</p>
                   <button
-                    onClick={() => void handleCopy(affiliateLinkFor(projectId, relationship.referral_token))}
+                    onClick={() => void handleCopy(affiliateLinkFor(baseUrl, relationship.referral_token))}
                     className="shrink-0 p-1.5 text-accent"
                     aria-label="Copy link"
                   >
@@ -109,7 +115,7 @@ export function AffiliateShareSheet({ projectId, projectTitle, onClose }: Affili
                   </button>
                 </div>
 
-                <Button onClick={() => void handleCopy(affiliateLinkFor(projectId, relationship.referral_token))}>
+                <Button onClick={() => void handleCopy(affiliateLinkFor(baseUrl, relationship.referral_token))}>
                   Share my link
                 </Button>
 

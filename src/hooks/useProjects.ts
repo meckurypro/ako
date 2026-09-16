@@ -5,6 +5,12 @@ import { useAuth } from "./useAuth";
 import { useSound } from "./useSound";
 import { PROFILE_ROLES_SELECT, toProfileRoles } from "../lib/profileRoles";
 import type { AuthorSummary, PageSummary } from "../types/database";
+import {
+  normalizeProjectSlug,
+  isValidProjectSlugFormat,
+  type ProjectSlugHolder,
+  type ProjectSlugHolderType,
+} from "../lib/projectLinks";
 
 // ------------------------------------------------------------
 // Types — mirror the projects table after ako_projects_v3_media_url_privacy.sql
@@ -328,6 +334,10 @@ export interface Project {
   // rails. See useUserProjects/useSimilarProjects below.
   is_private: boolean;
   like_count: number;
+  // Public link alias — see src/lib/projectLinks.ts. Never the
+  // canonical identity (id always is); null until the owner sets one
+  // in the "Project link" section of Edit.
+  slug: string | null;
 }
 
 // --------------------------------------------------------
@@ -757,6 +767,122 @@ export function useUpdateProject() {
   });
 }
 
+// --------------------------------------------------------
+// Public project links (slugs) — see
+// AKO_CUSTOM_PROJECT_LINKS_AND_PUBLIC_SLUGS.md and
+// src/lib/projectLinks.ts for the URL-building side of this. All the
+// actual validation/uniqueness/history bookkeeping lives server-side
+// in check_project_slug_available / set_project_slug /
+// resolve_project_slug (see the add_project_public_slug_schema and
+// add_project_slug_rpcs migrations) — these hooks are thin wrappers.
+// --------------------------------------------------------
+
+// Whoever a project is publicly addressed under: the page it was
+// posted as, or the owner's own profile. Scoped by project so it
+// naturally follows if a project's authorship ever changes.
+export function useProjectSlugHolder(
+  project: Pick<Project, "owner_id" | "posted_as_page_id"> | undefined
+) {
+  return useQuery({
+    queryKey: ["project-slug-holder", project?.posted_as_page_id ?? project?.owner_id],
+    queryFn: async (): Promise<ProjectSlugHolder> => {
+      if (project!.posted_as_page_id) {
+        const { data, error } = await supabase
+          .from("pages")
+          .select("username")
+          .eq("id", project!.posted_as_page_id)
+          .single();
+        if (error) throw error;
+        return { type: "page", username: data.username };
+      }
+      const { data, error } = await supabase
+        .from("profiles")
+        .select("username")
+        .eq("id", project!.owner_id)
+        .single();
+      if (error) throw error;
+      return { type: "profile", username: data.username };
+    },
+    enabled: !!project,
+    staleTime: 5 * 60_000,
+  });
+}
+
+// Debounced-by-the-caller live availability check, same pattern as
+// CreatePage.tsx's username check — UX only. set_project_slug is what
+// actually enforces this server-side, so a stale "available" here
+// (someone else claims it in the gap between typing and saving)
+// still surfaces as a clear error from the mutation below.
+export function useCheckProjectSlugAvailable(
+  holderId: string | undefined,
+  slug: string,
+  excludeProjectId: string | undefined
+) {
+  const normalized = normalizeProjectSlug(slug);
+  return useQuery({
+    queryKey: ["project-slug-available", holderId, normalized, excludeProjectId],
+    queryFn: async (): Promise<boolean> => {
+      const { data, error } = await supabase.rpc("check_project_slug_available", {
+        p_holder_id: holderId,
+        p_slug: normalized,
+        p_exclude_project_id: excludeProjectId ?? null,
+      });
+      if (error) throw error;
+      return data as boolean;
+    },
+    enabled: !!holderId && isValidProjectSlugFormat(normalized),
+    staleTime: 0,
+  });
+}
+
+export function useSetProjectSlug() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    meta: { blocking: true },
+    mutationFn: async ({ projectId, slug }: { projectId: string; slug: string }) => {
+      const { data, error } = await supabase.rpc("set_project_slug", {
+        p_project_id: projectId,
+        p_slug: normalizeProjectSlug(slug),
+      });
+      if (error) throw new Error(error.message);
+      return data as Project;
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["project", data.id] });
+      queryClient.invalidateQueries({ queryKey: ["project-detail", data.id] });
+      queryClient.invalidateQueries({ queryKey: ["user-projects"] });
+    },
+  });
+}
+
+// Resolves a public /profile/:username/:slug or /page/:username/:slug
+// address — see ProjectBySlug.tsx, the only caller. A stale/retired
+// slug still resolves (to the same project, with its current slug
+// attached) so the caller can redirect to the up-to-date link; a slug
+// that never existed, or points at something the viewer can't see,
+// comes back as `null` either way — that ambiguity is intentional
+// server-side (see resolve_project_slug's comment).
+export function useResolveProjectSlug(
+  holderType: ProjectSlugHolderType,
+  username: string | undefined,
+  slug: string | undefined
+) {
+  return useQuery({
+    queryKey: ["resolve-project-slug", holderType, username, slug],
+    queryFn: async (): Promise<Project | null> => {
+      const { data, error } = await supabase.rpc("resolve_project_slug", {
+        p_holder_type: holderType,
+        p_username: username,
+        p_slug: slug,
+      });
+      if (error) throw error;
+      const rows = data as Project[];
+      return rows?.[0] ?? null;
+    },
+    enabled: !!username && !!slug,
+  });
+}
 
 // Quick status-only transition — used by the kebab menu on
 // ProjectCard for one-tap Publish / Unpublish / Archive / Restore,
