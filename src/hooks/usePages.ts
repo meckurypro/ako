@@ -223,6 +223,12 @@ interface CreatePageInput {
   avatar_url?: string;
   category_id?: string;
   parent_organization_id?: string;
+  // Same contract as CreateProject's topic_ids -> project_topics —
+  // a follow-up client insert rather than an RPC param, since
+  // page_interests already has RLS permitting the creator (who
+  // becomes an admin member inside create_page itself) to write it
+  // directly, no need to touch the RPC.
+  topic_ids?: string[];
 }
 
 export function useCreatePage() {
@@ -231,23 +237,49 @@ export function useCreatePage() {
   return useMutation({
     meta: { blocking: true },
     mutationFn: async (input: CreatePageInput): Promise<Page> => {
+      const { topic_ids, ...rest } = input;
       const { data, error } = await supabase.rpc("create_page", {
-        p_page_type: input.page_type,
-        p_name: input.name,
-        p_username: input.username,
-        p_role_label: input.role_label,
-        p_bio: input.bio ?? null,
-        p_tagline: input.tagline ?? null,
-        p_avatar_url: input.avatar_url ?? null,
-        p_category_id: input.category_id ?? null,
-        p_parent_organization_id: input.parent_organization_id ?? null,
+        p_page_type: rest.page_type,
+        p_name: rest.name,
+        p_username: rest.username,
+        p_role_label: rest.role_label,
+        p_bio: rest.bio ?? null,
+        p_tagline: rest.tagline ?? null,
+        p_avatar_url: rest.avatar_url ?? null,
+        p_category_id: rest.category_id ?? null,
+        p_parent_organization_id: rest.parent_organization_id ?? null,
       });
       if (error) throw error;
+
+      if (topic_ids && topic_ids.length > 0) {
+        const rows = topic_ids.map((interest_id) => ({ page_id: data.id, interest_id }));
+        const { error: topicsError } = await supabase.from("page_interests").insert(rows);
+        if (topicsError) throw topicsError;
+      }
+
       return data;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["my-pages"] });
     },
+  });
+}
+
+// A page's currently-attached topics (interests) — same shape as
+// useProjectTopics/usePostTopics, used to prefill TopicPicker when
+// editing a page that already has some set.
+export function usePageTopics(pageId: string | undefined) {
+  return useQuery({
+    queryKey: ["page-topics", pageId],
+    queryFn: async (): Promise<string[]> => {
+      const { data, error } = await supabase
+        .from("page_interests")
+        .select("interest_id")
+        .eq("page_id", pageId);
+      if (error) throw error;
+      return data.map((row) => row.interest_id);
+    },
+    enabled: !!pageId,
   });
 }
 
@@ -379,6 +411,10 @@ interface UpdatePageInput {
   cover_url?: string;
   website_url?: string;
   category_id?: string | null;
+  // Omit to leave topics untouched; pass an array (including empty,
+  // to clear them all) to replace the full set — same contract as
+  // useUpdateProject's topic_ids for project_topics.
+  topic_ids?: string[];
 }
 
 /** Direct table update, admin-enforced by RLS — same pattern as
@@ -388,15 +424,27 @@ export function useUpdatePage() {
 
   return useMutation({
     meta: { blocking: true },
-    mutationFn: async ({ page_id, ...input }: UpdatePageInput) => {
+    mutationFn: async ({ page_id, topic_ids, ...input }: UpdatePageInput) => {
       const { error } = await supabase.from("pages").update(input).eq("id", page_id);
       if (error) throw error;
+
+      if (topic_ids !== undefined) {
+        const { error: deleteError } = await supabase.from("page_interests").delete().eq("page_id", page_id);
+        if (deleteError) throw deleteError;
+
+        if (topic_ids.length > 0) {
+          const rows = topic_ids.map((interest_id) => ({ page_id, interest_id }));
+          const { error: insertError } = await supabase.from("page_interests").insert(rows);
+          if (insertError) throw insertError;
+        }
+      }
     },
     onSuccess: (_data, variables) => {
       queryClient.invalidateQueries({ queryKey: ["page"] });
       queryClient.invalidateQueries({ queryKey: ["my-pages"] });
       queryClient.invalidateQueries({ queryKey: ["active-identity"] });
       queryClient.invalidateQueries({ queryKey: ["page-members", variables.page_id] });
+      queryClient.invalidateQueries({ queryKey: ["page-topics", variables.page_id] });
     },
   });
 }
