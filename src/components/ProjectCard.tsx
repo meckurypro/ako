@@ -385,7 +385,12 @@ export function ProjectCard({
   const { data: affiliateProgram } = useAffiliateProgram(
     project.project_type !== "pitch" ? project.id : undefined
   );
-  const canBecomeAffiliate = !!user && !isOwner && !!affiliateProgram?.enabled;
+  // Defensive re-check on top of the enabled flag: a program can have
+  // been enabled while the project was paid, then the creator dropped
+  // the price to 0 afterward (or a book lost is_own_work, which forces
+  // price to 0 — see CreateProject/EditProject). A free project can
+  // never be affiliated, no matter what the stored program row says.
+  const canBecomeAffiliate = !!user && !isOwner && !!affiliateProgram?.enabled && project.price_usd > 0;
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [audioSrc, setAudioSrc] = useState<string | null>(null);
   const [videoSrc, setVideoSrc] = useState<string | null>(null);

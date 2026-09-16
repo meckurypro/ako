@@ -348,7 +348,11 @@ export function ProjectDetail() {
     project && project.project_type !== "pitch" ? project.id : undefined
   );
   const [shareSheetOpen, setShareSheetOpen] = useState(false);
-  const canBecomeAffiliate = !!user && !!project && !isOwner && !!affiliateProgram?.enabled;
+  // See matching comment in ProjectCard — a free project can never be
+  // affiliated, even if a program row is still marked enabled from
+  // when the project used to carry a price.
+  const canBecomeAffiliate =
+    !!user && !!project && !isOwner && !!affiliateProgram?.enabled && project.price_usd > 0;
 
   // Powers the Activity hub's "History" tab (see useViewHistory) —
   // same idea as useMarkPostSeen for posts.
