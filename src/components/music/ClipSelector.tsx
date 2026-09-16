@@ -11,7 +11,7 @@ import { Play, Pause, Minus, Plus } from "lucide-react";
 import { computeBufferPeaks, decodeAudioFile, sliceAndEncodeWav, type DecodedAudio } from "../../lib/audioClip";
 
 const MIN_DURATION = 5;
-const MAX_DURATION = 60;
+const MAX_DURATION = 30;
 const DURATION_STEP = 5;
 const DEFAULT_DURATION = 30;
 
@@ -138,7 +138,7 @@ export function ClipSelector({ audioUrl, onConfirm, onCancel }: ClipSelectorProp
     <div className="px-4 py-4">
       <audio ref={audioElRef} src={audioUrl} preload="none" />
 
-      <h3 className="font-display text-base text-ink mb-1">Pick the best 60 seconds</h3>
+      <h3 className="font-display text-base text-ink mb-1">Pick the best 30 seconds</h3>
       <p className="text-xs text-ink-muted mb-4">Drag the highlighted section over the part you want people to hear.</p>
 
       {loadError && <p className="text-sm text-danger mb-3">{loadError}</p>}
