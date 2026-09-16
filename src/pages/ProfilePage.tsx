@@ -1,7 +1,7 @@
 // src/pages/ProfilePage.tsx
 import { useState, useRef, useEffect } from "react";
 import { useParams, Link, useNavigate, useLocation } from "react-router-dom";
-import { Settings, Wallet, MessageCircle, MoreHorizontal, Plus, Eye, X, Globe, UserCheck, Lock, Redo2, Building2, ArrowUp, Undo2 } from "lucide-react";
+import { Settings, Wallet, MessageCircle, MoreHorizontal, Plus, Eye, X, Globe, UserCheck, Lock, Redo2, Building2, ArrowUp, Undo2, ChevronDown, UserMinus, Bell, BellOff, Send } from "lucide-react";
 import { useAuth } from "../hooks/useAuth";
 import {
   useProfileByUsername,
@@ -31,6 +31,7 @@ import { Avatar } from "../components/Avatar";
 import { AccountSwitcher } from "../components/AccountSwitcher";
 import { ImageLightbox } from "../components/ImageLightbox";
 import { ShareProfileSheet } from "../components/ShareProfileSheet";
+import { ConfirmDialog } from "../components/ConfirmDialog";
 import { ReportModal } from "../components/ReportModal";
 import { ProfileShareScreen } from "../components/ProfileShareScreen";
 import { useToast } from "../components/Toast";
@@ -145,12 +146,31 @@ export function ProfilePage() {
   useBackDismiss(() => setShowUnfollowConfirm(false), showUnfollowConfirm);
   useScrollLock(showUnfollowConfirm);
 
+  // Removing a follower is a one-way relationship change the other
+  // person feels (they stop following you, silently) — always worth a
+  // pause, unlike Mute/Message which are reversible or inert. See
+  // ConfirmDialog.tsx's own doc comment for the "when does this get a
+  // confirm" rule this follows.
+  const [showRemoveFollowerConfirm, setShowRemoveFollowerConfirm] = useState(false);
+  useBackDismiss(() => setShowRemoveFollowerConfirm(false), showRemoveFollowerConfirm);
+  useScrollLock(showRemoveFollowerConfirm);
+
+  // The visitor-side "you're following them" control — Message,
+  // Unfollow, Mute, and (when applicable) Remove follower live behind
+  // this one anchored menu instead of "Unfollow" sitting exposed as
+  // its own one-tap pill (see the toolbar below). Separate from
+  // ownerMenuOpen/shareSheetOpen: this is its own anchor button.
+  const [relationshipMenuOpen, setRelationshipMenuOpen] = useState(false);
+  const relationshipMenuButtonRef = useRef<HTMLButtonElement>(null);
+
   const [previewingAsVisitor, setPreviewingAsVisitor] = useState(false);
   const [avatarOpen, setAvatarOpen] = useState(false);
-  // Visitor's consolidated "Send to" sheet (see ShareProfileSheet) and
-  // the owner's full-screen QR share takeover (see ProfileShareScreen)
-  // — mutually exclusive, but kept as separate flags since they're
-  // reached from different toolbar states and never both apply.
+  // Visitor's consolidated "…" sheet (see ShareProfileSheet — Report/
+  // Block/Customise name/QR now; relationship actions moved out to the
+  // menu above) and the owner's full-screen QR share takeover (see
+  // ProfileShareScreen) — mutually exclusive, but kept as separate
+  // flags since they're reached from different toolbar states and
+  // never both apply.
   const [shareSheetOpen, setShareSheetOpen] = useState(false);
   const [reportContentOpen, setReportContentOpen] = useState(false);
   const [qrShareOpen, setQrShareOpen] = useState(false);
@@ -288,21 +308,27 @@ export function ProfilePage() {
   // mute/block, owner-side options) is handled internally by
   // <DropdownMenu> now.
 
-  function handleFollowClick() {
-    if (isFollowing) {
-      // Unfollowing gets a confirm whenever there's something worth
-      // knowing first: a mutual follow (easy to drop by accident) or
-      // a private account (re-following means asking again, not an
-      // instant follow) — either reason is enough to pause, and the
-      // modal below shows whichever applies.
-      if (isFollowedByUser || profile?.is_private) {
-        setShowUnfollowConfirm(true);
-        return;
-      }
-      toggleFollow.mutate(true);
+  // The actual unfollow — reachable from the relationship menu's
+  // "Unfollow" item now, not from a bare one-tap pill. Still gets a
+  // confirm whenever there's something worth knowing first: a mutual
+  // follow (easy to drop by accident) or a private account
+  // (re-following means asking again, not an instant follow) — either
+  // reason is enough to pause, and the dialog below shows whichever
+  // applies. Opening the menu is already a deliberate first step, so
+  // a plain unfollow (neither condition) goes straight through.
+  function startUnfollow() {
+    if (isFollowedByUser || profile?.is_private) {
+      setShowUnfollowConfirm(true);
       return;
     }
+    toggleFollow.mutate(true);
+  }
 
+  function handleFollowClick() {
+    // isFollowing has no pill of its own anymore — see the toolbar
+    // below — so this only ever runs for the three states that are
+    // still a single, non-destructive tap: Requested (cancel), a
+    // private account (send request), or a plain Follow.
     if (hasPendingRequest) {
       cancelFollowRequest.mutate();
       return;
@@ -337,10 +363,18 @@ export function ProfilePage() {
     setQrShareOpen(true);
   }
 
+  // Opens the confirm — the actual removal is confirmRemoveFollower
+  // below. Closes whichever menu it was opened from first.
   function handleRemoveFollower() {
+    setRelationshipMenuOpen(false);
+    setShareSheetOpen(false);
+    setShowRemoveFollowerConfirm(true);
+  }
+
+  function confirmRemoveFollower() {
     removeFollower.mutate(undefined, {
       onSuccess: () => {
-        setShareSheetOpen(false);
+        setShowRemoveFollowerConfirm(false);
         toast(`Removed ${firstName || "this follower"}.`, { variant: "success" });
       },
     });
@@ -465,6 +499,67 @@ export function ProfilePage() {
                 Exit preview
               </button>
             </div>
+          ) : isFollowing ? (
+            // Already following: Message and Unfollow no longer sit
+            // exposed as their own one-tap controls (a raw "Unfollow"
+            // pill made it too easy to drop someone by accident) —
+            // they're compressed into this one relationship menu,
+            // right next to the existing "…" (which keeps Report/
+            // Block/Customise name/QR — see ShareProfileSheet). A
+            // dedicated "Following ▾" pill, not a bare icon, so the
+            // relationship state is still visible at a glance.
+            <div className="flex items-center justify-end gap-2 relative w-full">
+              <button
+                ref={relationshipMenuButtonRef}
+                onClick={() => setRelationshipMenuOpen((o) => !o)}
+                disabled={isBlocked}
+                className="flex items-center gap-1.5 text-sm font-medium bg-accent-soft text-accent rounded-full pl-4 pr-3 py-2 disabled:opacity-40"
+              >
+                <UserCheck size={16} />
+                Following
+                <ChevronDown size={14} />
+              </button>
+
+              {relationshipMenuOpen && (
+                <DropdownMenu
+                  anchorRef={relationshipMenuButtonRef}
+                  onClose={() => setRelationshipMenuOpen(false)}
+                  widthClass="w-56"
+                  items={[
+                    {
+                      key: "message",
+                      label: "Message",
+                      icon: <Send />,
+                      disabled: startConversation.isPending,
+                      onSelect: () => void handleMessage(),
+                    },
+                    {
+                      key: "mute",
+                      label: isMuted ? "Unmute" : "Mute their updates",
+                      icon: isMuted ? <Bell /> : <BellOff />,
+                      onSelect: () => toggleMute.mutate(isMuted),
+                    },
+                    "divider",
+                    {
+                      key: "unfollow",
+                      label: "Unfollow",
+                      icon: <UserMinus />,
+                      variant: "danger",
+                      disabled: toggleFollow.isPending,
+                      onSelect: startUnfollow,
+                    },
+                  ]}
+                />
+              )}
+
+              <button
+                onClick={() => setShareSheetOpen(true)}
+                className="text-ink-muted p-2"
+                aria-label="More options"
+              >
+                <MoreHorizontal size={18} />
+              </button>
+            </div>
           ) : (
             <div className="flex items-center justify-end gap-2 relative w-full">
               <button
@@ -484,20 +579,14 @@ export function ProfilePage() {
                   isBlocked
                 }
                 className={`px-5 py-2 rounded-full text-sm font-medium disabled:opacity-40 ${
-                  isFollowing || hasPendingRequest
+                  hasPendingRequest
                     ? "bg-accent-soft text-accent"
                     : isFollowedByUser
                     ? "bg-pushback/15 text-pushback"
                     : "bg-ink/10 text-ink"
                 }`}
               >
-                {isFollowing
-                  ? "Unfollow"
-                  : hasPendingRequest
-                  ? "Requested"
-                  : isFollowedByUser
-                  ? "Follow back"
-                  : "Follow"}
+                {hasPendingRequest ? "Requested" : isFollowedByUser ? "Follow back" : "Follow"}
               </button>
 
               <button
@@ -774,7 +863,6 @@ export function ProfilePage() {
           onToggleBlock={() => toggleBlock.mutate(isBlocked)}
           onToggleMute={() => toggleMute.mutate(isMuted)}
           onRemoveFollower={handleRemoveFollower}
-          onMessage={handleMessage}
           onOpenQR={() => setQrShareOpen(true)}
           onReportContent={() => setReportContentOpen(true)}
           onClose={() => setShareSheetOpen(false)}
@@ -796,44 +884,37 @@ export function ProfilePage() {
       )}
 
       {showUnfollowConfirm && (
-        <div
-          className="fixed inset-0 bg-canvas/70 backdrop-blur-overlay flex items-center justify-center z-50 px-6"
-          onClick={() => setShowUnfollowConfirm(false)}
-        >
-          <div
-            className="bg-canvas rounded-2xl p-5 w-full max-w-sm"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="text-ink text-sm mb-4 space-y-2">
-              {isFollowedByUser && (
-                <p>
-                  You and {firstName} are friends. Still want to unfollow?
-                </p>
-              )}
-              {profile.is_private && (
-                <p>
-                  This account is private. If you unfollow, you'll need to send a new follow
-                  request and be approved again to follow {firstName}.
-                </p>
-              )}
-            </div>
-            <div className="flex gap-2">
-              <button
-                onClick={() => setShowUnfollowConfirm(false)}
-                className="flex-1 border border-border text-ink-muted py-2.5 rounded-lg text-sm"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={confirmUnfollow}
-                disabled={toggleFollow.isPending}
-                className="flex-1 bg-accent text-canvas py-2.5 rounded-lg text-sm font-medium disabled:opacity-50"
-              >
-                Unfollow
-              </button>
-            </div>
-          </div>
-        </div>
+        <ConfirmDialog
+          title={`Unfollow ${firstName || "this account"}?`}
+          description={
+            isFollowedByUser && profile.is_private
+              ? `You and ${firstName} are friends, and this account is private — you'll need to send a new follow request and be approved again to follow them.`
+              : isFollowedByUser
+              ? `You and ${firstName} are friends. Still want to unfollow?`
+              : `This account is private. If you unfollow, you'll need to send a new follow request and be approved again.`
+          }
+          confirmLabel="Unfollow"
+          // Not styled as a red/danger action — unfollowing is
+          // reversible and non-punitive, just worth a pause when it
+          // affects a mutual relationship or resets a private
+          // approval. Matches the accent-colored confirm this dialog
+          // always used before the shared ConfirmDialog existed.
+          danger={false}
+          onConfirm={confirmUnfollow}
+          onCancel={() => setShowUnfollowConfirm(false)}
+        />
+      )}
+
+      {showRemoveFollowerConfirm && (
+        <ConfirmDialog
+          title={`Remove ${firstName || "this follower"}?`}
+          description={`${
+            firstName || "They"
+          } will stop following you and won't be notified. They can choose to follow you again later.`}
+          confirmLabel={removeFollower.isPending ? "Removing…" : "Remove"}
+          onConfirm={confirmRemoveFollower}
+          onCancel={() => setShowRemoveFollowerConfirm(false)}
+        />
       )}
     </div>
   );
