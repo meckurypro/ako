@@ -445,7 +445,7 @@ export function Settings() {
 
   return (
     <div className="min-h-screen bg-canvas px-4 pt-4 pb-10">
-      <div className="max-w-md mx-auto">
+      <div className="max-w-md md:max-w-xl mx-auto">
         <div className="flex items-center gap-3 mb-6">
           <button onClick={smartBack} className="text-ink-muted">
             <ArrowLeft size={22} />
