@@ -111,7 +111,7 @@ export function PublishMusicSheet({ onClose, onPublished, projectId }: PublishMu
 
     if (!p.audio_file_path) {
       setAudioError(
-        "This Project only has a link to the full track, not an uploaded file — upload an audio file to it first so Akọ can pick a real 60-second clip."
+        "This Project only has a link to the full track, not an uploaded file — upload an audio file to it first so Akọ can pick a real 30-second clip."
       );
       return;
     }
@@ -129,7 +129,7 @@ export function PublishMusicSheet({ onClose, onPublished, projectId }: PublishMu
     if (!project) return setError("Select a Project first.");
     if (!title.trim()) return setError("Add a song title.");
     if (!artistName.trim()) return setError("Add a primary artist name.");
-    if (!clip) return setError("Select the 60-second clip first.");
+    if (!clip) return setError("Select the 30-second clip first.");
     if (contributors.length === 0) return setError("Tag at least one contributor.");
     if (!contributors.some((c) => c.role === "artist")) return setError("At least one contributor must be tagged Artist.");
     if (!rightsAccepted) return setError("Accept the rights declaration to publish.");
