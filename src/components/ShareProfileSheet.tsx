@@ -14,7 +14,6 @@ import {
   BellOff,
   Bell,
   Ban,
-  Send,
   UserMinus,
   QrCode,
 } from "lucide-react";
@@ -40,7 +39,6 @@ interface ShareProfileSheetProps {
   onToggleBlock: () => void;
   onToggleMute: () => void;
   onRemoveFollower: () => void;
-  onMessage: () => void;
   onOpenQR: () => void;
   /** Opens ReportModal — reporting one of this profile's specific
    *  posts/projects, distinct from this sheet's own "Report" step
@@ -54,11 +52,19 @@ type Mode = "menu" | "nickname" | "report";
 /**
  * Everything a visitor might want to do from a profile's "…" — send
  * the profile link straight into a recent chat, hand it off to an
- * outside app, or manage the relationship (mute/block/report/remove
- * follower/nickname) — collected into one sheet instead of scattering
- * them across a plain dropdown. Matches the "Send to" pattern from
- * TikTok/Instagram: a row of people to send to, a row of external
- * destinations, then a grid of profile-management actions.
+ * outside app, or manage the account (block/report/remove follower/
+ * nickname/QR) — collected into one sheet instead of scattering them
+ * across a plain dropdown. Matches the "Send to" pattern from TikTok/
+ * Instagram: a row of people to send to, a row of external
+ * destinations, then a grid of account-management actions.
+ *
+ * Message and Mute live in the relationship menu on the toolbar
+ * instead (see ProfilePage.tsx's "Following ▾" control) — this sheet
+ * used to duplicate "Send message" here too, which just meant two
+ * paths to the same action once that menu existed. Mute is
+ * intentionally still here as well as there for the isFollowedByUser
+ * (they follow you, but you haven't followed back) case, where the
+ * relationship menu itself doesn't render.
  */
 export function ShareProfileSheet({
   profile,
@@ -68,7 +74,6 @@ export function ShareProfileSheet({
   onToggleBlock,
   onToggleMute,
   onRemoveFollower,
-  onMessage,
   onOpenQR,
   onReportContent,
   onClose,
@@ -317,15 +322,6 @@ export function ShareProfileSheet({
       icon: <Ban size={20} />,
       danger: !isBlocked,
       onSelect: onToggleBlock,
-    },
-    {
-      key: "message",
-      label: "Send message",
-      icon: <Send size={20} />,
-      onSelect: () => {
-        onClose();
-        onMessage();
-      },
     },
     ...(isFollowedByUser
       ? [
