@@ -4,8 +4,8 @@ import { useNavigate, useParams } from "react-router-dom";
 import { useSmartBack } from "../hooks/useSmartBack";
 import { ArrowLeft, Camera } from "lucide-react";
 import { useAuth } from "../hooks/useAuth";
-import { usePageByUsername, usePageMembers, useUpdatePage } from "../hooks/usePages";
-import { useCategories } from "../hooks/useCategories";
+import { usePageByUsername, usePageMembers, useUpdatePage, usePageTopics } from "../hooks/usePages";
+import { TopicPicker, MAX_TOPICS } from "../components/TopicPicker";
 import { useUploadAvatar } from "../hooks/useUploadAvatar";
 import { Avatar } from "../components/Avatar";
 import { MentionTextarea } from "../components/MentionTextarea";
@@ -25,7 +25,7 @@ export function EditPage() {
 
   const { data: page, isLoading } = usePageByUsername(username!);
   const { data: members } = usePageMembers(page?.id ?? "");
-  const { data: categories } = useCategories();
+  const { data: existingTopicIds } = usePageTopics(page?.id);
   const updatePage = useUpdatePage();
   const uploadAvatar = useUploadAvatar();
 
@@ -36,7 +36,7 @@ export function EditPage() {
   const [tagline, setTagline] = useState("");
   const [bio, setBio] = useState("");
   const [websiteUrl, setWebsiteUrl] = useState("");
-  const [categoryId, setCategoryId] = useState("");
+  const [topicIds, setTopicIds] = useState<Set<string>>(new Set());
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
   const [coverUrl, setCoverUrl] = useState<string | null>(null);
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
@@ -53,12 +53,28 @@ export function EditPage() {
       setTagline(page.tagline ?? "");
       setBio(page.bio ?? "");
       setWebsiteUrl(page.website_url ?? "");
-      setCategoryId(page.category_id ?? "");
       setAvatarUrl(page.avatar_url);
       setCoverUrl(page.cover_url);
       setHydrated(true);
     }
   }, [page, hydrated]);
+
+  useEffect(() => {
+    if (existingTopicIds) setTopicIds(new Set(existingTopicIds));
+  }, [existingTopicIds]);
+
+  function toggleTopic(interestId: string) {
+    setTopicIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(interestId)) {
+        next.delete(interestId);
+      } else {
+        if (next.size >= MAX_TOPICS) return prev;
+        next.add(interestId);
+      }
+      return next;
+    });
+  }
 
   async function handleAvatarSelect(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -107,7 +123,7 @@ export function EditPage() {
         tagline: tagline.trim() || undefined,
         bio: bio.trim() || undefined,
         website_url: websiteUrl.trim() || undefined,
-        category_id: categoryId || null,
+        topic_ids: Array.from(topicIds),
         avatar_url: avatarUrl ?? undefined,
         cover_url: coverUrl ?? undefined,
       });
@@ -229,23 +245,7 @@ export function EditPage() {
             />
           </div>
 
-          {categories && categories.length > 0 && (
-            <div>
-              <label className="block text-xs font-medium text-ink-muted mb-1">Category</label>
-              <select
-                value={categoryId}
-                onChange={(e) => setCategoryId(e.target.value)}
-                className="w-full bg-surface rounded-xl px-4 py-3 text-sm text-ink"
-              >
-                <option value="">None</option>
-                {categories.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-          )}
+          <TopicPicker selected={topicIds} onToggle={toggleTopic} />
 
           {error && <p className="text-sm text-danger">{error}</p>}
 
