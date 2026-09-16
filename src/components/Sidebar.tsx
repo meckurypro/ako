@@ -10,7 +10,7 @@
 // unlike TopHeader/BottomNav it is NOT imported by individual pages.
 import { useState, type ComponentType } from "react";
 import { Link, NavLink, useLocation, useMatch } from "react-router-dom";
-import { Search, Activity as ActivityIcon, MessageCircle, User, Bell, Plus, Wallet as WalletIcon, Settings as SettingsIcon, Radio } from "lucide-react";
+import { Search, MessageCircle, User, Bell, Plus, Wallet as WalletIcon, Settings as SettingsIcon, Radio, LibraryBig } from "lucide-react";
 import { AkoMark } from "./AkoMark";
 import { Avatar } from "./Avatar";
 import { useAuth } from "../hooks/useAuth";
@@ -184,7 +184,7 @@ export function Sidebar({ collapsed, onToggleCollapsed }: SidebarProps) {
         <nav className="flex flex-col gap-1">
           <NavItem to={profileHref} icon={User} label="Profile" isActive={isOwnProfileActive} collapsed={!showLabels} />
           <NavItem to="/pages" icon={Radio} label="Pages" collapsed={!showLabels} />
-          <NavItem to="/activity/library" icon={ActivityIcon} label="Library" collapsed={!showLabels} />
+          <NavItem to="/library" icon={LibraryBig} label="Library" collapsed={!showLabels} />
           <NavItem to="/wallet" icon={WalletIcon} label="Wallet" collapsed={!showLabels} />
         </nav>
       </div>

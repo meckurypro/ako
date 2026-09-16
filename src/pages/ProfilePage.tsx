@@ -1,7 +1,7 @@
 // src/pages/ProfilePage.tsx
 import { useState, useRef, useEffect } from "react";
 import { useParams, Link, useNavigate, useLocation } from "react-router-dom";
-import { Settings, Wallet, MessageCircle, MoreHorizontal, Plus, Eye, X, Globe, UserCheck, Lock, Redo2, Building2, ArrowUp, Undo2, ChevronDown, UserMinus, Bell, BellOff, Send, Briefcase } from "lucide-react";
+import { Settings, Wallet, MessageCircle, MoreHorizontal, Plus, Eye, X, Globe, UserCheck, Lock, Redo2, Building2, ArrowUp, Undo2, ChevronDown, UserMinus, Bell, BellOff, Send, Briefcase, Activity as ActivityIcon } from "lucide-react";
 import { useAuth } from "../hooks/useAuth";
 import {
   useProfileByUsername,
@@ -565,21 +565,14 @@ export function ProfilePage() {
                     onClose={() => setOwnerMenuOpen(false)}
                     widthClass="w-64"
                     items={[
-                      { key: "share", label: "Share profile", icon: <Redo2 />, onSelect: handleShareProfile },
                       {
-                        key: "page",
-                        label: "Page",
-                        icon: <Building2 />,
+                        key: "activity",
+                        label: "Activity",
+                        icon: <ActivityIcon />,
                         onSelect: () => {
                           setOwnerMenuOpen(false);
-                          navigate("/pages");
+                          navigate("/activity");
                         },
-                      },
-                      {
-                        key: "view-as-visitor",
-                        label: "View as visitor",
-                        icon: <Eye />,
-                        onSelect: () => setPreviewingAsVisitor(true),
                       },
                       ...(profile.is_private
                         ? ([
@@ -603,8 +596,24 @@ export function ProfilePage() {
                         icon: <Briefcase />,
                         onSelect: () => navigate("/gigs"),
                       },
+                      {
+                        key: "page",
+                        label: "Page",
+                        icon: <Building2 />,
+                        onSelect: () => {
+                          setOwnerMenuOpen(false);
+                          navigate("/pages");
+                        },
+                      },
                       { key: "wallet", label: "Wallet", icon: <Wallet />, onSelect: () => navigate("/wallet") },
+                      {
+                        key: "view-as-visitor",
+                        label: "View as visitor",
+                        icon: <Eye />,
+                        onSelect: () => setPreviewingAsVisitor(true),
+                      },
                       { key: "settings", label: "Settings", icon: <Settings />, onSelect: () => navigate("/settings/profile") },
+                      { key: "share", label: "Share profile", icon: <Redo2 />, onSelect: handleShareProfile },
                     ]}
                   />
                 )}

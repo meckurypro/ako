@@ -302,7 +302,7 @@ function SongCoverPlayer({
         type="button"
         onClick={toggle}
         aria-label={isPlaying ? "Pause song" : "Play song"}
-        className="relative block w-full rounded-lg overflow-hidden bg-canvas disabled:cursor-default"
+        className="relative block w-full rounded-2xl overflow-hidden bg-canvas shadow-sm disabled:cursor-default"
       >
         {imageSrc ? (
           <img src={imageSrc} alt="" className="w-full max-h-72 object-contain" />
@@ -870,13 +870,21 @@ export function ProjectCard({
   const showOwnerBadges = isOwner && (project.status !== "active" || project.is_private);
 
   return (
-    <div className="bg-surface rounded-2xl border border-border mb-3 relative">
+    <div
+      className={`group bg-surface rounded-[28px] border border-border/60 mb-4 relative overflow-hidden transition-shadow duration-300 shadow-[0_1px_2px_rgba(var(--shadow-ink-rgb),0.04),0_10px_28px_-16px_rgba(var(--shadow-ink-rgb),0.16)] ${
+        isDetailView ? "" : "hover:shadow-[0_1px_2px_rgba(var(--shadow-ink-rgb),0.06),0_20px_44px_-18px_rgba(var(--shadow-ink-rgb),0.22)]"
+      }`}
+    >
       <div
         style={{ aspectRatio }}
-        className="w-full bg-canvas flex items-center justify-center rounded-t-2xl overflow-hidden"
+        className="w-full bg-canvas flex items-center justify-center overflow-hidden"
       >
         {project.thumbnail_url ? (
-          <img src={project.thumbnail_url} alt="" className="w-full h-full object-cover" />
+          <img
+            src={project.thumbnail_url}
+            alt=""
+            className="w-full h-full object-cover transition-transform duration-500 ease-out group-hover:scale-[1.04]"
+          />
         ) : (
           <ImageIcon size={32} className="text-ink-muted" />
         )}
@@ -887,7 +895,7 @@ export function ProjectCard({
       {showOwnerBadges && (
         <div className="absolute top-3 left-3 flex items-center gap-1.5">
           {project.status !== "active" && (
-            <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-ink text-canvas">
+            <span className="text-xs font-medium px-2.5 py-1 rounded-full bg-ink/85 text-canvas backdrop-blur-md shadow-[0_2px_8px_rgba(var(--shadow-ink-rgb),0.18)]">
               {project.status === "draft"
                 ? "Draft"
                 : project.status === "cancelled"
@@ -896,7 +904,7 @@ export function ProjectCard({
             </span>
           )}
           {project.is_private && (
-            <span className="flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full bg-ink/80 text-canvas">
+            <span className="flex items-center gap-1 text-xs font-medium px-2.5 py-1 rounded-full bg-ink/70 text-canvas backdrop-blur-md shadow-[0_2px_8px_rgba(var(--shadow-ink-rgb),0.18)]">
               <EyeOff size={10} />
               Private
             </span>
@@ -909,7 +917,7 @@ export function ProjectCard({
           <button
             ref={menuButtonRef}
             onClick={() => setMenuOpen((o) => !o)}
-            className="p-1.5 rounded-full bg-canvas/90 text-ink-muted"
+            className="p-1.5 rounded-full bg-canvas/90 backdrop-blur-md text-ink-muted shadow-[0_2px_8px_rgba(var(--shadow-ink-rgb),0.14)] transition-colors hover:text-ink"
             aria-label="Project options"
           >
             <MoreHorizontal size={16} />
@@ -1007,17 +1015,18 @@ export function ProjectCard({
         </div>
       )}
 
-      <div className="p-4">
-        <div className="flex items-start justify-between gap-2">
+      <div className="p-5">
+        <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
-            <h3 className="font-display text-lg text-ink truncate">{project.title}</h3>
-            <span className="flex items-center gap-2 text-xs text-ink-muted">
+            <h3 className="font-display text-lg font-semibold tracking-tight text-ink truncate">{project.title}</h3>
+            <span className="flex items-center gap-2 text-xs text-ink-muted mt-0.5">
               {PROJECT_TYPE_LABELS[project.project_type]}
               {/* Access count — paid or free, per-type wording kept
                   generic ("accessed") since download/stream/ticket/join
                   all count toward the same number. */}
               {(accessCountQuery.data ?? 0) > 0 && (
                 <span className="flex items-center gap-1">
+                  <span className="w-1 h-1 rounded-full bg-ink-muted/50" />
                   <Eye size={11} />
                   {accessCountQuery.data}
                 </span>
@@ -1027,26 +1036,26 @@ export function ProjectCard({
 
           <div className="flex-shrink-0 text-right">
             {isPitch ? (
-              <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-accent-soft text-accent">
+              <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-accent-soft text-accent shadow-sm">
                 ${(pitchRaised ?? 0).toFixed(0)} raised
               </span>
             ) : isFree && project.project_type === "gig" ? (
-              <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-accent-soft text-accent">
+              <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-accent-soft text-accent shadow-sm">
                 Message to inquire
               </span>
             ) : isFree ? (
-              <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-accent-soft text-accent">
+              <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-accent-soft text-accent shadow-sm">
                 Free
               </span>
             ) : showPromo ? (
               <span className="flex items-center gap-1.5">
                 <span className="text-xs text-ink-muted line-through">${project.price_usd.toFixed(2)}</span>
-                <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-accent-soft text-accent">
+                <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-accent-soft text-accent shadow-sm">
                   ${effectivePrice.toFixed(2)}
                 </span>
               </span>
             ) : (
-              <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-surface border border-border text-ink">
+              <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-surface border border-border text-ink shadow-sm">
                 ${project.price_usd.toFixed(2)}
               </span>
             )}
@@ -1464,7 +1473,7 @@ export function ProjectCard({
           {isPitch && !isOwner && (
             <button
               onClick={() => setSupportSheetOpen(true)}
-              className="ml-auto flex items-center gap-1.5 bg-accent text-canvas px-4 py-1.5 rounded-full text-sm font-medium"
+              className="ml-auto flex items-center gap-1.5 bg-accent text-canvas px-4 py-1.5 rounded-full text-sm font-semibold shadow-[0_4px_14px_-4px_rgba(var(--shadow-ink-rgb),0.35)] transition-transform active:scale-[0.97]"
             >
               <Heart size={15} />
               Support
@@ -1482,7 +1491,7 @@ export function ProjectCard({
             <button
               onClick={project.project_type === "gig" ? handleBookGig : handleBuy}
               disabled={project.project_type === "gig" ? bookGig.isPending : purchaseProject.isPending}
-              className="ml-auto bg-accent text-canvas px-4 py-1.5 rounded-full text-sm font-medium disabled:opacity-50"
+              className="ml-auto bg-accent text-canvas px-4 py-1.5 rounded-full text-sm font-semibold shadow-[0_4px_14px_-4px_rgba(var(--shadow-ink-rgb),0.35)] transition-transform active:scale-[0.97] disabled:opacity-50 disabled:active:scale-100"
             >
               {project.project_type === "gig"
                 ? bookGig.isPending
@@ -1506,20 +1515,22 @@ export function ProjectCard({
         {canBecomeAffiliate && !isDetailView && (
           <button
             onClick={() => setAffiliateShareOpen(true)}
-            className="w-full flex items-center justify-center gap-2 bg-accent-soft text-accent py-2.5 rounded-xl font-medium text-sm mb-2"
+            className="w-full flex items-center justify-center gap-2 bg-accent-soft text-accent py-2.5 rounded-2xl font-semibold text-sm mb-2 transition-transform active:scale-[0.98]"
           >
             <TrendingUp size={15} />
             Share & earn a commission
           </button>
         )}
 
-        <ReactionTray
-          leftActions={leftActions}
-          middleActions={middleActions}
-          rightActions={rightActions}
-          onOpenMore={isArchivedFrozen || middleActions.length === 0 ? undefined : () => setShowMoreActions(true)}
-          disabled={isArchivedFrozen}
-        />
+        <div className="mt-1 pt-3 border-t border-border/60">
+          <ReactionTray
+            leftActions={leftActions}
+            middleActions={middleActions}
+            rightActions={rightActions}
+            onOpenMore={isArchivedFrozen || middleActions.length === 0 ? undefined : () => setShowMoreActions(true)}
+            disabled={isArchivedFrozen}
+          />
+        </div>
 
         {showMoreActions && !isArchivedFrozen && middleActions.length > 0 && (
           <ReactionMoreSheet actions={middleActions} onClose={() => setShowMoreActions(false)} />

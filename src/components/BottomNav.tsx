@@ -1,6 +1,6 @@
 import type { ComponentType } from "react";
 import { NavLink, useMatch } from "react-router-dom";
-import { Search, Activity as ActivityIcon, MessageCircle, User } from "lucide-react";
+import { Search, LibraryBig, MessageCircle, User } from "lucide-react";
 import { useAuth } from "../hooks/useAuth";
 import { useUnreadConversationCount } from "../hooks/useMessaging";
 import { usePageInboxUnreadCount } from "../hooks/usePageInbox";
@@ -100,11 +100,11 @@ export function BottomNav() {
           </NavLink>
         ))}
 
-        <NavLink to="/activity" replace className={linkClass}>
+        <NavLink to="/library" replace className={linkClass}>
           {({ isActive }) => (
             <>
-              <NavIcon Icon={ActivityIcon} isActive={isActive} />
-              Activity
+              <NavIcon Icon={LibraryBig} isActive={isActive} />
+              Library
             </>
           )}
         </NavLink>

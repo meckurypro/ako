@@ -52,18 +52,22 @@ function ProjectMiniCard({ project }: { project: Project }) {
   return (
     <Link
       to={`/projects/${project.id}`}
-      className="flex-shrink-0 w-36 bg-surface rounded-xl overflow-hidden border border-border"
+      className="group flex-shrink-0 w-36 bg-surface rounded-2xl overflow-hidden border border-border/60 shadow-[0_1px_2px_rgba(var(--shadow-ink-rgb),0.04),0_8px_20px_-12px_rgba(var(--shadow-ink-rgb),0.14)] transition-all duration-300 hover:shadow-[0_1px_2px_rgba(var(--shadow-ink-rgb),0.06),0_16px_32px_-14px_rgba(var(--shadow-ink-rgb),0.2)] hover:-translate-y-0.5"
     >
-      <div className="w-full aspect-square bg-canvas flex items-center justify-center">
+      <div className="w-full aspect-square bg-canvas flex items-center justify-center overflow-hidden">
         {project.thumbnail_url ? (
-          <img src={project.thumbnail_url} alt="" className="w-full h-full object-cover" />
+          <img
+            src={project.thumbnail_url}
+            alt=""
+            className="w-full h-full object-cover transition-transform duration-500 ease-out group-hover:scale-[1.06]"
+          />
         ) : (
           <ImageIcon size={24} className="text-ink-muted" />
         )}
       </div>
-      <div className="p-2.5">
-        <p className="text-sm text-ink truncate">{project.title}</p>
-        <p className="text-xs text-ink-muted">{PROJECT_TYPE_LABELS[project.project_type]}</p>
+      <div className="p-3">
+        <p className="text-sm font-medium text-ink truncate">{project.title}</p>
+        <p className="text-xs text-ink-muted mt-0.5">{PROJECT_TYPE_LABELS[project.project_type]}</p>
       </div>
     </Link>
   );
@@ -72,8 +76,8 @@ function ProjectMiniCard({ project }: { project: Project }) {
 function ProjectRail({ title, projects }: { title: string; projects: Project[] }) {
   if (projects.length === 0) return null;
   return (
-    <div className="mt-6">
-      <h3 className="font-display text-base text-ink mb-3">{title}</h3>
+    <div className="mt-8">
+      <h3 className="font-display text-lg font-semibold tracking-tight text-ink mb-3">{title}</h3>
       <div className="flex gap-3 overflow-x-auto pb-1 -mx-4 px-4">
         {projects.map((p) => (
           <ProjectMiniCard key={p.id} project={p} />
@@ -133,13 +137,13 @@ function GigFaqSection({ faq }: { faq: { question: string; answer: string }[] })
   const [openIndex, setOpenIndex] = useState<number | null>(null);
   return (
     <div className="mb-4">
-      <h3 className="font-display text-base text-ink mb-2">FAQ</h3>
-      <div className="flex flex-col gap-1.5">
+      <h3 className="font-display text-lg font-semibold tracking-tight text-ink mb-2">FAQ</h3>
+      <div className="flex flex-col gap-2">
         {faq.map((item, i) => (
-          <div key={i} className="rounded-xl border border-border bg-surface overflow-hidden">
+          <div key={i} className="rounded-2xl border border-border/60 bg-surface overflow-hidden shadow-sm">
             <button
               onClick={() => setOpenIndex(openIndex === i ? null : i)}
-              className="w-full flex items-center justify-between gap-2 px-3 py-2.5 text-left"
+              className="w-full flex items-center justify-between gap-2 px-4 py-3 text-left"
             >
               <span className="text-sm text-ink font-medium">{item.question}</span>
               <ChevronDown
@@ -147,7 +151,7 @@ function GigFaqSection({ faq }: { faq: { question: string; answer: string }[] })
                 className={`text-ink-muted flex-shrink-0 transition-transform ${openIndex === i ? "rotate-180" : ""}`}
               />
             </button>
-            {openIndex === i && <p className="px-3 pb-2.5 text-sm text-ink-muted">{item.answer}</p>}
+            {openIndex === i && <p className="px-4 pb-3.5 text-sm text-ink-muted">{item.answer}</p>}
           </div>
         ))}
       </div>
@@ -195,7 +199,7 @@ function GigReviewsSection({ projectId }: { projectId: string }) {
   return (
     <div className="mb-4">
       <div className="flex items-center justify-between mb-2">
-        <h3 className="font-display text-base text-ink">Reviews</h3>
+        <h3 className="font-display text-lg font-semibold tracking-tight text-ink">Reviews</h3>
         {canReview && !showForm && (
           <button onClick={() => setShowForm(true)} className="text-sm text-accent font-medium">
             Leave a review
@@ -292,7 +296,7 @@ function EventHighlightsSection({ projectId, isOwner }: { projectId: string; isO
   return (
     <div className="mt-6">
       <div className="flex items-center justify-between mb-3">
-        <h3 className="font-display text-base text-ink flex items-center gap-1.5">
+        <h3 className="font-display text-lg font-semibold tracking-tight text-ink flex items-center gap-1.5">
           <Play size={15} /> From the event
         </h3>
         {isOwner && (
@@ -373,8 +377,12 @@ export function ProjectDetail({ resolvedProjectId }: { resolvedProjectId?: strin
   return (
     <div className="min-h-screen bg-canvas px-4 pt-4 pb-24">
       <div className="max-w-xl md:max-w-2xl mx-auto">
-        <button onClick={smartBack} className="text-ink-muted mb-3">
-          <ArrowLeft size={22} />
+        <button
+          onClick={smartBack}
+          className="flex items-center justify-center w-10 h-10 rounded-full bg-surface border border-border/60 text-ink-muted mb-4 shadow-sm transition-colors hover:text-ink"
+          aria-label="Back"
+        >
+          <ArrowLeft size={20} />
         </button>
 
         {isLoading || !project ? (
@@ -386,7 +394,7 @@ export function ProjectDetail({ resolvedProjectId }: { resolvedProjectId?: strin
             {canBecomeAffiliate && (
               <button
                 onClick={() => setShareSheetOpen(true)}
-                className="w-full flex items-center justify-center gap-2 bg-accent-soft text-accent py-3 rounded-xl font-medium text-sm -mt-2 mb-4"
+                className="w-full flex items-center justify-center gap-2 bg-accent-soft text-accent py-3 rounded-2xl font-semibold text-sm -mt-2 mb-4 transition-transform active:scale-[0.98]"
               >
                 <TrendingUp size={16} />
                 Share & earn a commission
@@ -485,7 +493,7 @@ export function ProjectDetail({ resolvedProjectId }: { resolvedProjectId?: strin
             )}
             {project.project_type === "gig" && gigSamples && gigSamples.length > 0 && (
               <div className="mb-4">
-                <h3 className="font-display text-base text-ink mb-3">Work samples</h3>
+                <h3 className="font-display text-lg font-semibold tracking-tight text-ink mb-3">Work samples</h3>
                 <div className="flex gap-3 overflow-x-auto pb-1 -mx-4 px-4">
                   {gigSamples.map((sample) => (
                     <ProjectMiniCard key={sample.id} project={sample} />
@@ -511,7 +519,7 @@ export function ProjectDetail({ resolvedProjectId }: { resolvedProjectId?: strin
                 {project.topics.map((topic) => (
                   <span
                     key={topic.id}
-                    className="text-xs font-medium px-2.5 py-1 rounded-full bg-surface border border-border text-ink-muted"
+                    className="text-xs font-medium px-3 py-1 rounded-full bg-surface border border-border/60 text-ink-muted shadow-sm"
                   >
                     {topic.name}
                   </span>
@@ -529,7 +537,7 @@ export function ProjectDetail({ resolvedProjectId }: { resolvedProjectId?: strin
                 useProjects.ts), this is purely a display swap. */}
             <Link
               to={project.posted_as_page ? `/page/${project.posted_as_page.username}` : `/profile/${project.owner.username}`}
-              className="flex items-center gap-3 bg-surface rounded-2xl border border-border p-4"
+              className="flex items-center gap-3 bg-surface rounded-2xl border border-border/60 p-4 shadow-[0_1px_2px_rgba(var(--shadow-ink-rgb),0.04),0_8px_20px_-12px_rgba(var(--shadow-ink-rgb),0.14)] transition-shadow hover:shadow-[0_1px_2px_rgba(var(--shadow-ink-rgb),0.06),0_14px_28px_-14px_rgba(var(--shadow-ink-rgb),0.18)]"
             >
               {project.posted_as_page ? (
                 <>

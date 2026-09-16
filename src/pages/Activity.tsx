@@ -1,7 +1,7 @@
 // src/pages/Activity.tsx
 import { useNavigate } from "react-router-dom";
 import { useSmartBack } from "../hooks/useSmartBack";
-import { ArrowLeft, Bookmark, Heart, History, CalendarClock, ChevronRight, FileEdit, Send, LibraryBig, TrendingUp } from "lucide-react";
+import { ArrowLeft, Bookmark, Heart, History, CalendarClock, ChevronRight, FileEdit, Send, TrendingUp } from "lucide-react";
 import { BottomNav } from "../components/BottomNav";
 import { useMyDraftPosts, useMyScheduledPosts } from "../hooks/usePosts";
 
@@ -39,12 +39,6 @@ const ROWS = [
     icon: History,
     label: "History",
     description: "Posts and projects you've viewed",
-  },
-  {
-    to: "/activity/library",
-    icon: LibraryBig,
-    label: "Library",
-    description: "Books, courses, media, files, and links you have access to",
   },
   {
     to: "/activity/events",
