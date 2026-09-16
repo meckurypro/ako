@@ -35,11 +35,17 @@ import type { ContributorDraft, EligibleAudioProject } from "../../types/music";
 interface PublishMusicSheetProps {
   onClose: () => void;
   onPublished?: (catalogueId: string) => void;
+  // When opened from a specific Audio Project's own page (the normal
+  // case — PublishMusicButton), preselect that Project instead of
+  // making the owner re-find it in the generic picker below. Omitted
+  // when opened from a context with no single Project in scope (e.g.
+  // a future "Publish Music" entry point from a general music hub).
+  projectId?: string;
 }
 
 type ClipState = { startSeconds: number; durationSeconds: number; blob: Blob } | null;
 
-export function PublishMusicSheet({ onClose, onPublished }: PublishMusicSheetProps) {
+export function PublishMusicSheet({ onClose, onPublished, projectId }: PublishMusicSheetProps) {
   const toast = useToast();
   const { data: me } = useMyProfile();
   const { data: eligibleProjects, isLoading: loadingProjects } = useMyAudioProjects();
@@ -84,6 +90,18 @@ export function PublishMusicSheet({ onClose, onPublished }: PublishMusicSheetPro
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [me]);
+
+  // Preselect the Project this sheet was opened for, the moment it
+  // shows up in the eligible list — same selection path as a manual
+  // pick, just automatic, so the owner lands straight on the
+  // title/clip/contributors step for the song they were already
+  // looking at instead of a generic "which Project?" picker.
+  useEffect(() => {
+    if (!projectId || project) return;
+    const match = eligibleProjects?.find((p) => p.id === projectId);
+    if (match) handleSelectProject(match);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [projectId, eligibleProjects, project]);
 
   async function handleSelectProject(p: EligibleAudioProject) {
     setProject(p);
