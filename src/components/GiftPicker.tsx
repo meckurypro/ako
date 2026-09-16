@@ -3,7 +3,7 @@ import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { X, ArrowLeft } from "lucide-react";
 import { useGiftTypes, useWallet, useTopGiftTypeIds } from "../hooks/useWallet";
-import { useSendGift } from "../hooks/useGifting";
+import { useSendGift, useSendMediaGift } from "../hooks/useGifting";
 import { useBackDismiss } from "../hooks/useBackDismiss";
 import { useScrollLock } from "../hooks/useScrollLock";
 import { Portal } from "./Portal";
@@ -17,6 +17,12 @@ interface GiftPickerProps {
   recipientAvatar: string | null;
   postId?: string;
   commentId?: string;
+  // A Media project instead of a post/comment — recipientId/Name/Avatar
+  // still drive the header display (the owner, as the "primary" face
+  // of the project) but the send itself goes through process_media_gift
+  // and splits across every accepted collaborator, not just recipientId.
+  // See useSendMediaGift.
+  projectId?: string;
   onClose: () => void;
 }
 
@@ -39,6 +45,7 @@ export function GiftPicker({
   recipientAvatar,
   postId,
   commentId,
+  projectId,
   onClose,
 }: GiftPickerProps) {
   const [step, setStep] = useState<Step>("catalog");
@@ -52,6 +59,7 @@ export function GiftPicker({
   const { data: wallet } = useWallet();
   const { data: topGiftTypeIds } = useTopGiftTypeIds(6);
   const sendGift = useSendGift();
+  const sendMediaGift = useSendMediaGift();
   const giftingEnabled = useFeatureFlag("gifting_enabled");
 
   useBackDismiss(
@@ -101,12 +109,19 @@ export function GiftPicker({
     if (!selected) return;
     setError(null);
     try {
-      await sendGift.mutateAsync({
-        recipient_id: recipientId,
-        gift_type_id: selected.id,
-        post_id: postId,
-        comment_id: commentId,
-      });
+      if (projectId) {
+        await sendMediaGift.mutateAsync({
+          project_id: projectId,
+          gift_type_id: selected.id,
+        });
+      } else {
+        await sendGift.mutateAsync({
+          recipient_id: recipientId,
+          gift_type_id: selected.id,
+          post_id: postId,
+          comment_id: commentId,
+        });
+      }
       setStep("sent");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Couldn't send gift.");
@@ -201,7 +216,9 @@ export function GiftPicker({
                 <p className="font-display text-lg text-ink">Send {selected.name}</p>
                 <div className="flex items-center justify-center gap-2 mt-1">
                   <Avatar src={recipientAvatar} name={recipientName} size="sm" />
-                  <span className="text-sm text-ink-muted">to {recipientName}</span>
+                  <span className="text-sm text-ink-muted">
+                    to {projectId ? `the creators of ${recipientName}` : recipientName}
+                  </span>
                 </div>
               </div>
 
@@ -247,9 +264,10 @@ export function GiftPicker({
               </div>
               <p className="font-display text-lg text-ink">Gift sent!</p>
               <p className="text-sm text-ink-muted">
-                You sent a {selected.name} to {recipientName}.
+                You sent a {selected.name} to {projectId ? `the creators of ${recipientName}` : recipientName}.
                 <br />
-                ${selected.cost_usd.toFixed(2)} deducted from your wallet.
+                ${selected.cost_usd.toFixed(2)} deducted from your wallet
+                {projectId ? ", split across the creators" : ""}.
               </p>
             </div>
           )}
@@ -266,10 +284,10 @@ export function GiftPicker({
             </button>
             <button
               onClick={handleConfirm}
-              disabled={insufficientBalance || sendGift.isPending}
+              disabled={insufficientBalance || sendGift.isPending || sendMediaGift.isPending}
               className="flex-1 py-3 rounded-full bg-accent text-canvas text-sm font-medium disabled:opacity-50"
             >
-              {sendGift.isPending ? "Sending…" : "Send gift"}
+              {sendGift.isPending || sendMediaGift.isPending ? "Sending…" : "Send gift"}
             </button>
           </div>
         )}

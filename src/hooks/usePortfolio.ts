@@ -343,3 +343,33 @@ export function useCategorizedProjectIds(accountId: string | undefined) {
     enabled: !!accountId,
   });
 }
+
+/**
+ * Media Projects where this account is an accepted collaborator, not
+ * the owner — the other half of "Media will be found on the profiles
+ * of collaborators as well" (spec §6). A Media project's own gifting
+ * split already credits collaborators the moment someone gifts it
+ * (process_media_gift); this is what makes that Media discoverable
+ * from a collaborator's profile in the first place, matching the
+ * owner's own copy of it (which already surfaces via the ordinary
+ * projects fallback). See get_profile_collaborator_media — a plain
+ * client join can't do this because project_collaborators' own RLS
+ * only lets a viewer see rows where THEY are the collaborator/inviter,
+ * not an arbitrary visited profile's rows.
+ */
+export function useCollaboratorMediaProjects(accountId: string | undefined) {
+  const { user } = useAuth();
+  return useQuery({
+    queryKey: ["collaborator-media-projects", accountId],
+    queryFn: async (): Promise<Project[]> => {
+      if (!accountId) return [];
+      const { data, error } = await supabase.rpc("get_profile_collaborator_media", {
+        p_profile_id: accountId,
+        p_viewer_id: user?.id ?? accountId,
+      });
+      if (error) throw error;
+      return (data ?? []) as Project[];
+    },
+    enabled: !!accountId,
+  });
+}

@@ -1,64 +1,68 @@
 // src/components/MediaPreviewPlayer.tsx
 import { useEffect, useRef, useState } from "react";
-import { Play, Pause, RotateCcw } from "lucide-react";
+import { Play, Pause } from "lucide-react";
 
-export const PREVIEW_SECONDS = 20;
+// Bumped from 20s to 30s (matches the Music Catalogue's own clip cap —
+// see reduce_music_clip_max_to_30_seconds — so a published catalogue
+// clip and an in-app Media preview never disagree on "how much do you
+// get to hear/see for free").
+export const PREVIEW_SECONDS = 30;
 
 interface MediaPreviewPlayerProps {
   kind: "audio" | "video";
   src: string;
 }
 
-// Plays an uploaded Media audio/video channel as a hard-capped ~20s
-// preview. Deliberately does NOT use the native `controls` UI — a
-// native scrub bar would let a visitor drag past the cap and see
-// (or hear) exactly how long the real file is, which defeats the
-// point of it being a preview rather than the full asset. This is a
-// small custom player instead: one play/pause button and a progress
-// bar that only ever fills up to the cap.
+// Plays an uploaded Media audio/video channel as a hard-capped ~30s
+// preview that loops forever rather than stopping dead — a visitor
+// scrubbing past the cap or letting it finish just hears/sees it
+// again from the top, the same "endless preview" feel as
+// SongCoverPlayer's audio+cover loop below, now shared by every
+// Media preview regardless of shape. Deliberately does NOT use the
+// native `controls` UI — a native scrub bar would let a visitor drag
+// past the cap and see (or hear) exactly how long the real file is,
+// which defeats the point of it being a preview rather than the full
+// asset. This is a small custom player instead: one play/pause
+// button and a progress bar that only ever fills up to the cap.
 export function MediaPreviewPlayer({ kind, src }: MediaPreviewPlayerProps) {
   const mediaRef = useRef<HTMLMediaElement | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [elapsed, setElapsed] = useState(0);
-  const [ended, setEnded] = useState(false);
 
   // A new src (switching which project's preview is loaded) should
   // always start playback state fresh.
   useEffect(() => {
     setIsPlaying(false);
     setElapsed(0);
-    setEnded(false);
   }, [src]);
 
+  // Loop within the preview cap: jump back to 0 and keep playing
+  // instead of pausing at the cap.
   function handleTimeUpdate() {
     const el = mediaRef.current;
     if (!el) return;
     if (el.currentTime >= PREVIEW_SECONDS) {
-      el.pause();
-      el.currentTime = PREVIEW_SECONDS;
-      setElapsed(PREVIEW_SECONDS);
-      setIsPlaying(false);
-      setEnded(true);
+      el.currentTime = 0;
+      void el.play();
+      setElapsed(0);
       return;
     }
     setElapsed(el.currentTime);
   }
 
+  // A file shorter than the cap ends on its own — loop that too,
+  // rather than leaving it stopped at "ended".
   function handleNativeEnded() {
-    // The underlying file is shorter than the 20s cap — it finished
-    // on its own before hitting the guard above.
-    setIsPlaying(false);
-    setEnded(true);
+    const el = mediaRef.current;
+    if (!el) return;
+    el.currentTime = 0;
+    void el.play();
+    setElapsed(0);
   }
 
   function togglePlay() {
     const el = mediaRef.current;
     if (!el) return;
-    if (ended) {
-      el.currentTime = 0;
-      setElapsed(0);
-      setEnded(false);
-    }
     if (isPlaying) {
       el.pause();
       setIsPlaying(false);
@@ -100,12 +104,10 @@ export function MediaPreviewPlayer({ kind, src }: MediaPreviewPlayerProps) {
         <button
           type="button"
           onClick={togglePlay}
-          aria-label={ended ? "Replay preview" : isPlaying ? "Pause preview" : "Play preview"}
+          aria-label={isPlaying ? "Pause preview" : "Play preview"}
           className="flex items-center justify-center w-8 h-8 rounded-full bg-accent text-canvas flex-shrink-0"
         >
-          {ended ? (
-            <RotateCcw size={14} />
-          ) : isPlaying ? (
+          {isPlaying ? (
             <Pause size={14} fill="currentColor" />
           ) : (
             <Play size={14} fill="currentColor" className="ml-0.5" />
@@ -118,7 +120,7 @@ export function MediaPreviewPlayer({ kind, src }: MediaPreviewPlayerProps) {
           0:{String(elapsedSeconds).padStart(2, "0")} / 0:{PREVIEW_SECONDS}
         </span>
       </div>
-      <p className="text-xs text-ink-muted mt-1">Preview — {PREVIEW_SECONDS}s</p>
+      <p className="text-xs text-ink-muted mt-1">Preview — {PREVIEW_SECONDS}s, looping</p>
     </div>
   );
 }

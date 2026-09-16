@@ -32,6 +32,7 @@ import {
   useCategorizedProjectIds,
   useTypePortfolioCategories,
   useTypeCategoryProjects,
+  useCollaboratorMediaProjects,
 } from "../hooks/usePortfolio";
 import { useRecordProfileVisit } from "../hooks/useProfileVisits";
 import { Avatar } from "../components/Avatar";
@@ -303,11 +304,28 @@ export function ProfilePage() {
   const { data: portfolioCategories } = usePortfolioCategories(isPrivateLocked ? undefined : profile?.id);
   const { data: categorizedProjectIds } = useCategorizedProjectIds(isPrivateLocked ? undefined : profile?.id);
   const { data: typeCategories } = useTypePortfolioCategories(isPrivateLocked ? undefined : profile?.id);
+  const { data: collaboratorMedia } = useCollaboratorMediaProjects(isPrivateLocked ? undefined : profile?.id);
 
   // Archived projects have their own home on the merged Archive page
   // now (see Archive.tsx) — this tab only ever shows active/draft/
   // cancelled ones.
   const visibleProjects = projects?.filter((p) => p.status !== "archived");
+
+  // Media gets its own dynamic tab (spec §6, updated): a Media project
+  // shows on BOTH the owner's profile and every accepted collaborator's
+  // profile, not just the owner's — the same way a gift on it splits
+  // across all of them (process_media_gift). Owner's copies come from
+  // the ordinary projects query already fetched above; collaborator
+  // credits need their own RPC (see useCollaboratorMediaProjects — RLS
+  // on project_collaborators blocks a plain client join here). Merge
+  // and dedupe by id since — in principle — someone could show up in
+  // both lists across an ownership transfer or similar edge case.
+  const ownedMedia = (visibleProjects ?? []).filter((p) => p.project_type === "media" && !p.is_private);
+  const mediaProjects = (() => {
+    const byId = new Map(ownedMedia.map((p) => [p.id, p]));
+    for (const p of collaboratorMedia ?? []) byId.set(p.id, p);
+    return [...byId.values()].sort((a, b) => b.created_at.localeCompare(a.created_at));
+  })();
 
   // Types that now get their own dynamic tab via typeCategories (spec
   // section 2/44's other half — Book/Course/Event/Room/File). Only
@@ -326,6 +344,12 @@ export function ProfilePage() {
   // duplicate of a category tab.
   const fallbackProjects = visibleProjects?.filter((p) => {
     if (p.project_type === "gig") return false;
+    // Only drop it here once it actually has the Media tab as a home
+    // (active + public, same as ownedMedia above) — a draft or
+    // private Media project has no tab yet, so it stays visible to
+    // its owner in the fallback instead of disappearing, same
+    // reasoning as the TYPE_CATEGORY_TYPES check below.
+    if (p.project_type === "media" && p.status === "active" && !p.is_private) return false;
     if (categorizedProjectIds?.has(p.id)) return false;
     if (
       TYPE_CATEGORY_TYPES.has(p.project_type) &&
@@ -347,6 +371,7 @@ export function ProfilePage() {
     { id: "posts", label: "Posts" },
     ...(portfolioCategories ?? []).map((c) => ({ id: categoryToTabId(c.category), label: c.category })),
     ...(typeCategories ?? []).map((c) => ({ id: `type-${c.project_type}`, label: c.category })),
+    ...(mediaProjects.length > 0 ? [{ id: "media", label: "Media" }] : []),
     ...(fallbackProjects && fallbackProjects.length > 0 ? [{ id: "projects", label: "Projects" }] : []),
   ];
   const TAB_IDS = tabDefs.map((t) => t.id);
@@ -873,6 +898,25 @@ export function ProfilePage() {
                       ) : (
                         <p className="text-ink-muted text-center py-10 text-sm">No posts yet.</p>
                       )}
+                    </div>
+                  );
+                }
+                if (tab.id === "media") {
+                  return (
+                    <div key="media">
+                      {mediaProjects.map((project) => (
+                        <ProjectCard
+                          key={project.id}
+                          project={project}
+                          // Only ever the true owner's own edit/manage
+                          // affordances — a collaborator's credit on
+                          // someone else's Media isn't "their" project
+                          // to manage, just to appear on. showOwnerView
+                          // already resolves per-card against
+                          // project.owner_id when left undefined here.
+                          isOwnerView={showOwnerView && project.owner_id === profile.id}
+                        />
+                      ))}
                     </div>
                   );
                 }
