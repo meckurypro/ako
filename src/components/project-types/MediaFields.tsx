@@ -5,7 +5,7 @@ import { FormField } from "../FormField";
 import { useUploadProjectFile } from "../../hooks/useUploadProjectFile";
 
 // A channel no longer picks link XOR upload — it's a hybrid: an
-// uploaded file (played as a capped ~20s preview for audio/video, or
+// uploaded file (played as a capped ~30s preview for audio/video, or
 // shown in full for image) and/or a redirect URL to the full
 // stream/download elsewhere, independently of each other. Image never
 // gets a redirect URL at all (see ChannelConfig.allowLink below), so
@@ -40,7 +40,7 @@ export const EMPTY_MEDIA_FIELDS: MediaFieldsValue = {
 // art side by side — each channel is independent. Within an
 // audio/video channel, the upload and the link are no longer mutually
 // exclusive: a host can set either one, or both (upload becomes the
-// in-app ~20s preview, the link is where the full thing lives).
+// in-app ~30s preview, the link is where the full thing lives).
 // Image only ever takes an upload — there's no "redirect to the full
 // image elsewhere" case that makes sense the way it does for a track
 // or a video, so image skips the link option entirely.
@@ -72,7 +72,7 @@ const CHANNELS: ChannelConfig[] = [
     linkLabel: "Link to the full track (Spotify, Apple Music, etc.)",
     linkPlaceholder: "https://open.spotify.com/...",
     uploadLabel: "Upload a preview clip",
-    uploadNote: "Plays right here as a ~20-second preview — not the full track.",
+    uploadNote: "Plays right here as a ~30-second preview — not the full track.",
     accept: "audio/*",
   },
   {
@@ -83,7 +83,7 @@ const CHANNELS: ChannelConfig[] = [
     linkLabel: "Link to the full video (YouTube, Vimeo, etc.)",
     linkPlaceholder: "https://youtube.com/...",
     uploadLabel: "Upload a preview clip",
-    uploadNote: "Plays right here as a ~20-second preview — not the full video.",
+    uploadNote: "Plays right here as a ~30-second preview — not the full video.",
     accept: "video/*",
   },
   {

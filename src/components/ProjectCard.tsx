@@ -32,6 +32,7 @@ import {
   Pause,
   Loader2,
   TrendingUp,
+  Gift as GiftIcon,
 } from "lucide-react";
 import { useAuth } from "../hooks/useAuth";
 import { useAffiliateProgram } from "../hooks/useAffiliates";
@@ -58,6 +59,7 @@ import { useIsProjectSaved, useToggleSavedProject } from "../hooks/useSavedProje
 import { useProjectAccessCount, useLogFreeProjectAccess } from "../hooks/useProjectAccess";
 import { useStartConversation } from "../hooks/useMessaging";
 import { ReactionTray, type EngagementAction } from "./ReactionTray";
+import { GiftPicker } from "./GiftPicker";
 import { ReactionMoreSheet } from "./ReactionMoreSheet";
 import { DropdownMenu, type DropdownMenuItem } from "./DropdownMenu";
 import { ManageAccessSheet } from "./ManageAccessSheet";
@@ -168,16 +170,20 @@ function MediaChannelBlock({
   );
 }
 
-// A "song" is a Media project with both an audio channel and a cover
-// image — common enough (and distinct enough from a bare audio/video
-// upload) to earn its own merged control: the cover art itself is the
-// play/pause button, playback starts the moment the project is
-// opened, and the 20s preview loops instead of stopping dead — same
-// preview-length paywall as MediaPreviewPlayer, just looped rather
-// than left sitting at "replay?". Only used in the project detail
-// view (see isDetailView on ProjectCard) — autoplaying audio for
-// every song card scrolling past in a feed would be a bad time for
-// everyone, and most browsers would just block it anyway.
+// A Media project's audio channel gets its own merged control: the
+// cover art (or a placeholder) IS the play/pause button, the preview
+// loops instead of stopping dead, and it's capped at PREVIEW_SECONDS
+// — same preview-length paywall as MediaPreviewPlayer, just looped
+// and tappable-from-a-thumbnail rather than a separate control row.
+// Used everywhere a Media card with an audio channel shows up (feed,
+// grid, profile, detail) — not just the detail page — since the
+// thumbnail-with-play-icon IS the preview surface for audio Media,
+// not a detail-only nicety. `autoLoadOnMount` scopes the *eager*
+// signed-URL fetch + autoplay-on-open to the single-card detail view
+// (see isDetailView on ProjectCard): a feed/grid full of audio cards
+// must not fire a signed-URL request for every one of them just for
+// being on screen. Outside detail view the same cover still shows a
+// play icon and loads + plays lazily on first tap.
 function SongCoverPlayer({
   imageSrc,
   isLoadingImage,
@@ -185,6 +191,7 @@ function SongCoverPlayer({
   audioSrc,
   isLoadingAudio,
   onLoadAudio,
+  autoLoadOnMount,
 }: {
   imageSrc: string | null;
   isLoadingImage: boolean;
@@ -192,27 +199,32 @@ function SongCoverPlayer({
   audioSrc: string | null;
   isLoadingAudio: boolean;
   onLoadAudio: () => void;
+  autoLoadOnMount: boolean;
 }) {
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const requestedRef = useRef(false);
 
-  // Kick off both signed-URL fetches as soon as this mounts — "view
-  // the project" is the trigger, not a separate tap. Guarded so a
-  // re-render (e.g. isLoadingAudio flipping) doesn't re-request.
+  // Only the detail view kicks off both signed-URL fetches (and the
+  // autoplay below) the moment this mounts — "view the project" is
+  // the trigger there, not a separate tap. Everywhere else, the first
+  // tap on the cover is what requests them (see toggle()).
   useEffect(() => {
+    if (!autoLoadOnMount) return;
     if (requestedRef.current) return;
     requestedRef.current = true;
     if (!imageSrc) onLoadImage();
     if (!audioSrc) onLoadAudio();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [autoLoadOnMount]);
 
-  // Autoplay once the audio stream is actually ready. Browsers can
-  // (and do) block unmuted autoplay outside a direct user gesture —
-  // .play() returns a rejected promise in that case, which we just
-  // swallow and fall back to showing the paused Play icon, same as if
-  // autoplay had never been attempted.
+  // Autoplay once the audio stream is actually ready — whether that
+  // readiness came from the eager mount-effect above or a manual tap
+  // in toggle() below. Browsers can (and do) block unmuted autoplay
+  // outside a direct user gesture — .play() returns a rejected
+  // promise in that case, which we just swallow and fall back to
+  // showing the paused Play icon, same as if autoplay had never been
+  // attempted.
   useEffect(() => {
     if (!audioSrc) return;
     const el = audioRef.current;
@@ -245,8 +257,16 @@ function SongCoverPlayer({
   }
 
   function toggle() {
+    // Lazy path (feed/grid): nothing fetched yet — the tap itself is
+    // the request. The isBusy spinner covers the wait, and the
+    // audioSrc-ready effect above plays it the moment it lands.
+    if (!audioSrc) {
+      if (!imageSrc) onLoadImage();
+      onLoadAudio();
+      return;
+    }
     const el = audioRef.current;
-    if (!el || !audioSrc) return;
+    if (!el) return;
     if (isPlaying) {
       el.pause();
       setIsPlaying(false);
@@ -272,7 +292,6 @@ function SongCoverPlayer({
       <button
         type="button"
         onClick={toggle}
-        disabled={!audioSrc}
         aria-label={isPlaying ? "Pause song" : "Play song"}
         className="relative block w-full rounded-lg overflow-hidden bg-canvas disabled:cursor-default"
       >
@@ -375,6 +394,11 @@ export function ProjectCard({
   const [error, setError] = useState<string | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
   const [showMoreActions, setShowMoreActions] = useState(false);
+  // Media never carries a price tag (see mediaDetails/isMedia below) —
+  // gifting the creator(s) is the monetization path instead, the same
+  // mechanism already used on posts. See useSendMediaGift/process_media_gift
+  // for how a gift here splits across accepted collaborators.
+  const [showGiftPicker, setShowGiftPicker] = useState(false);
   const menuButtonRef = useRef<HTMLButtonElement>(null);
   const [manageAccessOpen, setManageAccessOpen] = useState(false);
   const [supportSheetOpen, setSupportSheetOpen] = useState(false);
@@ -755,6 +779,22 @@ export function ProjectCard({
           } satisfies EngagementAction,
         ]
       : []),
+    // Gifting is Media's monetization path in place of a price tag
+    // (see the isMedia block above/below) — the full asset streams
+    // elsewhere via its link; a gift here is how someone shows up for
+    // the creator(s) directly, splitting immediately across every
+    // accepted collaborator plus the owner.
+    ...(project.project_type === "media" && !isOwner
+      ? [
+          {
+            key: "gift",
+            label: "Gift",
+            icon: <GiftIcon size={24} className="text-ink" />,
+            count: null,
+            onClick: () => setShowGiftPicker(true),
+          } satisfies EngagementAction,
+        ]
+      : []),
     ...(isRoom
       ? [
           {
@@ -1042,53 +1082,98 @@ export function ProjectCard({
             fit the single-line pattern the other inline types use. */}
         {isMedia && mediaDetails && (
           <div className="flex flex-col gap-3 mt-3">
-            {/* A song — audio + cover image together, viewed on its own
-                detail page, with access — gets the merged
-                autoplay/loop/tap-cover-to-toggle player instead of the
-                two separate tap-to-load rows below. Every other Media
-                shape (video, audio without a cover, image without
-                audio, any of the above in a feed/grid/list card)
-                falls through to the unchanged existing UI. */}
-            {isDetailView && hasAccess && !!user && mediaDetails.has_audio && mediaDetails.has_image ? (
-              <SongCoverPlayer
-                imageSrc={imageSrc}
-                isLoadingImage={getImageStream.isPending}
-                onLoadImage={handleViewImage}
-                audioSrc={audioSrc}
-                isLoadingAudio={getAudioStream.isPending}
-                onLoadAudio={handlePlayAudio}
-              />
+            {/* Audio + video together on the same Media project: the
+                thumbnail previews the video only (looping, capped) —
+                a separate audio preview would just be noise once
+                video is already playing — and a single button next to
+                it sends people to the audio's own home (Spotify,
+                Fanlink, etc.) instead of a second full preview block. */}
+            {mediaDetails.has_audio && mediaDetails.has_video ? (
+              <div className="flex flex-col gap-2">
+                {!hasAccess ? (
+                  <span className="flex items-center gap-1.5 text-sm text-ink-muted">
+                    <Lock size={15} />
+                    Video locked
+                  </span>
+                ) : (
+                  <>
+                    <MediaChannelBlock
+                      icon={Video}
+                      label="Video"
+                      hasPreview={!!mediaDetails.video_file_path}
+                      hasLink={!!mediaDetails.video_url}
+                      linkUrl={mediaDetails.video_url}
+                      linkLabel="Go to full video"
+                      previewSrc={videoSrc}
+                      previewKind="video"
+                      onLoadPreview={handlePlayVideo}
+                      isLoadingPreview={getVideoStream.isPending}
+                    />
+                    {mediaDetails.audio_url && (
+                      <a
+                        href={mediaDetails.audio_url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex items-center gap-1.5 text-sm text-accent font-medium"
+                      >
+                        <Music size={15} />
+                        Listen to the full song
+                      </a>
+                    )}
+                  </>
+                )}
+              </div>
+            ) : mediaDetails.has_audio ? (
+              /* Audio, no video — the cover-art play/pause thumbnail
+                 (or a placeholder cover if there's no image channel)
+                 is the preview surface, everywhere this card renders,
+                 not just the detail page. Falls back to the plain
+                 locked/tap-to-load row when access or auth is
+                 missing, same as every other channel here. */
+              !hasAccess ? (
+                <span className="flex items-center gap-1.5 text-sm text-ink-muted">
+                  <Lock size={15} />
+                  Audio locked
+                </span>
+              ) : !user ? (
+                <MediaChannelBlock
+                  icon={Music}
+                  label="Audio"
+                  hasPreview={!!mediaDetails.audio_file_path}
+                  hasLink={!!mediaDetails.audio_url}
+                  linkUrl={mediaDetails.audio_url}
+                  linkLabel="Go to full track"
+                  previewSrc={audioSrc}
+                  previewKind="audio"
+                  onLoadPreview={handlePlayAudio}
+                  isLoadingPreview={getAudioStream.isPending}
+                />
+              ) : (
+                <>
+                  <SongCoverPlayer
+                    imageSrc={imageSrc}
+                    isLoadingImage={getImageStream.isPending}
+                    onLoadImage={handleViewImage}
+                    audioSrc={audioSrc}
+                    isLoadingAudio={getAudioStream.isPending}
+                    onLoadAudio={handlePlayAudio}
+                    autoLoadOnMount={!!isDetailView}
+                  />
+                  {mediaDetails.audio_url && (
+                    <a
+                      href={mediaDetails.audio_url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center gap-1.5 text-sm text-accent font-medium mt-2"
+                    >
+                      <Music size={15} />
+                      Go to full track
+                    </a>
+                  )}
+                </>
+              )
             ) : (
               <>
-                {/* Audio/video — a preview player (if an upload exists), a
-                    "go to the full thing" link (if a redirect URL exists),
-                    or both at once. Which of the two show up is driven
-                    entirely by which of {*_file_path, *_url} are set —
-                    see the hybrid-model comment on MediaDetails. */}
-                {mediaDetails.has_audio && (
-                  <div>
-                    {!hasAccess ? (
-                      <span className="flex items-center gap-1.5 text-sm text-ink-muted">
-                        <Lock size={15} />
-                        Audio locked
-                      </span>
-                    ) : (
-                      <MediaChannelBlock
-                        icon={Music}
-                        label="Audio"
-                        hasPreview={!!mediaDetails.audio_file_path}
-                        hasLink={!!mediaDetails.audio_url}
-                        linkUrl={mediaDetails.audio_url}
-                        linkLabel="Go to full track"
-                        previewSrc={audioSrc}
-                        previewKind="audio"
-                        onLoadPreview={handlePlayAudio}
-                        isLoadingPreview={getAudioStream.isPending}
-                      />
-                    )}
-                  </div>
-                )}
-
                 {mediaDetails.has_video && (
                   <div>
                     {!hasAccess ? (
@@ -1429,6 +1514,22 @@ export function ProjectCard({
 
         {showMoreActions && !isArchivedFrozen && middleActions.length > 0 && (
           <ReactionMoreSheet actions={middleActions} onClose={() => setShowMoreActions(false)} />
+        )}
+
+        {showGiftPicker && (
+          // No single "recipient" to name for a Media gift — it splits
+          // across every accepted collaborator plus the owner (see
+          // process_media_gift) — so the header shows the project
+          // itself rather than one person. recipientId/postId/commentId
+          // are unused on this path; projectId is what actually drives
+          // the send (see useSendMediaGift).
+          <GiftPicker
+            recipientId={project.owner_id}
+            recipientName={project.title}
+            recipientAvatar={project.thumbnail_url}
+            projectId={project.id}
+            onClose={() => setShowGiftPicker(false)}
+          />
         )}
           </UnlockReveal>
         )}
