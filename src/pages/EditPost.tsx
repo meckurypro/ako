@@ -6,7 +6,8 @@ import { useSmartBack } from "../hooks/useSmartBack";
 import { X, Image as ImageIcon } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "../lib/supabase";
-import { useUpdatePost, canEditPost } from "../hooks/usePosts";
+import { useUpdatePost, canEditPost, usePostTopics } from "../hooks/usePosts";
+import { TopicPicker, MAX_TOPICS } from "../components/TopicPicker";
 import { useCollaborators } from "../hooks/useCollaboration";
 import { useUploadPostMedia, isVideoUrl } from "../hooks/useUploadPostMedia";
 import { useAuth } from "../hooks/useAuth";
@@ -46,17 +47,23 @@ export function EditPost() {
   const { data: collaborators } = useCollaborators("post", postId);
   const hasAcceptedCollaborators = (collaborators ?? []).some((c) => c.status === "accepted");
   const uploadMedia = useUploadPostMedia();
+  const { data: existingTopicIds } = usePostTopics(postId);
 
   const [heading, setHeading] = useState("");
   const [content, setContent] = useState("");
   const [mediaUrls, setMediaUrls] = useState<string[]>([]);
+  const [topicIds, setTopicIds] = useState<Set<string>>(new Set());
   const [initialized, setInitialized] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Prefill once the post loads — a plain useState default won't
-  // work here since the query resolves after first render.
+  // work here since the query resolves after first render. Topics
+  // arrive from a separate query (post_topics isn't embedded in the
+  // plain posts select above), so they're merged in once both are
+  // ready rather than gating the whole prefill on it — a post with no
+  // topics yet shouldn't leave heading/content/media stuck unset.
   useEffect(() => {
     if (post && !initialized) {
       setHeading(post.heading ?? "");
@@ -65,6 +72,23 @@ export function EditPost() {
       setInitialized(true);
     }
   }, [post, initialized]);
+
+  useEffect(() => {
+    if (existingTopicIds) setTopicIds(new Set(existingTopicIds));
+  }, [existingTopicIds]);
+
+  function toggleTopic(interestId: string) {
+    setTopicIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(interestId)) {
+        next.delete(interestId);
+      } else {
+        if (next.size >= MAX_TOPICS) return prev;
+        next.add(interestId);
+      }
+      return next;
+    });
+  }
 
   const canSave = heading.trim().length > 0 || content.trim().length > 0;
 
@@ -102,7 +126,7 @@ export function EditPost() {
         post_id: postId,
         heading: heading.trim() || undefined,
         content,
-        category_id: post?.category_id ?? null,
+        interest_ids: Array.from(topicIds),
         media_urls: mediaUrls,
       });
       navigate(`/post/${postId}`);
@@ -215,6 +239,10 @@ export function EditPost() {
         </div>
 
         {uploadError && <p className="text-danger text-sm mt-2">{uploadError}</p>}
+
+        <div className="mt-6">
+          <TopicPicker selected={topicIds} onToggle={toggleTopic} />
+        </div>
 
         {error && (
           <p className="text-danger text-sm mt-4 bg-danger/10 rounded-xl p-3" role="alert">
