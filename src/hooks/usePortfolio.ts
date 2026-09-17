@@ -131,6 +131,49 @@ export function usePortfolioCategoryProjects(accountId: string | undefined, cate
   });
 }
 
+/**
+ * The account's own active Gig project(s) within one dynamic
+ * portfolio category (e.g. the "Music Artist" gig backing the
+ * "Artist" tab). Previously nothing on the profile linked to the gig
+ * page itself — a category tab only ever showed its work-sample
+ * Projects (via usePortfolioCategoryProjects), so a visitor could see
+ * the proof-of-work but never reach the gig's own page (tagline,
+ * pricing, "Message to inquire", full sample rail) from the profile —
+ * only by following a link to it from somewhere else, like a feed
+ * post. Rendered as a small rail above the samples in
+ * PortfolioCategoryPane. Same eligibility bar as the samples query
+ * (active, public, complete).
+ */
+export function usePortfolioCategoryGigs(accountId: string | undefined, category: string | undefined) {
+  return useQuery({
+    queryKey: ["portfolio-category-gigs", accountId, category],
+    queryFn: async (): Promise<Project[]> => {
+      if (!accountId || !category) return [];
+      const { data: gigRows, error: gigError } = await supabase
+        .from("project_gig_details")
+        .select("project_id, gig_roles!inner(category), projects!inner(owner_id, status, is_private)")
+        .eq("gig_roles.category", category)
+        .eq("projects.owner_id", accountId)
+        .eq("projects.status", "active")
+        .eq("projects.is_private", false)
+        .eq("is_complete", true);
+      if (gigError) throw gigError;
+
+      const gigIds = [...new Set((gigRows ?? []).map((r: any) => r.project_id))];
+      if (gigIds.length === 0) return [];
+
+      const { data: projects, error: projectsError } = await supabase
+        .from("projects")
+        .select("*")
+        .in("id", gigIds)
+        .order("created_at", { ascending: false });
+      if (projectsError) throw projectsError;
+      return (projects ?? []) as Project[];
+    },
+    enabled: !!accountId && !!category,
+  });
+}
+
 export interface TypePortfolioCategory {
   category: string;
   project_type: ProjectType;

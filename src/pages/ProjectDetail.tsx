@@ -4,7 +4,6 @@ import { useParams, Link } from "react-router-dom";
 import { useSmartBack } from "../hooks/useSmartBack";
 import {
   ArrowLeft,
-  ImageIcon,
   MapPin,
   Video,
   CalendarClock,
@@ -18,9 +17,17 @@ import {
   ChevronDown,
   RefreshCw,
   TrendingUp,
+  Briefcase,
 } from "lucide-react";
 import { useProjectDetail, useSimilarProjects, PROJECT_TYPE_LABELS, type Project } from "../hooks/useProjects";
-import { useEventDetails, useMeetingDetails, useGigDetails, useGigSamples } from "../hooks/useProjectTypeDetails";
+import {
+  useEventDetails,
+  useMeetingDetails,
+  useGigDetails,
+  useGigSamples,
+  useGigsFeaturingProject,
+} from "../hooks/useProjectTypeDetails";
+import { ProjectMiniCard } from "../components/ProjectMiniCard";
 import { useMarkProjectSeen } from "../hooks/useMarkProjectSeen";
 import { useAuth } from "../hooks/useAuth";
 import { useCountdown, formatCountdown } from "../hooks/useCountdown";
@@ -43,35 +50,6 @@ import { useAffiliateProgram } from "../hooks/useAffiliates";
 import { PublishMusicButton } from "../components/music/PublishMusicButton";
 import { ProjectFaqSection } from "../components/ProjectFaqSection";
 import { getProjectUrl } from "../lib/projectLinks";
-
-// Compact, non-interactive project tile for the "similar projects"
-// rails — just enough to identify it and tap through. The full
-// ProjectCard (buy/download/menu) is reserved for the one project
-// this page is actually about
-function ProjectMiniCard({ project }: { project: Project }) {
-  return (
-    <Link
-      to={`/projects/${project.id}`}
-      className="group flex-shrink-0 w-36 bg-surface rounded-2xl overflow-hidden border border-border/60 shadow-[0_1px_2px_rgba(var(--shadow-ink-rgb),0.04),0_8px_20px_-12px_rgba(var(--shadow-ink-rgb),0.14)] transition-all duration-300 hover:shadow-[0_1px_2px_rgba(var(--shadow-ink-rgb),0.06),0_16px_32px_-14px_rgba(var(--shadow-ink-rgb),0.2)] hover:-translate-y-0.5"
-    >
-      <div className="w-full aspect-square bg-canvas flex items-center justify-center overflow-hidden">
-        {project.thumbnail_url ? (
-          <img
-            src={project.thumbnail_url}
-            alt=""
-            className="w-full h-full object-cover transition-transform duration-500 ease-out group-hover:scale-[1.06]"
-          />
-        ) : (
-          <ImageIcon size={24} className="text-ink-muted" />
-        )}
-      </div>
-      <div className="p-3">
-        <p className="text-sm font-medium text-ink truncate">{project.title}</p>
-        <p className="text-xs text-ink-muted mt-0.5">{PROJECT_TYPE_LABELS[project.project_type]}</p>
-      </div>
-    </Link>
-  );
-}
 
 function ProjectRail({ title, projects }: { title: string; projects: Project[] }) {
   if (projects.length === 0) return null;
@@ -348,6 +326,13 @@ export function ProjectDetail({ resolvedProjectId }: { resolvedProjectId?: strin
   const { data: meetingDetails } = useMeetingDetails(project?.project_type === "meeting" ? projectId : undefined);
   const { data: gigDetails } = useGigDetails(project?.project_type === "gig" ? projectId : undefined);
   const { data: gigSamples } = useGigSamples(project?.project_type === "gig" ? projectId : undefined);
+  // The reverse direction: gig page(s) this project is featured as a
+  // work sample on. Never applies to a gig itself (a gig can't be its
+  // own sample), only to whatever type it was attached as — Media,
+  // File, etc.
+  const { data: featuringGigs } = useGigsFeaturingProject(
+    project && project.project_type !== "gig" ? projectId : undefined
+  );
   const isOwner = !!user && !!project && project.owner.id === user.id;
   const eventCountdownMs = useCountdown(project?.project_type === "event" ? eventDetails?.event_date : undefined);
 
@@ -390,6 +375,26 @@ export function ProjectDetail({ resolvedProjectId }: { resolvedProjectId?: strin
         ) : (
           <>
             <ProjectCard project={project} isDetailView shareUrl={shareUrl} />
+
+            {/* Reverse link to the gig(s) this is proof-of-work for —
+                otherwise a visitor who lands here directly (a feed
+                post, a share) has no way to discover the gig page
+                itself ("Message to inquire", pricing, the rest of the
+                sample rail) short of finding a link to it elsewhere. */}
+            {featuringGigs && featuringGigs.length > 0 && (
+              <div className="-mt-2 mb-4 flex flex-wrap gap-2">
+                {featuringGigs.map((gig) => (
+                  <Link
+                    key={gig.id}
+                    to={`/projects/${gig.id}`}
+                    className="inline-flex items-center gap-1.5 text-sm font-medium text-accent bg-accent-soft px-3 py-1.5 rounded-full transition-transform active:scale-[0.98]"
+                  >
+                    <Briefcase size={14} />
+                    {gig.role_label ? `Featured in ${gig.role_label} gig` : "View the gig this is part of"}
+                  </Link>
+                ))}
+              </div>
+            )}
 
             {canBecomeAffiliate && (
               <button

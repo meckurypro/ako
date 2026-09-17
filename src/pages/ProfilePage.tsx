@@ -29,6 +29,7 @@ import type { ProjectType } from "../hooks/useProjects";
 import {
   usePortfolioCategories,
   usePortfolioCategoryProjects,
+  usePortfolioCategoryGigs,
   useCategorizedProjectIds,
   useTypePortfolioCategories,
   useTypeCategoryProjects,
@@ -48,6 +49,7 @@ import { TierBadge } from "../components/TierBadge";
 import { RoleTags } from "../components/RoleTags";
 import { PostCard } from "../components/PostCard";
 import { ProjectCard } from "../components/ProjectCard";
+import { ProjectMiniCard, ProjectMiniGrid } from "../components/ProjectMiniCard";
 import { BottomNav } from "../components/BottomNav";
 import { ProfileAdSlot } from "../components/ProfileAdSlot";
 
@@ -94,6 +96,13 @@ function PortfolioCategoryPane({
   showOwnerView: boolean;
 }) {
   const { data: projects, isLoading } = usePortfolioCategoryProjects(accountId, category);
+  // The gig page(s) this category's work samples are proof-of-work
+  // for (e.g. the "Music Artist" gig behind an "Artist" tab) —
+  // previously nothing on the profile linked to these at all, only
+  // to the samples below. Shown as a compact rail up top so a
+  // visitor can reach "Message to inquire" / pricing / the full
+  // sample set from the gig's own page, not only piece by piece.
+  const { data: gigs } = usePortfolioCategoryGigs(accountId, category);
   if (isLoading) return null;
   if (!projects || projects.length === 0) {
     // Shouldn't normally be reachable — the tab itself only appears
@@ -104,6 +113,15 @@ function PortfolioCategoryPane({
   }
   return (
     <>
+      {gigs && gigs.length > 0 && (
+        <div className="mb-4 -mt-1">
+          <div className="flex gap-3 overflow-x-auto pb-1">
+            {gigs.map((gig) => (
+              <ProjectMiniCard key={gig.id} project={gig} />
+            ))}
+          </div>
+        </div>
+      )}
       {projects.map((project) => (
         <ProjectCard key={project.id} project={project} isOwnerView={showOwnerView} />
       ))}
@@ -321,10 +339,19 @@ export function ProfilePage() {
   // on project_collaborators blocks a plain client join here). Merge
   // and dedupe by id since — in principle — someone could show up in
   // both lists across an ownership transfer or similar edge case.
-  const ownedMedia = (visibleProjects ?? []).filter((p) => p.project_type === "media" && !p.is_private);
+  // Once a Media project is published to the Akọ music catalogue and
+  // attached as a gig sample (e.g. under "Artist"), it moves there —
+  // it should no longer also show in Media, or it appears twice on
+  // the same profile (categorizedProjectIds already exists for this
+  // exact purpose; the Media tab just wasn't checking it before).
+  const ownedMedia = (visibleProjects ?? []).filter(
+    (p) => p.project_type === "media" && !p.is_private && !categorizedProjectIds?.has(p.id)
+  );
   const mediaProjects = (() => {
     const byId = new Map(ownedMedia.map((p) => [p.id, p]));
-    for (const p of collaboratorMedia ?? []) byId.set(p.id, p);
+    for (const p of collaboratorMedia ?? []) {
+      if (!categorizedProjectIds?.has(p.id)) byId.set(p.id, p);
+    }
     return [...byId.values()].sort((a, b) => b.created_at.localeCompare(a.created_at));
   })();
 
@@ -938,9 +965,14 @@ export function ProfilePage() {
                   return (
                     <div key="projects">
                       {fallbackProjects && fallbackProjects.length > 0 ? (
-                        fallbackProjects.map((project) => (
-                          <ProjectCard key={project.id} project={project} isOwnerView={showOwnerView} />
-                        ))
+                        // Compact glance-and-tap grid, not the full
+                        // buy/download/menu ProjectCard — this tab is
+                        // a catch-all that can hold a lot of mixed
+                        // project types, so it reads better as cards
+                        // to scan than a long scrolling list. Each
+                        // card opens the project's own canonical page
+                        // (slug-aware) on tap, same as everywhere else.
+                        <ProjectMiniGrid projects={fallbackProjects} />
                       ) : (
                         <p className="text-ink-muted text-center py-10 text-sm">
                           {showOwnerView ? "No projects yet — publish your first one." : "No projects yet."}
