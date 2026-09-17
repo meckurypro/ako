@@ -5,6 +5,7 @@ import { X, ChevronLeft, ChevronRight } from "lucide-react";
 import { isVideoUrl } from "../hooks/useUploadPostMedia";
 import { useBackDismiss } from "../hooks/useBackDismiss";
 import { useScrollLock } from "../hooks/useScrollLock";
+import { fadeInAndPlay, fadeOutAndPause } from "../lib/mediaFade";
 import { Portal } from "./Portal";
 
 interface MediaViewerProps {
@@ -67,9 +68,15 @@ function clamp(value: number, min: number, max: number) {
  * fixed black scrim regardless of the app's light/dark theme.
  */
 export function MediaViewer({ mediaUrls, startIndex, onClose }: MediaViewerProps) {
-  useBackDismiss(onClose);
-  useScrollLock();
   const [index, setIndex] = useState(startIndex);
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+
+  function handleClose() {
+    fadeOutAndPause(videoRef.current);
+    onClose();
+  }
+  useBackDismiss(handleClose);
+  useScrollLock();
   const [touchStart, setTouchStart] = useState<{ x: number; y: number } | null>(null);
   const [axis, setAxis] = useState<"horizontal" | "vertical" | null>(null);
   const [dragY, setDragY] = useState(0);
@@ -92,7 +99,21 @@ export function MediaViewer({ mediaUrls, startIndex, onClose }: MediaViewerProps
     setPan({ x: 0, y: 0 });
   }, [index]);
 
+  // Item 3: fade the video's audio in from silence rather than letting
+  // the browser's own autoplay start it at full volume with a click/pop.
+  useEffect(() => {
+    if (!isVideoUrl(mediaUrls[index])) return;
+    const video = videoRef.current;
+    if (!video) return;
+    fadeInAndPlay(video).catch(() => {
+      // Autoplay-with-sound blocked — leave it to the visible <video
+      // controls> to start playback; nothing else to fall back to here.
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [index]);
+
   function goTo(next: number) {
+    fadeOutAndPause(videoRef.current);
     setIndex(Math.max(0, Math.min(mediaUrls.length - 1, next)));
   }
 
@@ -223,7 +244,7 @@ export function MediaViewer({ mediaUrls, startIndex, onClose }: MediaViewerProps
     if (axis === "vertical") {
       if (dragY > DISMISS_THRESHOLD) {
         setIsDismissing(true);
-        onClose();
+        handleClose();
       } else {
         setDragY(0); // snap back — transition handles the animation
       }
@@ -280,7 +301,7 @@ export function MediaViewer({ mediaUrls, startIndex, onClose }: MediaViewerProps
           }}
         >
           {isVideoUrl(url) ? (
-            <video src={url} controls autoPlay className="max-w-full max-h-full" />
+            <video ref={videoRef} src={url} controls className="max-w-full max-h-full" />
           ) : (
             <img src={url} alt="" className="max-w-full max-h-full object-contain" draggable={false} />
           )}
@@ -330,7 +351,7 @@ export function MediaViewer({ mediaUrls, startIndex, onClose }: MediaViewerProps
 
         <div className="absolute bottom-0 left-0 right-0 flex justify-center pb-6 pt-10 bg-gradient-to-t from-black/70 to-transparent">
           <button
-            onClick={onClose}
+            onClick={handleClose}
             className="bg-white/15 text-white rounded-full p-3"
             aria-label="Close"
           >

@@ -637,7 +637,7 @@ export function PostCard({
                     }
                   }}
                 >
-                  {postedAsPage ? identityName : `@${post.author.username}`}
+                  {identityName}
                 </Link>
                 {!postedAsPage && post.author.is_verified && <VerifiedBadge className="shrink-0" />}
                 {!postedAsPage && <TierBadge tier={post.author.tier} />}

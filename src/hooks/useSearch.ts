@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "../lib/supabase";
 import { useAuth } from "./useAuth";
 import { PROFILE_ROLES_SELECT, toProfileRoles } from "../lib/profileRoles";
+import { getSearchVisitRanks } from "../lib/searchVisits";
 import type { PostWithAuthor, ProfileWithRoles } from "../types/database";
 
 const PEOPLE_SELECT = `id, username, display_name, avatar_url, tier, follower_count, ${PROFILE_ROLES_SELECT}`;
@@ -89,8 +90,14 @@ function scoreProfile(
   id: string,
   followingIds: Set<string>,
   followerIds: Set<string>,
-  engagedIds: Set<string>
+  engagedIds: Set<string>,
+  visitRanks: Map<string, number>
 ): number {
+  // Item 2: an account the user previously opened from search outranks
+  // everything else — 1000+ keeps it clear of the 0-4 tiers below no
+  // matter how many visited profiles there are, and subtracting the
+  // recency rank keeps the most-recently-visited one on top among them.
+  if (visitRanks.has(id)) return 1000 - (visitRanks.get(id) ?? 0);
   if (followingIds.has(id)) return 4; // I follow them
   if (followerIds.has(id)) return 3;  // They follow me
   if (engagedIds.has(id)) return 2;   // Engagement overlap
@@ -164,10 +171,11 @@ export function useSearchPeople(query: string) {
       const followingIds = graph?.followingIds ?? new Set<string>();
       const followerIds = graph?.followerIds ?? new Set<string>();
       const engaged = engagedIds ?? new Set<string>();
+      const visitRanks = getSearchVisitRanks(user?.id);
 
       return (data ?? [])
         .map(normalizeProfile)
-        .map((p) => ({ p, score: scoreProfile(p.id, followingIds, followerIds, engaged) }))
+        .map((p) => ({ p, score: scoreProfile(p.id, followingIds, followerIds, engaged, visitRanks) }))
         .sort((a, b) => b.score - a.score)
         .map((s) => s.p);
     },
