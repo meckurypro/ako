@@ -55,6 +55,15 @@ export function MusicAttribution({ catalogueId, postId }: MusicAttributionProps)
 
   useEffect(() => {
     return () => {
+      // Belt-and-suspenders, same reasoning as useStopMediaWhenHidden's
+      // own unmount cleanup: the observer's cleanup below already stops
+      // playback in the common case, but if this component unmounts
+      // outright (feed re-render, fast scroll past before the exit-
+      // intersection callback lands) that cleanup may not get the
+      // chance to run first. The audio is a plain `new Audio()`, never
+      // attached to the DOM, so React removing this component does NOT
+      // stop it by itself — only an explicit pause() does.
+      stopPlayback();
       clearMusicPlaying(stopPlayback);
       unduckAudioBus();
     };
@@ -112,7 +121,12 @@ export function MusicAttribution({ catalogueId, postId }: MusicAttributionProps)
     );
 
     observer.observe(node);
-    return () => observer.disconnect();
+    return () => {
+      observer.disconnect();
+      stopPlayback();
+      unduckAudioBus();
+      clearMusicPlaying(stopPlayback);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [entry?.id, entry?.clip_url]);
 
