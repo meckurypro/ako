@@ -6,6 +6,7 @@ import { usePageRankedFeed, usePageFollowingFeed } from "../hooks/usePageFeed";
 import { useActiveIdentity } from "../hooks/usePages";
 import { useTabState } from "../hooks/useTabState";
 import { PostCard } from "../components/PostCard";
+import { AutoHideTopBar } from "../components/AutoHideTopBar";
 import { BottomNav } from "../components/BottomNav";
 import { TopHeader } from "../components/TopHeader";
 import { SwipeableTabs } from "../components/SwipeableTabs";
@@ -316,7 +317,7 @@ export function Feed() {
 
   return (
     <div className="min-h-screen bg-canvas pb-24">
-      <div className="sticky top-0 z-20 bg-surface shadow-[0_2px_8px_-4px_rgba(var(--shadow-ink-rgb),0.10)]">
+      <AutoHideTopBar>
         {/* Desktop already has Create/Notifications/Profile in the
             persistent Sidebar (see Sidebar.tsx) — repeating them here
             would just be the same destinations twice. Mobile keeps the
@@ -353,7 +354,7 @@ export function Feed() {
             />
           </div>
         </div>
-      </div>
+      </AutoHideTopBar>
 
       <div className="max-w-xl md:max-w-2xl mx-auto px-5 pt-5">
         {activeTab === "for-you" && interestId && (
