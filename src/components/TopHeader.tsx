@@ -28,7 +28,7 @@ export function TopHeader({ leftAction = "avatar" }: TopHeaderProps) {
   const location = useLocation();
 
   return (
-    <header className="px-4 pt-5 pb-2 bg-surface flex items-center justify-between">
+    <header className="px-4 pt-5 pb-2 flex items-center justify-between">
       {leftAction === "create" ? (
         <Link
           to="/create"
