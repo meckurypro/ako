@@ -155,6 +155,12 @@ export interface Post {
   id: string;
   author_id: string;
   heading: string | null;
+  // Optional named palette key for the heading's color — see
+  // src/lib/headingColors.ts for the fixed set of valid keys and
+  // their per-theme hex values. null = the original single default
+  // heading color (--color-post-header), same as every post created
+  // before this field existed.
+  heading_color: string | null;
   content: string;
   media_urls: string[];
   category_id: string | null;

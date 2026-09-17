@@ -12,6 +12,7 @@ import { useCollaborators } from "../hooks/useCollaboration";
 import { useUploadPostMedia, isVideoUrl } from "../hooks/useUploadPostMedia";
 import { useAuth } from "../hooks/useAuth";
 import { MentionTextarea } from "../components/MentionTextarea";
+import { HeadingColorPicker } from "../components/HeadingColorPicker";
 import { CONTENT_LIMIT, contentCounterClass } from "../lib/textLimits";
 import type { PostWithAuthor } from "../types/database";
 
@@ -50,6 +51,7 @@ export function EditPost() {
   const { data: existingTopicIds } = usePostTopics(postId);
 
   const [heading, setHeading] = useState("");
+  const [headingColor, setHeadingColor] = useState<string | null>(null);
   const [content, setContent] = useState("");
   const [mediaUrls, setMediaUrls] = useState<string[]>([]);
   const [topicIds, setTopicIds] = useState<Set<string>>(new Set());
@@ -67,6 +69,7 @@ export function EditPost() {
   useEffect(() => {
     if (post && !initialized) {
       setHeading(post.heading ?? "");
+      setHeadingColor(post.heading_color ?? null);
       setContent(post.content);
       setMediaUrls(post.media_urls);
       setInitialized(true);
@@ -125,6 +128,7 @@ export function EditPost() {
       await updatePost.mutateAsync({
         post_id: postId,
         heading: heading.trim() || undefined,
+        heading_color: headingColor,
         content,
         interest_ids: Array.from(topicIds),
         media_urls: mediaUrls,
@@ -176,13 +180,20 @@ export function EditPost() {
   return (
     <div className="min-h-screen bg-canvas">
       <div className="max-w-xl mx-auto px-4 pt-4 pb-28">
-        <input
-          value={heading}
-          onChange={(e) => setHeading(e.target.value.slice(0, HEADING_LIMIT))}
-          maxLength={HEADING_LIMIT}
-          placeholder="Heading (optional)"
-          className="w-full font-display text-2xl leading-tight text-ink bg-transparent focus:outline-none placeholder:text-ink-muted/60 mb-1"
-        />
+        <div className="flex items-start gap-2 mb-1">
+          <input
+            value={heading}
+            onChange={(e) => setHeading(e.target.value.slice(0, HEADING_LIMIT))}
+            maxLength={HEADING_LIMIT}
+            placeholder="Heading (optional)"
+            className="w-full font-display text-2xl leading-tight text-ink bg-transparent focus:outline-none placeholder:text-ink-muted/60"
+          />
+          {heading.trim().length > 0 && (
+            <div className="pt-1.5">
+              <HeadingColorPicker value={headingColor} onChange={setHeadingColor} />
+            </div>
+          )}
+        </div>
         <p className="text-xs text-ink-muted mb-3">{heading.length}/{HEADING_LIMIT}</p>
 
         <MentionTextarea

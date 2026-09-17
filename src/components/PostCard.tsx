@@ -31,6 +31,7 @@ import { ReactionTray, type EngagementAction } from "./ReactionTray";
 import { ReactionMoreSheet } from "./ReactionMoreSheet";
 import { PostMedia } from "./PostMedia";
 import { PostContent } from "./PostContent";
+import { AkoWatermark } from "./AkoWatermark";
 import { MusicAttribution } from "./music/MusicAttribution";
 import { StanceComposer, STANCE_COLORS } from "./StanceComposer";
 import { CommentSheet } from "./CommentSheet";
@@ -681,12 +682,25 @@ export function PostCard({
           )}
         </div>
 
-        {/* Reshare badge only now — the relationship badge moved to overlay
-            the divider under the time row (above), so this fixed right-hand
-            column no longer competes with the poster's name for width. */}
-        {plainReshare && (
-          <div className="self-start pt-0.5">
-            <RepostBadge source={original} />
+        {/* Fixed right-hand column — the relationship badge moved to
+            overlay the divider under the time row (above), so this
+            column no longer competes with the poster's name for width;
+            it just holds whichever single thing belongs in the card's
+            top-right corner. A plain reshare's RepostBadge takes it
+            when present; otherwise the Akọ watermark does (pure
+            branding for screenshots — this is the only place "Akọ"
+            still shows up once a post is shared outside the app).
+            Skipped entirely on an archived-frozen card, which already
+            has its own Restore/Delete pair absolutely covering this
+            same corner (see above) — reserving a second column here
+            too would just add empty width next to it. Deliberately a
+            reserved flex column rather than an absolute overlay: a
+            long display name/tier badge on the row to its left can
+            still wrap safely without either element covering the
+            other. */}
+        {(plainReshare || !isArchivedFrozen) && (
+          <div className="self-start pt-0.5 shrink-0">
+            {plainReshare ? <RepostBadge source={original} /> : <AkoWatermark />}
           </div>
         )}
       </div>
@@ -696,7 +710,7 @@ export function PostCard({
           quote (the caption) and a normal post. */}
       {(post.content.trim() !== "" || post.heading) && (
         <Link to={`/post/${post.id}`} onClick={handleContentTap} className="block mt-3">
-          <PostContent heading={post.heading} content={post.content} />
+          <PostContent heading={post.heading} headingColor={post.heading_color} content={post.content} />
         </Link>
       )}
 
