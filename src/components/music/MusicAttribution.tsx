@@ -199,9 +199,13 @@ export function MusicAttribution({ catalogueId, postId }: MusicAttributionProps)
         <button
           onClick={toggleMute}
           aria-label={muted ? "Unmute" : "Mute"}
-          className="flex-shrink-0 text-ink-muted bg-transparent border-0 p-0"
+          // Bumped from size 15/no padding — too small to register as a
+          // real control (or to tap comfortably) next to the song text.
+          // Negative margin cancels the padding for layout purposes, so
+          // this only grows the icon and its tap target, not the row.
+          className="flex-shrink-0 text-ink-muted bg-transparent border-0 p-1.5 -m-1.5"
         >
-          {muted ? <VolumeX size={15} /> : <Volume2 size={15} />}
+          {muted ? <VolumeX size={20} /> : <Volume2 size={20} />}
         </button>
       </div>
 
