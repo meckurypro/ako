@@ -197,6 +197,20 @@ export function PostCard({
   // now unreachable while the tray is frozen.
   const isArchivedFrozen = isOwner && post.is_archived;
 
+  // A plain reshare whose original has since been deleted/archived has
+  // nothing left to actually engage with — the body already renders
+  // "This post is no longer available" (see the plainReshare/originalGone
+  // block below) instead of any real content. Without this, the
+  // engagement tray stayed fully live on that empty card: anyone could
+  // still like/comment/reshare/gift a post showing no content at all,
+  // which is how a like ends up registered on something that reads as
+  // unavailable. Frozen the same way an owner's archived post already
+  // is (see isArchivedFrozen/ReactionTray's `disabled`) — existing
+  // counts from before the original disappeared are left alone, only
+  // new engagement is blocked.
+  const reshareContentGone = plainReshare && originalGone;
+  const trayFrozen = isArchivedFrozen || reshareContentGone;
+
   // Page-mode post: byline shows the organisation/brand instead of the
   // human who clicked post — same idea as a LinkedIn/Facebook Page post.
   // author_id/isOwner above are deliberately left keyed on the real
@@ -624,6 +638,26 @@ export function PostCard({
         </div>
       )}
 
+      {/* Same idea, narrower case: a plain reshare whose original is
+          gone has an empty, frozen tray below (see trayFrozen) with no
+          long-press sheet to reach Delete from anymore — this is the
+          owner's only way left to clear it out. Not shown when
+          isArchivedFrozen already rendered its own bar above (this
+          reshare is ALSO archived) to avoid stacking two Delete
+          buttons. */}
+      {reshareContentGone && isOwner && !isArchivedFrozen && (
+        <div className="absolute top-3 right-3 z-10">
+          <button
+            onClick={handleDelete}
+            aria-label="Delete"
+            className="flex items-center gap-1.5 text-xs font-medium text-canvas bg-danger/85 rounded-full px-3 py-1.5"
+          >
+            <Trash2 size={14} />
+            Delete
+          </button>
+        </div>
+      )}
+
       <div className="relative">
         <div className="flex items-start gap-3 pb-3.5 border-b border-border">
           <Link
@@ -805,12 +839,12 @@ export function PostCard({
         leftActions={leftActions}
         middleActions={middleActions}
         rightActions={rightActions}
-        onOpenMore={isArchivedFrozen ? undefined : () => setShowMoreActions(true)}
+        onOpenMore={trayFrozen ? undefined : () => setShowMoreActions(true)}
         belowLeftLabel={{ text: `Comments: ${post.comment_count}`, onClick: handleCommentTap }}
-        disabled={isArchivedFrozen}
+        disabled={trayFrozen}
       />
 
-      {showMoreActions && !isArchivedFrozen && (
+      {showMoreActions && !trayFrozen && (
         <ReactionMoreSheet actions={moreActions} onClose={() => setShowMoreActions(false)} />
       )}
 
