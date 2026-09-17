@@ -39,7 +39,7 @@ import { useRecordProfileVisit } from "../hooks/useProfileVisits";
 import { Avatar } from "../components/Avatar";
 import { AccountSwitcher } from "../components/AccountSwitcher";
 import { VerifiedBadge } from "../components/VerifiedBadge";
-import { ImageLightbox } from "../components/ImageLightbox";
+import { MediaViewer } from "../components/MediaViewer";
 import { ShareProfileSheet } from "../components/ShareProfileSheet";
 import { ConfirmDialog } from "../components/ConfirmDialog";
 import { ReportModal } from "../components/ReportModal";
@@ -1044,9 +1044,9 @@ export function ProfilePage() {
       </div>
 
       {avatarOpen && profile.avatar_url && (
-        <ImageLightbox
-          src={profile.avatar_url}
-          alt={profile.display_name}
+        <MediaViewer
+          mediaUrls={[profile.avatar_url]}
+          startIndex={0}
           onClose={() => setAvatarOpen(false)}
         />
       )}
