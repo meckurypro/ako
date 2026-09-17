@@ -1,4 +1,14 @@
 // src/components/MediaPreviewPlayer.tsx
+//
+// NOTE: this component itself isn't currently rendered anywhere — a
+// Media project's play button now lives directly on the card's own
+// thumbnail (see MediaHeroPlayer in ProjectCard.tsx), which inlines
+// its own play/pause + loop/cap logic against that thumbnail rather
+// than importing this. PREVIEW_SECONDS below is still the shared
+// source of truth for the preview cap, which is why the import
+// remains. Left in place rather than deleted in case a future
+// context (e.g. a standalone lightbox/modal player) wants exactly
+// this "video with a small control row underneath" shape again.
 import { useEffect, useRef, useState } from "react";
 import { Play, Pause } from "lucide-react";
 
