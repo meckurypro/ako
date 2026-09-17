@@ -4,20 +4,26 @@
 // content (see done/AKO_FEED_COMPOSER_SLIDES_MUSIC_UX_AUDIT.md §7 and
 // done/AKO_MUSIC_CATALOGUE_AND_CREATOR_DISCOVERY_SYSTEM.md §11-12):
 //
-//   ○ Song Title
-//     Artist · feat. Artist
+//   ♩ Song Title · Artist · feat. Artist              🔊
 //
-// Tapping the pill (outside the play button) opens the music
-// discovery surface — Music → Artist → Profile → Projects. The whole
-// row never implies the poster owns the music.
+// A single line, not a button — no pill background/border like a
+// tappable chip. Tapping the icon/title/artist text still opens the
+// music discovery surface (Music → Artist → Profile → Projects); the
+// row never implies the poster owns the music. The speaker icon at
+// the extreme right is the only real control — it mutes/unmutes,
+// nothing more (playback itself is automatic, see below).
 //
-// Playback: real audio state (loading/playing/paused/failed), single
-// active soundtrack across the whole Feed (see feedAudioPlayback.ts),
-// and ducks the app's UI sound bus while playing so a "like" chime
-// never talks over it.
+// Playback is scroll-driven, not tap-driven: this card's music starts
+// the moment the post scrolls into view and stops the moment it
+// scrolls out (IntersectionObserver, same threshold convention as
+// ProfileAdSlot's background-video autoplay), so there's deliberately
+// no play/pause button anywhere in this UI. Real audio state (loading/
+// playing/failed), single active soundtrack across the whole Feed
+// (see feedAudioPlayback.ts), and ducks the app's UI sound bus while
+// playing so a "like" chime never talks over it.
 
 import { useEffect, useRef, useState } from "react";
-import { Play, Pause, Loader2 } from "lucide-react";
+import { Music2, Volume2, VolumeX } from "lucide-react";
 import { useMusicCatalogueEntry, useRecordMusicUsageEvent } from "../../hooks/useMusicCatalogue";
 import { announceMusicPlaying, clearMusicPlaying } from "../../lib/feedAudioPlayback";
 import { duckAudioBus, unduckAudioBus, resumeAudioBus } from "../../lib/audioBus";
@@ -28,18 +34,22 @@ interface MusicAttributionProps {
   postId: string;
 }
 
-type PlaybackState = "idle" | "loading" | "playing" | "paused" | "failed";
+// Matches ProfileAdSlot's own autoplay threshold — "enough of the post
+// is on screen that this clearly is the thing the person is looking
+// at" — rather than firing the instant one pixel scrolls into view.
+const VISIBILITY_THRESHOLD = 0.6;
 
 export function MusicAttribution({ catalogueId, postId }: MusicAttributionProps) {
   const { data: entry } = useMusicCatalogueEntry(catalogueId);
   const recordUsage = useRecordMusicUsageEvent();
+  const rowRef = useRef<HTMLDivElement | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
-  const [state, setState] = useState<PlaybackState>("idle");
+  const [muted, setMuted] = useState(false);
   const [discoveryOpen, setDiscoveryOpen] = useState(false);
+  const hasRecordedPlayRef = useRef(false);
 
   const stopPlayback = () => {
     audioRef.current?.pause();
-    setState((s) => (s === "playing" ? "paused" : s));
   };
 
   useEffect(() => {
@@ -50,35 +60,66 @@ export function MusicAttribution({ catalogueId, postId }: MusicAttributionProps)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  function togglePlay(e: React.MouseEvent) {
+  // Scroll into view → play. Scroll out → pause. No button anywhere
+  // in this component ever calls play()/pause() directly — this
+  // observer is the only thing that starts or stops the audio.
+  useEffect(() => {
+    const node = rowRef.current;
+    if (!node || !entry) return;
+
+    const observer = new IntersectionObserver(
+      ([intersectionEntry]) => {
+        if (intersectionEntry.isIntersecting) {
+          if (!audioRef.current) {
+            const audio = new Audio(entry.clip_url);
+            audio.loop = true;
+            audio.muted = muted;
+            audio.addEventListener("error", () => clearMusicPlaying(stopPlayback));
+            audioRef.current = audio;
+          }
+          const audio = audioRef.current;
+
+          resumeAudioBus();
+          announceMusicPlaying(stopPlayback);
+          duckAudioBus();
+          audio
+            .play()
+            .then(() => {
+              if (!hasRecordedPlayRef.current) {
+                hasRecordedPlayRef.current = true;
+                recordUsage.mutate({ catalogueId: entry.id, eventType: "play", postId });
+              }
+            })
+            .catch(() => {
+              // Autoplay-with-sound was blocked — fall back to a
+              // muted autoplay (which browsers always allow) rather
+              // than leaving the post silent-and-stopped with no way
+              // to start it, since there's no play button to retry
+              // from. The speaker icon reflects the fallback so the
+              // person can see it's muted and un-mute it themselves.
+              audio.muted = true;
+              setMuted(true);
+              audio.play().catch(() => clearMusicPlaying(stopPlayback));
+            });
+        } else {
+          stopPlayback();
+          unduckAudioBus();
+          clearMusicPlaying(stopPlayback);
+        }
+      },
+      { threshold: VISIBILITY_THRESHOLD },
+    );
+
+    observer.observe(node);
+    return () => observer.disconnect();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [entry?.id, entry?.clip_url]);
+
+  function toggleMute(e: React.MouseEvent) {
     e.stopPropagation();
-    if (!entry) return;
-
-    if (!audioRef.current) {
-      audioRef.current = new Audio(entry.clip_url);
-      audioRef.current.addEventListener("ended", () => {
-        setState("paused");
-        unduckAudioBus();
-        clearMusicPlaying(stopPlayback);
-      });
-      audioRef.current.addEventListener("error", () => setState("failed"));
-    }
-
-    if (state === "playing") {
-      stopPlayback();
-      unduckAudioBus();
-      clearMusicPlaying(stopPlayback);
-      return;
-    }
-
-    resumeAudioBus();
-    announceMusicPlaying(stopPlayback);
-    setState("loading");
-    duckAudioBus();
-    audioRef.current
-      .play()
-      .then(() => setState("playing"))
-      .catch(() => setState("failed"));
+    const next = !muted;
+    setMuted(next);
+    if (audioRef.current) audioRef.current.muted = next;
   }
 
   function openDiscovery(e: React.MouseEvent) {
@@ -94,34 +135,28 @@ export function MusicAttribution({ catalogueId, postId }: MusicAttributionProps)
 
   return (
     <>
-      <button
-        onClick={openDiscovery}
-        className="w-full flex items-center gap-2 mt-2 px-2.5 py-1.5 rounded-full bg-surface border border-border max-w-fit text-left"
-      >
-        <span
-          onClick={togglePlay}
-          role="button"
-          aria-label={state === "playing" ? "Pause" : "Play"}
-          className="w-6 h-6 rounded-full bg-accent-soft flex items-center justify-center flex-shrink-0 overflow-hidden"
-          style={entry.cover_url ? { backgroundImage: `url(${entry.cover_url})`, backgroundSize: "cover" } : undefined}
+      <div ref={rowRef} className="flex items-center gap-2 mt-2 min-w-0">
+        <button
+          onClick={openDiscovery}
+          className="flex-1 flex items-center gap-1.5 min-w-0 bg-transparent border-0 p-0 text-left"
         >
-          {!entry.cover_url &&
-            (state === "loading" ? (
-              <Loader2 size={11} className="text-accent animate-spin" />
-            ) : state === "playing" ? (
-              <Pause size={11} className="text-accent" />
-            ) : (
-              <Play size={11} className="text-accent" />
-            ))}
-        </span>
-        <span className="min-w-0">
-          <span className="block text-xs font-medium text-ink truncate">{entry.title}</span>
-          <span className="block text-[11px] text-ink-muted truncate">
+          <Music2 size={14} className="text-ink-muted flex-shrink-0" />
+          <span className="min-w-0 truncate text-xs text-ink-muted">
+            <span className="font-medium text-ink">{entry.title}</span>
+            {" · "}
             {entry.primary_artist_name}
             {featured.length > 0 && ` · feat. ${featured.map((f) => f.contributor.display_name).join(", ")}`}
           </span>
-        </span>
-      </button>
+        </button>
+
+        <button
+          onClick={toggleMute}
+          aria-label={muted ? "Unmute" : "Mute"}
+          className="flex-shrink-0 text-ink-muted bg-transparent border-0 p-0"
+        >
+          {muted ? <VolumeX size={15} /> : <Volume2 size={15} />}
+        </button>
+      </div>
 
       {discoveryOpen && <MusicDiscoverySheet catalogueId={entry.id} onClose={() => setDiscoveryOpen(false)} />}
     </>
