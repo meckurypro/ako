@@ -599,101 +599,106 @@ export function PostCard({
         </div>
       )}
 
-      <div className="flex items-start gap-3">
-        <Link
-          to={identityHref}
-          // Only a real profile destination (not a Page) gets the
-          // "came from this post" marker — see ProfilePage's
-          // fromFeedPost, which powers the "Back to post" FAB shown
-          // there. Pages don't have that FAB at all.
-          state={!postedAsPage ? { fromFeedPost: { id: post.id } } : undefined}
-          className="relative"
-          onClick={() => {
-            if (!postedAsPage && user) {
-              recordProfileVisitFromPost(post.id, post.author.id, user.id);
-            }
-          }}
-        >
-          <Avatar src={identityAvatar} name={identityName} size="md" />
-          <PostCollaboratorsBadge target="post" targetId={post.id} />
-        </Link>
+      <div className="relative">
+        <div className="flex items-start gap-3 pb-3.5 border-b border-border">
+          <Link
+            to={identityHref}
+            // Only a real profile destination (not a Page) gets the
+            // "came from this post" marker — see ProfilePage's
+            // fromFeedPost, which powers the "Back to post" FAB shown
+            // there. Pages don't have that FAB at all.
+            state={!postedAsPage ? { fromFeedPost: { id: post.id } } : undefined}
+            className="relative"
+            onClick={() => {
+              if (!postedAsPage && user) {
+                recordProfileVisitFromPost(post.id, post.author.id, user.id);
+              }
+            }}
+          >
+            <Avatar src={identityAvatar} name={identityName} size="md" />
+            <PostCollaboratorsBadge target="post" targetId={post.id} />
+          </Link>
 
-        <div className="flex-1 min-w-0 space-y-0.5">
-          {/* Name row — own line, never wraps. pr-9 reserves room for the
-              watermark sitting in the card's absolute top-right tip (below)
-              so a long @username truncates before ever running under it. */}
-          <div className="flex items-center gap-1.5 pr-9">
-            <Link
-              to={identityHref}
-              state={!postedAsPage ? { fromFeedPost: { id: post.id } } : undefined}
-              className="font-display font-semibold text-[17px] leading-5 text-ink hover:underline truncate"
-              onClick={() => {
-                if (!postedAsPage && user) {
-                  recordProfileVisitFromPost(post.id, post.author.id, user.id);
-                }
-              }}
-            >
-              {postedAsPage ? identityName : `@${post.author.username}`}
-            </Link>
-            {!postedAsPage && post.author.is_verified && <VerifiedBadge className="shrink-0" />}
-            {!postedAsPage && <TierBadge tier={post.author.tier} />}
-          </div>
+          <div className="flex-1 min-w-0 space-y-0.5">
+            {/* Name row — own line, never wraps. The Akọ watermark is a
+                flex sibling *of this row only* (not the whole column, and
+                not the whole header) so it always lands flush at this
+                row's true right edge without ever narrowing the role-tags
+                or timestamp rows below it the way a shared column used to. */}
+            <div className="flex items-center gap-1.5">
+              <div className="flex items-center gap-1.5 min-w-0 flex-1">
+                <Link
+                  to={identityHref}
+                  state={!postedAsPage ? { fromFeedPost: { id: post.id } } : undefined}
+                  className="font-simple font-semibold text-[17px] leading-5 text-ink hover:underline truncate min-w-0 flex-1"
+                  onClick={() => {
+                    if (!postedAsPage && user) {
+                      recordProfileVisitFromPost(post.id, post.author.id, user.id);
+                    }
+                  }}
+                >
+                  {postedAsPage ? identityName : `@${post.author.username}`}
+                </Link>
+                {!postedAsPage && post.author.is_verified && <VerifiedBadge className="shrink-0" />}
+                {!postedAsPage && <TierBadge tier={post.author.tier} />}
+              </div>
+              {!isArchivedFrozen && (
+                <div className="shrink-0 pl-2">
+                  <AkoWatermark />
+                </div>
+              )}
+            </div>
 
-          {/* Role/page-role row — own line. */}
-          {postedAsPage ? (
-            // Page posts show the poster's role at the page instead of the
-            // personal job/hobby tags — e.g. "Graphics Designer at PromptIQ".
-            <p className="text-[13px] font-normal leading-[18px] text-ink-muted truncate">
-              {`@${post.author.username}`}
-              {post.author.roles[0] ? ` · ${post.author.roles[0].label} at ${postedAsPage.name}` : ` posted this`}
-            </p>
-          ) : (
-            post.author.roles.length > 0 && (
-              <RoleTags
-                roles={post.author.roles}
-                className="text-[13px] font-normal leading-[18px] text-ink-muted block truncate"
-              />
-            )
-          )}
+            {/* Role/page-role row — own line. */}
+            {postedAsPage ? (
+              // Page posts show the poster's role at the page instead of the
+              // personal job/hobby tags — e.g. "Graphics Designer at PromptIQ".
+              <p className="text-[13px] font-normal leading-[18px] text-ink-muted truncate">
+                {`@${post.author.username}`}
+                {post.author.roles[0] ? ` · ${post.author.roles[0].label} at ${postedAsPage.name}` : ` posted this`}
+              </p>
+            ) : (
+              post.author.roles.length > 0 && (
+                <RoleTags
+                  roles={post.author.roles}
+                  className="text-[13px] font-normal leading-[18px] text-ink-muted block truncate"
+                />
+              )
+            )}
 
-          {/* Timestamp row — own line, reintroduced here (rather than
-              folded into the name row above it). Time/date/edited/globe
-              sit on the left; the reshare tag (on a plain reshare) and the
-              Follow badge sit on the right, pinned to the card's extreme
-              right edge via justify-between so neither can ever overlap
-              the text on the left, however long the timestamp gets.
-
-              Follow badge skipped for page posts — following a page
-              happens on its own PagePage (a follow-the-human FollowButton
-              would be wrong here since the byline above is the page, not
-              post.author) — and for the owner's own post. */}
-          <div className="flex items-center justify-between gap-2">
-            <p className="text-xs leading-[18px] text-ink-muted flex items-center gap-1 min-w-0">
-              <span className="truncate">
+            {/* Timestamp row — own line, plain (no right-hand content).
+                The reshare tag and Follow badge used to compete for space
+                in this row; they now sit on the header/body divider
+                below instead — see the overlay just after this column. */}
+            <p className="text-xs leading-[18px] text-ink-muted flex items-center gap-1">
+              <span>
                 {timeAgo(post.created_at)}
                 {post.edited_at && " · edited"}
               </span>
-              {post.visibility === "public" && <Globe size={11} className="shrink-0" />}
+              {post.visibility === "public" && <Globe size={11} />}
             </p>
-
-            {(plainReshare || (!isOwner && !postedAsPage)) && (
-              <div className="flex items-center gap-2 shrink-0">
-                {plainReshare && <RepostBadge source={original} />}
-                {!isOwner && !postedAsPage && (
-                  <FollowButton authorId={post.author.id} isPrivate={post.author.is_private} />
-                )}
-              </div>
-            )}
           </div>
         </div>
 
-        {/* Akọ watermark — the card's absolute top-right tip, on the same
-            row as the avatar, independent of the timestamp row below (see
-            above). Skipped only when the card is archived-frozen, whose
-            own Restore/Delete pair already owns this corner. */}
-        {!isArchivedFrozen && (
-          <div className="self-start pt-0.5 shrink-0">
-            <AkoWatermark />
+        {/* Header/body divider, reintroduced — the border-b above draws
+            the line; the reshare tag (on a plain reshare) and the Follow
+            badge sit right on top of it, pinned to the card's true
+            extreme right edge (translate-y-1/2 centers them vertically
+            on the line itself, matching where they used to sit before
+            the line was removed). The matching card-background pill
+            behind them masks the line so it doesn't visibly cut through
+            the Follow badge's own semi-transparent fill.
+
+            Follow badge skipped for page posts — following a page
+            happens on its own PagePage (a follow-the-human FollowButton
+            would be wrong here since the byline above is the page, not
+            post.author) — and for the owner's own post. */}
+        {(plainReshare || (!isOwner && !postedAsPage)) && (
+          <div className="absolute right-0 bottom-0 translate-y-1/2 flex items-center gap-2 bg-surface dark:bg-[#121114] pl-2 rounded-full">
+            {plainReshare && <RepostBadge source={original} />}
+            {!isOwner && !postedAsPage && (
+              <FollowButton authorId={post.author.id} isPrivate={post.author.is_private} />
+            )}
           </div>
         )}
       </div>

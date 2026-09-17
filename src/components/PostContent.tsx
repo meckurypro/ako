@@ -21,10 +21,9 @@ function renderParagraphs(content: string) {
   ));
 }
 
-// Heading matches the author name in family (both font-display) so the
-// two read as one consistent "stylised" voice, per the Uche reference —
-// large serif headline, roomy sans body underneath.
-//
+// Heading matches the author name in family (both font-simple, a plain
+// Roboto sans) so the two read as one consistent voice — simplified
+// away from the earlier Playfair Display serif treatment.
 // A heading with no body underneath isn't really a "headline" for
 // anything — it's just what the person typed into the title field with
 // nothing added below — so it renders as plain body text instead of a
@@ -58,7 +57,7 @@ export function PostContent({ heading, headingColor, content }: PostContentProps
     <div>
       {heading && (
         <h3
-          className="font-display text-[26px] font-semibold leading-[30px] text-post-header mb-3"
+          className="font-simple text-[26px] font-semibold leading-[30px] text-post-header mb-3"
           style={headingStyle}
         >
           {renderFormattedText(heading, "h")}
