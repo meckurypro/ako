@@ -92,6 +92,7 @@ export function PostCard({
   isOwnerView = false,
   showStats = false,
   active = true,
+  onRequestOpenComments,
 }: {
   post: PostWithAuthor;
   // Accepted so callers like ProfilePage can flag the viewer as the post's
@@ -108,6 +109,13 @@ export function PostCard({
   // else a PostCard is genuinely on screen the moment it mounts, so the
   // default is true and every other call site is unaffected.
   active?: boolean;
+  // Only PostDetail passes this — called instead of opening PostCard's
+  // own internal comment sheet when showStats is true, since in that
+  // context PostDetail owns the CommentSheet itself (normally already
+  // open). Lets PostDetail's "view original, comments not forced open"
+  // mode (reached via RepostBadge) still open comments on demand when
+  // the visitor taps the comment count.
+  onRequestOpenComments?: () => void;
 }) {
   const { user } = useAuth();
   const navigate = useNavigate();
@@ -252,7 +260,14 @@ export function PostCard({
   // its own, so tapping the count there is a no-op rather than
   // stacking a second identical sheet on top of it.
   function handleCommentTap() {
-    if (showStats) return;
+    if (showStats) {
+      // PostDetail owns the comment sheet in this mode — it's usually
+      // already open (see onClose), but when it isn't (the "view
+      // original" mode reached via RepostBadge) this is how the tap
+      // gets there instead of doing nothing.
+      onRequestOpenComments?.();
+      return;
+    }
     setShowComments(true);
   }
 
@@ -713,26 +728,56 @@ export function PostCard({
         )}
       </div>
 
-      {/* Own content — skipped for a plain reshare, which has none of its
-          own (just the embedded original below). Always present for a
-          quote (the caption) and a normal post. */}
-      {(post.content.trim() !== "" || post.heading) && (
-        <Link to={`/post/${post.id}`} onClick={handleContentTap} className="block mt-3">
-          <PostContent heading={post.heading} headingColor={post.heading_color} content={post.content} />
-        </Link>
+      {/* A plain reshare has no caption of its own — it shows the ORIGINAL's
+          full heading/content/media/music inline, as if it were the
+          resharer's own post. No author details, no truncation: the
+          RepostBadge in the header above is the only "this is a repost"
+          signal, matching a normal retweet-without-comment. Only when the
+          original is gone (deleted/archived) does this fall back to a
+          notice, same copy RepostEmbed used to show for that case. */}
+      {plainReshare ? (
+        originalGone ? (
+          <div className="mt-3 rounded-xl border border-border bg-surface dark:bg-[#121114] px-4 py-3 text-sm text-ink-muted">
+            {original?.is_archived ? "This post has been archived by its author." : "This post is no longer available."}
+          </div>
+        ) : (
+          <>
+            {(original!.content.trim() !== "" || original!.heading) && (
+              <Link to={`/post/${post.id}`} onClick={handleContentTap} className="block mt-3">
+                <PostContent heading={original!.heading} headingColor={original!.heading_color} content={original!.content} />
+              </Link>
+            )}
+            <PostMedia mediaUrls={original!.media_urls} />
+            {original!.music_catalogue_id && (
+              <MusicAttribution catalogueId={original!.music_catalogue_id} postId={post.id} />
+            )}
+          </>
+        )
+      ) : (
+        <>
+          {/* Own content — the caption (quote) or the post itself
+              (normal post). */}
+          {(post.content.trim() !== "" || post.heading) && (
+            <Link to={`/post/${post.id}`} onClick={handleContentTap} className="block mt-3">
+              <PostContent heading={post.heading} headingColor={post.heading_color} content={post.content} />
+            </Link>
+          )}
+
+          <PostMedia mediaUrls={post.media_urls} />
+
+          {post.music_catalogue_id && (
+            <MusicAttribution catalogueId={post.music_catalogue_id} postId={post.id} />
+          )}
+        </>
       )}
 
-      <PostMedia mediaUrls={post.media_urls} />
-
-      {post.music_catalogue_id && (
-        <MusicAttribution catalogueId={post.music_catalogue_id} postId={post.id} />
-      )}
-
-      {/* Embedded original — for both a plain reshare and a quote. Handles
-          its own "no longer available" state internally, and always
-          links to the original post with the original creator's own
-          details, regardless of whether it's still reachable. */}
-      {(plainReshare || quotePost) && <RepostEmbed source={original} />}
+      {/* Embedded original — quotes only now. A quote keeps its own
+          caption above and shows the original as a bordered, truncated
+          card underneath (with the original author's own details) since
+          the quote and the original are two distinct, attributed voices.
+          A plain reshare is rendered fully above instead — see block
+          above — and no longer duplicates the original here. */}
+      {quotePost && <RepostEmbed source={original} />}
 
       {/* Item 10 — subtle project tag at the bottom of the post.
           post.tagged_project needs to be selected alongside the post
