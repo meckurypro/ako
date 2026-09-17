@@ -785,9 +785,12 @@ export function ProfilePage() {
               ) : (
                 <h1 className="font-medium text-lg text-ink">{displayName}</h1>
               )}
-              {profile.is_verified && <VerifiedBadge size={16} />}
               <TierBadge tier={profile.tier} />
             </div>
+
+            {profile.is_verified && (
+              <VerifiedBadge size={15} label className="mt-1" />
+            )}
 
             {profile.roles.length > 0 && (
               <RoleTags roles={profile.roles} className="text-xs text-ink-muted block mt-0.5" />
