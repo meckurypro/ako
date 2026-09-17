@@ -2,10 +2,11 @@
 import { useEffect, useRef, useState } from "react";
 import { useParams, Link, useNavigate } from "react-router-dom";
 import { useSmartBack } from "../hooks/useSmartBack";
-import { ArrowLeft, ArrowLeftRight, BadgeCheck, Building2, Globe, MoreHorizontal, Pencil, Plus, Redo2, Trash2, Users, UserCog } from "lucide-react";
+import { ArrowLeft, ArrowLeftRight, Building2, Globe, MoreHorizontal, Pencil, Plus, Redo2, Trash2, Users, UserCog } from "lucide-react";
 import { useAuth } from "../hooks/useAuth";
 import { useMyProfile } from "../hooks/useProfile";
 import { Avatar } from "../components/Avatar";
+import { VerifiedBadge } from "../components/VerifiedBadge";
 import { PostCard } from "../components/PostCard";
 import { BottomNav } from "../components/BottomNav";
 import {
@@ -315,7 +316,7 @@ export function PagePage() {
                   className="flex items-center gap-1.5 max-w-full"
                 >
                   <h1 className="font-display text-lg text-ink truncate">{page.name}</h1>
-                  {page.is_verified && <BadgeCheck size={16} className="text-accent flex-shrink-0" />}
+                  {page.is_verified && <VerifiedBadge size={16} />}
                 </button>
 
                 {/* Every other page you run — tapping a row switches

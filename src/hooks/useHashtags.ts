@@ -30,7 +30,7 @@ export function useHashtagPosts(tag: string) {
 
       const { data, error } = await supabase
         .from("posts")
-        .select(`*, author:profiles!posts_author_id_fkey(id, username, display_name, avatar_url, tier, is_private)`)
+        .select(`*, author:profiles!posts_author_id_fkey(id, username, display_name, avatar_url, tier, is_private, is_verified)`)
         .in("id", postIds)
         .eq("is_deleted", false)
         .eq("is_archived", false)

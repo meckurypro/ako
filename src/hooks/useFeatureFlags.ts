@@ -24,7 +24,8 @@ export type FeatureFlagCategory =
   | "affiliates"
   | "projects"
   | "content"
-  | "discovery";
+  | "discovery"
+  | "access";
 
 export interface FeatureFlagDef {
   key: string;
@@ -142,6 +143,13 @@ export const FEATURE_FLAG_DEFS: FeatureFlagDef[] = [
     description:
       "The quiet 'there's more happening on Akọ' doorway shown at natural stopping points (course complete, book contents, ticket confirmation). Turning this off removes the invitation only — the underlying page and Feed itself are unaffected.",
     category: "discovery",
+  },
+  {
+    key: "incubation_review_gate_enabled",
+    label: "Incubation review gate",
+    description:
+      "When ON, users must be Admin-approved (Admin > Account review) before they can enter Akọ — anyone not yet approved sees the Under Review screen. Turning this OFF does not approve anyone; it only stops the gate from being enforced, and turning it back ON automatically re-locks accounts that were never approved.",
+    category: "access",
   },
 ];
 

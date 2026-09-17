@@ -13,6 +13,7 @@ import {
 // page_messaging_enabled are still toggled from AdminPageSettings.tsx
 // (see useFeatureFlags.ts), so they're not duplicated here.
 const CATEGORY_ORDER: FeatureFlagCategory[] = [
+  "access",
   "projects",
   "content",
   "messaging",
@@ -24,6 +25,7 @@ const CATEGORY_ORDER: FeatureFlagCategory[] = [
 
 const CATEGORY_LABELS: Record<FeatureFlagCategory, string> = {
   pages: "Pages & organisations",
+  access: "Account access",
   projects: "Projects",
   content: "Content",
   messaging: "Messaging",

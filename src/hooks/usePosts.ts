@@ -12,7 +12,7 @@ const PAGE_SIZE = 15;
 export const POST_EDIT_WINDOW_MS = 15 * 60 * 1000;
 
 
-const AUTHOR_SELECT = `id, username, display_name, avatar_url, tier, is_private, ${PROFILE_ROLES_SELECT}`;
+const AUTHOR_SELECT = `id, username, display_name, avatar_url, tier, is_private, is_verified, ${PROFILE_ROLES_SELECT}`;
 // Joined alongside author on every post select — null on the vast
 // majority of rows (personal posts), populated only when the post was
 // published in Page mode. PostCard should prefer this over `author`

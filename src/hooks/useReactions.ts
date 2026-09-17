@@ -402,7 +402,7 @@ export function useLikedPosts() {
       const { data, error } = await supabase
         .from("reactions")
         .select(
-          `post:posts!reactions_post_id_fkey(*, author:profiles!posts_author_id_fkey(id, username, display_name, avatar_url, tier, is_private, ${PROFILE_ROLES_SELECT}))`
+          `post:posts!reactions_post_id_fkey(*, author:profiles!posts_author_id_fkey(id, username, display_name, avatar_url, tier, is_private, is_verified, ${PROFILE_ROLES_SELECT}))`
         )
         .eq("type", "like")
         .eq("target_type", "post")

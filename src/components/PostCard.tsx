@@ -25,6 +25,7 @@ import {
 import { Avatar } from "./Avatar";
 import { LikeHeart } from "./LikeHeart";
 import { TierBadge } from "./TierBadge";
+import { VerifiedBadge } from "./VerifiedBadge";
 import { RoleTags } from "./RoleTags";
 import { FollowButton } from "./FollowButton";
 import { ReactionTray, type EngagementAction } from "./ReactionTray";
@@ -631,6 +632,7 @@ export function PostCard({
             >
               {postedAsPage ? identityName : shortDisplayName(identityName)}
             </Link>
+            {!postedAsPage && post.author.is_verified && <VerifiedBadge />}
             {!postedAsPage && <TierBadge tier={post.author.tier} />}
           </div>
 
