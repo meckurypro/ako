@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import {
   Heart,
   ThumbsDown,
@@ -205,7 +205,18 @@ function NotificationRowContent({ n, config }: { n: NotificationWithActor; confi
   return (
     <>
       {showActor ? (
-        <Avatar src={n.actor!.avatar_url} name={n.actor!.display_name} size="sm" />
+        // Its own Link, separate from the row's — tapping the photo goes
+        // straight to the actor's profile; tapping anywhere else in the
+        // row still does whatever this notification type normally does
+        // (open the post, an invite modal, etc). stopPropagation keeps
+        // the row's own onClick (see RowShell below) from also firing.
+        <Link
+          to={`/profile/${n.actor!.username}`}
+          onClick={(e) => e.stopPropagation()}
+          className="flex-shrink-0"
+        >
+          <Avatar src={n.actor!.avatar_url} name={n.actor!.display_name} size="sm" />
+        </Link>
       ) : (
         <div className="w-8 h-8 rounded-full bg-accent-soft flex items-center justify-center flex-shrink-0">
           <Icon size={16} className="text-accent" />
@@ -236,6 +247,40 @@ function NotificationRowContent({ n, config }: { n: NotificationWithActor; confi
 const ROW_CLASS = (unread: boolean) =>
   `flex items-start gap-3 py-3.5 border-b border-border w-full text-left ${unread ? "bg-highlight -mx-4 px-4" : ""}`;
 
+// Row wrapper for every notification type — a clickable div (not a Link
+// or button) so the avatar above can be its own real, un-nested Link:
+// an <a> nested inside another <a> (or a <button>) is invalid HTML and
+// browsers handle it inconsistently, so the row's own "go to the post /
+// open this invite" behavior is wired up as a click handler here
+// instead of native anchor/button semantics. role="button" + tabIndex +
+// onKeyDown keep it keyboard-accessible.
+function RowShell({
+  unread,
+  onActivate,
+  children,
+}: {
+  unread: boolean;
+  onActivate: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <div
+      role="button"
+      tabIndex={0}
+      onClick={onActivate}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          onActivate();
+        }
+      }}
+      className={ROW_CLASS(unread)}
+    >
+      {children}
+    </div>
+  );
+}
+
 // A tap on a page_role_accepted OR page_role_declined notification
 // should land on the page's team roster — so the inviter can see
 // their new teammate, or re-invite someone else after a decline —
@@ -244,15 +289,18 @@ const ROW_CLASS = (unread: boolean) =>
 // notificationLink() above.
 function PageResponseRow({ n, onRead }: { n: NotificationWithActor; onRead: () => void }) {
   const { data: page } = usePageById(n.target_id ?? "", !!n.target_id);
+  const navigate = useNavigate();
   const config = n.type === "page_role_declined" ? TYPE_CONFIG.page_role_declined : TYPE_CONFIG.page_role_accepted;
   return (
-    <Link
-      to={page ? `/page/${page.username}/team` : "#"}
-      onClick={onRead}
-      className={ROW_CLASS(!n.read_at)}
+    <RowShell
+      unread={!n.read_at}
+      onActivate={() => {
+        onRead();
+        if (page) navigate(`/page/${page.username}/team`);
+      }}
     >
       <NotificationRowContent n={n} config={config} />
-    </Link>
+    </RowShell>
   );
 }
 
@@ -270,18 +318,19 @@ function NotificationRow({
   onOpenMusicCreditRequest: (catalogueId: string) => void;
 }) {
   const config = TYPE_CONFIG[n.type] ?? TYPE_CONFIG.system;
+  const navigate = useNavigate();
 
   if (n.type === "page_role_invite" && n.target_id) {
     return (
-      <button
-        onClick={() => {
+      <RowShell
+        unread={!n.read_at}
+        onActivate={() => {
           onRead();
           onOpenInvite(n.target_id!);
         }}
-        className={ROW_CLASS(!n.read_at)}
       >
         <NotificationRowContent n={n} config={config} />
-      </button>
+      </RowShell>
     );
   }
 
@@ -295,15 +344,15 @@ function NotificationRow({
   if (n.type === "collaboration_invite" && n.target_id && (n.target_type === "post" || n.target_type === "project")) {
     const target = n.target_type;
     return (
-      <button
-        onClick={() => {
+      <RowShell
+        unread={!n.read_at}
+        onActivate={() => {
           onRead();
           onOpenCollaborationInvite(target, n.target_id!);
         }}
-        className={ROW_CLASS(!n.read_at)}
       >
         <NotificationRowContent n={n} config={config} />
-      </button>
+      </RowShell>
     );
   }
 
@@ -311,22 +360,29 @@ function NotificationRow({
   // MusicCreditResponseModal.
   if (n.type === "music_credit_request" && n.target_id) {
     return (
-      <button
-        onClick={() => {
+      <RowShell
+        unread={!n.read_at}
+        onActivate={() => {
           onRead();
           onOpenMusicCreditRequest(n.target_id!);
         }}
-        className={ROW_CLASS(!n.read_at)}
       >
         <NotificationRowContent n={n} config={config} />
-      </button>
+      </RowShell>
     );
   }
 
   return (
-    <Link to={notificationLink(n)} onClick={onRead} className={ROW_CLASS(!n.read_at)}>
+    <RowShell
+      unread={!n.read_at}
+      onActivate={() => {
+        onRead();
+        const link = notificationLink(n);
+        if (link !== "#") navigate(link);
+      }}
+    >
       <NotificationRowContent n={n} config={config} />
-    </Link>
+    </RowShell>
   );
 }
 
