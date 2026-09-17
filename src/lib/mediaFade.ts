@@ -15,12 +15,18 @@ export const FADE_SECONDS = 0.005;
 function rampVolume(element: HTMLMediaElement, from: number, to: number, seconds: number, onDone?: () => void) {
   const durationMs = Math.max(0, seconds * 1000);
   const start = performance.now();
+  // Only elements that started out DOM-attached (e.g. MediaViewer's
+  // <video>) can become "detached mid-ramp" — capture that up front so
+  // a standalone `new Audio()` (e.g. MusicAttribution's feed-post
+  // soundtrack, which is never inserted into the DOM at all) doesn't
+  // read as permanently detached and skip its pause() below.
+  const wasConnected = element.isConnected;
   element.volume = Math.min(1, Math.max(0, from));
 
   function step(now: number) {
     // Element may have been unmounted/swapped mid-ramp (slide change,
     // scroll-out) — bail quietly rather than throwing on a detached node.
-    if (!element.isConnected) return;
+    if (wasConnected && !element.isConnected) return;
     const elapsed = now - start;
     const progress = durationMs === 0 ? 1 : Math.min(1, elapsed / durationMs);
     element.volume = Math.min(1, Math.max(0, from + (to - from) * progress));
