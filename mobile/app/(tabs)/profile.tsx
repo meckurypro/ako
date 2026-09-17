@@ -1,0 +1,6 @@
+import { View } from "react-native";
+import { useRouter } from "expo-router";
+import { Avatar, Badge, Button, Card, Screen, Section, Text } from "@/components/core";
+import { ScreenHeader } from "@/components/navigation/ScreenHeader";
+import { useAuth } from "@/providers/AuthProvider";
+export default function ProfileScreen() { const router=useRouter(); const { profile, user } = useAuth(); const label = profile?.username ? `@${profile.username}` : user?.email ?? "AKọ member"; return <Screen><ScreenHeader title="Profile" subtitle="Your identity on AKọ" /><Card style={{ marginTop: 16, gap: 14 }}><View style={{ flexDirection: "row", alignItems: "center", gap: 14 }}><Avatar uri={profile?.avatar_url} name={profile?.display_name ?? profile?.username ?? user?.email ?? "AKọ"} size={72} /><View style={{ flex: 1, gap: 5 }}><Text variant="title">{profile?.display_name ?? profile?.username ?? "Your profile"}</Text><Text color="secondary">{label}</Text><Badge label="AKọ member" /></View></View>{profile?.bio&&<Text color="secondary">{profile.bio}</Text>}<Button label="Edit profile" variant="secondary" onPress={()=>router.push("/profile/edit")} /></Card><Section title="Account"><Button label="Sign out" variant="secondary" icon="logout" onPress={()=>router.push("/modals/logout-confirm")} /></Section></Screen>; }
