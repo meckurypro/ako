@@ -19,7 +19,7 @@ import { BottomNav } from "../components/BottomNav";
 import { MessageStatusTicks } from "../components/MessageStatusTicks";
 import { ConversationActionSheet } from "../components/ConversationActionSheet";
 import { ConfirmDialog } from "../components/ConfirmDialog";
-import { ImageLightbox } from "../components/ImageLightbox";
+import { MediaViewer } from "../components/MediaViewer";
 import { decodeVoiceNote, VOICE_NOTE_LABEL } from "../lib/voiceNotes";
 
 const MAX_PINNED = 3;
@@ -514,9 +514,9 @@ export function ConversationList() {
       )}
 
       {previewAvatar && (
-        <ImageLightbox
-          src={previewAvatar.src}
-          alt={`${previewAvatar.name}'s profile photo`}
+        <MediaViewer
+          mediaUrls={[previewAvatar.src]}
+          startIndex={0}
           onClose={() => setPreviewAvatar(null)}
         />
       )}
