@@ -139,7 +139,15 @@ const PROJECT_TYPE_ROUTE: Record<string, (id: string) => string> = {
 
 function notificationLink(n: NotificationWithActor): string {
   if (n.type === "follow_request") return "/requests";
-  if (n.target_type === "post" && n.target_id) return `/post/${n.target_id}`;
+  // `?view=post` — a like/dislike/support/reshare/etc. notification is
+  // about the POST, not its comments, so this lands on the post itself
+  // (own content, own engagement tray) instead of PostDetail forcing
+  // the comment sheet open over it. Same flag RepostBadge uses for the
+  // same reason. Comments are still one tap away from there. A
+  // comment-target notification below deliberately does NOT get this —
+  // opening straight into the reply/comment that was engaged on is the
+  // whole point of that link.
+  if (n.target_type === "post" && n.target_id) return `/post/${n.target_id}?view=post`;
   if (n.target_type === "project" && n.target_id) {
     const route = n.project_type ? PROJECT_TYPE_ROUTE[n.project_type] : undefined;
     return route ? route(n.target_id) : `/projects/${n.target_id}`;
