@@ -546,6 +546,41 @@ export function useRespondToPageInvite() {
   });
 }
 
+/** Promote or demote an existing active member's admin flag. Requires
+ * a matching `update_page_member_role` RPC in the database (mirroring
+ * remove_page_member/invite_page_member's admin-only, security-definer
+ * pattern) — see the migration note alongside this hook's usage in
+ * PageTeam.tsx if that function doesn't exist yet in this project. */
+export function useUpdatePageMemberRole() {
+  const { user } = useAuth();
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    meta: { blocking: true },
+    mutationFn: async ({
+      page_id,
+      user_id,
+      is_admin,
+    }: {
+      page_id: string;
+      user_id: string;
+      is_admin: boolean;
+    }) => {
+      const { error } = await supabase.rpc("update_page_member_role", {
+        p_page_id: page_id,
+        p_user_id: user_id,
+        p_is_admin: is_admin,
+      });
+      if (error) throw error;
+    },
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({ queryKey: ["page-members", variables.page_id] });
+      queryClient.invalidateQueries({ queryKey: ["my-pages", user?.id] });
+      queryClient.invalidateQueries({ queryKey: ["active-identity", user?.id] });
+    },
+  });
+}
+
 /** Covers both "admin removes someone" and "member leaves" — same RPC. */
 export function useRemovePageMember() {
   const { user } = useAuth();
