@@ -192,6 +192,53 @@ export function useGigSamples(gigProjectId: string | undefined) {
   });
 }
 
+// The reverse of useGigSamples: which of the account's own Gig
+// page(s) feature THIS project as a work sample, if any. Nothing
+// previously linked from a sample project (e.g. a published song)
+// back to the Gig page it's proof-of-work for — a visitor who
+// reached the sample directly (a feed post, a share) had no way to
+// discover the gig itself ("Message to inquire", pricing, other
+// samples) short of stumbling onto it separately. Two-step fetch,
+// same reasoning as useGigSamples — only ever surfaces gigs that are
+// themselves active/public, never a draft or private one.
+export interface FeaturingGig {
+  id: string;
+  title: string;
+  role_label: string | null;
+}
+
+export function useGigsFeaturingProject(sampleProjectId: string | undefined) {
+  return useQuery({
+    queryKey: ["gigs-featuring-project", sampleProjectId],
+    queryFn: async (): Promise<FeaturingGig[]> => {
+      if (!sampleProjectId) return [];
+      const { data: links, error: linksError } = await supabase
+        .from("project_gig_samples")
+        .select("gig_project_id")
+        .eq("sample_project_id", sampleProjectId);
+      if (linksError) throw linksError;
+
+      const gigIds = [...new Set((links ?? []).map((l) => l.gig_project_id))];
+      if (gigIds.length === 0) return [];
+
+      const { data, error } = await supabase
+        .from("project_gig_details")
+        .select("project_id, gig_roles(label), projects!inner(id, title, status, is_private)")
+        .in("project_id", gigIds)
+        .eq("projects.status", "active")
+        .eq("projects.is_private", false);
+      if (error) throw error;
+
+      return ((data ?? []) as any[]).map((row) => {
+        const project = Array.isArray(row.projects) ? row.projects[0] : row.projects;
+        const role = Array.isArray(row.gig_roles) ? row.gig_roles[0] : row.gig_roles;
+        return { id: project.id, title: project.title, role_label: role?.label ?? null };
+      });
+    },
+    enabled: !!sampleProjectId,
+  });
+}
+
 // A Pitch's fundraising goal + the id of its auto-provisioned update
 // Room, which every supporter is added to on backing (see
 // create_pitch_project and add_supporter_to_pitch_room in
