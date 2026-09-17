@@ -12,6 +12,7 @@ import { useMyProfile } from "../hooks/useProfile";
 import { supabase } from "../lib/supabase";
 import { Avatar } from "../components/Avatar";
 import { MentionTextarea } from "../components/MentionTextarea";
+import { HeadingColorPicker } from "../components/HeadingColorPicker";
 import { TagProjectPicker } from "../components/TagProjectPicker";
 import { DropdownMenu, type DropdownMenuItem } from "../components/DropdownMenu";
 import { Modal } from "../components/Modal";
@@ -30,6 +31,7 @@ export function Compose() {
   const location = useLocation();
   const smartBack = useSmartBack();
   const [heading, setHeading] = useState("");
+  const [headingColor, setHeadingColor] = useState<string | null>(null);
   const [content, setContent] = useState("");
   const [topicIds, setTopicIds] = useState<Set<string>>(new Set());
   const [mediaUrls, setMediaUrls] = useState<string[]>([]);
@@ -99,7 +101,7 @@ export function Compose() {
       const { data, error: fetchError } = await supabase
         .from("posts")
         .select(
-          "heading, content, media_urls, tagged_project:projects!posts_tagged_project_id_fkey(id, title), post_topics(interest_id)"
+          "heading, heading_color, content, media_urls, tagged_project:projects!posts_tagged_project_id_fkey(id, title), post_topics(interest_id)"
         )
         .eq("id", resumingPostId)
         .single();
@@ -108,6 +110,7 @@ export function Compose() {
         return;
       }
       setHeading(data.heading ?? "");
+      setHeadingColor(data.heading_color ?? null);
       setContent(data.content ?? "");
       setMediaUrls(data.media_urls ?? []);
       const resumedTopics = (data as any).post_topics as { interest_id: string }[] | null;
@@ -176,6 +179,7 @@ export function Compose() {
     try {
       const createdPost = await createPost.mutateAsync({
         heading: heading.trim() || undefined,
+        heading_color: headingColor,
         content,
         interest_ids: Array.from(topicIds),
         media_urls: mediaUrls,
@@ -279,13 +283,25 @@ export function Compose() {
           </p>
         </div>
 
-        <input
-          value={heading}
-          onChange={(e) => setHeading(e.target.value.slice(0, HEADING_LIMIT))}
-          maxLength={HEADING_LIMIT}
-          placeholder="Heading (optional)"
-          className="w-full font-display text-2xl leading-tight text-ink bg-transparent focus:outline-none placeholder:text-ink-muted/60 mb-1"
-        />
+        <div className="flex items-start gap-2 mb-1">
+          <input
+            value={heading}
+            onChange={(e) => setHeading(e.target.value.slice(0, HEADING_LIMIT))}
+            maxLength={HEADING_LIMIT}
+            placeholder="Heading (optional)"
+            className="w-full font-display text-2xl leading-tight text-ink bg-transparent focus:outline-none placeholder:text-ink-muted/60"
+          />
+          {/* Only worth showing once there's something to color — an
+              empty heading has nothing for the pick to apply to, and
+              PostContent only ever renders the colored headline style
+              when there's a heading anyway (see its own "heading-only
+              falls back to plain text" case). */}
+          {heading.trim().length > 0 && (
+            <div className="pt-1.5">
+              <HeadingColorPicker value={headingColor} onChange={setHeadingColor} />
+            </div>
+          )}
+        </div>
         <p className="text-xs text-ink-muted mb-3">{heading.length}/{HEADING_LIMIT}</p>
 
         <MentionTextarea

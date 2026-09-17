@@ -42,6 +42,17 @@
   --color-highlight: #BFE6C6;     /* saturated sage — deliberately more vivid than accent-soft, used for the few spots that need to visually pop against a list (unread notification rows, jump-to-comment flash) rather than sit quietly like an accent-soft badge */
   --color-post-header: #1E4C9A;    /* post heading (PostContent.tsx) blue — deliberately its own token, not a reuse of --color-tick-blue (that one's WhatsApp-specific) or --color-accent (sage, would read as a link/action color here). Medium navy holds ~7.5:1 against light-mode canvas/surface; see .dark below for the near-black-safe counterpart. */
 
+  /* NOTE: the 7 selectable heading colors (emerald/amber/garnet/
+     amethyst/petrol/espresso/graphite) are declared just below, in
+     the plain :root block outside this @theme one, not here. They are
+     only ever read via a raw var() in inline style (PostContent.tsx,
+     HeadingColorPicker.tsx), never through a generated text- or bg-
+     utility class, so Tailwind own tree-shaking prunes them as unused
+     if declared inside @theme (found the hard way: they built fine
+     but silently vanished from the light-mode output). The plain
+     :root rule just below is never pruned this way, same reason the
+     shadow/accent rgb() triplets already live there. */
+
   /*
     Dedicated chat-bubble colors — deliberately separate tokens from
     --color-accent / --color-surface (not aliases) so a message bubble
@@ -115,6 +126,27 @@
   --shadow-ink-rgb: 31, 29, 26;   /* == --color-ink, light mode */
   --accent-rgb: 61, 90, 69;       /* == --color-accent, light mode */
   --overlay-surface-rgb: 28, 28, 30; /* == --color-overlay-surface, for rgba() transparency below */
+
+  /*
+    Selectable heading colors — Compose.tsx's color-picker button next
+    to the heading input (src/lib/headingColors.ts is the source of
+    truth for which key maps to which pair; these are just the CSS
+    side of the same 8 values so PostContent can apply them with a
+    plain var() and get the right theme automatically, same as every
+    other token on this page). "Sapphire" isn't repeated here — it's
+    just --color-post-header above (in @theme), unchanged, since it's
+    the original default heading color and every existing post with
+    no heading_color set keeps reading that exact token.
+    Every pair holds ≥7:1 contrast against its card surface in both
+    themes — see src/lib/headingColors.ts for the exact ratios.
+  */
+  --color-heading-emerald: #08633F;
+  --color-heading-amber: #7A4A00;
+  --color-heading-garnet: #7A1140;
+  --color-heading-amethyst: #5B3A8A;
+  --color-heading-petrol: #0E5F63;
+  --color-heading-espresso: #5C3A1E;
+  --color-heading-graphite: #2B2B2E;
 }
 
 /*
@@ -170,6 +202,18 @@
   --color-pushback: #D9A857;
   --color-highlight: #1E4B31;    /* dark-mode counterpart — noticeably more saturated/green than --color-accent-soft's #17281F so unread rows still pop against near-black canvas */
   --color-post-header: #7CB3FF;  /* dark-mode counterpart to light mode's #1E4C9A — that navy is far too dark to read against near-black canvas, so this swaps to a light sky-blue instead; ~8.6-9:1 against dark canvas/surface, and kept visibly distinct from both --color-tick-blue (#53BDEB) and dark --color-accent (#4CAE7C) so it doesn't get mistaken for either. */
+
+  /* Dark-mode counterparts of the selectable heading colors above —
+     each lighter/brighter than its light-mode value for the same
+     near-black-canvas contrast reason as --color-post-header just
+     above. See src/lib/headingColors.ts for exact contrast ratios. */
+  --color-heading-emerald: #4FE0A8;
+  --color-heading-amber: #F2B84D;
+  --color-heading-garnet: #E893BE;
+  --color-heading-amethyst: #C6A6F0;
+  --color-heading-petrol: #5FD6DC;
+  --color-heading-espresso: #D9A876;
+  --color-heading-graphite: #DAD6CC;
 
   /*
     Sent-bubble green is kept noticeably darker than --color-accent

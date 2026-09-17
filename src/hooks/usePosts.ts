@@ -54,6 +54,9 @@ export function normalizePost(raw: any): PostWithAuthor {
 
 interface CreatePostInput {
   heading?: string;
+  // Named palette key for the heading — see src/lib/headingColors.ts.
+  // Omit (or send null) for the default heading color.
+  heading_color?: string | null;
   content: string;
   category_id?: string;
   interest_ids?: string[];
@@ -528,6 +531,9 @@ export function usePostViewCount(postId: string, enabled: boolean = true) {
 interface UpdatePostInput {
   post_id: string;
   heading?: string;
+  // Named palette key for the heading — see src/lib/headingColors.ts.
+  // Always applied together with `heading` — see update-post's header.
+  heading_color?: string | null;
   content: string;
   category_id?: string | null;
   media_urls?: string[];
