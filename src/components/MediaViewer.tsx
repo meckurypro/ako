@@ -22,6 +22,14 @@ const DISMISS_THRESHOLD = 120;
 // slide index, and vice versa.
 const AXIS_LOCK_THRESHOLD = 12;
 
+// Horizontal paging — same drag-follows-your-finger physics as the
+// inline SlideCarousel (see PostMedia.tsx), so swiping between slides
+// in fullscreen feels like a continuation of the same gesture instead
+// of a hard cut.
+const COMMIT_RATIO = 0.2;
+const COMMIT_VELOCITY = 0.5; // px/ms — a fast flick commits even short of the ratio
+const EDGE_RESISTANCE = 2.5;
+
 // Zoom — pinch and double-tap both land on the same scale ladder.
 // Clamped well short of pixelation (MAX_SCALE) but far enough in to
 // actually read fine detail (ZOOM_SCALE, what a double-tap jumps to).
@@ -54,6 +62,14 @@ function clamp(value: number, min: number, max: number) {
  * media itself downward closes the viewer too, matching the
  * WhatsApp/Instagram convention people already expect here.
  *
+ * Paging between slides is a real drag-tracked animation, not a
+ * discrete swap: all slides sit in one flex track, and a swipe (or a
+ * tap on the arrow buttons, or a committed drag) moves the track by a
+ * CSS-transitioned `transform` — the same technique the inline
+ * SlideCarousel uses. Dismiss (drag-down) is layered on as an outer
+ * translateY+scale around that track, so paging and dismissing never
+ * fight over the same transform.
+ *
  * Zoom: pinch with two fingers, or double-tap to jump to ZOOM_SCALE
  * and back. While zoomed, a single-finger drag pans the image instead
  * of paging to the next slide or dismissing — those two gestures only
@@ -80,6 +96,10 @@ export function MediaViewer({ mediaUrls, startIndex, onClose }: MediaViewerProps
   const [touchStart, setTouchStart] = useState<{ x: number; y: number } | null>(null);
   const [axis, setAxis] = useState<"horizontal" | "vertical" | null>(null);
   const [dragY, setDragY] = useState(0);
+  // Live horizontal drag offset for the slide track, in px — mirrors
+  // SlideCarousel's dragPx.
+  const [dragX, setDragX] = useState(0);
+  const [horizontalDragging, setHorizontalDragging] = useState(false);
   const [isDismissing, setIsDismissing] = useState(false);
 
   const [scale, setScale] = useState(1);
@@ -89,8 +109,25 @@ export function MediaViewer({ mediaUrls, startIndex, onClose }: MediaViewerProps
   const pinchRef = useRef<{ startDist: number; startScale: number } | null>(null);
   const panDragRef = useRef<{ startX: number; startY: number; startPanX: number; startPanY: number } | null>(null);
   const lastTapRef = useRef<{ time: number; x: number; y: number } | null>(null);
+  // Velocity tracking for the horizontal swipe — same technique as
+  // SlideCarousel, so a fast flick commits the page change even if it
+  // didn't cross the ratio threshold.
+  const velocityRef = useRef<{ prevX: number; prevT: number; lastX: number; lastT: number } | null>(null);
 
   const hasMultiple = mediaUrls.length > 1;
+
+  // Viewer is always viewport-sized (fixed inset-0), so the track's
+  // per-slide width is just the window width — tracked via a resize
+  // listener rather than a ResizeObserver since there's no scrollable
+  // container to measure here.
+  const [viewportWidth, setViewportWidth] = useState(() => (typeof window !== "undefined" ? window.innerWidth : 0));
+  useEffect(() => {
+    function handleResize() {
+      setViewportWidth(window.innerWidth);
+    }
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, []);
 
   // Never carry zoom from one slide to the next, or leave the viewer
   // zoomed in for whoever opens it next.
@@ -159,8 +196,11 @@ export function MediaViewer({ mediaUrls, startIndex, onClose }: MediaViewerProps
       return;
     }
 
-    setTouchStart({ x: e.touches[0].clientX, y: e.touches[0].clientY });
+    const t = e.touches[0];
+    const now = Date.now();
+    setTouchStart({ x: t.clientX, y: t.clientY });
     setAxis(null);
+    velocityRef.current = { prevX: t.clientX, prevT: now, lastX: t.clientX, lastT: now };
   }
 
   function handleTouchMove(e: React.TouchEvent) {
@@ -186,17 +226,19 @@ export function MediaViewer({ mediaUrls, startIndex, onClose }: MediaViewerProps
     }
 
     if (!touchStart) return;
-    const deltaX = e.touches[0].clientX - touchStart.x;
-    const deltaY = e.touches[0].clientY - touchStart.y;
+    const t = e.touches[0];
+    const deltaX = t.clientX - touchStart.x;
+    const deltaY = t.clientY - touchStart.y;
 
     // Decide (once) which gesture this touch is, the first time it
     // moves far enough to tell — then stick with that for the rest of
-    // the gesture so it can't waver between dragging the slide down
-    // and nudging it sideways.
+    // the gesture so it can't waver between dragging the slide down,
+    // paging sideways, and nudging it sideways.
     let currentAxis = axis;
     if (!currentAxis && (Math.abs(deltaX) > AXIS_LOCK_THRESHOLD || Math.abs(deltaY) > AXIS_LOCK_THRESHOLD)) {
       currentAxis = Math.abs(deltaY) > Math.abs(deltaX) ? "vertical" : "horizontal";
       setAxis(currentAxis);
+      if (currentAxis === "horizontal") setHorizontalDragging(true);
     }
 
     // Only a downward drag dismisses — dragging up doesn't do anything
@@ -204,6 +246,23 @@ export function MediaViewer({ mediaUrls, startIndex, onClose }: MediaViewerProps
     // thumb with a bogus offset for that direction.
     if (currentAxis === "vertical" && deltaY > 0) {
       setDragY(deltaY);
+      return;
+    }
+
+    if (currentAxis === "horizontal") {
+      let clamped = deltaX;
+      if ((index === 0 && deltaX > 0) || (index === mediaUrls.length - 1 && deltaX < 0)) {
+        clamped = deltaX / EDGE_RESISTANCE;
+      }
+      setDragX(clamped);
+
+      const v = velocityRef.current;
+      if (v) {
+        v.prevX = v.lastX;
+        v.prevT = v.lastT;
+        v.lastX = t.clientX;
+        v.lastT = Date.now();
+      }
     }
   }
 
@@ -248,15 +307,36 @@ export function MediaViewer({ mediaUrls, startIndex, onClose }: MediaViewerProps
       } else {
         setDragY(0); // snap back — transition handles the animation
       }
-    } else {
-      const deltaX = e.changedTouches[0].clientX - touchStart.x;
-      if (Math.abs(deltaX) > SWIPE_THRESHOLD) {
-        goTo(deltaX < 0 ? index + 1 : index - 1);
+    } else if (axis === "horizontal") {
+      const width = viewportWidth || window.innerWidth || 1;
+      const v = velocityRef.current;
+      const elapsedMs = v ? Math.max(1, v.lastT - v.prevT) : 1;
+      const velocity = v ? (v.lastX - v.prevX) / elapsedMs : 0; // px/ms, negative = leftward
+
+      let target = index;
+      if (dragX <= -width * COMMIT_RATIO || velocity <= -COMMIT_VELOCITY) {
+        target = Math.min(mediaUrls.length - 1, index + 1);
+      } else if (dragX >= width * COMMIT_RATIO || velocity >= COMMIT_VELOCITY) {
+        target = Math.max(0, index - 1);
+      }
+
+      if (target !== index) goTo(target);
+      else {
+        const deltaX = e.changedTouches[0].clientX - touchStart.x;
+        if (Math.abs(deltaX) > SWIPE_THRESHOLD) {
+          // Fallback path (shouldn't normally hit given the ratio/velocity
+          // check above already covers this) — kept so an edge case in
+          // the ratio math never strands the drag un-committed.
+          goTo(deltaX < 0 ? index + 1 : index - 1);
+        }
       }
     }
 
+    setDragX(0);
+    setHorizontalDragging(false);
     setTouchStart(null);
     setAxis(null);
+    velocityRef.current = null;
   }
 
   function handleZoneTap(direction: "prev" | "next") {
@@ -264,16 +344,17 @@ export function MediaViewer({ mediaUrls, startIndex, onClose }: MediaViewerProps
     goTo(direction === "prev" ? index - 1 : index + 1);
   }
 
-  const url = mediaUrls[index];
   // Progress toward dismissal, for fading the scrim as the media is
   // dragged down — fully transparent by the point release would close it,
   // so the fade finishes exactly as the gesture would otherwise commit.
   const dismissProgress = Math.min(1, dragY / DISMISS_THRESHOLD);
+  const dismissTransitionEnabled = dragY === 0 && !isDismissing;
+  const pagingTransitionEnabled = !horizontalDragging;
 
   return (
     <Portal>
       <div
-        className="fixed inset-0 bg-black z-50 flex items-center justify-center"
+        className="fixed inset-0 bg-black z-50"
         style={{
           backgroundColor: `rgba(0,0,0,${(1 - dismissProgress * 0.85).toFixed(2)})`,
           transition: dragY === 0 ? "background-color 200ms ease-out" : "none",
@@ -281,7 +362,7 @@ export function MediaViewer({ mediaUrls, startIndex, onClose }: MediaViewerProps
         onTouchStart={handleTouchStart}
         onTouchMove={handleTouchMove}
         onTouchEnd={handleTouchEnd}
-        onDoubleClick={() => !isVideoUrl(url) && toggleZoom()}
+        onDoubleClick={() => !isVideoUrl(mediaUrls[index]) && toggleZoom()}
       >
         {hasMultiple && (
           <div className="absolute top-4 left-1/2 -translate-x-1/2 text-white/80 text-sm z-10">
@@ -289,22 +370,70 @@ export function MediaViewer({ mediaUrls, startIndex, onClose }: MediaViewerProps
           </div>
         )}
 
+        {/* Dismiss layer — translateY + a slight scale-down as the media
+            is dragged toward closing. Kept as an outer wrapper (rather
+            than folded into the slide track below) so it scales from
+            the center of the viewport, not the center of the much-wider
+            multi-slide track. */}
         <div
+          className="w-full h-full overflow-hidden"
           style={{
-            transform: `translate(${pan.x}px, ${pan.y + dragY}px) scale(${scale * (1 - dismissProgress * 0.1)})`,
-            transition:
-              dragY === 0 && !isDismissing && !panDragRef.current && !pinchRef.current
-                ? "transform 200ms ease-out"
-                : "none",
+            transform: `translateY(${dragY}px) scale(${1 - dismissProgress * 0.1})`,
+            transition: dismissTransitionEnabled ? "transform 200ms ease-out" : "none",
             opacity: isDismissing ? 0 : 1,
-            touchAction: "none",
           }}
         >
-          {isVideoUrl(url) ? (
-            <video ref={videoRef} src={url} controls className="max-w-full max-h-full" />
-          ) : (
-            <img src={url} alt="" className="max-w-full max-h-full object-contain" draggable={false} />
-          )}
+          {/* Slide track — same drag-follows-your-finger technique as
+              the inline SlideCarousel (see PostMedia.tsx): every slide
+              sits in one flex row, and the whole row translates by the
+              current index plus the live drag offset. A CSS transition
+              on `transform` (enabled whenever the track isn't actively
+              being dragged) is what turns a committed swipe, an arrow-
+              button tap, or a snap-back into a real slide animation
+              instead of a hard cut. */}
+          <div
+            className="flex h-full"
+            style={{
+              width: `${mediaUrls.length * 100}%`,
+              transform: `translateX(${-index * viewportWidth + dragX}px)`,
+              transition: pagingTransitionEnabled ? "transform 300ms cubic-bezier(0.16, 1, 0.3, 1)" : "none",
+            }}
+          >
+            {mediaUrls.map((mediaUrl, i) => {
+              const isActive = i === index;
+              return (
+                <div
+                  key={i}
+                  className="shrink-0 h-full flex items-center justify-center"
+                  style={{ width: `${100 / mediaUrls.length}%` }}
+                >
+                  <div
+                    style={
+                      isActive
+                        ? {
+                            transform: `translate(${pan.x}px, ${pan.y}px) scale(${scale})`,
+                            transition: !panDragRef.current && !pinchRef.current ? "transform 200ms ease-out" : "none",
+                            touchAction: "none",
+                          }
+                        : undefined
+                    }
+                  >
+                    {isVideoUrl(mediaUrl) ? (
+                      <video
+                        ref={isActive ? videoRef : undefined}
+                        src={mediaUrl}
+                        controls={isActive}
+                        muted={!isActive}
+                        className="max-w-full max-h-full"
+                      />
+                    ) : (
+                      <img src={mediaUrl} alt="" className="max-w-full max-h-full object-contain" draggable={false} />
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
         </div>
 
         {hasMultiple && (
