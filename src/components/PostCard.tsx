@@ -40,7 +40,7 @@ import { ReshareSheet } from "./ReshareSheet";
 import { GiftPicker } from "./GiftPicker";
 import { RepostEmbed } from "./RepostEmbed";
 import { RepostBadge } from "./RepostBadge";
-import { TaggedProjectEmbed } from "./TaggedProjectEmbed";
+import { TaggedProjectEmbed, type TaggedProjectSummary } from "./TaggedProjectEmbed";
 import { ConfirmDialog } from "./ConfirmDialog";
 import { TagPeopleSheet } from "./TagPeopleSheet";
 import { CollaboratorsSheet } from "./CollaboratorsSheet";
@@ -152,6 +152,15 @@ export function PostCard({
   // the Reshare button at all.
   const originalGone = !original || original.is_deleted || original.is_archived;
   const reshareTarget = plainReshare && !originalGone ? original! : post;
+
+  // Item 10 — post.tagged_project needs to be selected alongside the
+  // post (see usePosts.ts's TAGGED_PROJECT_SELECT); not on the Post
+  // type yet, hence the cast. Used both to render the tag itself
+  // (below) and to hide the Gift action — gifting is meant for the
+  // creator's own work, not something that's already pointing at a
+  // separate project for sale.
+  const taggedProject = (post as any).tagged_project as TaggedProjectSummary | null | undefined;
+  const hasTaggedProject = !!taggedProject;
 
   // Own-post view: several engagement actions don't make sense directed
   // at yourself (resharing, taking a stance on, or gifting your own
@@ -416,6 +425,7 @@ export function PostCard({
     if (isOwner && HIDDEN_FOR_OWNER.includes(k)) return false;
     if (k === "reshare" && (isOwner || hasReshared)) return false;
     if (k === "gift" && viewingAsPage) return false;
+    if (k === "gift" && hasTaggedProject) return false;
     return true;
   });
 
@@ -728,7 +738,7 @@ export function PostCard({
           post.tagged_project needs to be selected alongside the post
           (see usePosts.ts — FEED_SELECT needs the join added) for
           this to ever be non-null. */}
-      <TaggedProjectEmbed project={(post as any).tagged_project} />
+      <TaggedProjectEmbed project={taggedProject} />
 
       {/* Time · date · views — only on the expanded (comments-visible) post,
           matching X's post-detail formatting. Feed cards don't show this. */}

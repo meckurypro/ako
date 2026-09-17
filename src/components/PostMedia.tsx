@@ -225,7 +225,7 @@ export function SlideCarousel({
   }
 
   return (
-    <div className="relative">
+    <div className={`relative ${frameClassName ? "w-full" : "w-[80%]"}`}>
       <div
         ref={containerRef}
         onClick={handleClick}
@@ -243,9 +243,7 @@ export function SlideCarousel({
         // Portal.tsx) so its own swipe is isolated from the tab row
         // regardless.
         data-swipeable-ignore
-        className={`bg-canvas rounded-xl overflow-hidden border border-border cursor-pointer ${
-          frameClassName ? `w-full ${frameClassName}` : "w-[80%]"
-        }`}
+        className={`w-full bg-canvas rounded-xl overflow-hidden border border-border cursor-pointer ${frameClassName ?? ""}`}
         style={frameClassName ? undefined : { aspectRatio: frameAspect }}
       >
         <div
