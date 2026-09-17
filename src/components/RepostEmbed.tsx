@@ -1,7 +1,6 @@
 // src/components/RepostEmbed.tsx
 import { Link } from "react-router-dom";
 import { Avatar } from "./Avatar";
-import { shortDisplayName } from "../lib/displayName";
 import type { RepostSource } from "../types/database";
 
 function timeAgo(dateString: string): string {
@@ -55,7 +54,7 @@ export function RepostEmbed({ source }: { source: RepostSource | null | undefine
       <div className="flex items-center gap-2">
         <Avatar src={source.author.avatar_url} name={source.author.display_name} size="sm" />
         <span className="font-display font-semibold text-sm text-ink truncate">
-          {shortDisplayName(source.author.display_name)}
+          {`@${source.author.username}`}
         </span>
         <span className="text-xs text-ink-muted shrink-0">{timeAgo(source.created_at)}</span>
       </div>

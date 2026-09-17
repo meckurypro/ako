@@ -62,7 +62,6 @@ import {
   usePrioritizePost,
   canEditPost,
 } from "../hooks/usePosts";
-import { shortDisplayName } from "../lib/displayName";
 import { formatPostTime, formatPostDate, formatCompactCount } from "../lib/formatStats";
 import { isPlainReshare, isQuote, type PostWithAuthor, type Stance } from "../types/database";
 
@@ -631,7 +630,7 @@ export function PostCard({
                 }
               }}
             >
-              {postedAsPage ? identityName : shortDisplayName(identityName)}
+              {postedAsPage ? identityName : `@${post.author.username}`}
             </Link>
             {!postedAsPage && post.author.is_verified && <VerifiedBadge />}
             {!postedAsPage && <TierBadge tier={post.author.tier} />}
@@ -641,7 +640,7 @@ export function PostCard({
             // Page posts show the poster's role at the page instead of the
             // personal job/hobby tags — e.g. "Graphics Designer at PromptIQ".
             <p className="text-[13px] font-normal leading-[18px] text-ink-muted">
-              {shortDisplayName(post.author.display_name)}
+              {`@${post.author.username}`}
               {post.author.roles[0] ? ` · ${post.author.roles[0].label} at ${postedAsPage.name}` : ` posted this`}
             </p>
           ) : (
@@ -660,49 +659,32 @@ export function PostCard({
             </span>
             {post.visibility === "public" && <Globe size={11} />}
           </p>
-
-          {/* Relationship badge (Follow/Following/Friends/Requested) used to
-              sit in a fixed column to the right of the name row, where it
-              competed with long display names/role tags for width. Moved
-              here instead: a divider — same border-border line used above
-              the engagement tray — drawn under the time row, with the badge
-              overlaid on its right end, like a labeled divider with the
-              label pushed to the end instead of the middle. Frees the name
-              row to use the card's full width. bg-surface (+ dark variant,
-              matching the card's own background below) lets the badge "cut"
-              into the line instead of drawing on top of it.
-
-              Page posts skip this — following a page happens on its own
-              PagePage (a follow-the-human FollowButton would be wrong here
-              since the byline above is the page, not post.author). */}
-          {!isOwner && !postedAsPage && (
-            <div className="relative mt-2 border-t border-border">
-              <span className="absolute right-0 top-1/2 -translate-y-1/2 pl-2 bg-surface dark:bg-[#121114]">
-                <FollowButton authorId={post.author.id} isPrivate={post.author.is_private} />
-              </span>
-            </div>
-          )}
         </div>
 
-        {/* Fixed right-hand column — the relationship badge moved to
-            overlay the divider under the time row (above), so this
-            column no longer competes with the poster's name for width;
-            it just holds whichever single thing belongs in the card's
-            top-right corner. A plain reshare's RepostBadge takes it
-            when present; otherwise the Akọ watermark does (pure
-            branding for screenshots — this is the only place "Akọ"
-            still shows up once a post is shared outside the app).
-            Skipped entirely on an archived-frozen card, which already
-            has its own Restore/Delete pair absolutely covering this
-            same corner (see above) — reserving a second column here
-            too would just add empty width next to it. Deliberately a
-            reserved flex column rather than an absolute overlay: a
-            long display name/tier badge on the row to its left can
-            still wrap safely without either element covering the
-            other. */}
-        {(plainReshare || !isArchivedFrozen) && (
-          <div className="self-start pt-0.5 shrink-0">
-            {plainReshare ? <RepostBadge source={original} /> : <AkoWatermark />}
+        {/* Fixed right-hand column, top-right corner. Holds — in this
+            order, all of them able to coexist rather than one bumping
+            another out — the Akọ watermark (skipped only when the card
+            is archived-frozen, whose own Restore/Delete pair already
+            owns this corner), the reshare icon on a plain reshare
+            (added alongside the watermark instead of replacing it),
+            and the Follow badge last, so it lands at the card's
+            extreme right edge on this same row instead of overlaying
+            the divider under the timestamp below. Now that the name
+            row shows @username rather than a full display name it has
+            plenty of headroom, so this row no longer needs to worry
+            about competing with it for width the way it used to.
+
+            Follow badge skipped for page posts — following a page
+            happens on its own PagePage (a follow-the-human
+            FollowButton would be wrong here since the byline above is
+            the page, not post.author). */}
+        {(plainReshare || !isArchivedFrozen || (!isOwner && !postedAsPage)) && (
+          <div className="flex items-center gap-2 self-start pt-0.5 shrink-0">
+            {!isArchivedFrozen && <AkoWatermark />}
+            {plainReshare && <RepostBadge source={original} />}
+            {!isOwner && !postedAsPage && (
+              <FollowButton authorId={post.author.id} isPrivate={post.author.is_private} />
+            )}
           </div>
         )}
       </div>
