@@ -21,21 +21,40 @@ const TAP_MOVE_THRESHOLD = 8;
  * Inline swipeable "slides" carousel — the feed-card equivalent of
  * MediaViewer's fullscreen swipe, so a multi-image post can be
  * flicked through without leaving the feed, the way Instagram/
- * Threads carousels work. A tap that isn't a real drag still opens
- * the fullscreen MediaViewer (for zoom), starting on whatever slide
- * is currently showing.
+ * Threads carousels work. A tap that isn't a real drag calls
+ * `onTap` with the currently-showing slide — PostMedia below wires
+ * this to opening the fullscreen MediaViewer; RepostEmbed (a quote/
+ * reshare's embedded original) wires it to nothing extra, since the
+ * whole embed is already a Link to the original post.
  *
  * A smaller, single-purpose copy of SwipeableTabs' gesture logic
  * rather than a shared abstraction — a carousel of images doesn't
  * need SwipeableTabs' per-pane height tracking or lazy mounting (an
  * <img> is cheap; a whole PostCard/ProjectCard tab isn't).
+ *
+ * Exported (not just used internally) so RepostEmbed can render a
+ * real, swipeable carousel for a multi-image original instead of a
+ * flat single-image thumbnail — see RepostEmbed.tsx for why that
+ * used to break: a static <img> there had no
+ * `data-swipeable-ignore`, so a swipe attempt on it fell through to
+ * the surrounding Feed/Profile tab row's own touch handler and
+ * dragged the whole page to a different tab instead of paging
+ * images. Rendering through this component instead means the
+ * embed's carousel owns its own horizontal drags, same as a native
+ * post's.
  */
-function SlideCarousel({
+export function SlideCarousel({
   mediaUrls,
-  onOpenViewer,
+  onTap,
+  frameClassName,
 }: {
   mediaUrls: string[];
-  onOpenViewer: (index: number) => void;
+  onTap: (index: number) => void;
+  // Overrides the default first-slide-aspect-ratio frame with a
+  // fixed-size box (e.g. "h-32") — used by RepostEmbed, whose
+  // compact embedded card has always shown a fixed-height thumbnail
+  // rather than a full aspect-ratio card.
+  frameClassName?: string;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [containerWidth, setContainerWidth] = useState(0);
@@ -50,8 +69,11 @@ function SlideCarousel({
   // a sane range so one unusually tall/wide first image can't force
   // every other slide into an awkward crop; a single posted image
   // (the common case) isn't clamped at all — see PostMedia below.
+  // Skipped entirely when frameClassName is given (a fixed-size box
+  // doesn't need this).
   const [frameAspect, setFrameAspect] = useState(1); // width / height, updated once the first slide's natural size is known
   function handleFirstImageLoad(e: SyntheticEvent<HTMLImageElement>) {
+    if (frameClassName) return;
     const img = e.currentTarget;
     if (img.naturalWidth && img.naturalHeight) {
       const raw = img.naturalWidth / img.naturalHeight;
@@ -146,7 +168,7 @@ function SlideCarousel({
 
       if (!state || state.axis !== "x") {
         // Never moved past the axis-lock threshold at all — a plain tap.
-        if (state && state.maxMove < TAP_MOVE_THRESHOLD) onOpenViewer(index);
+        if (state && state.maxMove < TAP_MOVE_THRESHOLD) onTap(index);
         setDragPx(0);
         return;
       }
@@ -165,7 +187,7 @@ function SlideCarousel({
       const wasTap = state.maxMove < TAP_MOVE_THRESHOLD;
       setDragPx(0);
       if (target !== index) setIndex(target);
-      else if (wasTap) onOpenViewer(index);
+      else if (wasTap) onTap(index);
     }
 
     node.addEventListener("touchstart", handleTouchStart, { passive: true });
@@ -181,18 +203,25 @@ function SlideCarousel({
     // Re-bound whenever index/count change so the closure's edge-resistance
     // and commit-target math always sees the current slide, not a stale one.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [index, count, dragPx, onOpenViewer]);
+  }, [index, count, dragPx, onTap]);
 
   const width = containerWidth || 1;
 
-  function handleClick() {
+  function handleClick(e: React.MouseEvent) {
     // Swallows the synthetic click that follows a real touch swipe —
-    // see hadDragRef above. A genuine tap or mouse click falls through.
+    // see hadDragRef above — including stopping it from bubbling any
+    // further. Without the stopPropagation, that trailing click would
+    // still reach an ancestor Link (as in RepostEmbed, where this
+    // carousel sits inside the embed's own Link to the original post)
+    // and navigate away right as the user was mid-swipe through the
+    // slides. A genuine tap or mouse click falls through untouched,
+    // so normal navigation/viewer-opening behavior is unaffected.
     if (hadDragRef.current) {
       hadDragRef.current = false;
+      e.stopPropagation();
       return;
     }
-    onOpenViewer(index);
+    onTap(index);
   }
 
   return (
@@ -214,8 +243,8 @@ function SlideCarousel({
         // Portal.tsx) so its own swipe is isolated from the tab row
         // regardless.
         data-swipeable-ignore
-        className="w-full bg-canvas rounded-xl overflow-hidden border border-border cursor-pointer"
-        style={{ aspectRatio: frameAspect }}
+        className={`w-full bg-canvas rounded-xl overflow-hidden border border-border cursor-pointer ${frameClassName ?? ""}`}
+        style={frameClassName ? undefined : { aspectRatio: frameAspect }}
       >
         <div
           className="flex h-full"
@@ -337,7 +366,7 @@ export function PostMedia({ mediaUrls }: { mediaUrls: string[] }) {
           )}
         </div>
       ) : (
-        <SlideCarousel mediaUrls={mediaUrls} onOpenViewer={setViewerIndex} />
+        <SlideCarousel mediaUrls={mediaUrls} onTap={setViewerIndex} />
       )}
 
       {viewerIndex !== null && (
