@@ -73,6 +73,8 @@ import { AdminSuggestedProfiles } from "./pages/admin/AdminSuggestedProfiles";
 import { AdminModeration } from "./pages/admin/AdminModeration";
 import { AdminPageSettings } from "./pages/admin/AdminPageSettings";
 import { AdminFeatureFlags } from "./pages/admin/AdminFeatureFlags";
+import { AdminAccountReview } from "./pages/admin/AdminAccountReview";
+import { AdminVerifiedUsers } from "./pages/admin/AdminVerifiedUsers";
 import { AdminProfileAds } from "./pages/admin/AdminProfileAds";
 import { AdminReports } from "./pages/admin/AdminReports";
 import { AdminPromotions } from "./pages/admin/AdminPromotions";
@@ -664,6 +666,26 @@ function AppRoutes() {
                 <RequireAuth>
                   <RequireAdmin>
                     <AdminFeatureFlags />
+                  </RequireAdmin>
+                </RequireAuth>
+              }
+            />
+            <Route
+              path="/admin/account-review"
+              element={
+                <RequireAuth>
+                  <RequireAdmin>
+                    <AdminAccountReview />
+                  </RequireAdmin>
+                </RequireAuth>
+              }
+            />
+            <Route
+              path="/admin/verified-users"
+              element={
+                <RequireAuth>
+                  <RequireAdmin>
+                    <AdminVerifiedUsers />
                   </RequireAdmin>
                 </RequireAuth>
               }

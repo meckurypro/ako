@@ -1,8 +1,9 @@
 // src/pages/admin/AdminHome.tsx
 import { Link } from "react-router-dom";
-import { Tag, Gift, Flag, ShieldAlert, Mail, Send, MailPlus, Bell, ToggleLeft, ToggleRight, ShieldCheck, UserCheck, Sparkles, Landmark, Wallet, Users, Building2, Megaphone, HandCoins } from "lucide-react";
+import { Tag, Gift, Flag, ShieldAlert, Mail, Send, MailPlus, Bell, ToggleLeft, ToggleRight, ShieldCheck, UserCheck, Sparkles, Landmark, Wallet, Users, Building2, Megaphone, HandCoins, ClipboardCheck, BadgeCheck } from "lucide-react";
 import { usePendingReports } from "../../hooks/useAdmin";
 import { usePendingPromotions } from "../../hooks/usePromotions";
+import { usePendingAccountCount } from "../../hooks/useAdminAccountReviewCount";
 
 const SECTIONS = [
   { to: "/admin/categories", icon: Tag, label: "Categories" },
@@ -15,6 +16,7 @@ const SECTIONS = [
   { to: "/admin/suggested-profiles", icon: Sparkles, label: "Suggested profiles" },
   { to: "/admin/moderation", icon: ShieldCheck, label: "Content moderation" },
   { to: "/admin/page-settings", icon: Building2, label: "Page settings" },
+  { to: "/admin/verified-users", icon: BadgeCheck, label: "Verified users" },
 ];
 
 const INSIGHTS_SECTIONS = [
@@ -41,10 +43,27 @@ export function AdminHome() {
   const { data: pendingPromotions } = usePendingPromotions();
   const pendingPromotionCount = pendingPromotions?.length ?? 0;
 
+  const { data: pendingAccountCount } = usePendingAccountCount();
+
   return (
     <div className="min-h-screen bg-canvas px-4 pt-8 pb-10">
       <div className="max-w-md mx-auto">
         <h1 className="font-display text-2xl text-ink mb-6">Admin</h1>
+
+        <Link
+          to="/admin/account-review"
+          className="flex items-center justify-between bg-surface rounded-xl p-4 mb-4 border border-border"
+        >
+          <div className="flex items-center gap-3">
+            <ClipboardCheck size={20} className="text-accent" />
+            <span className="font-medium text-ink">Account review</span>
+          </div>
+          {!!pendingAccountCount && pendingAccountCount > 0 && (
+            <span className="bg-danger text-canvas text-xs font-medium rounded-full w-6 h-6 flex items-center justify-center">
+              {pendingAccountCount}
+            </span>
+          )}
+        </Link>
 
         <Link
           to="/admin/reports"

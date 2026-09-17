@@ -37,6 +37,7 @@ import {
 import { useRecordProfileVisit } from "../hooks/useProfileVisits";
 import { Avatar } from "../components/Avatar";
 import { AccountSwitcher } from "../components/AccountSwitcher";
+import { VerifiedBadge } from "../components/VerifiedBadge";
 import { ImageLightbox } from "../components/ImageLightbox";
 import { ShareProfileSheet } from "../components/ShareProfileSheet";
 import { ConfirmDialog } from "../components/ConfirmDialog";
@@ -784,6 +785,7 @@ export function ProfilePage() {
               ) : (
                 <h1 className="font-medium text-lg text-ink">{displayName}</h1>
               )}
+              {profile.is_verified && <VerifiedBadge size={16} />}
               <TierBadge tier={profile.tier} />
             </div>
 

@@ -45,6 +45,17 @@ export interface Profile {
   // every profile that existed before that migration ran — only
   // genuinely new signups start out false. See useOnboardingStatus.
   onboarding_completed: boolean;
+  // Incubation Account Review & Access Gate — never set directly by
+  // clients (see admin_approve_account() and the profiles update
+  // trigger). 'approved' for every profile that existed before this
+  // migration ran; only new signups start out 'pending'.
+  account_status: "pending" | "approved" | "declined" | "suspended";
+  reviewed_at: string | null;
+  reviewed_by: string | null;
+  // Admin-assigned public identity badge — independent of
+  // account_status/KYC/founding status. Never set directly by
+  // clients (see admin_set_verified()/admin_bulk_set_verified()).
+  is_verified: boolean;
 }
 
 // ------------------------------------------------------------
@@ -129,7 +140,7 @@ export interface ProfileWithRoles extends Profile {
 
 // Enough of a profile to render an author byline anywhere in the app
 // (post card, comment, message, notification).
-export type AuthorSummary = Pick<Profile, "id" | "username" | "display_name" | "avatar_url" | "tier" | "is_private"> & {
+export type AuthorSummary = Pick<Profile, "id" | "username" | "display_name" | "avatar_url" | "tier" | "is_private" | "is_verified"> & {
   roles: ProfileRole[];
 };
 
