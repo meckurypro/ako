@@ -68,6 +68,7 @@
 
   --font-display: "Playfair Display", Georgia, serif;
   --font-body: "Inter", -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-simple: "Roboto", -apple-system, BlinkMacSystemFont, sans-serif; /* plain sans, used only where a stylised serif (font-display) previously sat and was asked to be simplified — currently just the post-card username and the post heading (PostCard.tsx / PostContent.tsx) */
 
   /*
     Backdrop blur for every dismissible overlay — bottom sheets,
