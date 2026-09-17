@@ -47,3 +47,16 @@ export function useApproveAccount() {
     },
   });
 }
+
+export function useSetAccountPending() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (userId: string) => {
+      const { error } = await supabase.rpc("admin_set_account_pending", { p_user_id: userId });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["admin-pending-accounts"] });
+    },
+  });
+}
