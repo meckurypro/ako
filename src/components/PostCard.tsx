@@ -618,12 +618,15 @@ export function PostCard({
           <PostCollaboratorsBadge target="post" targetId={post.id} />
         </Link>
 
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-1.5 flex-wrap">
+        <div className="flex-1 min-w-0 space-y-0.5">
+          {/* Name row — own line, never wraps. pr-9 reserves room for the
+              watermark sitting in the card's absolute top-right tip (below)
+              so a long @username truncates before ever running under it. */}
+          <div className="flex items-center gap-1.5 pr-9">
             <Link
               to={identityHref}
               state={!postedAsPage ? { fromFeedPost: { id: post.id } } : undefined}
-              className="font-display font-semibold text-[17px] leading-5 text-ink hover:underline"
+              className="font-display font-semibold text-[17px] leading-5 text-ink hover:underline truncate"
               onClick={() => {
                 if (!postedAsPage && user) {
                   recordProfileVisitFromPost(post.id, post.author.id, user.id);
@@ -632,14 +635,15 @@ export function PostCard({
             >
               {postedAsPage ? identityName : `@${post.author.username}`}
             </Link>
-            {!postedAsPage && post.author.is_verified && <VerifiedBadge />}
+            {!postedAsPage && post.author.is_verified && <VerifiedBadge className="shrink-0" />}
             {!postedAsPage && <TierBadge tier={post.author.tier} />}
           </div>
 
+          {/* Role/page-role row — own line. */}
           {postedAsPage ? (
             // Page posts show the poster's role at the page instead of the
             // personal job/hobby tags — e.g. "Graphics Designer at PromptIQ".
-            <p className="text-[13px] font-normal leading-[18px] text-ink-muted">
+            <p className="text-[13px] font-normal leading-[18px] text-ink-muted truncate">
               {`@${post.author.username}`}
               {post.author.roles[0] ? ` · ${post.author.roles[0].label} at ${postedAsPage.name}` : ` posted this`}
             </p>
@@ -647,44 +651,49 @@ export function PostCard({
             post.author.roles.length > 0 && (
               <RoleTags
                 roles={post.author.roles}
-                className="text-[13px] font-normal leading-[18px] text-ink-muted block"
+                className="text-[13px] font-normal leading-[18px] text-ink-muted block truncate"
               />
             )
           )}
 
-          <p className="text-xs leading-[18px] text-ink-muted flex items-center gap-1">
-            <span>
-              {timeAgo(post.created_at)}
-              {post.edited_at && " · edited"}
-            </span>
-            {post.visibility === "public" && <Globe size={11} />}
-          </p>
+          {/* Timestamp row — own line, reintroduced here (rather than
+              folded into the name row above it). Time/date/edited/globe
+              sit on the left; the reshare tag (on a plain reshare) and the
+              Follow badge sit on the right, pinned to the card's extreme
+              right edge via justify-between so neither can ever overlap
+              the text on the left, however long the timestamp gets.
+
+              Follow badge skipped for page posts — following a page
+              happens on its own PagePage (a follow-the-human FollowButton
+              would be wrong here since the byline above is the page, not
+              post.author) — and for the owner's own post. */}
+          <div className="flex items-center justify-between gap-2">
+            <p className="text-xs leading-[18px] text-ink-muted flex items-center gap-1 min-w-0">
+              <span className="truncate">
+                {timeAgo(post.created_at)}
+                {post.edited_at && " · edited"}
+              </span>
+              {post.visibility === "public" && <Globe size={11} className="shrink-0" />}
+            </p>
+
+            {(plainReshare || (!isOwner && !postedAsPage)) && (
+              <div className="flex items-center gap-2 shrink-0">
+                {plainReshare && <RepostBadge source={original} />}
+                {!isOwner && !postedAsPage && (
+                  <FollowButton authorId={post.author.id} isPrivate={post.author.is_private} />
+                )}
+              </div>
+            )}
+          </div>
         </div>
 
-        {/* Fixed right-hand column, top-right corner. Holds — in this
-            order, all of them able to coexist rather than one bumping
-            another out — the Akọ watermark (skipped only when the card
-            is archived-frozen, whose own Restore/Delete pair already
-            owns this corner), the reshare icon on a plain reshare
-            (added alongside the watermark instead of replacing it),
-            and the Follow badge last, so it lands at the card's
-            extreme right edge on this same row instead of overlaying
-            the divider under the timestamp below. Now that the name
-            row shows @username rather than a full display name it has
-            plenty of headroom, so this row no longer needs to worry
-            about competing with it for width the way it used to.
-
-            Follow badge skipped for page posts — following a page
-            happens on its own PagePage (a follow-the-human
-            FollowButton would be wrong here since the byline above is
-            the page, not post.author). */}
-        {(plainReshare || !isArchivedFrozen || (!isOwner && !postedAsPage)) && (
-          <div className="flex items-center gap-2 self-start pt-0.5 shrink-0">
-            {!isArchivedFrozen && <AkoWatermark />}
-            {plainReshare && <RepostBadge source={original} />}
-            {!isOwner && !postedAsPage && (
-              <FollowButton authorId={post.author.id} isPrivate={post.author.is_private} />
-            )}
+        {/* Akọ watermark — the card's absolute top-right tip, on the same
+            row as the avatar, independent of the timestamp row below (see
+            above). Skipped only when the card is archived-frozen, whose
+            own Restore/Delete pair already owns this corner. */}
+        {!isArchivedFrozen && (
+          <div className="self-start pt-0.5 shrink-0">
+            <AkoWatermark />
           </div>
         )}
       </div>

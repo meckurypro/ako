@@ -316,7 +316,6 @@ export function PagePage() {
                   className="flex items-center gap-1.5 max-w-full"
                 >
                   <h1 className="font-display text-lg text-ink truncate">{page.name}</h1>
-                  {page.is_verified && <VerifiedBadge size={16} />}
                 </button>
 
                 {/* Every other page you run — tapping a row switches
@@ -339,7 +338,8 @@ export function PagePage() {
                   </div>
                 )}
               </div>
-              <p className="text-xs text-ink-muted">
+              {page.is_verified && <VerifiedBadge size={15} label className="mt-1" />}
+              <p className="text-xs text-ink-muted mt-1">
                 {pageModeLabel(page.page_type)} · @{page.username}
               </p>
               {page.tagline && <p className="text-sm text-ink mt-1">{page.tagline}</p>}
