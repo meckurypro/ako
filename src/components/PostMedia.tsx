@@ -243,7 +243,9 @@ export function SlideCarousel({
         // Portal.tsx) so its own swipe is isolated from the tab row
         // regardless.
         data-swipeable-ignore
-        className={`w-full bg-canvas rounded-xl overflow-hidden border border-border cursor-pointer ${frameClassName ?? ""}`}
+        className={`bg-canvas rounded-xl overflow-hidden border border-border cursor-pointer ${
+          frameClassName ? `w-full ${frameClassName}` : "w-[80%]"
+        }`}
         style={frameClassName ? undefined : { aspectRatio: frameAspect }}
       >
         <div
@@ -347,16 +349,15 @@ export function PostMedia({ mediaUrls }: { mediaUrls: string[] }) {
   return (
     <div className="mt-3" onClick={(e) => e.stopPropagation()}>
       {mediaUrls.length === 1 ? (
-        // Card width is fixed (the column width); height follows the
-        // image's own aspect ratio — no crop, no letterboxing, no
-        // artificial cap. Portrait -> tall card. 1:1 -> square card.
-        // Landscape (16:9, etc.) -> the image's long edge is forced to
-        // the card's width, height follows proportionally. `h-auto`
-        // is what does this: the browser derives height from the
-        // image's intrinsic aspect once it's fetched, same as it
-        // would for a plain <img> outside any card.
+        // Media renders at 80% of the card's width, left-aligned, with
+        // the remaining 20% left empty to the right — height still
+        // follows the media's own aspect ratio (no crop, no
+        // letterboxing), just scaled down to the narrower width.
+        // Portrait -> tall column. 1:1 -> smaller square. Landscape
+        // -> long edge forced to 80% of the card's width, height
+        // follows proportionally via `h-auto`.
         <div
-          className="cursor-pointer w-full bg-canvas rounded-xl overflow-hidden border border-border"
+          className="cursor-pointer w-[80%] bg-canvas rounded-xl overflow-hidden border border-border"
           onClick={() => setViewerIndex(0)}
         >
           {isVideoUrl(mediaUrls[0]) ? (
