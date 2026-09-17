@@ -5,7 +5,9 @@ import { useCategories } from "../hooks/useCategories";
 import { useSearchPeople, useSearchPosts, useSuggestedPeople } from "../hooks/useSearch";
 import { usePageSuggestedPeople } from "../hooks/usePageDiscover";
 import { useActiveIdentity } from "../hooks/usePages";
+import { useAuth } from "../hooks/useAuth";
 import { useTabState } from "../hooks/useTabState";
+import { recordSearchVisit } from "../lib/searchVisits";
 import { Avatar } from "../components/Avatar";
 import { TierBadge } from "../components/TierBadge";
 import { RoleTags } from "../components/RoleTags";
@@ -14,10 +16,19 @@ import { BottomNav } from "../components/BottomNav";
 import { TopHeader } from "../components/TopHeader";
 import type { ProfileWithRoles } from "../types/database";
 
-function PersonRow({ profile }: { profile: ProfileWithRoles }) {
+function PersonRow({
+  profile,
+  onVisit,
+}: {
+  profile: ProfileWithRoles;
+  /** Item 2: called only for rows rendered from an active search, so
+   *  visiting the profile bumps it to the top of future search results. */
+  onVisit?: (profileId: string) => void;
+}) {
   return (
     <Link
       to={`/profile/${profile.username}`}
+      onClick={() => onVisit?.(profile.id)}
       className="flex items-center gap-3 py-3"
     >
       <Avatar src={profile.avatar_url} name={profile.display_name} />
@@ -42,6 +53,7 @@ function PersonRow({ profile }: { profile: ProfileWithRoles }) {
 
 export function Discover() {
   const navigate = useNavigate();
+  const { user } = useAuth();
   const [query, setQuery] = useState("");
   const [activeTab, setActiveTab] = useTabState<"people" | "posts">(["people", "posts"], "people");
   const [openCategoryId, setOpenCategoryId] = useState<string | null>(null);
@@ -123,7 +135,7 @@ export function Discover() {
               ) : peopleResults && peopleResults.length > 0 ? (
                 <div className="divide-y divide-border">
                   {peopleResults.map((p) => (
-                    <PersonRow key={p.id} profile={p} />
+                    <PersonRow key={p.id} profile={p} onVisit={(id) => recordSearchVisit(user?.id, id)} />
                   ))}
                 </div>
               ) : (

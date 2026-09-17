@@ -27,6 +27,7 @@ import { Music2, Volume2, VolumeX } from "lucide-react";
 import { useMusicCatalogueEntry, useRecordMusicUsageEvent } from "../../hooks/useMusicCatalogue";
 import { announceMusicPlaying, clearMusicPlaying } from "../../lib/feedAudioPlayback";
 import { duckAudioBus, unduckAudioBus, resumeAudioBus } from "../../lib/audioBus";
+import { fadeInAndPlay, fadeOutAndPause, fadeVolumeTo, FADE_SECONDS } from "../../lib/mediaFade";
 import { MusicDiscoverySheet } from "./MusicDiscoverySheet";
 
 interface MusicAttributionProps {
@@ -49,7 +50,7 @@ export function MusicAttribution({ catalogueId, postId }: MusicAttributionProps)
   const hasRecordedPlayRef = useRef(false);
 
   const stopPlayback = () => {
-    audioRef.current?.pause();
+    fadeOutAndPause(audioRef.current);
   };
 
   useEffect(() => {
@@ -82,8 +83,7 @@ export function MusicAttribution({ catalogueId, postId }: MusicAttributionProps)
           resumeAudioBus();
           announceMusicPlaying(stopPlayback);
           duckAudioBus();
-          audio
-            .play()
+          fadeInAndPlay(audio)
             .then(() => {
               if (!hasRecordedPlayRef.current) {
                 hasRecordedPlayRef.current = true;
@@ -97,6 +97,7 @@ export function MusicAttribution({ catalogueId, postId }: MusicAttributionProps)
               // to start it, since there's no play button to retry
               // from. The speaker icon reflects the fallback so the
               // person can see it's muted and un-mute it themselves.
+              // No fade needed here — muted playback is silent either way.
               audio.muted = true;
               setMuted(true);
               audio.play().catch(() => clearMusicPlaying(stopPlayback));
@@ -119,7 +120,18 @@ export function MusicAttribution({ catalogueId, postId }: MusicAttributionProps)
     e.stopPropagation();
     const next = !muted;
     setMuted(next);
-    if (audioRef.current) audioRef.current.muted = next;
+    const audio = audioRef.current;
+    if (!audio) return;
+    if (next) {
+      // Fade down to silence, then engage the mute flag itself.
+      fadeVolumeTo(audio, 0);
+      setTimeout(() => {
+        audio.muted = true;
+      }, FADE_SECONDS * 1000);
+    } else {
+      audio.muted = false;
+      fadeVolumeTo(audio, 1);
+    }
   }
 
   function openDiscovery(e: React.MouseEvent) {

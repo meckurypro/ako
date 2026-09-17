@@ -1,7 +1,7 @@
 // src/components/TaggedProjectEmbed.tsx
 import { Link } from "react-router-dom";
 import { ImageIcon } from "lucide-react";
-import { getEffectivePrice, isProjectFree, type ProjectType } from "../hooks/useProjects";
+import { type ProjectType } from "../hooks/useProjects";
 import { getProjectPath } from "../lib/projectLinks";
 
 export interface TaggedProjectSummary {
@@ -37,27 +37,38 @@ export interface TaggedProjectSummary {
  * project is the only signal). A non-null project with
  * status !== 'active' (unpublished draft, archived) still shouldn't
  * link out to something the viewer can't actually see.
+ *
+ * Styling: the embed used to sit on `bg-canvas`, which is a visibly
+ * darker/duller tone than the post card's own `bg-surface` — it read
+ * as a separate, heavier box glued to the bottom of the post instead
+ * of belonging to it. Now it stays on-surface (near-identical to the
+ * card behind it) and gets its lift from translucency + blur (a soft
+ * glass layer) plus a hairline inset highlight and a barely-there
+ * offset shadow (the "3d" cue), so it reads as one raised layer of
+ * the same post rather than a different-colored card.
+ *
+ * Price is intentionally never rendered here (see item 5) — the tag
+ * is meant to surface the project, not its price; price only shows
+ * once the viewer opens the project itself.
  */
 export function TaggedProjectEmbed({ project }: { project: TaggedProjectSummary | null | undefined }) {
   if (!project) return null;
 
   if (project.status !== "active") {
     return (
-      <div className="mt-3 rounded-xl border border-border bg-canvas px-3.5 py-2.5 text-sm text-ink-muted">
+      <div className="mt-3 rounded-xl border border-border/60 bg-surface/70 backdrop-blur-sm px-3.5 py-2.5 text-sm text-ink-muted">
         This tagged project is no longer available.
       </div>
     );
   }
 
-  const free = isProjectFree(project);
-  const price = getEffectivePrice(project);
   return (
     <Link
       to={getProjectPath(project)}
       onClick={(e) => e.stopPropagation()}
-      className="mt-3 flex items-center gap-2.5 rounded-xl border border-border bg-canvas px-2.5 py-2 hover:bg-canvas/80 transition-colors"
+      className="mt-3 flex items-center gap-2.5 rounded-xl border border-white/10 bg-surface/60 backdrop-blur-sm px-2.5 py-2 shadow-[inset_0_1px_0_rgba(255,255,255,0.35),0_1px_2px_rgba(var(--shadow-ink-rgb),0.06)] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.06),0_1px_2px_rgba(var(--shadow-ink-rgb),0.24)] hover:bg-surface/80 transition-colors"
     >
-      <div className="w-11 h-11 rounded-lg overflow-hidden bg-surface border border-border flex-shrink-0 flex items-center justify-center">
+      <div className="w-11 h-11 rounded-lg overflow-hidden bg-surface/80 border border-border/50 flex-shrink-0 flex items-center justify-center">
         {project.thumbnail_url ? (
           <img src={project.thumbnail_url} alt="" className="w-full h-full object-cover" />
         ) : (
@@ -67,9 +78,6 @@ export function TaggedProjectEmbed({ project }: { project: TaggedProjectSummary 
       <div className="min-w-0 flex-1">
         <p className="text-sm font-medium text-ink truncate">{project.title}</p>
       </div>
-      <span className="text-xs font-semibold text-ink-muted flex-shrink-0">
-        {free ? "Free" : `$${price.toFixed(2)}`}
-      </span>
     </Link>
   );
 }
