@@ -1,6 +1,6 @@
 // src/pages/auth/VerifyEmail.tsx
 import { useState } from "react";
-import { useLocation, Navigate } from "react-router-dom";
+import { useLocation, Navigate, Link } from "react-router-dom";
 import { supabase } from "../../lib/supabase";
 import { Wordmark } from "../../components/Wordmark";
 import { AuthPattern } from "../../components/AuthPattern";
@@ -77,6 +77,13 @@ export function VerifyEmail() {
         >
           {resending ? "Sending…" : resent ? "Link sent" : "Resend link"}
         </button>
+
+        <p className="text-center text-sm text-ink-muted mt-6">
+          Already confirmed?{" "}
+          <Link to="/login" className="text-accent font-medium hover:underline">
+            Back to log in
+          </Link>
+        </p>
       </div>
     </div>
   );
