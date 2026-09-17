@@ -5,6 +5,7 @@ import { useCategories } from "../../hooks/useCategories";
 import { useMyInterestIds, useSaveInterests } from "../../hooks/useOnboarding";
 import { Wordmark } from "../../components/Wordmark";
 import { Button } from "../../components/Button";
+import { AuthPattern } from "../../components/AuthPattern";
 
 const MIN_INTERESTS = 3;
 const MAX_SUGGESTIONS = 8;
@@ -100,16 +101,18 @@ export function InterestPicker() {
 
   if (isLoading || existingLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-canvas">
-        <p className="text-ink-muted">Loading topics…</p>
+      <div className="relative min-h-screen flex items-center justify-center bg-canvas overflow-hidden">
+        <AuthPattern />
+        <p className="relative z-10 text-ink-muted">Loading topics…</p>
       </div>
     );
   }
 
   if (error) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-canvas px-6">
-        <p className="text-danger text-center">
+      <div className="relative min-h-screen flex items-center justify-center bg-canvas px-6 overflow-hidden">
+        <AuthPattern />
+        <p className="relative z-10 text-danger text-center">
           Couldn't load topics. Check your connection and try again.
         </p>
       </div>
@@ -117,8 +120,9 @@ export function InterestPicker() {
   }
 
   return (
-    <div className="min-h-screen bg-canvas px-6 py-10 pb-28">
-      <div className="max-w-2xl mx-auto">
+    <div className="relative min-h-screen bg-canvas px-6 py-10 pb-28 overflow-hidden">
+      <AuthPattern />
+      <div className="relative z-10 max-w-2xl mx-auto">
         <div className="mb-8">
           <Wordmark />
         </div>

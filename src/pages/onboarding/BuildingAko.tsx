@@ -4,6 +4,7 @@ import { useNavigate } from "react-router-dom";
 import { useCompleteOnboarding } from "../../hooks/useOnboarding";
 import { Wordmark } from "../../components/Wordmark";
 import { Button } from "../../components/Button";
+import { AuthPattern } from "../../components/AuthPattern";
 
 const MIN_DISPLAY_MS = 1100;
 
@@ -45,30 +46,33 @@ export function BuildingAko() {
   }, []);
 
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center bg-canvas px-6 text-center">
-      <div className="mb-8">
-        <Wordmark />
-      </div>
+    <div className="relative min-h-screen flex flex-col items-center justify-center bg-canvas px-6 text-center overflow-hidden">
+      <AuthPattern />
+      <div className="relative z-10 flex flex-col items-center">
+        <div className="mb-8">
+          <Wordmark />
+        </div>
 
-      {!failed ? (
-        <>
-          <div className="w-8 h-8 border-2 border-accent border-t-transparent rounded-full animate-spin mb-6" />
-          <h2 className="font-display text-xl text-ink mb-2">Building your Akọ…</h2>
-          <p className="text-ink-muted text-sm max-w-xs">Getting your feed ready.</p>
-        </>
-      ) : (
-        <>
-          <h2 className="font-display text-xl text-ink mb-2">Something went wrong</h2>
-          <p className="text-ink-muted text-sm max-w-xs mb-6">
-            We couldn't finish setting up your Akọ. Check your connection and try again.
-          </p>
-          <div className="w-40">
-            <Button onClick={run} loading={completeOnboarding.isPending}>
-              Try again
-            </Button>
-          </div>
-        </>
-      )}
+        {!failed ? (
+          <>
+            <div className="w-8 h-8 border-2 border-accent border-t-transparent rounded-full animate-spin mb-6" />
+            <h2 className="font-display text-xl text-ink mb-2">Building your Akọ…</h2>
+            <p className="text-ink-muted text-sm max-w-xs">Getting your feed ready.</p>
+          </>
+        ) : (
+          <>
+            <h2 className="font-display text-xl text-ink mb-2">Something went wrong</h2>
+            <p className="text-ink-muted text-sm max-w-xs mb-6">
+              We couldn't finish setting up your Akọ. Check your connection and try again.
+            </p>
+            <div className="w-40">
+              <Button onClick={run} loading={completeOnboarding.isPending}>
+                Try again
+              </Button>
+            </div>
+          </>
+        )}
+      </div>
     </div>
   );
 }
