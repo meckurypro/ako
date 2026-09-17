@@ -1,7 +1,7 @@
 // src/components/TaggedProjectEmbed.tsx
 import { Link } from "react-router-dom";
 import { ImageIcon } from "lucide-react";
-import { PROJECT_TYPE_LABELS, getEffectivePrice, isProjectFree, type ProjectType } from "../hooks/useProjects";
+import { getEffectivePrice, isProjectFree, type ProjectType } from "../hooks/useProjects";
 import { getProjectPath } from "../lib/projectLinks";
 
 export interface TaggedProjectSummary {
@@ -22,12 +22,14 @@ export interface TaggedProjectSummary {
 
 /**
  * Item 10: "subtly tagging a project in a post... at the bottom of the
- * post with its thumbnail (smaller), title, and creator name."
- * Deliberately the smallest of the embed patterns in this file set —
- * mirrors RepostEmbed.tsx's card-with-a-border shape, but a fixed
- * small square thumbnail instead of a full-width preview, since this
- * is meant to read as a subtle mention, not a second post-within-a-
- * post the way a reshare/quote is.
+ * post with its thumbnail (smaller) and title." Deliberately the
+ * smallest of the embed patterns in this file set — mirrors
+ * RepostEmbed.tsx's card-with-a-border shape, but a fixed small square
+ * thumbnail instead of a full-width preview, since this is meant to
+ * read as a subtle mention, not a second post-within-a-post the way a
+ * reshare/quote is. No type/creator eyebrow line — the post's own
+ * header above already says who posted it, so repeating it here read
+ * as clutter on an element meant to stay understated.
  *
  * `project` is null when it can no longer be fetched (id lingers on
  * the post row after the project itself was deleted — there's no
@@ -63,9 +65,6 @@ export function TaggedProjectEmbed({ project }: { project: TaggedProjectSummary 
         )}
       </div>
       <div className="min-w-0 flex-1">
-        <p className="text-[10px] uppercase tracking-wide text-ink-muted font-medium">
-          {PROJECT_TYPE_LABELS[project.project_type]} · {project.owner.display_name}
-        </p>
         <p className="text-sm font-medium text-ink truncate">{project.title}</p>
       </div>
       <span className="text-xs font-semibold text-ink-muted flex-shrink-0">
