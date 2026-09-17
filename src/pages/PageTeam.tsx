@@ -11,6 +11,7 @@ import {
   usePageMembers,
   useInvitePageMember,
   useRemovePageMember,
+  useUpdatePageMemberRole,
   usePageRoleLabelSuggestions,
 } from "../hooks/usePages";
 import { useToast } from "../components/Toast";
@@ -29,6 +30,7 @@ export function PageTeam() {
   const { data: members } = usePageMembers(page?.id ?? "");
   const invite = useInvitePageMember();
   const remove = useRemovePageMember();
+  const updateRole = useUpdatePageMemberRole();
   const toast = useToast();
 
   // Smart search-as-you-type replaces the old "type the exact username,
@@ -285,17 +287,43 @@ export function PageTeam() {
                 <p className="text-xs text-ink-muted truncate">{m.role_label}</p>
               </div>
               {m.user_id !== user?.id && (
-                <button
-                  onClick={() =>
-                    remove.mutate(
-                      { page_id: page.id, user_id: m.user_id },
-                      { onSuccess: () => toast(`${m.profile.display_name} removed.`, { variant: "success" }) }
-                    )
-                  }
-                  className="text-xs text-danger flex-shrink-0"
-                >
-                  Remove
-                </button>
+                <div className="flex items-center gap-3 flex-shrink-0">
+                  {/* Fixes the case where someone was invited as a plain
+                      member — no way to grant them admin after the fact
+                      used to exist short of removing and re-inviting them. */}
+                  <button
+                    onClick={() =>
+                      updateRole.mutate(
+                        { page_id: page.id, user_id: m.user_id, is_admin: !m.is_admin },
+                        {
+                          onSuccess: () =>
+                            toast(
+                              m.is_admin
+                                ? `${m.profile.display_name} is no longer an admin.`
+                                : `${m.profile.display_name} is now an admin.`,
+                              { variant: "success" }
+                            ),
+                          onError: () => toast("Couldn't update their role.", { variant: "error" }),
+                        }
+                      )
+                    }
+                    disabled={updateRole.isPending}
+                    className="text-xs text-accent disabled:opacity-50"
+                  >
+                    {m.is_admin ? "Remove admin" : "Make admin"}
+                  </button>
+                  <button
+                    onClick={() =>
+                      remove.mutate(
+                        { page_id: page.id, user_id: m.user_id },
+                        { onSuccess: () => toast(`${m.profile.display_name} removed.`, { variant: "success" }) }
+                      )
+                    }
+                    className="text-xs text-danger"
+                  >
+                    Remove
+                  </button>
+                </div>
               )}
             </div>
           ))}
