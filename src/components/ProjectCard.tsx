@@ -55,6 +55,7 @@ import {
 } from "../hooks/useProjects";
 import { useMediaDetails, usePitchDetails, usePitchRaised, useBookDetails } from "../hooks/useProjectTypeDetails";
 import { PREVIEW_SECONDS } from "./MediaPreviewPlayer";
+import { useStopMediaWhenHidden } from "../hooks/useStopMediaWhenHidden";
 import { useIsProjectSaved, useToggleSavedProject } from "../hooks/useSavedProjects";
 import { useProjectAccessCount, useLogFreeProjectAccess } from "../hooks/useProjectAccess";
 import { useStartConversation } from "../hooks/useMessaging";
@@ -150,9 +151,21 @@ function MediaHeroPlayer({
   autoLoadOnMount: boolean;
 }) {
   const mediaRef = useRef<HTMLMediaElement | null>(null);
+  const containerRef = useRef<HTMLButtonElement | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [elapsed, setElapsed] = useState(0);
   const requestedRef = useRef(false);
+
+  // "Leaving" this card's preview — scrolled out of a feed/grid,
+  // swiped to the other SwipeableTabs pane (ProfilePage's Projects
+  // tab, which keeps both panes mounted — see that component's own
+  // comment), or the card unmounting outright — always stops
+  // playback. See useStopMediaWhenHidden's own comment for why this
+  // is a separate concern from the autoplay-on-mount effect below.
+  useStopMediaWhenHidden(containerRef, () => {
+    mediaRef.current?.pause();
+    setIsPlaying(false);
+  });
 
   useEffect(() => {
     if (!autoLoadOnMount || !hasAccess || previewSrc) return;
@@ -252,6 +265,7 @@ function MediaHeroPlayer({
       disabled={isBusy}
       aria-label={isPlaying ? `Pause ${kind}` : `Play ${kind}`}
       className="relative block w-full h-full disabled:cursor-default"
+      ref={containerRef}
     >
       {kind === "video" && previewSrc ? (
         <video

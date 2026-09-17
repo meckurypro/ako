@@ -60,6 +60,20 @@ export function ClipSelector({ audioUrl, onConfirm, onCancel }: ClipSelectorProp
   const peaks = useMemo(() => (decoded ? computeBufferPeaks(decoded.buffer) : []), [decoded]);
   const totalDuration = decoded?.durationSeconds ?? 0;
 
+  // Leaving this step (closing the sheet, picking a different source
+  // Project) must stop the preview outright — a plain unmount doesn't
+  // guarantee that on its own (see useStopMediaWhenHidden's comment
+  // for the same reasoning applied to the tap-to-preview players).
+  // No visibility/IntersectionObserver check here unlike that hook —
+  // this sits inside a scrollable publish form, and scrolling past it
+  // while still filling out the rest of the form isn't "leaving" the
+  // preview the way closing the sheet is.
+  useEffect(() => {
+    return () => {
+      audioElRef.current?.pause();
+    };
+  }, []);
+
   function clampStart(value: number, forDuration = duration) {
     return Math.max(0, Math.min(value, Math.max(0, totalDuration - forDuration)));
   }
