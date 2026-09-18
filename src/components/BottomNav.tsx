@@ -2,6 +2,7 @@ import type { ComponentType } from "react";
 import { NavLink, useMatch } from "react-router-dom";
 import { Search, LibraryBig, MessageCircle, User } from "lucide-react";
 import { useAuth } from "../hooks/useAuth";
+import { useAutoHideOnScroll } from "../hooks/useAutoHideOnScroll";
 import { useUnreadConversationCount } from "../hooks/useMessaging";
 import { usePageInboxUnreadCount } from "../hooks/usePageInbox";
 import { useActiveIdentity } from "../hooks/usePages";
@@ -49,6 +50,10 @@ function NavIcon({ Icon, isActive }: { Icon: ComponentType<IconProps>; isActive:
 }
 
 export function BottomNav() {
+  // Fades and slides off the bottom edge on scroll-down, right back on
+  // scroll-up — see useAutoHideOnScroll for the shared threshold logic
+  // (also used by AutoHideTopBar for the top chrome).
+  const visible = useAutoHideOnScroll();
   const { user, profile } = useAuth();
   const { data: identity } = useActiveIdentity();
   const activePageId = identity?.mode === "page" ? identity.page.id : undefined;
@@ -86,7 +91,9 @@ export function BottomNav() {
       id="ako-bottom-nav"
       // md:hidden: desktop's persistent Sidebar (see AppShell.tsx) is the
       // navigation spine there — this bar stays exactly as-is below md.
-      className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-surface rounded-t-[28px] border-t border-border shadow-[0_-1px_3px_rgba(var(--shadow-ink-rgb),0.06)] px-2 pt-3 pb-[calc(env(safe-area-inset-bottom)+0.75rem)]"
+      className={`md:hidden fixed bottom-0 left-0 right-0 z-40 bg-surface/80 backdrop-blur-md rounded-t-[28px] border-t border-border shadow-[0_-1px_3px_rgba(var(--shadow-ink-rgb),0.06)] px-2 pt-3 pb-[calc(env(safe-area-inset-bottom)+0.75rem)] transition-[transform,opacity] duration-300 ease-out ${
+        visible ? "translate-y-0 opacity-100" : "translate-y-full opacity-0"
+      }`}
     >
       <div className="flex items-center justify-around">
         {navItems.map(({ to, icon: Icon, label }) => (

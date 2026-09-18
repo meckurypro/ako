@@ -49,6 +49,7 @@ import {
   useMarkVoiceNoteOpened,
 } from "../hooks/useMessageReactions";
 import { Avatar } from "../components/Avatar";
+import { VerifiedBadge } from "../components/VerifiedBadge";
 import { useUnseenPosts } from "../hooks/useUnseenPosts";
 import { PresenceDot } from "../components/PresenceDot";
 import { MessageActionMenu } from "../components/MessageActionMenu";
@@ -104,7 +105,7 @@ function useConversationHeader(conversationId: string) {
       const { data, error } = await supabase
         .from("conversation_participants")
         .select(
-          "profile:profiles!conversation_participants_user_id_fkey(id, username, display_name, avatar_url, last_seen_at)"
+          "profile:profiles!conversation_participants_user_id_fkey(id, username, display_name, avatar_url, last_seen_at, is_verified)"
         )
         .eq("conversation_id", conversationId)
         .neq("user_id", user!.id)
@@ -115,7 +116,14 @@ function useConversationHeader(conversationId: string) {
         is_group: false as const,
         team_page: null,
         other_participant: data?.profile as
-          | { id: string; username: string; display_name: string; avatar_url: string | null; last_seen_at: string | null }
+          | {
+              id: string;
+              username: string;
+              display_name: string;
+              avatar_url: string | null;
+              last_seen_at: string | null;
+              is_verified: boolean;
+            }
           | undefined,
       };
     },
@@ -1016,6 +1024,7 @@ export function MessageThread() {
                 <div className="flex-1 min-w-0">
                   <p className="font-medium text-ink truncate flex items-center gap-1.5">
                     <span className="truncate">{teamPage.name}</span>
+                    {teamPage.is_verified && <VerifiedBadge size={14} />}
                     <span className="flex-shrink-0 inline-flex items-center gap-0.5 px-1.5 py-[1px] rounded-full bg-surface border border-border text-[10px] font-medium text-ink-muted">
                       <Users size={10} />
                       Group
@@ -1049,7 +1058,10 @@ export function MessageThread() {
                   </button>
                 )}
                 <div className="flex-1 min-w-0">
-                  <p className="font-medium text-ink truncate">{otherParticipant.display_name}</p>
+                  <p className="font-medium text-ink truncate flex items-center gap-1.5">
+                    <span className="truncate">{otherParticipant.display_name}</span>
+                    {otherParticipant.is_verified && <VerifiedBadge size={14} />}
+                  </p>
                   <p className="flex items-center gap-2 text-xs text-ink-muted">
                     <PresenceDot lastSeenAt={otherParticipant.last_seen_at} size={12} />
                     {formatLastSeen(otherParticipant.last_seen_at)}

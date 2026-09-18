@@ -40,7 +40,7 @@ import { ReshareSheet } from "./ReshareSheet";
 import { GiftPicker } from "./GiftPicker";
 import { RepostEmbed } from "./RepostEmbed";
 import { RepostBadge } from "./RepostBadge";
-import { TaggedProjectEmbed } from "./TaggedProjectEmbed";
+import { TaggedProjectEmbed, type TaggedProjectSummary } from "./TaggedProjectEmbed";
 import { ConfirmDialog } from "./ConfirmDialog";
 import { TagPeopleSheet } from "./TagPeopleSheet";
 import { CollaboratorsSheet } from "./CollaboratorsSheet";
@@ -92,6 +92,7 @@ export function PostCard({
   isOwnerView = false,
   showStats = false,
   active = true,
+  onRequestOpenComments,
 }: {
   post: PostWithAuthor;
   // Accepted so callers like ProfilePage can flag the viewer as the post's
@@ -108,6 +109,13 @@ export function PostCard({
   // else a PostCard is genuinely on screen the moment it mounts, so the
   // default is true and every other call site is unaffected.
   active?: boolean;
+  // Only PostDetail passes this — called instead of opening PostCard's
+  // own internal comment sheet when showStats is true, since in that
+  // context PostDetail owns the CommentSheet itself (normally already
+  // open). Lets PostDetail's "view original, comments not forced open"
+  // mode (reached via RepostBadge) still open comments on demand when
+  // the visitor taps the comment count.
+  onRequestOpenComments?: () => void;
 }) {
   const { user } = useAuth();
   const navigate = useNavigate();
@@ -153,6 +161,15 @@ export function PostCard({
   const originalGone = !original || original.is_deleted || original.is_archived;
   const reshareTarget = plainReshare && !originalGone ? original! : post;
 
+  // Item 10 — post.tagged_project needs to be selected alongside the
+  // post (see usePosts.ts's TAGGED_PROJECT_SELECT); not on the Post
+  // type yet, hence the cast. Used both to render the tag itself
+  // (below) and to hide the Gift action — gifting is meant for the
+  // creator's own work, not something that's already pointing at a
+  // separate project for sale.
+  const taggedProject = (post as any).tagged_project as TaggedProjectSummary | null | undefined;
+  const hasTaggedProject = !!taggedProject;
+
   // Own-post view: several engagement actions don't make sense directed
   // at yourself (resharing, taking a stance on, or gifting your own
   // post), so they're hidden from the tray entirely rather than just
@@ -179,6 +196,20 @@ export function PostCard({
   // card below — since the long-press sheet that used to hold them is
   // now unreachable while the tray is frozen.
   const isArchivedFrozen = isOwner && post.is_archived;
+
+  // A plain reshare whose original has since been deleted/archived has
+  // nothing left to actually engage with — the body already renders
+  // "This post is no longer available" (see the plainReshare/originalGone
+  // block below) instead of any real content. Without this, the
+  // engagement tray stayed fully live on that empty card: anyone could
+  // still like/comment/reshare/gift a post showing no content at all,
+  // which is how a like ends up registered on something that reads as
+  // unavailable. Frozen the same way an owner's archived post already
+  // is (see isArchivedFrozen/ReactionTray's `disabled`) — existing
+  // counts from before the original disappeared are left alone, only
+  // new engagement is blocked.
+  const reshareContentGone = plainReshare && originalGone;
+  const trayFrozen = isArchivedFrozen || reshareContentGone;
 
   // Page-mode post: byline shows the organisation/brand instead of the
   // human who clicked post — same idea as a LinkedIn/Facebook Page post.
@@ -236,6 +267,24 @@ export function PostCard({
     lastTapRef.current = now;
   }
 
+  // PostContent renders inline #hashtag/@mention links (see
+  // formatText.tsx) — wrapping it in a <Link> to the post detail page,
+  // as this used to do, put a real <a> around content that can itself
+  // contain another <a>. Nested anchors are invalid HTML and browsers
+  // (mobile Safari especially) don't resolve the tap consistently
+  // between the two — sometimes the OUTER post link wins even when the
+  // hashtag itself was tapped, which is why hashtag taps could land on
+  // the wrong page. Fixed by using a plain clickable <div> here instead
+  // of <Link>: it navigates to the post on its own, but steps aside —
+  // no navigate, no double-tap-like check — whenever the tap started
+  // inside a real nested link (the hashtag/mention), letting that
+  // link's own navigation happen uncontested.
+  function handleContentClick(e: React.MouseEvent<HTMLDivElement>) {
+    if ((e.target as HTMLElement).closest("a")) return;
+    handleContentTap();
+    navigate(`/post/${post.id}`);
+  }
+
   // Opens the immersive comment overlay in place — from the Feed, a
   // profile grid, anywhere a PostCard renders — instead of navigating
   // away to the full post page. On PostDetail itself (showStats, the
@@ -243,7 +292,14 @@ export function PostCard({
   // its own, so tapping the count there is a no-op rather than
   // stacking a second identical sheet on top of it.
   function handleCommentTap() {
-    if (showStats) return;
+    if (showStats) {
+      // PostDetail owns the comment sheet in this mode — it's usually
+      // already open (see onClose), but when it isn't (the "view
+      // original" mode reached via RepostBadge) this is how the tap
+      // gets there instead of doing nothing.
+      onRequestOpenComments?.();
+      return;
+    }
     setShowComments(true);
   }
 
@@ -416,6 +472,7 @@ export function PostCard({
     if (isOwner && HIDDEN_FOR_OWNER.includes(k)) return false;
     if (k === "reshare" && (isOwner || hasReshared)) return false;
     if (k === "gift" && viewingAsPage) return false;
+    if (k === "gift" && hasTaggedProject) return false;
     return true;
   });
 
@@ -599,6 +656,26 @@ export function PostCard({
         </div>
       )}
 
+      {/* Same idea, narrower case: a plain reshare whose original is
+          gone has an empty, frozen tray below (see trayFrozen) with no
+          long-press sheet to reach Delete from anymore — this is the
+          owner's only way left to clear it out. Not shown when
+          isArchivedFrozen already rendered its own bar above (this
+          reshare is ALSO archived) to avoid stacking two Delete
+          buttons. */}
+      {reshareContentGone && isOwner && !isArchivedFrozen && (
+        <div className="absolute top-3 right-3 z-10">
+          <button
+            onClick={handleDelete}
+            aria-label="Delete"
+            className="flex items-center gap-1.5 text-xs font-medium text-canvas bg-danger/85 rounded-full px-3 py-1.5"
+          >
+            <Trash2 size={14} />
+            Delete
+          </button>
+        </div>
+      )}
+
       <div className="relative">
         <div className="flex items-start gap-3 pb-3.5 border-b border-border">
           <Link
@@ -703,32 +780,78 @@ export function PostCard({
         )}
       </div>
 
-      {/* Own content — skipped for a plain reshare, which has none of its
-          own (just the embedded original below). Always present for a
-          quote (the caption) and a normal post. */}
-      {(post.content.trim() !== "" || post.heading) && (
-        <Link to={`/post/${post.id}`} onClick={handleContentTap} className="block mt-3">
-          <PostContent heading={post.heading} headingColor={post.heading_color} content={post.content} />
-        </Link>
+      {/* A plain reshare has no caption of its own — it shows the ORIGINAL's
+          full heading/content/media/music inline, as if it were the
+          resharer's own post. No author details, no truncation: the
+          RepostBadge in the header above is the only "this is a repost"
+          signal, matching a normal retweet-without-comment. Only when the
+          original is gone (deleted/archived) does this fall back to a
+          notice, same copy RepostEmbed used to show for that case. */}
+      {plainReshare ? (
+        originalGone ? (
+          <div className="mt-3 rounded-xl border border-border bg-surface dark:bg-[#121114] px-4 py-3 text-sm text-ink-muted">
+            {original?.is_archived ? "This post has been archived by its author." : "This post is no longer available."}
+          </div>
+        ) : (
+          <>
+            {(original!.content.trim() !== "" || original!.heading) && (
+              <div
+                role="link"
+                tabIndex={0}
+                onClick={handleContentClick}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") navigate(`/post/${post.id}`);
+                }}
+                className="block mt-3 cursor-pointer"
+              >
+                <PostContent heading={original!.heading} headingColor={original!.heading_color} content={original!.content} />
+              </div>
+            )}
+            <PostMedia mediaUrls={original!.media_urls} />
+            {original!.music_catalogue_id && (
+              <MusicAttribution catalogueId={original!.music_catalogue_id} postId={post.id} />
+            )}
+          </>
+        )
+      ) : (
+        <>
+          {/* Own content — the caption (quote) or the post itself
+              (normal post). */}
+          {(post.content.trim() !== "" || post.heading) && (
+            <div
+              role="link"
+              tabIndex={0}
+              onClick={handleContentClick}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") navigate(`/post/${post.id}`);
+              }}
+              className="block mt-3 cursor-pointer"
+            >
+              <PostContent heading={post.heading} headingColor={post.heading_color} content={post.content} />
+            </div>
+          )}
+
+          <PostMedia mediaUrls={post.media_urls} />
+
+          {post.music_catalogue_id && (
+            <MusicAttribution catalogueId={post.music_catalogue_id} postId={post.id} />
+          )}
+        </>
       )}
 
-      <PostMedia mediaUrls={post.media_urls} />
-
-      {post.music_catalogue_id && (
-        <MusicAttribution catalogueId={post.music_catalogue_id} postId={post.id} />
-      )}
-
-      {/* Embedded original — for both a plain reshare and a quote. Handles
-          its own "no longer available" state internally, and always
-          links to the original post with the original creator's own
-          details, regardless of whether it's still reachable. */}
-      {(plainReshare || quotePost) && <RepostEmbed source={original} />}
+      {/* Embedded original — quotes only now. A quote keeps its own
+          caption above and shows the original as a bordered, truncated
+          card underneath (with the original author's own details) since
+          the quote and the original are two distinct, attributed voices.
+          A plain reshare is rendered fully above instead — see block
+          above — and no longer duplicates the original here. */}
+      {quotePost && <RepostEmbed source={original} />}
 
       {/* Item 10 — subtle project tag at the bottom of the post.
           post.tagged_project needs to be selected alongside the post
           (see usePosts.ts — FEED_SELECT needs the join added) for
           this to ever be non-null. */}
-      <TaggedProjectEmbed project={(post as any).tagged_project} />
+      <TaggedProjectEmbed project={taggedProject} />
 
       {/* Time · date · views — only on the expanded (comments-visible) post,
           matching X's post-detail formatting. Feed cards don't show this. */}
@@ -750,12 +873,12 @@ export function PostCard({
         leftActions={leftActions}
         middleActions={middleActions}
         rightActions={rightActions}
-        onOpenMore={isArchivedFrozen ? undefined : () => setShowMoreActions(true)}
+        onOpenMore={trayFrozen ? undefined : () => setShowMoreActions(true)}
         belowLeftLabel={{ text: `Comments: ${post.comment_count}`, onClick: handleCommentTap }}
-        disabled={isArchivedFrozen}
+        disabled={trayFrozen}
       />
 
-      {showMoreActions && !isArchivedFrozen && (
+      {showMoreActions && !trayFrozen && (
         <ReactionMoreSheet actions={moreActions} onClose={() => setShowMoreActions(false)} />
       )}
 

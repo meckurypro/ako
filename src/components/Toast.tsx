@@ -34,16 +34,10 @@ const ToastContext = createContext<ToastFn | null>(null);
 
 const DEFAULT_DURATION_MS = 2000;
 
-// Icon shape alone carries the meaning (check vs. X vs. plain info) —
-// color deliberately does NOT vary by variant. A toast is a small,
-// low-stakes, self-dismissing surface; it isn't the place for
-// semantic red/green the way an inline form error is. Every toast
-// reads as the same neutral, theme-following chip regardless of
-// what triggered it.
 const ICON_FOR: Record<ToastVariant, ReactNode> = {
   default: <Info size={18} className="text-ink-muted shrink-0" />,
-  success: <CheckCircle2 size={18} className="text-ink-muted shrink-0" />,
-  error: <XCircle size={18} className="text-ink-muted shrink-0" />,
+  success: <CheckCircle2 size={18} className="text-accent shrink-0" />,
+  error: <XCircle size={18} className="text-danger shrink-0" />,
 };
 
 export function ToastProvider({ children }: { children: ReactNode }) {
@@ -72,7 +66,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
             <div
               key={t.id}
               role="status"
-              className="pointer-events-auto max-w-sm w-full flex items-start gap-2.5 bg-canvas text-ink border border-border text-sm rounded-2xl shadow-lg px-4 py-3 animate-[toast-in_180ms_ease-out]"
+              className="pointer-events-auto max-w-sm w-full flex items-start gap-2.5 bg-ink text-canvas text-sm rounded-2xl shadow-lg px-4 py-3 animate-[toast-in_180ms_ease-out]"
             >
               {ICON_FOR[t.variant]}
               <span className="leading-snug">{t.message}</span>

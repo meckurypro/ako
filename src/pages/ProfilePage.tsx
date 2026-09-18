@@ -39,7 +39,7 @@ import { useRecordProfileVisit } from "../hooks/useProfileVisits";
 import { Avatar } from "../components/Avatar";
 import { AccountSwitcher } from "../components/AccountSwitcher";
 import { VerifiedBadge } from "../components/VerifiedBadge";
-import { ImageLightbox } from "../components/ImageLightbox";
+import { MediaViewer } from "../components/MediaViewer";
 import { ShareProfileSheet } from "../components/ShareProfileSheet";
 import { ConfirmDialog } from "../components/ConfirmDialog";
 import { ReportModal } from "../components/ReportModal";
@@ -165,6 +165,7 @@ const SCROLL_TOP_THRESHOLD = 480;
 // Tailwind class, so the two numbers can't silently drift apart.
 // h-14 === 56px === top-14.
 const TOOLBAR_HEIGHT_CLASS = "h-14";
+const TOOLBAR_HEIGHT_PX = 56;
 
 export function ProfilePage() {
   const { username } = useParams<{ username: string }>();
@@ -267,6 +268,32 @@ export function ProfilePage() {
     function onScroll() {
       setShowScrollTop(window.scrollY > SCROLL_TOP_THRESHOLD);
     }
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, []);
+
+  // Tier 1 (the toolbar row — Plus/⋯, or Message/Follow/⋯ for a
+  // visitor) fades and collapses away once the non-sticky header block
+  // above it (avatar/name/bio/Following-Followers) has scrolled fully
+  // out from under it — not on scroll direction like BottomNav/
+  // AutoHideTopBar elsewhere, since the point here is reclaiming the
+  // space that block leaves behind for content, not hiding chrome
+  // during a quick scroll. Tier 2 (the tab bar + its sliding indicator)
+  // then docks at the very top instead of 56px below it — see its
+  // `top` class further down — so once collapsed, only the tab titles
+  // and the indicator line remain pinned. headerBlockRef marks that
+  // block; re-measuring on every scroll (rather than once) keeps this
+  // correct if the block's height ever changes (e.g. a bio wrapping to
+  // a different number of lines after the profile query resolves).
+  const headerBlockRef = useRef<HTMLDivElement>(null);
+  const [tier1Collapsed, setTier1Collapsed] = useState(false);
+  useEffect(() => {
+    function onScroll() {
+      const rect = headerBlockRef.current?.getBoundingClientRect();
+      if (!rect) return;
+      setTier1Collapsed(rect.bottom <= TOOLBAR_HEIGHT_PX);
+    }
+    onScroll();
     window.addEventListener("scroll", onScroll, { passive: true });
     return () => window.removeEventListener("scroll", onScroll);
   }, []);
@@ -547,12 +574,19 @@ export function ProfilePage() {
 
   return (
     <div className="min-h-screen bg-canvas pb-24">
-      {/* Tier 1 — the only always-sticky piece of the header. Whichever
-          toolbar variant is showing (owner's Plus/⋯, a visitor's
+      {/* Tier 1 — the toolbar row (owner's Plus/⋯, a visitor's
           Message/Follow/⋯, or the "Exit preview" control while the
-          owner is previewing as a visitor) renders inside a fixed-height
-          row so Tier 2 below has a stable offset to dock under. */}
-      <div className="sticky top-0 z-30 bg-canvas shadow-[0_2px_8px_-4px_rgba(var(--shadow-ink-rgb),0.10)]">
+          owner is previewing as a visitor). Sticky, and fixed-height
+          when visible so Tier 2 below has a stable offset to dock
+          under — but fades and collapses to zero height once the
+          avatar/bio/stats block below has scrolled fully past it (see
+          tier1Collapsed), freeing that space for content and leaving
+          just Tier 2's tab titles + indicator line pinned. */}
+      <div
+        className={`sticky top-0 z-30 bg-canvas shadow-[0_2px_8px_-4px_rgba(var(--shadow-ink-rgb),0.10)] overflow-hidden transition-[opacity,max-height] duration-200 ease-out ${
+          tier1Collapsed ? "opacity-0 max-h-0 pointer-events-none" : "opacity-100 max-h-14"
+        }`}
+      >
         <div className={`max-w-xl md:max-w-2xl mx-auto px-4 ${TOOLBAR_HEIGHT_CLASS} flex items-center`}>
           {showOwnerView ? (
             // The gap left of the Plus/⋯ icons is the reserved ad slot
@@ -768,7 +802,7 @@ export function ProfilePage() {
           away underneath Tier 1 above, same as any other page content;
           only the toolbar row and the tab bar (Tier 2, further down)
           stay pinned. */}
-      <div className="max-w-xl md:max-w-2xl mx-auto px-4 pt-4">
+      <div ref={headerBlockRef} className="max-w-xl md:max-w-2xl mx-auto px-4 pt-4">
         {/* Preview-mode banner — informational only now; the actual
             "Exit" control lives in the always-reachable Tier 1 bar
             above, so this can scroll away without taking the exit
@@ -863,12 +897,19 @@ export function ProfilePage() {
       </div>
 
       {/* Tier 2 — the Posts/Projects tab bar. Its own sticky element,
-          docking directly under Tier 1 (top-14 === Tier 1's h-14) once
-          the avatar/bio/stats block above has scrolled past. Hidden
-          entirely for a locked private profile, same as before, since
-          there's nothing behind either tab for a visitor to switch to. */}
+          docking under Tier 1 (top-14 === Tier 1's h-14) normally, and
+          right at the very top (top-0) once Tier 1 has collapsed away
+          — see tier1Collapsed above — so the tab titles and the
+          sliding indicator line are the only things left pinned once
+          the avatar/bio/stats block has scrolled past. Hidden entirely
+          for a locked private profile, same as before, since there's
+          nothing behind either tab for a visitor to switch to. */}
       {!isPrivateLocked && (
-        <div className="sticky top-14 z-20 bg-canvas shadow-[0_2px_8px_-4px_rgba(var(--shadow-ink-rgb),0.10)]">
+        <div
+          className={`sticky z-20 bg-canvas shadow-[0_2px_8px_-4px_rgba(var(--shadow-ink-rgb),0.10)] transition-[top] duration-200 ease-out ${
+            tier1Collapsed ? "top-0" : "top-14"
+          }`}
+        >
           <div className="max-w-xl md:max-w-2xl mx-auto px-4">
             {/* Equal width, same sliding-indicator treatment as before —
                 only the wrapper around this moved, not the tab row
@@ -1044,9 +1085,9 @@ export function ProfilePage() {
       </div>
 
       {avatarOpen && profile.avatar_url && (
-        <ImageLightbox
-          src={profile.avatar_url}
-          alt={profile.display_name}
+        <MediaViewer
+          mediaUrls={[profile.avatar_url]}
+          startIndex={0}
           onClose={() => setAvatarOpen(false)}
         />
       )}

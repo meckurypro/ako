@@ -1,4 +1,5 @@
 // src/pages/PostDetail.tsx
+import { useEffect, useState } from "react";
 import { useParams, useLocation } from "react-router-dom";
 import { useSmartBack } from "../hooks/useSmartBack";
 import { ArrowLeft } from "lucide-react";
@@ -64,6 +65,21 @@ export function PostDetail() {
   const { data: post, isLoading: postLoading } = usePost(postId!);
   const highlightId = highlightIdFromHash(location.hash);
 
+  // Reaching this page normally ("the whole point of this page is the
+  // discussion") auto-opens the comment sheet on top of the post — but
+  // RepostBadge links here with `?view=post` when the intent is just
+  // "show me the original post" (e.g. jumping from a reshare on the
+  // feed), not its comments. In that mode comments start closed and the
+  // visitor can still open them from the comment count like anywhere
+  // else — see onRequestOpenComments below — and closing them returns
+  // to viewing the post in place instead of leaving the page.
+  const viewOnly = new URLSearchParams(location.search).get("view") === "post";
+  const [manuallyOpened, setManuallyOpened] = useState(false);
+  // Reset if the visitor lands on a different post (e.g. tapping another
+  // RepostBadge without a full page reload in between).
+  useEffect(() => setManuallyOpened(false), [postId]);
+  const commentsOpen = highlightId ? true : viewOnly ? manuallyOpened : true;
+
   useMarkPostSeen(postId!, post?.author?.id);
 
   // Only reachable at all (row returned despite is_deleted/is_archived)
@@ -101,20 +117,26 @@ export function PostDetail() {
               </p>
             )}
 
-            <PostCard post={post} showStats />
+            <PostCard post={post} showStats onRequestOpenComments={() => setManuallyOpened(true)} />
 
-            {/* The whole point of this page is the discussion, so the
-                comment overlay opens by itself over the post above —
-                same immersive sheet PostCard opens inline elsewhere,
-                just without a tap needed to get here. Closing it goes
-                back rather than leaving an empty page behind. */}
-            <CommentSheet
-              postId={post.id}
-              commentCount={post.comment_count}
-              isOwner={!!user && post.author?.id === user.id}
-              highlightId={highlightId}
-              onClose={smartBack}
-            />
+            {/* The whole point of this page is normally the discussion, so
+                the comment overlay opens by itself over the post above —
+                same immersive sheet PostCard opens inline elsewhere, just
+                without a tap needed to get here. In `?view=post` mode
+                (reached via RepostBadge — "show me the original post",
+                not its comments) it starts closed instead, and opening
+                it from the comment count just closes back to viewing the
+                post in place rather than leaving the page — see
+                commentsOpen/onClose below. */}
+            {commentsOpen && (
+              <CommentSheet
+                postId={post.id}
+                commentCount={post.comment_count}
+                isOwner={!!user && post.author?.id === user.id}
+                highlightId={highlightId}
+                onClose={viewOnly ? () => setManuallyOpened(false) : smartBack}
+              />
+            )}
           </>
         )}
       </div>

@@ -6,6 +6,7 @@ import { useIsFollowing, useToggleFollow } from "../../hooks/useProfile";
 import { Avatar } from "../../components/Avatar";
 import { Wordmark } from "../../components/Wordmark";
 import { Button } from "../../components/Button";
+import { AuthPattern } from "../../components/AuthPattern";
 
 // Never more than five picks — this is meant to read as a short,
 // hand-curated shortlist rather than an open-ended directory. Passed
@@ -79,8 +80,9 @@ export function FindPeople() {
   }
 
   return (
-    <div className="min-h-screen bg-canvas px-6 py-10 pb-28">
-      <div className="max-w-lg mx-auto">
+    <div className="relative min-h-screen bg-canvas px-6 py-10 pb-28 overflow-hidden">
+      <AuthPattern />
+      <div className="relative z-10 max-w-lg mx-auto">
         <div className="mb-8">
           <Wordmark />
         </div>

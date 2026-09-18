@@ -53,11 +53,45 @@ export function MusicAttribution({ catalogueId, postId }: MusicAttributionProps)
     fadeOutAndPause(audioRef.current);
   };
 
+  // Full teardown used by every "this soundtrack should stop now" path
+  // below (unmount, scroll-out, app backgrounded) — kept as one place
+  // so all three stay in sync instead of drifting.
+  const stopAndRelease = () => {
+    stopPlayback();
+    unduckAudioBus();
+    clearMusicPlaying(stopPlayback);
+  };
+
   useEffect(() => {
     return () => {
-      clearMusicPlaying(stopPlayback);
-      unduckAudioBus();
+      // Belt-and-suspenders, same reasoning as useStopMediaWhenHidden's
+      // own unmount cleanup: the observer's cleanup below already stops
+      // playback in the common case, but if this component unmounts
+      // outright (feed re-render, fast scroll past before the exit-
+      // intersection callback lands) that cleanup may not get the
+      // chance to run first. The audio is a plain `new Audio()`, never
+      // attached to the DOM, so React removing this component does NOT
+      // stop it by itself — only an explicit pause() does.
+      stopAndRelease();
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // "Leaving the app should stop the music" — minimizing, switching to
+  // another app, or backgrounding the browser tab all fire
+  // visibilitychange, but none of them move this row out of the
+  // viewport, so the scroll IntersectionObserver below never sees a
+  // reason to stop. Deliberately one-directional, same as
+  // useStopMediaWhenHidden: coming back to the app never auto-resumes
+  // playback — the person has to scroll the post out and back (or the
+  // observer re-fires) to start it again, matching the rest of this
+  // component's scroll-driven model.
+  useEffect(() => {
+    function onVisibilityChange() {
+      if (document.hidden) stopAndRelease();
+    }
+    document.addEventListener("visibilitychange", onVisibilityChange);
+    return () => document.removeEventListener("visibilitychange", onVisibilityChange);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -103,16 +137,17 @@ export function MusicAttribution({ catalogueId, postId }: MusicAttributionProps)
               audio.play().catch(() => clearMusicPlaying(stopPlayback));
             });
         } else {
-          stopPlayback();
-          unduckAudioBus();
-          clearMusicPlaying(stopPlayback);
+          stopAndRelease();
         }
       },
       { threshold: VISIBILITY_THRESHOLD },
     );
 
     observer.observe(node);
-    return () => observer.disconnect();
+    return () => {
+      observer.disconnect();
+      stopAndRelease();
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [entry?.id, entry?.clip_url]);
 
@@ -164,9 +199,13 @@ export function MusicAttribution({ catalogueId, postId }: MusicAttributionProps)
         <button
           onClick={toggleMute}
           aria-label={muted ? "Unmute" : "Mute"}
-          className="flex-shrink-0 text-ink-muted bg-transparent border-0 p-0"
+          // Bumped from size 15/no padding — too small to register as a
+          // real control (or to tap comfortably) next to the song text.
+          // Negative margin cancels the padding for layout purposes, so
+          // this only grows the icon and its tap target, not the row.
+          className="flex-shrink-0 text-ink-muted bg-transparent border-0 p-1.5 -m-1.5"
         >
-          {muted ? <VolumeX size={15} /> : <Volume2 size={15} />}
+          {muted ? <VolumeX size={20} /> : <Volume2 size={20} />}
         </button>
       </div>
 

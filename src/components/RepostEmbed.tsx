@@ -1,7 +1,13 @@
 // src/components/RepostEmbed.tsx
 import { Link } from "react-router-dom";
 import { Avatar } from "./Avatar";
+import { SlideCarousel } from "./PostMedia";
 import type { RepostSource } from "../types/database";
+
+// No-op — see the export doc on SlideCarousel. A tap here doesn't need
+// to do anything extra: the whole embed is already one big Link to the
+// original post, so the browser's own click-through handles navigation.
+function ignoreTap() {}
 
 function timeAgo(dateString: string): string {
   const seconds = Math.floor((Date.now() - new Date(dateString).getTime()) / 1000);
@@ -64,9 +70,36 @@ export function RepostEmbed({ source }: { source: RepostSource | null | undefine
       )}
       {preview && <p className="text-sm text-ink mt-1 whitespace-pre-wrap break-words">{preview}</p>}
 
-      {source.media_urls.length > 0 && (
+      {source.media_urls.length === 1 && (
         <div className="mt-2 w-full h-32 rounded-lg overflow-hidden bg-surface border border-border">
           <img src={source.media_urls[0]} alt="" className="w-full h-full object-cover" />
+        </div>
+      )}
+
+      {/* Multi-image original — a real swipeable carousel (same one
+          PostMedia uses for a native post's own slides), not a static
+          first-image thumbnail. The static version had no
+          data-swipeable-ignore, so a swipe attempt here fell through
+          to the surrounding Feed/Profile tab row's touch handler and
+          dragged the whole page to a different tab instead of paging
+          images — this is what fixes that. frameClassName keeps the
+          embed's existing compact height instead of growing to a full
+          post card's aspect-ratio frame.
+
+          Deliberately NOT wrapped in a stopPropagation div the way
+          PostMedia's own usage is: this carousel is nested INSIDE the
+          embed's own Link (unlike a native post's, which sits beside
+          its content Link), so a plain tap should keep bubbling up
+          and let that Link navigate — same as tapping the
+          single-image thumbnail above already does. A real swipe
+          doesn't navigate: SlideCarousel's own handleClick already
+          stops the swipe's trailing synthetic click from bubbling
+          any further once it swallows it (see PostMedia.tsx), so
+          mid-swipe releases land on the next/previous slide instead
+          of jumping to the post page. */}
+      {source.media_urls.length > 1 && (
+        <div className="mt-2">
+          <SlideCarousel mediaUrls={source.media_urls} onTap={ignoreTap} frameClassName="h-32" />
         </div>
       )}
     </Link>
