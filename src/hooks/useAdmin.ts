@@ -491,29 +491,45 @@ export function useUpdateAccessRule() {
 }
 
 // ------------------------------------------------------------
-// AI content moderation kill switch — same moderation_settings
-// key/value table and on-by-default convention as the Pages toggle
-// above (usePagesFeatureSettings/useTogglePagesEnabled). Read by
-// moderate-content (the edge function that actually screens posts/
-// comments/reshares) and by AdminModeration.tsx here, which was
-// referencing these two hooks before they existed.
+// Content moderation — two independent kill switches in the same
+// moderation_settings key/value table and on-by-default convention
+// as the Pages toggle above (usePagesFeatureSettings/
+// useTogglePagesEnabled):
+//
+//   - ai_moderation_enabled: the Claude-based classifier (hate,
+//     harassment, sexual content, etc. — see moderation_categories).
+//   - word_filter_enabled: a plain, deterministic blocklist check
+//     against code_moderation_blocklist, edited via
+//     useModerationBlocklist/useSetModerationBlocklist below.
+//
+// Both are read by moderate-content (the edge function that
+// actually screens every post/comment/reshare) and run
+// independently of each other — either one on its own, both
+// together, or both off. AdminModeration.tsx surfaces all of this
+// on one page.
 // ------------------------------------------------------------
 const AI_MODERATION_ENABLED_KEY = "ai_moderation_enabled";
+const WORD_FILTER_ENABLED_KEY = "word_filter_enabled";
+const BLOCKLIST_KEY = "code_moderation_blocklist";
 
 export function useModerationSettings() {
   return useQuery({
     queryKey: ["admin-moderation-settings"],
-    queryFn: async (): Promise<{ ai_moderation_enabled: boolean }> => {
+    queryFn: async (): Promise<{ ai_moderation_enabled: boolean; word_filter_enabled: boolean }> => {
       const { data, error } = await supabase
         .from("moderation_settings")
-        .select("value")
-        .eq("key", AI_MODERATION_ENABLED_KEY)
-        .maybeSingle();
+        .select("key, value")
+        .in("key", [AI_MODERATION_ENABLED_KEY, WORD_FILTER_ENABLED_KEY]);
       if (error) throw error;
-      // No row yet defaults to on, matching moderate-content's own
-      // fail-safe default so this toggle reads the same as what's
-      // actually enforced when it hasn't been explicitly turned off.
-      return { ai_moderation_enabled: data ? data.value === "true" : true };
+      const map = Object.fromEntries((data ?? []).map((r) => [r.key, r.value]));
+      // No row yet defaults to on for both, matching moderate-content's
+      // own fail-safe default so these toggles read the same as
+      // what's actually enforced when they haven't been explicitly
+      // turned off.
+      return {
+        ai_moderation_enabled: map[AI_MODERATION_ENABLED_KEY] !== undefined ? map[AI_MODERATION_ENABLED_KEY] === "true" : true,
+        word_filter_enabled: map[WORD_FILTER_ENABLED_KEY] !== undefined ? map[WORD_FILTER_ENABLED_KEY] === "true" : true,
+      };
     },
   });
 }
@@ -528,6 +544,64 @@ export function useToggleAiModeration() {
       if (error) throw error;
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["admin-moderation-settings"] }),
+  });
+}
+
+export function useToggleWordFilter() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (word_filter_enabled: boolean) => {
+      const { error } = await supabase
+        .from("moderation_settings")
+        .upsert({ key: WORD_FILTER_ENABLED_KEY, value: word_filter_enabled ? "true" : "false" });
+      if (error) throw error;
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["admin-moderation-settings"] }),
+  });
+}
+
+/**
+ * The word filter's blocked-terms list, stored as one plain-text
+ * moderation_settings value (comma-or-newline separated — see
+ * moderate-content's loadSettings). Read back here as newline-
+ * separated for the admin textarea, regardless of which separator
+ * was used when it was last saved.
+ */
+export function useModerationBlocklist() {
+  return useQuery({
+    queryKey: ["admin-moderation-blocklist"],
+    queryFn: async (): Promise<string> => {
+      const { data, error } = await supabase
+        .from("moderation_settings")
+        .select("value")
+        .eq("key", BLOCKLIST_KEY)
+        .maybeSingle();
+      if (error) throw error;
+      if (!data?.value) return "";
+      return data.value
+        .split(/[\n,]/)
+        .map((term: string) => term.trim())
+        .filter((term: string) => term.length > 0)
+        .join("\n");
+    },
+  });
+}
+
+export function useSetModerationBlocklist() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (rawList: string) => {
+      const cleaned = rawList
+        .split(/[\n,]/)
+        .map((term) => term.trim())
+        .filter((term) => term.length > 0)
+        .join(", ");
+      const { error } = await supabase
+        .from("moderation_settings")
+        .upsert({ key: BLOCKLIST_KEY, value: cleaned });
+      if (error) throw error;
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["admin-moderation-blocklist"] }),
   });
 }
 
