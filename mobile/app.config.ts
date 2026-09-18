@@ -37,6 +37,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     "expo-font",
     ["expo-image-picker", { "photosPermission": "Choose a photo to use as your AKọ profile image.", "cameraPermission": "Take a photo to use as your AKọ profile image.", "microphonePermission": false }],
     "expo-video",
+    "expo-audio",
     [
       "expo-splash-screen",
       {
