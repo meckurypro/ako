@@ -267,6 +267,24 @@ export function PostCard({
     lastTapRef.current = now;
   }
 
+  // PostContent renders inline #hashtag/@mention links (see
+  // formatText.tsx) — wrapping it in a <Link> to the post detail page,
+  // as this used to do, put a real <a> around content that can itself
+  // contain another <a>. Nested anchors are invalid HTML and browsers
+  // (mobile Safari especially) don't resolve the tap consistently
+  // between the two — sometimes the OUTER post link wins even when the
+  // hashtag itself was tapped, which is why hashtag taps could land on
+  // the wrong page. Fixed by using a plain clickable <div> here instead
+  // of <Link>: it navigates to the post on its own, but steps aside —
+  // no navigate, no double-tap-like check — whenever the tap started
+  // inside a real nested link (the hashtag/mention), letting that
+  // link's own navigation happen uncontested.
+  function handleContentClick(e: React.MouseEvent<HTMLDivElement>) {
+    if ((e.target as HTMLElement).closest("a")) return;
+    handleContentTap();
+    navigate(`/post/${post.id}`);
+  }
+
   // Opens the immersive comment overlay in place — from the Feed, a
   // profile grid, anywhere a PostCard renders — instead of navigating
   // away to the full post page. On PostDetail itself (showStats, the
@@ -777,9 +795,17 @@ export function PostCard({
         ) : (
           <>
             {(original!.content.trim() !== "" || original!.heading) && (
-              <Link to={`/post/${post.id}`} onClick={handleContentTap} className="block mt-3">
+              <div
+                role="link"
+                tabIndex={0}
+                onClick={handleContentClick}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") navigate(`/post/${post.id}`);
+                }}
+                className="block mt-3 cursor-pointer"
+              >
                 <PostContent heading={original!.heading} headingColor={original!.heading_color} content={original!.content} />
-              </Link>
+              </div>
             )}
             <PostMedia mediaUrls={original!.media_urls} />
             {original!.music_catalogue_id && (
@@ -792,9 +818,17 @@ export function PostCard({
           {/* Own content — the caption (quote) or the post itself
               (normal post). */}
           {(post.content.trim() !== "" || post.heading) && (
-            <Link to={`/post/${post.id}`} onClick={handleContentTap} className="block mt-3">
+            <div
+              role="link"
+              tabIndex={0}
+              onClick={handleContentClick}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") navigate(`/post/${post.id}`);
+              }}
+              className="block mt-3 cursor-pointer"
+            >
               <PostContent heading={post.heading} headingColor={post.heading_color} content={post.content} />
-            </Link>
+            </div>
           )}
 
           <PostMedia mediaUrls={post.media_urls} />
