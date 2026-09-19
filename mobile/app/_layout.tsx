@@ -3,12 +3,14 @@ import { View } from "react-native";
 import { Stack } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import { StatusBar } from "expo-status-bar";
+import { configureReanimatedLogger, ReanimatedLogLevel } from "react-native-reanimated";
 import { AppProviders } from "@/providers/AppProviders";
 import { useAuth } from "@/providers/AuthProvider";
 import { useTheme } from "@/providers/ThemeProvider";
 import { AppSplash } from "@/components/feedback/AppSplash";
 
 void SplashScreen.preventAutoHideAsync();
+configureReanimatedLogger({ level: ReanimatedLogLevel.warn, strict: false });
 
 function AppNavigator() {
   const { isReady } = useAuth(); const { colors, isDark } = useTheme(); const [showSplash, setShowSplash] = useState(true);

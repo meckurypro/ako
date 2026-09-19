@@ -1,7 +1,7 @@
 export type FeedMode = "ranked" | "following" | "top";
 export type Stance = "support" | "disagree" | "pushback";
 export type ProfileRole = { label: string; position: number };
-export type Author = { id: string; username: string; display_name: string; avatar_url: string | null; tier: string; is_verified: boolean; roles: ProfileRole[] };
+export type Author = { id: string; username: string; display_name: string; avatar_url: string | null; tier: string; is_verified: boolean; is_private: boolean; roles: ProfileRole[] };
 export type PageAuthor = { id: string; username: string; name: string; avatar_url: string | null; is_verified: boolean };
 export type Post = {
   id: string; author_id: string; heading: string | null; heading_color: string | null; content: string; media_urls: string[];
