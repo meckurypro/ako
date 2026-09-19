@@ -6,6 +6,7 @@ import { useAuth } from "@/providers/AuthProvider";
 export type ProjectType = "file" | "url" | "meeting" | "media" | "gig" | "pitch" | "book" | "event" | "room" | "course";
 export type GigRole = { id: string; key: string; label: string; category: string; sort_order: number };
 export type GigSample = { id: string; title: string; thumbnail_url: string | null; project_type: ProjectType };
+export type MyGig = { id: string; title: string; thumbnail_url: string | null; status: string; created_at: string; role_label: string | null; category: string | null; is_complete: boolean; source: "manual" | "auto_project" | "auto_collaboration" };
 
 export function useGigRoles() {
   return useQuery({ queryKey: ["gig-roles"], staleTime: 60 * 60_000, queryFn: async (): Promise<GigRole[]> => {
@@ -21,6 +22,19 @@ export function useGigSamples() {
     const { data, error } = await supabase.from("projects").select("id, title, thumbnail_url, project_type").eq("owner_id", user!.id).neq("project_type", "gig");
     if (error) throw error;
     return data as GigSample[];
+  }});
+}
+
+export function useMyGigs() {
+  const { user } = useAuth();
+  return useQuery({ queryKey: ["my-gigs", user?.id], enabled: !!user, queryFn: async (): Promise<MyGig[]> => {
+    const { data, error } = await supabase.from("projects").select("id, title, thumbnail_url, status, created_at, project_gig_details!inner(is_complete, source, gig_roles(label, category))").eq("owner_id", user!.id).eq("project_type", "gig").order("created_at", { ascending: false });
+    if (error) throw error;
+    return (data ?? []).map((row: any) => {
+      const details = Array.isArray(row.project_gig_details) ? row.project_gig_details[0] : row.project_gig_details;
+      const role = Array.isArray(details?.gig_roles) ? details.gig_roles[0] : details?.gig_roles;
+      return { id: row.id, title: row.title, thumbnail_url: row.thumbnail_url, status: row.status, created_at: row.created_at, role_label: role?.label ?? null, category: role?.category ?? null, is_complete: details?.is_complete ?? true, source: details?.source ?? "manual" };
+    }).sort((a, b) => Number(a.is_complete) - Number(b.is_complete));
   }});
 }
 

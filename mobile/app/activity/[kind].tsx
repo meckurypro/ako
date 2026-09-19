@@ -1,12 +1,12 @@
 import { useState } from "react";
-import { ActivityIndicator, FlatList, Pressable, StyleSheet, View } from "react-native";
+import { ActivityIndicator, FlatList, Pressable, Share, StyleSheet, View } from "react-native";
 import { Feather, MaterialCommunityIcons } from "@expo/vector-icons";
 import { Image } from "expo-image";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import Svg, { Path, Rect } from "react-native-svg";
 import { Text } from "@/components/core";
 import { PostCard } from "@/components/feed/PostCard";
-import { useAffiliateProjects, useDraftPosts, useEventsActivity, useLikedPosts, useLikedProjects, useSavedPosts, useSavedProjects, useViewHistory } from "@/features/activity/api";
+import { useAffiliateDashboard, useAffiliateProjects, useDraftPosts, useEventsActivity, useLikedPosts, useLikedProjects, useSavedPosts, useSavedProjects, useViewHistory } from "@/features/activity/api";
 import { useTheme } from "@/providers/ThemeProvider";
 
 type HubTab = "posts" | "projects";
@@ -26,6 +26,7 @@ export default function ActivityDetail() {
   const history = useViewHistory();
   const affiliates = useAffiliateProjects();
   const events = useEventsActivity();
+  const [now] = useState(() => Date.now());
 
   if (kind === "saved" || kind === "liked") {
     const postQuery = kind === "saved" ? savedPosts : likedPosts;
@@ -52,9 +53,20 @@ export default function ActivityDetail() {
     return <View style={[s.root, { backgroundColor: colors.background }]}><PlainHeader title="History" />{history.isLoading ? <ActivityIndicator color={colors.accent} style={s.loader} /> : <FlatList data={rows} keyExtractor={(item: any, index) => `${item.kind}-${item.value?.id ?? index}-${item.viewedAt}`} contentContainerStyle={s.historyList} refreshing={history.isRefetching} onRefresh={() => void history.refetch()} ListEmptyComponent={<HistoryEmpty />} renderItem={({ item }: any) => <HistoryRow item={item} />} /> }<BottomNavigation /></View>;
   }
 
-  const projects: any[] = kind === "affiliates" ? affiliates.data?.map((x: any) => x.project).filter(Boolean) ?? [] : kind === "events" ? events.data ?? [] : [];
-  const loading = kind === "events" ? events.isLoading : affiliates.isLoading;
-  return <View style={[s.root, { backgroundColor: colors.background }]}><View style={[s.header, { borderBottomColor: colors.border }]}><Pressable onPress={() => router.back()} style={s.back}><MaterialCommunityIcons name="arrow-left" size={22} color={colors.textSecondary} /></Pressable><Text style={s.title}>{titles[kind] ?? "Activity"}</Text></View>{loading ? <ActivityIndicator color={colors.accent} style={s.loader} /> : <FlatList data={projects} keyExtractor={(item: any, index) => item.id ?? `${index}`} contentContainerStyle={s.list} ItemSeparatorComponent={() => <View style={{ height: 14 }} />} ListEmptyComponent={<Text color="muted" align="center" style={s.empty}>{kind === "events" ? "Events, meetings, and rooms you've joined will show up here." : "Nothing here yet."}</Text>} renderItem={({ item }: any) => <ProjectRow item={item.value ?? item} kind={kind ?? ""} />} />}</View>;
+  if (kind === "events") {
+    const rows = events.data ?? [];
+    const upcoming = rows.filter((item: any) => !item.when || new Date(item.when).getTime() >= now);
+    const past = rows.filter((item: any) => item.when && new Date(item.when).getTime() < now);
+    return <View style={[s.root, { backgroundColor: colors.background }]}><PlainHeader title="Events & meetings" />{events.isLoading ? <ActivityIndicator color={colors.accent} style={s.loader} /> : rows.length === 0 ? <EventsEmpty /> : <FlatList data={[{ key: "upcoming", title: "Upcoming", rows: upcoming }, { key: "past", title: "Past", rows: past }]} keyExtractor={(section) => section.key} contentContainerStyle={s.eventsList} renderItem={({ item: section }) => <EventSection title={section.title} rows={section.rows} />} /> }<BottomNavigation /></View>;
+  }
+
+  if (kind === "affiliates") {
+    const rows = affiliates.data ?? [];
+    return <View style={[s.root, { backgroundColor: colors.background }]}><PlainHeader title="My affiliate links" />{affiliates.isLoading ? <ActivityIndicator color={colors.accent} style={s.loader} /> : <FlatList data={rows} keyExtractor={(item: any) => item.id} contentContainerStyle={s.affiliateList} ListEmptyComponent={<AffiliateEmpty />} renderItem={({ item }: any) => item.project ? <AffiliateCard relationship={item} /> : null} />}</View>;
+  }
+
+  const projects: any[] = kind === "affiliates" ? affiliates.data?.map((x: any) => x.project).filter(Boolean) ?? [] : [];
+  return <View style={[s.root, { backgroundColor: colors.background }]}><View style={[s.header, { borderBottomColor: colors.border }]}><Pressable onPress={() => router.back()} style={s.back}><MaterialCommunityIcons name="arrow-left" size={22} color={colors.textSecondary} /></Pressable><Text style={s.title}>{titles[kind] ?? "Activity"}</Text></View>{affiliates.isLoading ? <ActivityIndicator color={colors.accent} style={s.loader} /> : <FlatList data={projects} keyExtractor={(item: any, index) => item.id ?? `${index}`} contentContainerStyle={s.list} ItemSeparatorComponent={() => <View style={{ height: 14 }} />} ListEmptyComponent={<Text color="muted" align="center" style={s.empty}>Nothing here yet.</Text>} renderItem={({ item }: any) => <ProjectRow item={item.value ?? item} kind={kind ?? ""} />} />}</View>;
 }
 
 function PlainHeader({ title }: { title: string }) {
@@ -128,6 +140,60 @@ function HistoryRow({ item }: { item: any }) {
 function HistoryEmpty() {
   const { colors } = useTheme();
   return <View style={s.historyEmpty}><Feather name="clock" size={24} color={colors.textMuted} /><Text color="muted" align="center" style={s.emptyMessage}>Posts and projects you open will show up here, most recent first.</Text></View>;
+}
+
+function EventSection({ title, rows }: { title: string; rows: any[] }) {
+  const { colors } = useTheme();
+  return <View style={s.eventSection}><Text style={[s.eventSectionTitle, { color: colors.textMuted }]}>{title}</Text>{rows.length === 0 ? <Text color="muted" style={s.eventSectionEmpty}>{title === "Upcoming" ? "Nothing upcoming." : "Nothing past yet."}</Text> : rows.map((item: any, index: number) => <EventRow key={`${item.kind}-${item.id ?? index}-${item.when ?? "tba"}`} item={item} />)}</View>;
+}
+
+function EventRow({ item }: { item: any }) {
+  const { colors } = useTheme();
+  const label = item.kind ?? "Event";
+  const when = item.when ? new Date(item.when).toLocaleString() : "Date TBA";
+  const title = item.title ?? "Project";
+  return <Pressable style={[s.eventRow, { backgroundColor: colors.surface, borderColor: colors.border }]}><View style={[s.eventThumb, { backgroundColor: colors.background }]}>{item.thumbnail_url ? <Image source={{ uri: item.thumbnail_url }} style={StyleSheet.absoluteFill} contentFit="cover" /> : <Feather name="image" size={18} color={colors.textMuted} />}</View><View style={s.eventCopy}><Text numberOfLines={1} style={s.eventTitle}>{title}</Text><Text color="muted" numberOfLines={1} style={s.eventMeta}>{label} · {when}</Text></View></Pressable>;
+}
+
+function EventsEmpty() {
+  const { colors } = useTheme();
+  return <View style={s.eventsEmpty}><MaterialCommunityIcons name="calendar-clock-outline" size={24} color={colors.textMuted} /><Text color="muted" align="center" style={s.emptyMessage}>{"Events, meetings, and rooms you've joined will show up here."}</Text></View>;
+}
+
+function formatUsd(amount: number | string | null | undefined) {
+  const value = Number(amount ?? 0);
+  if (!Number.isFinite(value)) return "$0";
+  return new Intl.NumberFormat(undefined, { style: "currency", currency: "USD", maximumFractionDigits: value % 1 === 0 ? 0 : 2 }).format(value);
+}
+
+function effectivePrice(project: any) {
+  const promo = Number(project?.promo_price_usd ?? 0);
+  const price = Number(project?.price_usd ?? 0);
+  return promo > 0 ? promo : price;
+}
+
+function affiliateLinkFor(projectId: string, token: string) {
+  return `https://ako.app/projects/${projectId}?ref=${token}`;
+}
+
+function AffiliateCard({ relationship }: { relationship: any }) {
+  const { colors } = useTheme();
+  const dashboard = useAffiliateDashboard(relationship.status === "active" ? relationship.id : undefined);
+  const project = relationship.project;
+  const share = () => {
+    const url = affiliateLinkFor(relationship.project_id, relationship.referral_token);
+    void Share.share({ title: project?.title, message: url, url });
+  };
+  return <View style={[s.affiliateCard, { backgroundColor: colors.surface, borderColor: colors.border }]}><View style={s.affiliateTop}><View style={[s.affiliateThumb, { backgroundColor: colors.background }]}>{project.thumbnail_url ? <Image source={{ uri: project.thumbnail_url }} style={StyleSheet.absoluteFill} contentFit="cover" /> : <Feather name="image" size={18} color={colors.textMuted} />}</View><View style={s.affiliateCopy}><Text numberOfLines={1} style={s.affiliateTitle}>{project.title}</Text><Text color="muted" style={s.affiliatePrice}>{formatUsd(effectivePrice(project))}</Text></View>{relationship.status === "revoked" ? <Text color="muted" style={s.revokedText}>Revoked</Text> : <Pressable onPress={share} accessibilityLabel="Copy link" style={s.copyButton}><Feather name="copy" size={16} color={colors.accent} /></Pressable>}</View>{relationship.status === "active" ? <View style={s.affiliateStats}><MiniStat label="Clicks" value={String(dashboard.data?.clicks ?? 0)} /><MiniStat label="Sales" value={String(dashboard.data?.completed_sales ?? 0)} /><MiniStat label="Pending" value={formatUsd(dashboard.data?.pending_commission ?? 0)} /><MiniStat label="Paid" value={formatUsd(dashboard.data?.paid_commission ?? 0)} /></View> : null}</View>;
+}
+
+function MiniStat({ label, value }: { label: string; value: string }) {
+  return <View style={s.miniStat}><Text numberOfLines={1} style={s.miniStatValue}>{value}</Text><Text color="muted" numberOfLines={1} style={s.miniStatLabel}>{label}</Text></View>;
+}
+
+function AffiliateEmpty() {
+  const { colors } = useTheme();
+  return <View style={s.affiliateEmpty}><Feather name="trending-up" size={24} color={colors.textMuted} /><Text color="muted" align="center" style={s.emptyMessage}>{"Projects you fork to earn a commission on will show up here — look for \"Share & earn\" on any project that has affiliate forking turned on."}</Text></View>;
 }
 
 function ProjectRow({ item, kind }: { item: any; kind: string }) {
@@ -206,6 +272,30 @@ const s = StyleSheet.create({
   historySubtitle: { marginTop: 2, fontSize: 12, lineHeight: 16 },
   historyDate: { fontSize: 12, lineHeight: 16 },
   historyEmpty: { marginTop: 64, paddingHorizontal: 34, alignItems: "center", gap: 8 },
+  eventsList: { paddingHorizontal: 18, paddingTop: 10, paddingBottom: 110, flexGrow: 1 },
+  eventSection: { marginBottom: 24 },
+  eventSectionTitle: { marginBottom: 8, fontSize: 14, lineHeight: 18, fontWeight: "500" },
+  eventSectionEmpty: { fontSize: 12, lineHeight: 16 },
+  eventRow: { minHeight: 72, borderWidth: StyleSheet.hairlineWidth, borderRadius: 12, padding: 12, marginBottom: 8, flexDirection: "row", alignItems: "center", gap: 12 },
+  eventThumb: { width: 48, height: 48, borderRadius: 8, overflow: "hidden", alignItems: "center", justifyContent: "center" },
+  eventCopy: { flex: 1, minWidth: 0 },
+  eventTitle: { fontSize: 14, lineHeight: 19 },
+  eventMeta: { marginTop: 2, fontSize: 12, lineHeight: 16 },
+  eventsEmpty: { marginTop: 64, paddingHorizontal: 34, alignItems: "center", gap: 8 },
+  affiliateList: { paddingHorizontal: 16, paddingTop: 10, paddingBottom: 32, flexGrow: 1 },
+  affiliateCard: { borderWidth: StyleSheet.hairlineWidth, borderRadius: 16, padding: 16, marginBottom: 12 },
+  affiliateTop: { flexDirection: "row", alignItems: "center", gap: 12 },
+  affiliateThumb: { width: 48, height: 48, borderRadius: 12, overflow: "hidden", alignItems: "center", justifyContent: "center" },
+  affiliateCopy: { flex: 1, minWidth: 0 },
+  affiliateTitle: { fontSize: 14, lineHeight: 19, fontWeight: "500" },
+  affiliatePrice: { marginTop: 2, fontSize: 12, lineHeight: 16 },
+  copyButton: { width: 32, height: 32, alignItems: "center", justifyContent: "center" },
+  revokedText: { fontSize: 12, lineHeight: 16 },
+  affiliateStats: { marginTop: 14, flexDirection: "row", gap: 8 },
+  miniStat: { flex: 1, alignItems: "center" },
+  miniStatValue: { fontSize: 14, lineHeight: 18, fontWeight: "500" },
+  miniStatLabel: { marginTop: 1, fontSize: 10, lineHeight: 13 },
+  affiliateEmpty: { marginTop: 64, paddingHorizontal: 28, alignItems: "center", gap: 8 },
   project: { minHeight: 64, borderWidth: StyleSheet.hairlineWidth, borderRadius: 12, padding: 12, flexDirection: "row", alignItems: "center", gap: 10 },
   bottomNav: { position: "absolute", left: 0, right: 0, bottom: 0, height: 76, borderTopWidth: StyleSheet.hairlineWidth, borderTopLeftRadius: 28, borderTopRightRadius: 28, overflow: "hidden", flexDirection: "row", paddingTop: 13 },
   navItem: { flex: 1, alignItems: "center", gap: 5 },
