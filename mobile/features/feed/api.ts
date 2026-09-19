@@ -32,3 +32,49 @@ export function useSendGift(){const client=useQueryClient();return useMutation({
 export function useSavedPosts(){const{user}=useAuth();return useInfiniteQuery({queryKey:["saved-posts",user?.id],enabled:!!user,initialPageParam:0,queryFn:async({pageParam})=>{const from=pageParam*PAGE_SIZE;const{data,error}=await supabase.from("bookmarks").select(`post:posts!bookmarks_post_id_fkey(${FEED_SELECT})`).eq("user_id",user!.id).order("created_at",{ascending:false}).range(from,from+PAGE_SIZE-1);if(error)throw error;return(data??[]).flatMap((row:any)=>row.post?[normalizePost(Array.isArray(row.post)?row.post[0]:row.post)]:[]);},getNextPageParam:(last,pages)=>last.length===PAGE_SIZE?pages.length:undefined});}
 export type SecondaryActionKey="support"|"reshare"|"share"|"gift"|"save"|"disagree"|"pushback"|"dislike";const ACTION_FALLBACK:SecondaryActionKey[]=["support","reshare","share","gift","save","disagree","pushback","dislike"];
 export function useEngagementOrder(){const{user}=useAuth();return useQuery({queryKey:["engagement-order",user?.id],enabled:!!user,staleTime:300000,queryFn:async():Promise<SecondaryActionKey[]>=>{const counts:Record<SecondaryActionKey,number>={support:0,reshare:0,share:0,gift:0,save:0,disagree:0,pushback:0,dislike:0};const[stances,dislikes,gifts,saves,reshares,shares]=await Promise.all([supabase.from("comments").select("stance").eq("author_id",user!.id).eq("is_deleted",false).not("stance","is",null),supabase.from("reactions").select("id",{count:"exact",head:true}).eq("user_id",user!.id).eq("type","dislike"),supabase.from("gifts").select("id",{count:"exact",head:true}).eq("sender_id",user!.id),supabase.from("bookmarks").select("id",{count:"exact",head:true}).eq("user_id",user!.id),supabase.from("posts").select("id",{count:"exact",head:true}).eq("author_id",user!.id).not("reshared_post_id","is",null),supabase.from("reactions").select("id",{count:"exact",head:true}).eq("user_id",user!.id).eq("type","share")]);for(const result of[stances,dislikes,gifts,saves,reshares,shares])if(result.error)throw result.error;for(const row of stances.data??[]){if(row.stance==="support")counts.support++;else if(row.stance==="disagree")counts.disagree++;else if(row.stance==="pushback")counts.pushback++;}counts.dislike=dislikes.count??0;counts.gift=gifts.count??0;counts.save=saves.count??0;counts.reshare=reshares.count??0;counts.share=shares.count??0;return[...ACTION_FALLBACK].sort((a,b)=>counts[b]-counts[a]||ACTION_FALLBACK.indexOf(a)-ACTION_FALLBACK.indexOf(b));}});}
+
+export function usePrioritizePost() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: async (postId: string) => {
+      const { data, error } = await supabase.functions.invoke("prioritize-post", { body: { post_id: postId } });
+      if (error) throw new Error(await functionError(error, "Couldn't prioritize this post."));
+      if (data?.error) throw new Error(data.error);
+      return data.prioritized as { post_id: string; creator_id: string; prioritized_date: string };
+    },
+    onSuccess: () => {
+      void client.invalidateQueries({ queryKey: ["feed"] });
+      void client.invalidateQueries({ queryKey: ["identity-posts"] });
+    },
+  });
+}
+
+export function useSetPostArchived() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ postId, archived }: { postId: string; archived: boolean }) => {
+      const { error } = await supabase.from("posts").update({ is_archived: archived }).eq("id", postId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      void client.invalidateQueries({ queryKey: ["feed"] });
+      void client.invalidateQueries({ queryKey: ["identity-posts"] });
+      void client.invalidateQueries({ queryKey: ["activity-posts"] });
+    },
+  });
+}
+
+export function useDeletePost() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: async (postId: string) => {
+      const { error } = await supabase.from("posts").update({ is_deleted: true }).eq("id", postId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      void client.invalidateQueries({ queryKey: ["feed"] });
+      void client.invalidateQueries({ queryKey: ["identity-posts"] });
+      void client.invalidateQueries({ queryKey: ["activity-posts"] });
+    },
+  });
+}
