@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useId } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/providers/AuthProvider";
@@ -25,7 +25,7 @@ async function enrichNotifications(rows: AppNotification[]) {
 }
 
 export function usePersonalNotifications(enabled = true) {
-  const { user } = useAuth(); const queryClient = useQueryClient(); const channelId = useRef(Math.random().toString(36).slice(2)).current;
+  const { user } = useAuth(); const queryClient = useQueryClient(); const channelId = useId();
   useEffect(() => {
     if (!user || !enabled) return;
     const channel = supabase.channel(`mobile-notifications:${user.id}:${channelId}`).on("postgres_changes", { event: "INSERT", schema: "public", table: "notifications", filter: `user_id=eq.${user.id}` }, () => void queryClient.invalidateQueries({ queryKey: ["mobile-notifications", user.id] })).subscribe();
@@ -35,7 +35,7 @@ export function usePersonalNotifications(enabled = true) {
 }
 
 export function usePageNotifications(pageId?: string, enabled = true) {
-  const queryClient = useQueryClient(); const channelId = useRef(Math.random().toString(36).slice(2)).current;
+  const queryClient = useQueryClient(); const channelId = useId();
   useEffect(() => {
     if (!pageId || !enabled) return;
     const channel = supabase.channel(`mobile-page-notifications:${pageId}:${channelId}`).on("postgres_changes", { event: "INSERT", schema: "public", table: "page_notifications", filter: `page_id=eq.${pageId}` }, () => void queryClient.invalidateQueries({ queryKey: ["mobile-page-notifications", pageId] })).subscribe();

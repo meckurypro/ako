@@ -1,7 +1,6 @@
-﻿import { Alert, Modal, Pressable, Share, StyleSheet, View } from "react-native";
+import { Alert, Modal, Pressable, Share, StyleSheet, View } from "react-native";
 import * as Haptics from "expo-haptics";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
-import { useRouter } from "expo-router";
 import { useState } from "react";
 import Animated, { FadeIn, FadeOut, SlideInDown, SlideOutDown, useReducedMotion } from "react-native-reanimated";
 import { PressableScale, Text } from "@/components/core";
@@ -45,7 +44,6 @@ function ActionSheet({ children, colors, onClose }: { children: React.ReactNode;
 
 export function PostActions({ postId, recipientId, recipientName, recipientAvatar, likes, dislikes: _dislikes, comments, shares, support, disagree, pushback, onComments, onReshare }: { postId: string; recipientId?: string; recipientName?: string; recipientAvatar?: string | null; likes: number; dislikes: number; comments: number; shares: number; support: number; disagree: number; pushback: number; onComments: () => void; onReshare: () => void }) {
   const { colors } = useTheme();
-  const router = useRouter();
   const { user } = useAuth();
   const [more, setMore] = useState(false);
   const [stance, setStance] = useState<Stance | null>(null);
@@ -81,11 +79,11 @@ export function PostActions({ postId, recipientId, recipientName, recipientAvata
   const chooseGift = () => { setMore(false); setGift(true); };
   const chooseReshare = () => { setMore(false); onReshare(); };
   const closeAnd = (fn: () => void) => { setMore(false); fn(); };
-  const comingSoon = (label: string) => Alert.alert(label, `${label} isn't available on mobile yet.`);
+  const comingSoon = (label: string) => Alert.alert(label, `${label} is not available on mobile yet.`);
 
   const confirmPrioritize = () => Alert.alert("Prioritize this post?", "This becomes your priority post for today.", [{ text: "Cancel", style: "cancel" }, { text: "Prioritize", onPress: () => prioritizePost.mutate(postId, { onError: err => Alert.alert("Couldn't prioritize", err instanceof Error ? err.message : "Please try again.") }) }]);
-  const confirmArchive = () => isArchived ? archivePost.mutate({ postId, archived: false }, { onError: () => Alert.alert("Couldn't unarchive this post") }) : Alert.alert("Archive this post?", "It'll be hidden from your profile and the feed until you unarchive it from your Archive.", [{ text: "Cancel", style: "cancel" }, { text: "Archive", onPress: () => archivePost.mutate({ postId, archived: true }, { onError: () => Alert.alert("Couldn't archive this post") }) }]);
-  const confirmDelete = () => Alert.alert("Delete this post?", "This action can't be undone.", [{ text: "Cancel", style: "cancel" }, { text: "Delete", style: "destructive", onPress: () => deletePost.mutate(postId, { onError: () => Alert.alert("Couldn't delete this post") }) }]);
+  const confirmArchive = () => isArchived ? archivePost.mutate({ postId, archived: false }, { onError: () => Alert.alert("Couldn't unarchive this post") }) : Alert.alert("Archive this post?", "It will be hidden from your profile and the feed until you unarchive it from your Archive.", [{ text: "Cancel", style: "cancel" }, { text: "Archive", onPress: () => archivePost.mutate({ postId, archived: true }, { onError: () => Alert.alert("Couldn't archive this post") }) }]);
+  const confirmDelete = () => Alert.alert("Delete this post?", "This action cannot be undone.", [{ text: "Cancel", style: "cancel" }, { text: "Delete", style: "destructive", onPress: () => deletePost.mutate(postId, { onError: () => Alert.alert("Couldn't delete this post") }) }]);
 
   const action = (key: SecondaryActionKey): ActionItem => key === "support" ? { key, icon: "handshake-outline", label: "Support", count: support ? String(support) : undefined, onPress: () => chooseStance("support") } : key === "reshare" ? { key, icon: "repeat", label: "Reshare", count: shares ? String(shares) : undefined, onPress: chooseReshare } : key === "share" ? { key, icon: "redo", label: "Share", onPress: share } : key === "gift" ? { key, icon: "gift-outline", label: "Gift", onPress: chooseGift } : key === "save" ? { key, icon: bookmark.data ? "bookmark" : "bookmark-outline", label: bookmark.data ? "Saved" : "Save", active: !!bookmark.data, onPress: saved } : key === "disagree" ? { key, icon: "emoticon-sad-outline", label: "Disagree", count: disagree ? String(disagree) : undefined, onPress: () => chooseStance("disagree") } : key === "pushback" ? { key, icon: "hand-back-right-outline", label: "Pushback", count: pushback ? String(pushback) : undefined, onPress: () => chooseStance("pushback") } : { key, icon: dislike.data ? "thumb-down" : "thumb-down-outline", label: dislike.data ? "Disliked" : "Dislike", active: !!dislike.data, count: _dislikes ? String(_dislikes) : undefined, onPress: () => void react("dislike") };
 

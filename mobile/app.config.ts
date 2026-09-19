@@ -4,6 +4,7 @@ const APP_NAME = process.env.EXPO_PUBLIC_APP_NAME ?? "AKọ";
 const APP_SCHEME = process.env.EXPO_PUBLIC_APP_SCHEME ?? "ako";
 const IOS_BUNDLE_ID = process.env.EXPO_PUBLIC_IOS_BUNDLE_ID ?? "com.ako.app";
 const ANDROID_PACKAGE = process.env.EXPO_PUBLIC_ANDROID_PACKAGE ?? "com.ako.app";
+const EAS_PROJECT_ID = process.env.EXPO_PUBLIC_EAS_PROJECT_ID || "a52dfba5-d0f5-48f5-947d-a68b659b37a4";
 
 export default ({ config }: ConfigContext): ExpoConfig => ({
   ...config,
@@ -35,6 +36,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     "expo-router",
     "expo-secure-store",
     "expo-font",
+    "expo-asset",
     ["expo-image-picker", { "photosPermission": "Choose a photo to use as your AKọ profile image.", "cameraPermission": "Take a photo to use as your AKọ profile image.", "microphonePermission": false }],
     "expo-video",
     "expo-audio",
@@ -56,6 +58,6 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   extra: {
     privacyPolicyUrl: process.env.EXPO_PUBLIC_PRIVACY_POLICY_URL ?? "",
     termsUrl: process.env.EXPO_PUBLIC_TERMS_URL ?? "",
-    eas: { projectId: process.env.EXPO_PUBLIC_EAS_PROJECT_ID },
+    eas: { projectId: EAS_PROJECT_ID },
   },
 });

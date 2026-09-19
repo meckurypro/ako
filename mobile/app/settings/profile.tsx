@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Switch, View } from "react-native";
 import * as ImagePicker from "expo-image-picker";
 import { Feather, MaterialCommunityIcons } from "@expo/vector-icons";
@@ -31,8 +31,7 @@ import {
 import { useAuth } from "@/providers/AuthProvider";
 import { useTheme, type ThemePreference } from "@/providers/ThemeProvider";
 
-const SECTION_IDS = ["profile", "security", "privacy", "appearance", "sound", "advanced"] as const;
-type SectionId = typeof SECTION_IDS[number];
+type SectionId = "profile" | "security" | "privacy" | "appearance" | "sound" | "advanced";
 
 const THEME_OPTIONS: { value: ThemePreference; label: string; description: string; icon: keyof typeof MaterialCommunityIcons.glyphMap }[] = [
   { value: "light", label: "Light", description: "Always use the light theme", icon: "white-balance-sunny" },
@@ -58,8 +57,8 @@ export default function SettingsScreen() {
       </Pressable>
       <Text style={s.title}>Settings</Text>
     </View>
-    {profile.isLoading ? <View style={s.loading}><ActivityIndicator color={colors.accent} /><Text color="muted">Loading…</Text></View> : profile.isError || !profile.data ? <View style={s.loading}><Text color="danger">Couldn't load settings.</Text><Button label="Try again" variant="secondary" onPress={() => void profile.refetch()} /></View> : <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" contentContainerStyle={s.content}>
-      <SettingsSection id="profile" icon="account-circle-outline" title="Profile" summary={profile.data.display_name} open={open} setOpen={setOpen}><ProfileForm profile={profile.data} /></SettingsSection>
+    {profile.isLoading ? <View style={s.loading}><ActivityIndicator color={colors.accent} /><Text color="muted">Loading…</Text></View> : profile.isError || !profile.data ? <View style={s.loading}><Text color="danger">Could not load settings.</Text><Button label="Try again" variant="secondary" onPress={() => void profile.refetch()} /></View> : <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" contentContainerStyle={s.content}>
+      <SettingsSection id="profile" icon="account-circle-outline" title="Profile" summary={profile.data.display_name} open={open} setOpen={setOpen}><ProfileForm key={profile.data.id} profile={profile.data} /></SettingsSection>
       <SettingsSection id="security" icon="key-outline" title="Account & security" open={open} setOpen={setOpen}><SecurityForm /></SettingsSection>
       <SettingsSection id="privacy" icon="shield-outline" title="Privacy" summary={profile.data.is_private ? "Private" : "Public"} open={open} setOpen={setOpen}><PrivacySettings profile={profile.data} /></SettingsSection>
       <SettingsSection id="appearance" icon="palette-outline" title="Appearance" summary={THEME_OPTIONS.find(option => option.value === preference)?.label ?? "System"} open={open} setOpen={setOpen}><AppearanceSettings /></SettingsSection>
@@ -96,19 +95,10 @@ function ProfileForm({ profile }: { profile: any }) {
   const [username, setUsername] = useState(profile.username ?? "");
   const [bio, setBio] = useState(profile.bio ?? "");
   const [websiteUrl, setWebsiteUrl] = useState(profile.website_url ?? "");
-  const [roleIds, setRoleIds] = useState<string[]>([]);
+  const [roleIds, setRoleIds] = useState<string[]>(() => [...(profile.profile_roles ?? [])].sort((a: any, b: any) => a.position - b.position).map((row: any) => Array.isArray(row.role) ? row.role[0]?.id : row.role?.id).filter(Boolean));
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const availability = useUsernameAvailability(username, profile.username, user?.id);
-
-  useEffect(() => {
-    setDisplayName(profile.display_name ?? "");
-    setUsername(profile.username ?? "");
-    setBio(profile.bio ?? "");
-    setWebsiteUrl(profile.website_url ?? "");
-    const selected = [...(profile.profile_roles ?? [])].sort((a: any, b: any) => a.position - b.position).map((row: any) => Array.isArray(row.role) ? row.role[0]?.id : row.role?.id).filter(Boolean);
-    setRoleIds(selected);
-  }, [profile]);
 
   const choosePhoto = async (source: "camera" | "library") => {
     const permission = source === "camera" ? await ImagePicker.requestCameraPermissionsAsync() : await ImagePicker.requestMediaLibraryPermissionsAsync();
