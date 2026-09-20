@@ -5,6 +5,7 @@ import { PROFILE_ROLES_SELECT, toProfileRoles } from "../lib/profileRoles";
 import type { PostWithAuthor } from "../types/database";
 
 import { DEBUG_DISABLE_PER_CARD_QUERIES } from "../lib/debugFlags";
+import { PAGE_SELECT } from "../lib/postSelects";
 
 // `enabled` lets a caller defer this until the card is actually worth
 // fetching for — see PostCard's `active` prop, which Feed.tsx sets false
@@ -70,7 +71,7 @@ export function useBookmarkedPosts() {
       const { data, error } = await supabase
         .from("bookmarks")
         .select(
-          `post:posts!bookmarks_post_id_fkey(*, author:profiles!posts_author_id_fkey(id, username, display_name, avatar_url, tier, is_private, is_verified, ${PROFILE_ROLES_SELECT}))`
+          `post:posts!bookmarks_post_id_fkey(*, author:profiles!posts_author_id_fkey(id, username, display_name, avatar_url, tier, is_private, is_verified, ${PROFILE_ROLES_SELECT}), ${PAGE_SELECT})`
         )
         .order("created_at", { ascending: false });
       if (error) throw error;

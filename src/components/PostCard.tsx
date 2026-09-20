@@ -716,8 +716,14 @@ export function PostCard({
                 >
                   {identityName}
                 </Link>
-                {!postedAsPage && post.author.is_verified && <VerifiedBadge className="shrink-0" />}
-                {!postedAsPage && <TierBadge tier={post.author.tier} />}
+                {postedAsPage ? (
+                  postedAsPage.is_verified && <VerifiedBadge className="shrink-0" />
+                ) : (
+                  <>
+                    {post.author.is_verified && <VerifiedBadge className="shrink-0" />}
+                    <TierBadge tier={post.author.tier} />
+                  </>
+                )}
               </div>
               {!isArchivedFrozen && (
                 <div className="shrink-0 pl-2">
@@ -726,13 +732,16 @@ export function PostCard({
               )}
             </div>
 
-            {/* Role/page-role row — own line. */}
+            {/* Role/page-detail row — own line. */}
             {postedAsPage ? (
-              // Page posts show the poster's role at the page instead of the
-              // personal job/hobby tags — e.g. "Graphics Designer at PromptIQ".
+              // Page posts show only the PAGE's details — its tagline, or
+              // its @handle when it has none. The team member who wrote
+              // the post is deliberately not surfaced anywhere on the
+              // card (they stay recorded via author_id for accountability
+              // and edit/delete rights); the byline is the page, the same
+              // as a LinkedIn/Facebook Page post.
               <p className="text-[13px] font-normal leading-[18px] text-ink-muted truncate">
-                {`@${post.author.username}`}
-                {post.author.roles[0] ? ` · ${post.author.roles[0].label} at ${postedAsPage.name}` : ` posted this`}
+                {postedAsPage.tagline?.trim() || `@${postedAsPage.username}`}
               </p>
             ) : (
               post.author.roles.length > 0 && (
@@ -910,9 +919,14 @@ export function PostCard({
 
       {showGiftPicker && (
         <GiftPicker
+          // Who the gift is *shown* going to vs. who it actually goes to:
+          // on a page post the picker names the page (the team member is
+          // never surfaced), but recipientId stays the real author, so the
+          // gift silently lands in that member's wallet — wallets belong
+          // to profiles only, never pages.
           recipientId={post.author.id}
-          recipientName={post.author.display_name}
-          recipientAvatar={post.author.avatar_url}
+          recipientName={postedAsPage ? postedAsPage.name : post.author.display_name}
+          recipientAvatar={postedAsPage ? postedAsPage.avatar_url : post.author.avatar_url}
           postId={post.id}
           onClose={() => setShowGiftPicker(false)}
         />

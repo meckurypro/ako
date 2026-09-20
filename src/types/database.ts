@@ -89,7 +89,12 @@ export interface Page {
 // Enough of a page to render a byline/avatar anywhere a page can
 // appear as an author (post card, comment, notification) — mirrors
 // AuthorSummary's role for profiles.
-export type PageSummary = Pick<Page, "id" | "username" | "name" | "avatar_url" | "page_type" | "is_verified">;
+export type PageSummary = Pick<Page, "id" | "username" | "name" | "avatar_url" | "page_type" | "is_verified"> & {
+  // Shown under the page name on post bylines (instead of the posting
+  // team member's handle). Optional so selects that don't need it —
+  // notifications, invites — stay valid.
+  tagline?: string | null;
+};
 
 export interface PageMember {
   id: string;

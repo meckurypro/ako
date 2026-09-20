@@ -13,8 +13,9 @@ import { BottomNav } from "../components/BottomNav";
 import { UnavailableNotice } from "../components/UnavailableNotice";
 import { PROFILE_ROLES_SELECT, toProfileRoles } from "../lib/profileRoles";
 import type { PostWithAuthor } from "../types/database";
+import { PAGE_SELECT } from "../lib/postSelects";
 
-const POST_SELECT = `*, author:profiles!posts_author_id_fkey(id, username, display_name, avatar_url, tier, is_private, ${PROFILE_ROLES_SELECT}), remover:profiles!posts_deleted_by_fkey(username, display_name)`;
+const POST_SELECT = `*, author:profiles!posts_author_id_fkey(id, username, display_name, avatar_url, tier, is_private, ${PROFILE_ROLES_SELECT}), remover:profiles!posts_deleted_by_fkey(username, display_name), ${PAGE_SELECT}`;
 
 interface PostDetailData extends PostWithAuthor {
   is_deleted: boolean;

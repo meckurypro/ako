@@ -216,6 +216,7 @@ export function useTypeCategoryProjects(accountId: string | undefined, projectTy
         .from("projects")
         .select("*")
         .eq("owner_id", accountId)
+        .is("posted_as_page_id", null)
         .eq("project_type", projectType)
         .eq("status", "active")
         .eq("is_private", false)

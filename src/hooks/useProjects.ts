@@ -413,18 +413,32 @@ export function useProject(projectId: string | undefined) {
 // which folds that access check in server-side. Direct access by
 // id/URL (useProject, useProjectDetail) was already, and still is,
 // NOT filtered by is_private — privacy only affects what gets listed.
-export function useUserProjects(userId: string, includeAllStatuses: boolean) {
+//
+// Projects published as a Page belong to that Page's own Projects tab
+// (usePageProjects), not the creator's personal profile — so they're
+// excluded here (and in get_profile_projects on the server). The
+// creator's Archive screen passes includePageProjects so an archived
+// page project can still be found and restored.
+export function useUserProjects(
+  userId: string,
+  includeAllStatuses: boolean,
+  { includePageProjects = false }: { includePageProjects?: boolean } = {}
+) {
   const { user: viewer } = useAuth();
 
   return useQuery({
-    queryKey: ["user-projects", userId, includeAllStatuses, includeAllStatuses ? undefined : viewer?.id],
+    queryKey: [
+      "user-projects",
+      userId,
+      includeAllStatuses,
+      includeAllStatuses ? undefined : viewer?.id,
+      includePageProjects,
+    ],
     queryFn: async (): Promise<Project[]> => {
       if (includeAllStatuses) {
-        const { data, error } = await supabase
-          .from("projects")
-          .select("*")
-          .eq("owner_id", userId)
-          .order("created_at", { ascending: false });
+        let query = supabase.from("projects").select("*").eq("owner_id", userId);
+        if (!includePageProjects) query = query.is("posted_as_page_id", null);
+        const { data, error } = await query.order("created_at", { ascending: false });
         if (error) throw error;
         return data;
       }
@@ -440,6 +454,27 @@ export function useUserProjects(userId: string, includeAllStatuses: boolean) {
   });
 }
 
+
+/**
+ * Projects attributed to a Page (posted_as_page_id) — the Projects tab on
+ * /page/:username. Goes through get_page_projects (see
+ * supabase/ako_page_projects_listing.sql) because RLS alone can't express
+ * "public to everyone, plus the creator's own drafts". Viewer-dependent, so
+ * the viewer id is part of the cache key.
+ */
+export function usePageProjects(pageId: string | undefined) {
+  const { user } = useAuth();
+
+  return useQuery({
+    queryKey: ["page-projects", pageId, user?.id],
+    queryFn: async (): Promise<Project[]> => {
+      const { data, error } = await supabase.rpc("get_page_projects", { p_page_id: pageId });
+      if (error) throw error;
+      return (data ?? []) as Project[];
+    },
+    enabled: !!pageId,
+  });
+}
 
 // Per-type detail payloads — only the block matching project_type
 // should be passed; the others stay undefined. Room and Course don't
@@ -646,6 +681,7 @@ export function useCreateProject() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["user-projects"] });
+      queryClient.invalidateQueries({ queryKey: ["page-projects"] });
     },
   });
 }
@@ -699,6 +735,7 @@ export function useCreatePitchProject() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["user-projects"] });
+      queryClient.invalidateQueries({ queryKey: ["page-projects"] });
     },
   });
 }
@@ -757,6 +794,7 @@ export function useUpdateProject() {
     },
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["user-projects"] });
+      queryClient.invalidateQueries({ queryKey: ["page-projects"] });
       queryClient.invalidateQueries({ queryKey: ["project", data.id] });
       queryClient.invalidateQueries({ queryKey: ["project-topics", data.id] });
       queryClient.invalidateQueries({ queryKey: ["project-detail", data.id] });
@@ -844,6 +882,7 @@ export function useSetProjectSlug() {
       queryClient.invalidateQueries({ queryKey: ["project", data.id] });
       queryClient.invalidateQueries({ queryKey: ["project-detail", data.id] });
       queryClient.invalidateQueries({ queryKey: ["user-projects"] });
+      queryClient.invalidateQueries({ queryKey: ["page-projects"] });
     },
   });
 }
@@ -896,6 +935,7 @@ export function useSetProjectStatus() {
     onSuccess: async () => {
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ["user-projects"] }),
+        queryClient.invalidateQueries({ queryKey: ["page-projects"] }),
         queryClient.invalidateQueries({ queryKey: ["project"] }),
       ]);
     },
@@ -927,6 +967,7 @@ export function useDeleteProject() {
     // deleted project actually drops out of the list.
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ["user-projects"] });
+      await queryClient.invalidateQueries({ queryKey: ["page-projects"] });
     },
   });
 }

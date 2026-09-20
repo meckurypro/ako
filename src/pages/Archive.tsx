@@ -95,10 +95,10 @@ export function Archive() {
   // together (see usePosts.ts) — this screen only ever wants the
   // archived half, so filter client-side rather than changing what
   // the hook returns for its other callers.
-  const { data: allPosts } = useUserPostsWithArchived(user?.id ?? "", true);
+  const { data: allPosts } = useUserPostsWithArchived(user?.id ?? "", true, { includePagePosts: true });
   const archivedPosts = allPosts?.filter((p) => p.is_archived) ?? [];
 
-  const { data: allProjects } = useUserProjects(user?.id ?? "", true);
+  const { data: allProjects } = useUserProjects(user?.id ?? "", true, { includePageProjects: true });
   const archivedProjects = allProjects?.filter((p) => p.status === "archived") ?? [];
 
   const [openSection, setOpenSection] = useState<"posts" | "projects" | "messages" | null>(null);
