@@ -98,7 +98,7 @@ export function Archive() {
   const { data: allPosts } = useUserPostsWithArchived(user?.id ?? "", true, { includePagePosts: true });
   const archivedPosts = allPosts?.filter((p) => p.is_archived) ?? [];
 
-  const { data: allProjects } = useUserProjects(user?.id ?? "", true);
+  const { data: allProjects } = useUserProjects(user?.id ?? "", true, { includePageProjects: true });
   const archivedProjects = allProjects?.filter((p) => p.status === "archived") ?? [];
 
   const [openSection, setOpenSection] = useState<"posts" | "projects" | "messages" | null>(null);

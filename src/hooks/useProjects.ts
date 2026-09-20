@@ -413,18 +413,32 @@ export function useProject(projectId: string | undefined) {
 // which folds that access check in server-side. Direct access by
 // id/URL (useProject, useProjectDetail) was already, and still is,
 // NOT filtered by is_private — privacy only affects what gets listed.
-export function useUserProjects(userId: string, includeAllStatuses: boolean) {
+//
+// Projects published as a Page belong to that Page's own Projects tab
+// (usePageProjects), not the creator's personal profile — so they're
+// excluded here (and in get_profile_projects on the server). The
+// creator's Archive screen passes includePageProjects so an archived
+// page project can still be found and restored.
+export function useUserProjects(
+  userId: string,
+  includeAllStatuses: boolean,
+  { includePageProjects = false }: { includePageProjects?: boolean } = {}
+) {
   const { user: viewer } = useAuth();
 
   return useQuery({
-    queryKey: ["user-projects", userId, includeAllStatuses, includeAllStatuses ? undefined : viewer?.id],
+    queryKey: [
+      "user-projects",
+      userId,
+      includeAllStatuses,
+      includeAllStatuses ? undefined : viewer?.id,
+      includePageProjects,
+    ],
     queryFn: async (): Promise<Project[]> => {
       if (includeAllStatuses) {
-        const { data, error } = await supabase
-          .from("projects")
-          .select("*")
-          .eq("owner_id", userId)
-          .order("created_at", { ascending: false });
+        let query = supabase.from("projects").select("*").eq("owner_id", userId);
+        if (!includePageProjects) query = query.is("posted_as_page_id", null);
+        const { data, error } = await query.order("created_at", { ascending: false });
         if (error) throw error;
         return data;
       }

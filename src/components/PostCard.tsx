@@ -919,9 +919,14 @@ export function PostCard({
 
       {showGiftPicker && (
         <GiftPicker
+          // Who the gift is *shown* going to vs. who it actually goes to:
+          // on a page post the picker names the page (the team member is
+          // never surfaced), but recipientId stays the real author, so the
+          // gift silently lands in that member's wallet — wallets belong
+          // to profiles only, never pages.
           recipientId={post.author.id}
-          recipientName={post.author.display_name}
-          recipientAvatar={post.author.avatar_url}
+          recipientName={postedAsPage ? postedAsPage.name : post.author.display_name}
+          recipientAvatar={postedAsPage ? postedAsPage.avatar_url : post.author.avatar_url}
           postId={post.id}
           onClose={() => setShowGiftPicker(false)}
         />
