@@ -56,6 +56,7 @@ export function useUserPosts(userId: string) {
           `*, author:profiles!posts_author_id_fkey(id, username, display_name, avatar_url, tier, is_private, is_verified, ${PROFILE_ROLES_SELECT})`
         )
         .eq("author_id", userId)
+        .is("posted_as_page_id", null)
         .eq("is_deleted", false)
         .eq("is_archived", false)
         .order("created_at", { ascending: false });

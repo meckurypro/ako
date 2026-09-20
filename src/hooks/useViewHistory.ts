@@ -2,6 +2,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "../lib/supabase";
 import { useAuth } from "./useAuth";
+import { PAGE_SELECT } from "../lib/postSelects";
 
 // One row in the Activity hub's "History" list — a post or project
 // the user has opened, most-recently-viewed first. post_views and
@@ -28,7 +29,7 @@ export function useViewHistory() {
         supabase
           .from("post_views")
           .select(
-            `viewed_at, post:posts!post_views_post_id_fkey(*, author:profiles!posts_author_id_fkey(id, username, display_name, avatar_url, tier))`
+            `viewed_at, post:posts!post_views_post_id_fkey(*, author:profiles!posts_author_id_fkey(id, username, display_name, avatar_url, tier), ${PAGE_SELECT})`
           )
           .eq("user_id", user!.id)
           .order("viewed_at", { ascending: false })

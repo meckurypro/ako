@@ -441,6 +441,27 @@ export function useUserProjects(userId: string, includeAllStatuses: boolean) {
 }
 
 
+/**
+ * Projects attributed to a Page (posted_as_page_id) — the Projects tab on
+ * /page/:username. Goes through get_page_projects (see
+ * supabase/ako_page_projects_listing.sql) because RLS alone can't express
+ * "public to everyone, plus the creator's own drafts". Viewer-dependent, so
+ * the viewer id is part of the cache key.
+ */
+export function usePageProjects(pageId: string | undefined) {
+  const { user } = useAuth();
+
+  return useQuery({
+    queryKey: ["page-projects", pageId, user?.id],
+    queryFn: async (): Promise<Project[]> => {
+      const { data, error } = await supabase.rpc("get_page_projects", { p_page_id: pageId });
+      if (error) throw error;
+      return (data ?? []) as Project[];
+    },
+    enabled: !!pageId,
+  });
+}
+
 // Per-type detail payloads — only the block matching project_type
 // should be passed; the others stay undefined. Room and Course don't
 // take detail input at creation time: a Room has nothing to configure
@@ -646,6 +667,7 @@ export function useCreateProject() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["user-projects"] });
+      queryClient.invalidateQueries({ queryKey: ["page-projects"] });
     },
   });
 }
@@ -699,6 +721,7 @@ export function useCreatePitchProject() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["user-projects"] });
+      queryClient.invalidateQueries({ queryKey: ["page-projects"] });
     },
   });
 }
@@ -757,6 +780,7 @@ export function useUpdateProject() {
     },
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["user-projects"] });
+      queryClient.invalidateQueries({ queryKey: ["page-projects"] });
       queryClient.invalidateQueries({ queryKey: ["project", data.id] });
       queryClient.invalidateQueries({ queryKey: ["project-topics", data.id] });
       queryClient.invalidateQueries({ queryKey: ["project-detail", data.id] });
@@ -844,6 +868,7 @@ export function useSetProjectSlug() {
       queryClient.invalidateQueries({ queryKey: ["project", data.id] });
       queryClient.invalidateQueries({ queryKey: ["project-detail", data.id] });
       queryClient.invalidateQueries({ queryKey: ["user-projects"] });
+      queryClient.invalidateQueries({ queryKey: ["page-projects"] });
     },
   });
 }
@@ -896,6 +921,7 @@ export function useSetProjectStatus() {
     onSuccess: async () => {
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ["user-projects"] }),
+        queryClient.invalidateQueries({ queryKey: ["page-projects"] }),
         queryClient.invalidateQueries({ queryKey: ["project"] }),
       ]);
     },
@@ -927,6 +953,7 @@ export function useDeleteProject() {
     // deleted project actually drops out of the list.
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ["user-projects"] });
+      await queryClient.invalidateQueries({ queryKey: ["page-projects"] });
     },
   });
 }

@@ -274,7 +274,8 @@ export function CreateProject() {
           topic_ids: Array.from(topicIds),
         });
         if (postingAsPage) {
-          navigate(`/page/${postingAsPage.username}`);
+          navigate(`/page/${postingAsPage.username}?tab=projects`);
+          toast(`${title.trim()} created successfully.`, { variant: "success" });
         } else if (me?.username) {
           // Straight to the Projects tab (see useTabState's ?tab=
           // convention) — the new project is already the first card
@@ -430,7 +431,8 @@ export function CreateProject() {
             : undefined,
       });
       if (postingAsPage) {
-        navigate(`/page/${postingAsPage.username}`);
+        navigate(`/page/${postingAsPage.username}?tab=projects`);
+        toast(`${title.trim()} created successfully.`, { variant: "success" });
       } else if (me?.username) {
         navigate(`/profile/${me.username}?tab=projects`);
         toast(`${title.trim()} created successfully.`, { variant: "success" });

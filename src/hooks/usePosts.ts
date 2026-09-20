@@ -5,6 +5,7 @@ import { supabase } from "../lib/supabase";
 import { resolveFunctionErrorMessage } from "../lib/functionErrors";
 import { useAuth } from "./useAuth";
 import { PROFILE_ROLES_SELECT, toProfileRoles } from "../lib/profileRoles";
+import { PAGE_SELECT } from "../lib/postSelects";
 import type { PostWithAuthor, RepostSource } from "../types/database";
 import { DEBUG_DISABLE_PER_CARD_QUERIES } from "../lib/debugFlags";
 
@@ -17,7 +18,6 @@ const AUTHOR_SELECT = `id, username, display_name, avatar_url, tier, is_private,
 // majority of rows (personal posts), populated only when the post was
 // published in Page mode. PostCard should prefer this over `author`
 // for byline/avatar whenever it's non-null.
-const PAGE_SELECT = `posted_as_page:pages(id, username, name, avatar_url, page_type, is_verified)`;
 // Item 10 — the tagged project's card-preview fields only (not `*`):
 // this rides along on every single post fetch in the feed, so keeping
 // it to what TaggedProjectEmbed.tsx actually renders (thumbnail,
@@ -695,15 +695,33 @@ export function useSetPostArchived() {
   });
 }
 
-export function useUserPostsWithArchived(userId: string, includeArchived: boolean) {
+/**
+ * `includePagePosts` is off by default: a post published in Page mode
+ * lives on the page's timeline, not the posting member's personal one.
+ * The member's own Archive screen turns it on — it's the only place a
+ * member can restore a page post they archived, since archived posts
+ * drop off the page timeline too.
+ */
+export function useUserPostsWithArchived(
+  userId: string,
+  includeArchived: boolean,
+  { includePagePosts = false }: { includePagePosts?: boolean } = {}
+) {
   return useQuery({
-    queryKey: ["user-posts", userId, "with-archived", includeArchived],
+    queryKey: ["user-posts", userId, "with-archived", includeArchived, includePagePosts],
     queryFn: async (): Promise<PostWithAuthor[]> => {
+      // A post published in Page mode belongs to the page's timeline
+      // only (see usePagePosts) — author_id still records which team
+      // member wrote it (accountability, edit/delete rights), but it
+      // must not also show up on that member's personal profile.
       let authoredQuery = supabase
         .from("posts")
         .select(FEED_SELECT)
         .eq("author_id", userId)
         .eq("is_deleted", false);
+      if (!includePagePosts) {
+        authoredQuery = authoredQuery.is("posted_as_page_id", null);
+      }
       if (!includeArchived) {
         authoredQuery = authoredQuery.eq("is_archived", false);
       }
@@ -733,7 +751,13 @@ export function useUserPostsWithArchived(userId: string, includeArchived: boolea
       // rather than reaching normalizePost with nothing to normalize.
       const collaborated = (collaboratedRes.data ?? [])
         .map((row: any) => (Array.isArray(row.post) ? row.post[0] : row.post))
-        .filter((post: any) => post && !post.is_deleted && (includeArchived || !post.is_archived))
+        .filter(
+          (post: any) =>
+            post &&
+            !post.is_deleted &&
+            (includePagePosts || !post.posted_as_page_id) &&
+            (includeArchived || !post.is_archived)
+        )
         .map(normalizePost);
 
       // A post could theoretically show up in both lists (shouldn't

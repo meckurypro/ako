@@ -1,62 +1,25 @@
 import { useState } from "react";
-import { useNavigate, Link } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { Search, ChevronDown, X } from "lucide-react";
 import { useCategories } from "../hooks/useCategories";
-import { useSearchPeople, useSearchPosts, useSuggestedPeople } from "../hooks/useSearch";
+import { useSuggestedPages, useSuggestedPeople } from "../hooks/useSearch";
 import { usePageSuggestedPeople } from "../hooks/usePageDiscover";
 import { useActiveIdentity } from "../hooks/usePages";
-import { useAuth } from "../hooks/useAuth";
-import { useTabState } from "../hooks/useTabState";
-import { recordSearchVisit } from "../lib/searchVisits";
-import { Avatar } from "../components/Avatar";
-import { TierBadge } from "../components/TierBadge";
-import { RoleTags } from "../components/RoleTags";
-import { PostCard } from "../components/PostCard";
+import { useDebouncedValue } from "../hooks/useDebouncedValue";
+import { PersonRow } from "../components/PersonRow";
+import { PageRow } from "../components/PageRow";
+import { SearchResults, isSearchable } from "../components/SearchResults";
 import { AutoHideTopBar } from "../components/AutoHideTopBar";
 import { BottomNav } from "../components/BottomNav";
 import { TopHeader } from "../components/TopHeader";
-import type { ProfileWithRoles } from "../types/database";
-
-function PersonRow({
-  profile,
-  onVisit,
-}: {
-  profile: ProfileWithRoles;
-  /** Item 2: called only for rows rendered from an active search, so
-   *  visiting the profile bumps it to the top of future search results. */
-  onVisit?: (profileId: string) => void;
-}) {
-  return (
-    <Link
-      to={`/profile/${profile.username}`}
-      onClick={() => onVisit?.(profile.id)}
-      className="flex items-center gap-3 py-3"
-    >
-      <Avatar src={profile.avatar_url} name={profile.display_name} />
-      <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-1.5 flex-wrap">
-          <span className="font-medium text-ink text-sm">{profile.display_name}</span>
-          <TierBadge tier={profile.tier} />
-        </div>
-        {profile.roles?.length > 0 && (
-          <RoleTags roles={profile.roles} className="text-xs text-ink-muted" />
-        )}
-        <p className="text-xs text-ink-muted mt-0.5">@{profile.username}</p>
-      </div>
-      {profile.follower_count > 0 && (
-        <span className="text-xs text-ink-muted shrink-0">
-          {profile.follower_count.toLocaleString()} followers
-        </span>
-      )}
-    </Link>
-  );
-}
 
 export function Discover() {
   const navigate = useNavigate();
-  const { user } = useAuth();
   const [query, setQuery] = useState("");
-  const [activeTab, setActiveTab] = useTabState<"people" | "posts">(["people", "posts"], "people");
+  // The input stays bound to `query` so typing feels instant; only the
+  // four search queries wait for a pause (they used to fire on every
+  // keystroke, one of them an unindexable leading-wildcard ilike).
+  const debouncedQuery = useDebouncedValue(query, 300);
   const [openCategoryId, setOpenCategoryId] = useState<string | null>(null);
 
   const { data: categories, isLoading: categoriesLoading } = useCategories();
@@ -67,10 +30,9 @@ export function Discover() {
   const { data: suggestedPeople, isLoading: suggestedLoading } = activePageId
     ? pageSuggestions
     : personalSuggestions;
-  const { data: peopleResults, isLoading: peopleLoading } = useSearchPeople(query);
-  const { data: postResults, isLoading: postsLoading } = useSearchPosts(query);
+  const { data: suggestedPages, isLoading: suggestedPagesLoading } = useSuggestedPages();
 
-  const isSearching = query.trim().length > 1;
+  const isSearching = isSearchable(query);
 
   return (
     <div className="min-h-screen bg-canvas pb-24">
@@ -86,17 +48,24 @@ export function Discover() {
             className="absolute left-4 top-1/2 -translate-y-1/2 text-ink-muted pointer-events-none"
           />
           <input
-            type="text"
+            type="search"
+            inputMode="search"
+            enterKeyHint="search"
+            autoComplete="off"
+            autoCapitalize="none"
+            spellCheck={false}
+            aria-label="Search people, pages, posts and projects"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search people or posts…"
-            className="w-full pl-10 pr-10 py-3 rounded-2xl border border-border bg-surface text-ink text-sm
-              placeholder:text-ink-muted focus:outline-none focus:ring-2 focus:ring-accent/40 focus:border-accent"
+            placeholder="Search people, pages, posts…"
+            className="w-full pl-10 pr-11 py-3 rounded-2xl border border-border bg-surface text-ink text-sm
+              placeholder:text-ink-muted focus:outline-none focus:ring-2 focus:ring-accent/40 focus:border-accent
+              [&::-webkit-search-cancel-button]:appearance-none"
           />
           {query && (
             <button
               onClick={() => setQuery("")}
-              className="absolute right-4 top-1/2 -translate-y-1/2 text-ink-muted"
+              className="absolute right-1 top-1/2 -translate-y-1/2 text-ink-muted p-3"
               aria-label="Clear search"
             >
               <X size={16} />
@@ -105,51 +74,7 @@ export function Discover() {
         </div>
 
         {isSearching ? (
-          <>
-            {/* Tab bar */}
-            <div className="flex gap-6 border-b border-border mb-4">
-              <button
-                onClick={() => setActiveTab("people")}
-                className={`text-sm font-medium pb-3 border-b-2 -mb-px transition-colors ${
-                  activeTab === "people"
-                    ? "text-accent border-accent"
-                    : "text-ink-muted border-transparent"
-                }`}
-              >
-                People
-              </button>
-              <button
-                onClick={() => setActiveTab("posts")}
-                className={`text-sm font-medium pb-3 border-b-2 -mb-px transition-colors ${
-                  activeTab === "posts"
-                    ? "text-accent border-accent"
-                    : "text-ink-muted border-transparent"
-                }`}
-              >
-                Posts
-              </button>
-            </div>
-
-            {activeTab === "people" ? (
-              peopleLoading ? (
-                <p className="text-ink-muted text-center py-10 text-sm">Searching…</p>
-              ) : peopleResults && peopleResults.length > 0 ? (
-                <div className="divide-y divide-border">
-                  {peopleResults.map((p) => (
-                    <PersonRow key={p.id} profile={p} onVisit={(id) => recordSearchVisit(user?.id, id)} />
-                  ))}
-                </div>
-              ) : (
-                <p className="text-ink-muted text-center py-10 text-sm">No people found.</p>
-              )
-            ) : postsLoading ? (
-              <p className="text-ink-muted text-center py-10 text-sm">Searching…</p>
-            ) : postResults && postResults.length > 0 ? (
-              postResults.map((post) => <PostCard key={post.id} post={post} />)
-            ) : (
-              <p className="text-ink-muted text-center py-10 text-sm">No posts found.</p>
-            )}
-          </>
+          <SearchResults query={debouncedQuery} isPending={query !== debouncedQuery} />
         ) : (
           <>
             {/* Suggested people */}
@@ -169,6 +94,24 @@ export function Discover() {
                 </div>
               ) : (
                 <p className="text-ink-muted text-sm py-4">No suggestions right now.</p>
+              )}
+            </section>
+
+            {/* Suggested pages */}
+            <section className="mb-8">
+              <h2 className="font-display text-xl text-ink mb-0.5">Pages to follow</h2>
+              <p className="text-ink-muted text-sm mb-4">Organisations, brands and products worth a look.</p>
+
+              {suggestedPagesLoading ? (
+                <p className="text-ink-muted text-sm py-4">Loading…</p>
+              ) : suggestedPages && suggestedPages.length > 0 ? (
+                <div className="divide-y divide-border">
+                  {suggestedPages.map((p) => (
+                    <PageRow key={p.id} page={p} />
+                  ))}
+                </div>
+              ) : (
+                <p className="text-ink-muted text-sm py-4">No pages to suggest right now.</p>
               )}
             </section>
 

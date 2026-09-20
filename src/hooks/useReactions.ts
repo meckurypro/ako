@@ -7,6 +7,7 @@ import { useActiveIdentity } from "./usePages";
 import { PROFILE_ROLES_SELECT, toProfileRoles } from "../lib/profileRoles";
 import { DEBUG_DISABLE_PER_CARD_QUERIES } from "../lib/debugFlags";
 import type { ReactionType } from "../types/database";
+import { PAGE_SELECT } from "../lib/postSelects";
 
 type TargetType = "post" | "comment" | "project";
 
@@ -402,7 +403,7 @@ export function useLikedPosts() {
       const { data, error } = await supabase
         .from("reactions")
         .select(
-          `post:posts!reactions_post_id_fkey(*, author:profiles!posts_author_id_fkey(id, username, display_name, avatar_url, tier, is_private, is_verified, ${PROFILE_ROLES_SELECT}))`
+          `post:posts!reactions_post_id_fkey(*, author:profiles!posts_author_id_fkey(id, username, display_name, avatar_url, tier, is_private, is_verified, ${PROFILE_ROLES_SELECT}), ${PAGE_SELECT})`
         )
         .eq("type", "like")
         .eq("target_type", "post")

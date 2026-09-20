@@ -3,9 +3,27 @@ import { supabase } from "../lib/supabase";
 import { useAuth } from "./useAuth";
 import { PROFILE_ROLES_SELECT, toProfileRoles } from "../lib/profileRoles";
 import { getSearchVisitRanks } from "../lib/searchVisits";
-import type { PostWithAuthor, ProfileWithRoles } from "../types/database";
+import { FEED_SELECT, normalizePost } from "./usePosts";
+import type { Project } from "./useProjects";
+import type { Page, PostWithAuthor, ProfileWithRoles } from "../types/database";
 
 const PEOPLE_SELECT = `id, username, display_name, avatar_url, tier, follower_count, ${PROFILE_ROLES_SELECT}`;
+
+/**
+ * Builds a quoted PostgREST `ilike` pattern (`"%query%"`) that is safe to
+ * drop into an `.or()` filter. Two layers of escaping are needed:
+ *  1. LIKE wildcards (`%`, `_`, `\`) are escaped so a username like
+ *     "john_doe" matches literally instead of `_` meaning "any char".
+ *  2. The pattern is wrapped in double quotes — with `"` and `\`
+ *     escaped for PostgREST — so commas and parentheses in the query
+ *     can't break out of the `or=(...)` list (previously a search for
+ *     "acme, inc" produced a 400).
+ */
+export function ilikeContains(query: string): string {
+  const likeEscaped = query.trim().replace(/[\\%_]/g, "\\$&");
+  const quoted = likeEscaped.replace(/[\\"]/g, "\\$&");
+  return `"%${quoted}%"`;
+}
 
 function normalizeProfile(raw: any): ProfileWithRoles {
   return { ...raw, roles: toProfileRoles(raw.profile_roles) };
@@ -163,7 +181,7 @@ export function useSearchPeople(query: string) {
         .from("profiles")
         .select(PEOPLE_SELECT)
         .eq("is_deleted", false)
-        .or(`username.ilike.%${query}%,display_name.ilike.%${query}%`)
+        .or(`username.ilike.${ilikeContains(query)},display_name.ilike.${ilikeContains(query)}`)
         .limit(30);
 
       if (error) throw error;
@@ -193,25 +211,113 @@ export function useSearchPosts(query: string) {
     queryFn: async (): Promise<PostWithAuthor[]> => {
       if (!query.trim()) return [];
 
+      // FEED_SELECT (not a hand-rolled select) so page posts come back
+      // with posted_as_page and render under the page's name — the old
+      // select omitted it, so a page post showed the team member as
+      // its author in results.
       const { data, error } = await supabase
         .from("posts")
-        .select(
-          `*, author:profiles!posts_author_id_fkey(id, username, display_name, avatar_url, tier, is_private, is_verified, ${PROFILE_ROLES_SELECT})`
-        )
+        .select(FEED_SELECT)
         .eq("is_deleted", false)
         .eq("is_archived", false)
+        .eq("status", "published")
         .textSearch("search_vector", query, { type: "websearch" })
         .limit(20);
 
       if (error) throw error;
 
-      return (data as any[]).map((raw) => ({
-        ...raw,
-        author: raw.author
-          ? { ...raw.author, roles: toProfileRoles(raw.author.profile_roles) }
-          : raw.author,
-      }));
+      return (data as any[]).map(normalizePost);
     },
     enabled: query.trim().length > 1,
+  });
+}
+
+export type PageSearchResult = Pick<
+  Page,
+  "id" | "name" | "username" | "tagline" | "avatar_url" | "page_type" | "is_verified" | "follower_count"
+>;
+
+const PAGE_RESULT_SELECT = "id, name, username, tagline, avatar_url, page_type, is_verified, follower_count";
+
+/**
+ * Page search — name, @username or tagline. Ranked by followers so the
+ * established page wins over a look-alike. Inactive pages are hidden by
+ * RLS for everyone but their admins, so is_active is also filtered
+ * explicitly to keep an admin's own deactivated page out of results.
+ */
+export function useSearchPages(query: string) {
+  return useQuery({
+    queryKey: ["search-pages", query],
+    queryFn: async (): Promise<PageSearchResult[]> => {
+      if (!query.trim()) return [];
+      const pattern = ilikeContains(query);
+      const { data, error } = await supabase
+        .from("pages")
+        .select(PAGE_RESULT_SELECT)
+        .eq("is_active", true)
+        .or(`name.ilike.${pattern},username.ilike.${pattern},tagline.ilike.${pattern}`)
+        .order("follower_count", { ascending: false })
+        .limit(20);
+      if (error) throw error;
+      return (data ?? []) as PageSearchResult[];
+    },
+    enabled: query.trim().length > 1,
+  });
+}
+
+/**
+ * Public project search — title or description. Only active, non-private
+ * projects: RLS alone would also return private ones (it only checks
+ * is_active), and a private project must never be discoverable.
+ */
+export function useSearchProjects(query: string) {
+  return useQuery({
+    queryKey: ["search-projects", query],
+    queryFn: async (): Promise<Project[]> => {
+      if (!query.trim()) return [];
+      const pattern = ilikeContains(query);
+      const { data, error } = await supabase
+        .from("projects")
+        .select("*")
+        .eq("status", "active")
+        .eq("is_private", false)
+        .or(`title.ilike.${pattern},description.ilike.${pattern}`)
+        .order("created_at", { ascending: false })
+        .limit(20);
+      if (error) throw error;
+      return (data ?? []) as Project[];
+    },
+    enabled: query.trim().length > 1,
+  });
+}
+
+/**
+ * "Pages to follow" for the empty Discover state — the most-followed
+ * active pages the viewer doesn't already follow.
+ */
+export function useSuggestedPages() {
+  const { user } = useAuth();
+
+  return useQuery({
+    queryKey: ["suggested-pages", user?.id],
+    queryFn: async (): Promise<PageSearchResult[]> => {
+      const [pagesRes, followsRes] = await Promise.all([
+        supabase
+          .from("pages")
+          .select(PAGE_RESULT_SELECT)
+          .eq("is_active", true)
+          .order("follower_count", { ascending: false })
+          .limit(20),
+        user
+          ? supabase.from("page_follows").select("page_id").eq("follower_id", user.id)
+          : Promise.resolve({ data: [] as { page_id: string }[], error: null }),
+      ]);
+      if (pagesRes.error) throw pagesRes.error;
+      if (followsRes.error) throw followsRes.error;
+
+      const followed = new Set((followsRes.data ?? []).map((f) => f.page_id));
+      return ((pagesRes.data ?? []) as PageSearchResult[]).filter((p) => !followed.has(p.id)).slice(0, 8);
+    },
+    staleTime: 5 * 60 * 1000,
   });
 }
