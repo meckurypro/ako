@@ -1,7 +1,8 @@
-import { ActivityIndicator, FlatList, Pressable, StyleSheet, View } from "react-native";
+import { ActivityIndicator, Platform, FlatList, Pressable, StyleSheet, View } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import { Image } from "expo-image";
 import { useRouter } from "expo-router";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Svg, { Path, Rect } from "react-native-svg";
 import { Text } from "@/components/core";
 import { type MyGig, useMyGigs } from "@/features/projects/api";
@@ -68,6 +69,8 @@ function LibraryIcon({ color }: { color: string }) {
 function BottomNavigation() {
   const router = useRouter();
   const { colors } = useTheme();
+  const insets = useSafeAreaInsets();
+  const bottomInset = Platform.OS === "android" ? Math.max(insets.bottom, 34) : insets.bottom;
   const items = [
     { label: "Feed", onPress: () => router.push("/(tabs)/home"), icon: <FeedIcon color={colors.textMuted} /> },
     { label: "Discover", onPress: () => router.push("/(tabs)/discover"), icon: <Feather name="search" size={24} color={colors.textMuted} strokeWidth={1.75} /> },
@@ -75,7 +78,7 @@ function BottomNavigation() {
     { label: "Messages", onPress: () => router.push("/(tabs)/inbox"), icon: <Feather name="message-circle" size={24} color={colors.textMuted} strokeWidth={1.75} /> },
     { label: "Profile", onPress: () => router.push("/(tabs)/profile"), icon: <Feather name="user" size={24} color={colors.textMuted} strokeWidth={1.75} /> },
   ];
-  return <View style={[s.bottomNav, { backgroundColor: colors.surface, borderTopColor: colors.border }]}>{items.map((item) => <Pressable key={item.label} onPress={item.onPress} style={s.navItem}>{item.icon}<Text color="muted" style={s.navLabel}>{item.label}</Text></Pressable>)}</View>;
+  return <View style={[s.bottomNav, { backgroundColor: colors.surface, borderTopColor: colors.border, height: 76 + bottomInset, paddingBottom: bottomInset }]}>{items.map((item) => <Pressable key={item.label} onPress={item.onPress} style={s.navItem}>{item.icon}<Text color="muted" style={s.navLabel}>{item.label}</Text></Pressable>)}</View>;
 }
 
 const s = StyleSheet.create({

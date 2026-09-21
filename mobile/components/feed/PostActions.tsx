@@ -1,4 +1,4 @@
-import { Alert, Modal, Pressable, Share, StyleSheet, View } from "react-native";
+import { Alert, InteractionManager, Modal, Pressable, Share, StyleSheet, View } from "react-native";
 import * as Haptics from "expo-haptics";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { useState } from "react";
@@ -75,10 +75,13 @@ export function PostActions({ postId, recipientId, recipientName, recipientAvata
     } catch { Alert.alert("Couldn't update reaction", "Check your connection and try again."); }
   };
   const saved = () => { void Haptics.selectionAsync(); void toggleBookmark.mutateAsync(!!bookmark.data).catch(() => Alert.alert("Couldn't update saved posts")); };
-  const chooseStance = (value: Stance) => { setMore(false); setStance(value); };
-  const chooseGift = () => { setMore(false); setGift(true); };
-  const chooseReshare = () => { setMore(false); onReshare(); };
-  const closeAnd = (fn: () => void) => { setMore(false); fn(); };
+  const chooseStance = (value: Stance) => setStance(value);
+  const chooseGift = () => setGift(true);
+  const chooseReshare = () => onReshare();
+  const closeAnd = (fn: () => void) => {
+    setMore(false);
+    InteractionManager.runAfterInteractions(() => setTimeout(fn, 80));
+  };
   const comingSoon = (label: string) => Alert.alert(label, `${label} is not available on mobile yet.`);
 
   const confirmPrioritize = () => Alert.alert("Prioritize this post?", "This becomes your priority post for today.", [{ text: "Cancel", style: "cancel" }, { text: "Prioritize", onPress: () => prioritizePost.mutate(postId, { onError: err => Alert.alert("Couldn't prioritize", err instanceof Error ? err.message : "Please try again.") }) }]);
@@ -103,7 +106,7 @@ export function PostActions({ postId, recipientId, recipientName, recipientAvata
 
   return <>
     <View style={s.actionBlock}><View style={s.row}><MainAction icon={like.data ? "heart" : "heart-outline"} label={likes ? String(likes) : undefined} active={!!like.data} onPress={() => void react("like")}/>{middle.map(item => <MainAction key={item.key} icon={item.icon} label={item.count} active={item.active} onPress={item.onPress}/>)}<MainAction icon="dots-horizontal" onPress={() => setMore(true)}/></View><Pressable onPress={onComments} hitSlop={7} style={s.comments}><Text color="secondary" style={s.commentsText}>Comments: {comments}</Text></Pressable></View>
-    {more && <ActionSheet colors={colors} onClose={() => setMore(false)}><View style={s.grid}>{moreActions.map(item => <SheetAction key={item.key} item={{ ...item, onPress: () => { setMore(false); item.onPress(); } }} />)}</View><Pressable onPress={() => setMore(false)} style={[s.cancel, { borderTopColor: colors.border }]}><Text color="secondary" style={s.cancelText}>Cancel</Text></Pressable></ActionSheet>}
+    {more && <ActionSheet colors={colors} onClose={() => setMore(false)}><View style={s.grid}>{moreActions.map(item => <SheetAction key={item.key} item={{ ...item, onPress: () => closeAnd(item.onPress) }} />)}</View><Pressable onPress={() => setMore(false)} style={[s.cancel, { borderTopColor: colors.border }]}><Text color="secondary" style={s.cancelText}>Cancel</Text></Pressable></ActionSheet>}
     {stance && <StanceComposer postId={postId} initial={stance} onClose={() => setStance(null)}/>}
     {Boolean(gift && giftRecipientId && giftRecipientName) && <GiftPicker recipientId={giftRecipientId!} recipientName={giftRecipientName!} recipientAvatar={giftRecipientAvatar} postId={postId} onClose={() => setGift(false)}/>}
   </>;

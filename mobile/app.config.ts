@@ -26,6 +26,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   },
   android: {
     package: ANDROID_PACKAGE,
+    softwareKeyboardLayoutMode: "resize",
     adaptiveIcon: {
       foregroundImage: "./assets/icons/app-icon.png",
       backgroundColor: "#131311",

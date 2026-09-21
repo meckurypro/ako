@@ -2,7 +2,7 @@ import { Feather } from "@expo/vector-icons";
 import { BlurView } from "expo-blur";
 import { Redirect, Tabs } from "expo-router";
 import { useMemo } from "react";
-import { Pressable, StyleSheet, View } from "react-native";
+import { Platform, Pressable, StyleSheet, View } from "react-native";
 import Animated from "react-native-reanimated";
 import Svg, { Path, Rect } from "react-native-svg";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -33,10 +33,10 @@ function NavGlyph({ item, color, active }: { item: (typeof tabs)[number]; color:
 }
 
 function AutoHideTabBar({ state, navigation }: any) {
-  const { colors, isDark } = useTheme(); const insets = useSafeAreaInsets(); const chromeStyle = useFeedChromeStyle(86 + insets.bottom); const identity = useActiveIdentity(); const conversations = useConversations();
+  const { colors, isDark } = useTheme(); const insets = useSafeAreaInsets(); const bottomInset = Platform.OS === "android" ? Math.max(insets.bottom, 34) : insets.bottom; const chromeStyle = useFeedChromeStyle(86 + bottomInset); const identity = useActiveIdentity(); const conversations = useConversations();
   const pageId = identity.data?.mode === "page" ? identity.data.page.id : undefined;
   const unread = useMemo(() => (conversations.data ?? []).filter(conversation => pageId ? conversation.team_page?.id === pageId : !conversation.team_page).reduce((sum, conversation) => sum + conversation.unreadCount, 0), [conversations.data, pageId]);
-  return <Animated.View style={[styles.bar, { borderTopColor: colors.border, paddingBottom: insets.bottom + 12 }, chromeStyle]}><BlurView intensity={isDark ? 32 : 44} tint={isDark ? "dark" : "light"} style={StyleSheet.absoluteFill} /><View style={[StyleSheet.absoluteFill, { backgroundColor: colors.surface, opacity: 0.8 }]} /><View style={styles.items}>{tabs.map(item => { const routeIndex = state.routes.findIndex((route: { name: string }) => route.name === item.route); const active = state.index === routeIndex; const color = active ? colors.accent : colors.textMuted; return <Pressable key={item.route} accessibilityRole="tab" accessibilityLabel={item.label} accessibilityState={{ selected: active }} onPress={() => navigation.navigate(item.route)} style={({ pressed }) => [styles.item, { opacity: pressed ? 0.7 : 1, transform: [{ scale: pressed ? 0.98 : 1 }] }]}><View style={styles.iconWrap}><NavGlyph item={item} color={color} active={active} />{item.route === "inbox" && unread > 0 ? <View style={[styles.badge, { backgroundColor: colors.danger }]}><Animated.Text style={[styles.badgeText, { color: colors.background }]}>{unread > 9 ? "9+" : unread}</Animated.Text></View> : null}</View><Animated.Text style={[styles.label, { color }]}>{item.label}</Animated.Text></Pressable>; })}</View></Animated.View>;
+  return <Animated.View style={[styles.bar, { borderTopColor: colors.border, paddingBottom: bottomInset + 12 }, chromeStyle]}><BlurView intensity={isDark ? 32 : 44} tint={isDark ? "dark" : "light"} style={StyleSheet.absoluteFill} /><View style={[StyleSheet.absoluteFill, { backgroundColor: colors.surface, opacity: 0.8 }]} /><View style={styles.items}>{tabs.map(item => { const routeIndex = state.routes.findIndex((route: { name: string }) => route.name === item.route); const active = state.index === routeIndex; const color = active ? colors.accent : colors.textMuted; return <Pressable key={item.route} accessibilityRole="tab" accessibilityLabel={item.label} accessibilityState={{ selected: active }} onPress={() => navigation.navigate(item.route)} style={({ pressed }) => [styles.item, { opacity: pressed ? 0.7 : 1, transform: [{ scale: pressed ? 0.98 : 1 }] }]}><View style={styles.iconWrap}><NavGlyph item={item} color={color} active={active} />{item.route === "inbox" && unread > 0 ? <View style={[styles.badge, { backgroundColor: colors.danger }]}><Animated.Text style={[styles.badgeText, { color: colors.background }]}>{unread > 9 ? "9+" : unread}</Animated.Text></View> : null}</View><Animated.Text style={[styles.label, { color }]}>{item.label}</Animated.Text></Pressable>; })}</View></Animated.View>;
 }
 
 export default function TabsLayout() {
