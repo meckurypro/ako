@@ -66,8 +66,8 @@ function ProfileHeader({ person, own, locked, showMediaTab, tab, setTab, followL
       <Avatar uri={person.avatar_url} name={person.display_name} size={64} />
       <View style={s.identityCopy}>
         <View style={s.nameRow}><Text style={s.name}>{person.display_name}</Text>{person.is_verified ? <MaterialCommunityIcons name="check-decagram" size={18} color={colors.accent} /> : null}</View>
-        {person.roles?.length ? <Text numberOfLines={2} color="secondary" style={s.roles}>{person.roles.map((role) => role.label).join(" · ")}</Text> : null}
-        <View style={s.handleRow}><Text color="secondary" style={s.handle}>@{person.username}</Text>{domain ? <><Text color="secondary" style={s.handle}> / </Text><Pressable onPress={() => void Linking.openURL(/^https?:\/\//i.test(person.website_url!) ? person.website_url! : `https://${person.website_url}`)}><Text color="accent" style={s.handle}>◎ {domain}</Text></Pressable></> : null}</View>
+        {person.roles?.length ? <Text numberOfLines={2} color="secondary" style={s.roles}>{person.roles.map((role) => role.label).join(" Â· ")}</Text> : null}
+        <View style={s.handleRow}><Text color="secondary" style={s.handle}>@{person.username}</Text>{domain ? <><Text color="secondary" style={s.handle}> / </Text><Pressable onPress={() => void Linking.openURL(/^https?:\/\//i.test(person.website_url!) ? person.website_url! : `https://${person.website_url}`)}><Text color="accent" style={s.handle}>â—Ž {domain}</Text></Pressable></> : null}</View>
       </View>
     </View>
 
@@ -169,7 +169,7 @@ const s = StyleSheet.create({
   stats: { paddingHorizontal: 18, marginTop: 46, marginBottom: 24, flexDirection: "row", gap: 22 },
   statNumber: { fontSize: 16, lineHeight: 21, fontWeight: "800" },
   statLabel: { fontSize: 16, lineHeight: 21, fontWeight: "400" },
-  tabs: { height: 51, flexDirection: "row", borderBottomWidth: StyleSheet.hairlineWidth, marginBottom: 18 },
+  tabs: { height: 61, paddingTop: 10, flexDirection: "row", borderBottomWidth: StyleSheet.hairlineWidth, marginBottom: 18 },
   tab: { flex: 1, alignItems: "center", justifyContent: "center", position: "relative" },
   tabText: { fontSize: 16, lineHeight: 20, fontWeight: "700" },
   tabLine: { position: "absolute", height: 2, left: 18, right: 18, bottom: -1, borderRadius: 2 },

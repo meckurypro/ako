@@ -3,7 +3,7 @@ import * as Haptics from "expo-haptics";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { useState } from "react";
 import Animated, { FadeIn, FadeOut, SlideInDown, SlideOutDown, useReducedMotion } from "react-native-reanimated";
-import { PressableScale, Text } from "@/components/core";
+import { Text } from "@/components/core";
 import {
   useBookmark,
   useDeletePost,
@@ -28,13 +28,13 @@ type ActionItem = { key: string; icon: Icon; label: string; active?: boolean; co
 
 function MainAction({ icon, label, active, onPress }: { icon: Icon; label?: string; active?: boolean; onPress: () => void }) {
   const { colors } = useTheme();
-  return <PressableScale accessibilityRole="button" accessibilityLabel={label ?? icon} onPress={onPress} hitSlop={8} style={s.mainAction}>{icon === "heart" || icon === "heart-outline" ? <LikeHeart active={!!active} color="#D98978" /> : <MaterialCommunityIcons name={icon} size={24} color={active ? "#D98978" : colors.text} />}{label ? <Text style={[s.mainCount, { color: active ? "#D98978" : colors.text }]}>{label}</Text> : null}</PressableScale>;
+  return <Pressable accessibilityRole="button" accessibilityLabel={label ?? icon} onPress={onPress} hitSlop={8} style={({ pressed }) => [s.mainAction, pressed && s.pressed]}>{icon === "heart" || icon === "heart-outline" ? <LikeHeart active={!!active} color="#D98978" /> : <MaterialCommunityIcons name={icon} size={24} color={active ? "#D98978" : colors.text} />}{label ? <Text style={[s.mainCount, { color: active ? "#D98978" : colors.text }]}>{label}</Text> : null}</Pressable>;
 }
 
 function SheetAction({ item }: { item: ActionItem }) {
   const { colors } = useTheme();
   const color = item.danger ? colors.danger : item.active ? colors.accent : colors.text;
-  return <PressableScale accessibilityRole="button" accessibilityLabel={item.label} onPress={item.onPress} style={s.sheetAction}><MaterialCommunityIcons name={item.icon} size={25} color={color} /><Text color={item.danger ? "danger" : item.active ? "accent" : "secondary"} style={s.sheetLabel}>{item.label}{item.count ? ` (${item.count})` : ""}</Text></PressableScale>;
+  return <Pressable accessibilityRole="button" accessibilityLabel={item.label} onPress={item.onPress} hitSlop={4} style={({ pressed }) => [s.sheetAction, pressed && s.pressed]}><MaterialCommunityIcons name={item.icon} size={25} color={color} /><Text color={item.danger ? "danger" : item.active ? "accent" : "secondary"} style={s.sheetLabel}>{item.label}{item.count ? ` (${item.count})` : ""}</Text></Pressable>;
 }
 
 function ActionSheet({ children, colors, onClose }: { children: React.ReactNode; colors: ReturnType<typeof useTheme>["colors"]; onClose: () => void }) {
@@ -112,4 +112,4 @@ export function PostActions({ postId, recipientId, recipientName, recipientAvata
   </>;
 }
 
-const s = StyleSheet.create({ actionBlock: { marginTop: 4 }, row: { height: 38, flexDirection: "row", alignItems: "center" }, mainAction: { width: "20%", height: 38, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 5 }, mainCount: { fontSize: 13, fontWeight: "700" }, comments: { width: "20%", paddingTop: 8, paddingBottom: 1 }, commentsText: { fontSize: 11, lineHeight: 15 }, modal: { flex: 1, justifyContent: "flex-end" }, backdrop: { ...StyleSheet.absoluteFill }, sheet: { borderTopWidth: StyleSheet.hairlineWidth, borderTopLeftRadius: 20, borderTopRightRadius: 20, overflow: "hidden" }, grid: { paddingHorizontal: 22, paddingTop: 19, paddingBottom: 14, flexDirection: "row", flexWrap: "wrap" }, sheetAction: { width: "25%", minHeight: 71, alignItems: "center", justifyContent: "center", gap: 5 }, sheetLabel: { fontSize: 11, lineHeight: 15, textAlign: "center" }, cancel: { minHeight: 51, alignItems: "center", justifyContent: "center", borderTopWidth: StyleSheet.hairlineWidth }, cancelText: { fontSize: 14, fontWeight: "600" } });
+const s = StyleSheet.create({ actionBlock: { marginTop: 4 }, row: { height: 38, flexDirection: "row", alignItems: "center" }, mainAction: { width: "20%", height: 38, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 5 }, mainCount: { fontSize: 13, fontWeight: "700" }, comments: { width: "20%", paddingTop: 8, paddingBottom: 1 }, commentsText: { fontSize: 11, lineHeight: 15 }, modal: { flex: 1, justifyContent: "flex-end" }, backdrop: { ...StyleSheet.absoluteFill, zIndex: 0 }, sheet: { borderTopWidth: StyleSheet.hairlineWidth, borderTopLeftRadius: 20, borderTopRightRadius: 20, overflow: "hidden", zIndex: 2, elevation: 24 }, grid: { paddingHorizontal: 22, paddingTop: 19, paddingBottom: 14, flexDirection: "row", flexWrap: "wrap" }, sheetAction: { width: "25%", minHeight: 71, alignItems: "center", justifyContent: "center", gap: 5 }, sheetLabel: { fontSize: 11, lineHeight: 15, textAlign: "center" }, cancel: { minHeight: 51, alignItems: "center", justifyContent: "center", borderTopWidth: StyleSheet.hairlineWidth }, cancelText: { fontSize: 14, fontWeight: "600" }, pressed: { opacity: 0.65 } });
