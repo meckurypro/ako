@@ -38,6 +38,9 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     "expo-secure-store",
     "expo-font",
     "expo-asset",
+    "expo-sqlite",
+    "expo-notifications",
+    ["expo-local-authentication", { "faceIDPermission": "Allow AKọ to use Face ID to unlock your account." }],
     ["expo-image-picker", { "photosPermission": "Choose a photo to use as your AKọ profile image.", "cameraPermission": "Take a photo to use as your AKọ profile image.", "microphonePermission": false }],
     "expo-video",
     "expo-audio",
@@ -62,3 +65,4 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     eas: { projectId: EAS_PROJECT_ID },
   },
 });
+

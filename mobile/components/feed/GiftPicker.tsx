@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
-import { ActivityIndicator, Image, Modal, Pressable, ScrollView, StyleSheet, View } from "react-native";
+import { ActivityIndicator, Modal, Pressable, ScrollView, StyleSheet, View } from "react-native";
+import { Image } from "expo-image";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { Avatar, Text } from "@/components/core";
@@ -89,7 +90,7 @@ export function GiftPicker({ recipientId, recipientName, recipientAvatar, postId
 function GiftImage({ gift, large, hero }: { gift: MobileGiftType; large?: boolean; hero?: boolean }) {
   const uri = imageUrl(gift.icon_url);
   const box = hero ? s.giftHero : large ? s.giftLarge : s.giftImage;
-  return <View style={box}>{uri ? <Image source={{ uri }} style={s.image} resizeMode="contain" /> : <Text style={hero ? s.fallbackHero : large ? s.fallbackLarge : s.fallback}>🎁</Text>}</View>;
+  return <View style={box}>{uri ? <Image source={{ uri }} style={s.image} contentFit="contain" cachePolicy="memory-disk" /> : <Text style={hero ? s.fallbackHero : large ? s.fallbackLarge : s.fallback}>Ã°Å¸Å½Â</Text>}</View>;
 }
 
 function Receipt({ label, value }: { label: string; value: string }) {

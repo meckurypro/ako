@@ -29,6 +29,7 @@ import {
   type SoundMode,
 } from "@/features/settings/api";
 import { useAuth } from "@/providers/AuthProvider";
+import { useBiometricLock } from "@/providers/BiometricProvider";
 import { useTheme, type ThemePreference } from "@/providers/ThemeProvider";
 
 type SectionId = "profile" | "security" | "privacy" | "appearance" | "sound" | "advanced";
@@ -145,11 +146,25 @@ function ProfileForm({ profile }: { profile: any }) {
 
 function SecurityForm() {
   const change = useChangePassword();
+  const biometric = useBiometricLock();
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [success, setSuccess] = useState(false);
+  const [biometricError, setBiometricError] = useState<string | null>(null);
   const submit = async () => { setSuccess(false); change.reset(); if (newPassword.length < 8) return; try { await change.mutateAsync({ currentPassword, newPassword }); setCurrentPassword(""); setNewPassword(""); setSuccess(true); } catch {} };
-  return <View style={s.form}><Input label="Current password" value={currentPassword} onChangeText={setCurrentPassword} secureTextEntry autoComplete="current-password" /><Input label="New password" value={newPassword} onChangeText={setNewPassword} secureTextEntry autoComplete="new-password" hint="At least 8 characters." />{change.isError ? <Text color="danger" variant="caption">{change.error instanceof Error ? change.error.message : "Couldn't change your password."}</Text> : null}{success ? <Text color="accent" variant="caption">Password updated.</Text> : null}<Button label="Update password" loading={change.isPending} onPress={() => void submit()} /></View>;
+  const toggleBiometric = async () => {
+    setBiometricError(null);
+    const ok = await biometric.setEnabled(!biometric.enabled);
+    if (!ok) setBiometricError(biometric.available ? "Could not confirm your identity." : "Set up fingerprint, Face ID, or device passcode on this phone first.");
+  };
+  return <View style={s.form}>
+    <ToggleRow icon="fingerprint" title={`${biometric.label} app lock`} description={biometric.available ? "Require biometric or device passcode when you open AKọ." : "Set up biometrics on this device to use app lock."} checked={biometric.enabled} pending={biometric.loading} onToggle={() => void toggleBiometric()} error={biometricError} />
+    <Input label="Current password" value={currentPassword} onChangeText={setCurrentPassword} secureTextEntry autoComplete="current-password" />
+    <Input label="New password" value={newPassword} onChangeText={setNewPassword} secureTextEntry autoComplete="new-password" hint="At least 8 characters." />
+    {change.isError ? <Text color="danger" variant="caption">{change.error instanceof Error ? change.error.message : "Couldn't change your password."}</Text> : null}
+    {success ? <Text color="accent" variant="caption">Password updated.</Text> : null}
+    <Button label="Update password" loading={change.isPending} onPress={() => void submit()} />
+  </View>;
 }
 
 function PrivacySettings({ profile }: { profile: any }) {
