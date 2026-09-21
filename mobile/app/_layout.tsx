@@ -45,7 +45,7 @@ function useAndroidBackHistory() {
         return true;
       }
 
-      return false;
+      return true;
     });
     return () => subscription.remove();
   }, [router]);

@@ -1,7 +1,8 @@
-import { Alert, InteractionManager, Modal, Pressable, Share, StyleSheet, View } from "react-native";
+import { Alert, InteractionManager, Modal, Platform, Pressable, Share, StyleSheet, View } from "react-native";
 import * as Haptics from "expo-haptics";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { useState } from "react";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Text } from "@/components/core";
 import {
   useBookmark,
@@ -37,7 +38,9 @@ function SheetAction({ item }: { item: ActionItem }) {
 }
 
 function ActionSheet({ children, colors, onClose }: { children: React.ReactNode; colors: ReturnType<typeof useTheme>["colors"]; onClose: () => void }) {
-  return <Modal visible transparent statusBarTranslucent animationType="fade" onRequestClose={onClose}><View style={s.modal}><Pressable accessibilityLabel="Close post actions" onPress={onClose} style={[s.backdrop, { backgroundColor: colors.overlay }]} /><View style={[s.sheet, { backgroundColor: colors.surface, borderColor: colors.border }]}>{children}</View></View></Modal>;
+  const insets = useSafeAreaInsets();
+  const bottomInset = Platform.OS === "android" ? Math.max(insets.bottom, 54) : insets.bottom;
+  return <Modal visible transparent statusBarTranslucent animationType="fade" onRequestClose={onClose}><View style={s.modal}><Pressable accessibilityLabel="Close post actions" onPress={onClose} style={[s.backdrop, { backgroundColor: colors.overlay }]} /><View style={[s.sheet, { backgroundColor: colors.surface, borderColor: colors.border, paddingBottom: bottomInset }]}>{children}</View></View></Modal>;
 }
 
 export function PostActions({ postId, recipientId, recipientName, recipientAvatar, likes, dislikes: _dislikes, comments, shares, support, disagree, pushback, onComments, onReshare }: { postId: string; recipientId?: string; recipientName?: string; recipientAvatar?: string | null; likes: number; dislikes: number; comments: number; shares: number; support: number; disagree: number; pushback: number; onComments: () => void; onReshare: () => void }) {
