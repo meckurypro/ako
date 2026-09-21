@@ -2,7 +2,6 @@ import { Alert, InteractionManager, Modal, Pressable, Share, StyleSheet, View } 
 import * as Haptics from "expo-haptics";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { useState } from "react";
-import Animated, { FadeIn, FadeOut, SlideInDown, SlideOutDown, useReducedMotion } from "react-native-reanimated";
 import { Text } from "@/components/core";
 import {
   useBookmark,
@@ -38,8 +37,7 @@ function SheetAction({ item }: { item: ActionItem }) {
 }
 
 function ActionSheet({ children, colors, onClose }: { children: React.ReactNode; colors: ReturnType<typeof useTheme>["colors"]; onClose: () => void }) {
-  const reduced = useReducedMotion();
-  return <Modal visible transparent animationType="none" onRequestClose={onClose}><View style={s.modal}><Animated.View entering={reduced ? undefined : FadeIn.duration(140)} exiting={reduced ? undefined : FadeOut.duration(110)} style={[s.backdrop, { backgroundColor: colors.overlay }]}><Pressable style={StyleSheet.absoluteFill} onPress={onClose} /></Animated.View><Animated.View entering={reduced ? undefined : SlideInDown.duration(220)} exiting={reduced ? undefined : SlideOutDown.duration(180)} style={[s.sheet, { backgroundColor: colors.surface, borderColor: colors.border }]}>{children}</Animated.View></View></Modal>;
+  return <Modal visible transparent statusBarTranslucent animationType="fade" onRequestClose={onClose}><View style={s.modal}><Pressable accessibilityLabel="Close post actions" onPress={onClose} style={[s.backdrop, { backgroundColor: colors.overlay }]} /><View style={[s.sheet, { backgroundColor: colors.surface, borderColor: colors.border }]}>{children}</View></View></Modal>;
 }
 
 export function PostActions({ postId, recipientId, recipientName, recipientAvatar, likes, dislikes: _dislikes, comments, shares, support, disagree, pushback, onComments, onReshare }: { postId: string; recipientId?: string; recipientName?: string; recipientAvatar?: string | null; likes: number; dislikes: number; comments: number; shares: number; support: number; disagree: number; pushback: number; onComments: () => void; onReshare: () => void }) {
@@ -112,4 +110,4 @@ export function PostActions({ postId, recipientId, recipientName, recipientAvata
   </>;
 }
 
-const s = StyleSheet.create({ actionBlock: { marginTop: 4 }, row: { height: 38, flexDirection: "row", alignItems: "center" }, mainAction: { width: "20%", height: 38, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 5 }, mainCount: { fontSize: 13, fontWeight: "700" }, comments: { width: "20%", paddingTop: 8, paddingBottom: 1 }, commentsText: { fontSize: 11, lineHeight: 15 }, modal: { flex: 1, justifyContent: "flex-end" }, backdrop: { ...StyleSheet.absoluteFill, zIndex: 0 }, sheet: { borderTopWidth: StyleSheet.hairlineWidth, borderTopLeftRadius: 20, borderTopRightRadius: 20, overflow: "hidden", zIndex: 2, elevation: 24 }, grid: { paddingHorizontal: 22, paddingTop: 19, paddingBottom: 14, flexDirection: "row", flexWrap: "wrap" }, sheetAction: { width: "25%", minHeight: 71, alignItems: "center", justifyContent: "center", gap: 5 }, sheetLabel: { fontSize: 11, lineHeight: 15, textAlign: "center" }, cancel: { minHeight: 51, alignItems: "center", justifyContent: "center", borderTopWidth: StyleSheet.hairlineWidth }, cancelText: { fontSize: 14, fontWeight: "600" }, pressed: { opacity: 0.65 } });
+const s = StyleSheet.create({ actionBlock: { marginTop: 4 }, row: { height: 38, flexDirection: "row", alignItems: "center" }, mainAction: { width: "20%", height: 38, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 5 }, mainCount: { fontSize: 13, fontWeight: "700" }, comments: { width: "20%", paddingTop: 8, paddingBottom: 1 }, commentsText: { fontSize: 11, lineHeight: 15 }, modal: { flex: 1, justifyContent: "flex-end" }, backdrop: { ...StyleSheet.absoluteFill, zIndex: 0, elevation: 0 }, sheet: { position: "relative", borderTopWidth: StyleSheet.hairlineWidth, borderTopLeftRadius: 20, borderTopRightRadius: 20, overflow: "hidden", zIndex: 2, elevation: 24 }, grid: { paddingHorizontal: 22, paddingTop: 19, paddingBottom: 14, flexDirection: "row", flexWrap: "wrap" }, sheetAction: { width: "25%", minHeight: 71, alignItems: "center", justifyContent: "center", gap: 5 }, sheetLabel: { fontSize: 11, lineHeight: 15, textAlign: "center" }, cancel: { minHeight: 51, alignItems: "center", justifyContent: "center", borderTopWidth: StyleSheet.hairlineWidth }, cancelText: { fontSize: 14, fontWeight: "600" }, pressed: { opacity: 0.65 } });
