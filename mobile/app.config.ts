@@ -31,7 +31,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
       foregroundImage: "./assets/icons/app-icon.png",
       backgroundColor: "#131311",
     },
-    predictiveBackGestureEnabled: true,
+    predictiveBackGestureEnabled: false,
   },
   plugins: [
     "expo-router",

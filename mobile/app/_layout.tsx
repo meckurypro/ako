@@ -14,7 +14,7 @@ import { usePushNotifications } from "@/features/notifications/push";
 void SplashScreen.preventAutoHideAsync();
 configureReanimatedLogger({ level: ReanimatedLogLevel.warn, strict: false });
 
-const HOME_PATH = "/home";
+const HOME_PATHS = new Set(["/", "/home", "/(tabs)/home"]);
 
 function useAndroidBackHistory() {
   const router = useRouter();
@@ -31,18 +31,19 @@ function useAndroidBackHistory() {
   useEffect(() => {
     if (Platform.OS !== "android") return undefined;
     const subscription = BackHandler.addEventListener("hardwareBackPress", () => {
+      while (history.current.length) {
+        const previous = history.current.pop();
+        if (!previous || previous === current.current) continue;
+        router.replace(previous as never);
+        return true;
+      }
+
       if (router.canGoBack()) {
         router.back();
         return true;
       }
 
-      const previous = history.current.pop();
-      if (previous && previous !== current.current) {
-        router.replace(previous as never);
-        return true;
-      }
-
-      if (current.current !== HOME_PATH) {
+      if (!HOME_PATHS.has(current.current ?? "")) {
         router.replace("/(tabs)/home");
         return true;
       }
@@ -50,7 +51,7 @@ function useAndroidBackHistory() {
       return true;
     });
     return () => subscription.remove();
-  }, [router]);
+  }, [pathname, router]);
 }
 
 function AppNavigator() {
