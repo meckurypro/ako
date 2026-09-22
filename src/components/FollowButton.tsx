@@ -2,6 +2,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useIsFollowingAsActiveIdentity, useIsFollowedByUser, useToggleFollowAsActiveIdentity } from "../hooks/useProfile";
 import { useHasPendingFollowRequest, useSendFollowRequest } from "../hooks/useFollowRequests";
+import { useProbationalLock } from "../hooks/useProbationalAccess";
 
 interface FollowButtonProps {
   authorId: string;
@@ -36,6 +37,10 @@ interface FollowButtonProps {
  * send it as the acting person, not the page.
  */
 export function FollowButton({ authorId, isPrivate }: FollowButtonProps) {
+  // Probational users don't get the social layer at all — see
+  // useProbationalAccess.ts. Hidden entirely, not just disabled.
+  const followLocked = useProbationalLock("probational_follow_enabled");
+
   const isFollowingQuery = useIsFollowingAsActiveIdentity(authorId);
   const isFollowedByUserQuery = useIsFollowedByUser(authorId);
   const hasPendingQuery = useHasPendingFollowRequest(authorId);
@@ -65,6 +70,10 @@ export function FollowButton({ authorId, isPrivate }: FollowButtonProps) {
     }
     prevEstablished.current = established;
   }, [loading, isFollowing, hasPendingRequest]);
+
+  if (followLocked) {
+    return null;
+  }
 
   // Wait for the relationship checks before rendering anything — avoids a
   // flash of "Follow" on someone you already follow while the query loads.

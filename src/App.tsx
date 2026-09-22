@@ -10,6 +10,7 @@ import { LoadingOverlay } from "./components/LoadingOverlay";
 import { usePageThemeSync } from "./hooks/usePageThemeSync";
 import { ToastProvider } from "./components/Toast";
 import { AppShell } from "./components/AppShell";
+import { ProbationalPageLock } from "./components/ProbationalPageLock";
 
 import { SignUp } from "./pages/auth/SignUp";
 import { Login } from "./pages/auth/Login";
@@ -229,7 +230,9 @@ function AppRoutes() {
               path="/feed"
               element={
                 <RequireAuth>
-                  <Feed />
+                  <ProbationalPageLock featureKey="probational_feed_enabled">
+                    <Feed />
+                  </ProbationalPageLock>
                 </RequireAuth>
               }
             />
@@ -237,7 +240,9 @@ function AppRoutes() {
               path="/compose"
               element={
                 <RequireAuth>
-                  <Compose />
+                  <ProbationalPageLock featureKey="probational_post_enabled">
+                    <Compose />
+                  </ProbationalPageLock>
                 </RequireAuth>
               }
             />
@@ -285,7 +290,9 @@ function AppRoutes() {
               path="/topics"
               element={
                 <RequireAuth>
-                  <Discover />
+                  <ProbationalPageLock featureKey="probational_discover_enabled">
+                    <Discover />
+                  </ProbationalPageLock>
                 </RequireAuth>
               }
             />
@@ -373,7 +380,9 @@ function AppRoutes() {
               path="/wallet"
               element={
                 <RequireAuth>
-                  <WalletPage />
+                  <ProbationalPageLock featureKey="probational_wallet_enabled">
+                    <WalletPage />
+                  </ProbationalPageLock>
                 </RequireAuth>
               }
             />
@@ -769,7 +778,9 @@ function AppRoutes() {
               path="/projects/new"
               element={
                 <RequireAuth>
-                  <CreateProject />
+                  <ProbationalPageLock featureKey="probational_create_project_enabled">
+                    <CreateProject />
+                  </ProbationalPageLock>
                 </RequireAuth>
               }
             />

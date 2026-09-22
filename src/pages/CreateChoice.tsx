@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { useSmartBack } from "../hooks/useSmartBack";
 import { useScrollLock } from "../hooks/useScrollLock";
 import { useFeatureFlag } from "../hooks/useFeatureFlags";
+import { useProbationalLock } from "../hooks/useProbationalAccess";
 import { X, PenSquare, FolderPlus, ChevronRight } from "lucide-react";
 
 // The "+" on Feed's header opens this. Styled as a bottom sheet
@@ -35,7 +36,17 @@ export function CreateChoice() {
   // navigates to /projects/new directly still hits the same block
   // there (see CreateProject.tsx).
   const projectsEnabled = useFeatureFlag("projects_enabled");
-  const choices = projectsEnabled ? CHOICES : CHOICES.filter((c) => c.to !== "/projects/new");
+  // Probational users don't get the social layer, and Project
+  // creation is one of their four locked pages — see
+  // useProbationalAccess.ts. Both entries can disappear here at
+  // once; see the empty-state fallback below.
+  const postLocked = useProbationalLock("probational_post_enabled");
+  const createProjectLocked = useProbationalLock("probational_create_project_enabled");
+  const choices = CHOICES.filter((c) => {
+    if (c.to === "/projects/new") return projectsEnabled && !createProjectLocked;
+    if (c.to === "/compose") return !postLocked;
+    return true;
+  });
 
   return (
     <div
@@ -58,6 +69,11 @@ export function CreateChoice() {
         </div>
 
         <div className="px-3 pb-2">
+          {choices.length === 0 && (
+            <p className="text-sm text-ink-muted text-center py-6 px-4">
+              Nothing to create just yet — this unlocks once your account is approved.
+            </p>
+          )}
           {choices.map(({ to, icon: Icon, label, description }) => (
             <button
               key={to}

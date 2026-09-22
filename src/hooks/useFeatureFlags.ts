@@ -25,7 +25,8 @@ export type FeatureFlagCategory =
   | "projects"
   | "content"
   | "discovery"
-  | "access";
+  | "access"
+  | "probational";
 
 export interface FeatureFlagDef {
   key: string;
@@ -151,6 +152,66 @@ export const FEATURE_FLAG_DEFS: FeatureFlagDef[] = [
       "When ON, users must be Admin-approved (Admin > Account review) before they can enter Akọ — anyone not yet approved sees the Under Review screen. Turning this OFF does not approve anyone; it only stops the gate from being enforced, and turning it back ON automatically re-locks accounts that were never approved.",
     category: "access",
   },
+  // Probational (pending-review) users — see useProbationalAccess.ts.
+  // Unlike every other flag in this file, these default LOCKED
+  // (false) when a row is missing — see fn_can_access_feature in the
+  // DB — because the whole point is that a probational account sees
+  // a stripped-down app until an admin opens these up. All nine rows
+  // are seeded by the probational_partial_access migration.
+  {
+    key: "probational_feed_enabled",
+    label: "Feed",
+    description: "Whether probational (pending-review) users can see the main Feed page.",
+    category: "probational",
+  },
+  {
+    key: "probational_discover_enabled",
+    label: "Discover",
+    description: "Whether probational users can see the Discover/Topics page.",
+    category: "probational",
+  },
+  {
+    key: "probational_wallet_enabled",
+    label: "Wallet",
+    description: "Whether probational users can see the Wallet page.",
+    category: "probational",
+  },
+  {
+    key: "probational_create_project_enabled",
+    label: "Create project",
+    description: "Whether probational users can create a new project.",
+    category: "probational",
+  },
+  {
+    key: "probational_follow_enabled",
+    label: "Following",
+    description: "Whether probational users can follow other accounts. Enforced server-side (RLS).",
+    category: "probational",
+  },
+  {
+    key: "probational_message_enabled",
+    label: "Messaging",
+    description: "Whether probational users can send direct messages. Enforced server-side (RLS).",
+    category: "probational",
+  },
+  {
+    key: "probational_react_enabled",
+    label: "Reactions",
+    description: "Whether probational users can react to posts. Enforced server-side (RLS).",
+    category: "probational",
+  },
+  {
+    key: "probational_post_enabled",
+    label: "Posting",
+    description: "Whether probational users can create posts. Enforced server-side (create-post).",
+    category: "probational",
+  },
+  {
+    key: "probational_comment_enabled",
+    label: "Commenting",
+    description: "Whether probational users can comment on posts. Enforced server-side (create-comment).",
+    category: "probational",
+  },
 ];
 
 export type FeatureFlagMap = Record<string, boolean>;
@@ -177,7 +238,12 @@ export function useFeatureFlags() {
  */
 export function useFeatureFlag(key: string): boolean {
   const { data } = useFeatureFlags();
-  return data?.[key] ?? true;
+  if (data && key in data) return data[key];
+  // Every flag in this file defaults to enabled when its row is
+  // missing (see file header) — EXCEPT probational_* flags, which
+  // are restrictions being added on top of an already-live app, so
+  // a missing row there must default to locked, not open.
+  return !key.startsWith("probational_");
 }
 
 export function useToggleFeatureFlag() {

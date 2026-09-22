@@ -29,6 +29,7 @@ import { ProjectMiniGrid } from "../components/ProjectMiniCard";
 import { pageModeLabel } from "../lib/pageRoles";
 import { ConfirmDialog } from "../components/ConfirmDialog";
 import { useFeatureFlag } from "../hooks/useFeatureFlags";
+import { useCreateEntirelyLocked } from "../hooks/useProbationalAccess";
 
 function getWebsiteHref(url: string): string {
   return /^https?:\/\//i.test(url) ? url : `https://${url}`;
@@ -62,6 +63,7 @@ export function PagePage() {
   const nameMenuRef = useRef<HTMLDivElement>(null);
 
   const { user } = useAuth();
+  const createLocked = useCreateEntirelyLocked();
   const { data: me } = useMyProfile();
   const { data: page, isLoading } = usePageByUsername(username!);
   const { data: members } = usePageMembers(page?.id ?? "");
@@ -191,7 +193,7 @@ export function PagePage() {
                 already attribute the result to the active page identity
                 on their own (posted_as_page_id), so nothing else here
                 needs to know this is a page. */}
-            {isActiveHere && (
+            {isActiveHere && !createLocked && (
               <Link to="/create" aria-label="Create" className="p-2 text-ink-muted">
                 <Plus size={22} />
               </Link>

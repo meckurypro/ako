@@ -25,6 +25,18 @@ export interface AccountAccess {
   accountStatus: AccountStatus;
   /** The actual access decision: gateEnabled ? status === 'approved' : true. */
   canAccess: boolean;
+  /**
+   * Full lockout — declined/suspended accounts while the gate is on.
+   * These still see the old full-screen block; nothing under
+   * useProbationalAccess.ts applies to them.
+   */
+  isBlocked: boolean;
+  /**
+   * Partial access — a pending account while the gate is on. Gets
+   * full navigation into the app; individual pages/actions are
+   * locked per-feature instead (see useProbationalAccess.ts).
+   */
+  isProbational: boolean;
 }
 
 export function useAccountAccess() {
@@ -58,6 +70,8 @@ export function useAccountAccess() {
         gateEnabled,
         accountStatus,
         canAccess: gateEnabled ? accountStatus === "approved" : true,
+        isBlocked: gateEnabled && (accountStatus === "declined" || accountStatus === "suspended"),
+        isProbational: gateEnabled && accountStatus === "pending",
       };
     },
     enabled: !!user,

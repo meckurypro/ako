@@ -28,6 +28,7 @@ import { useReportReasons, useSubmitReport } from "../hooks/useReports";
 import { formatCompactCount } from "../lib/formatStats";
 import { renderFormattedText } from "../lib/formatText";
 import type { Stance } from "../types/database";
+import { useProbationalLock } from "../hooks/useProbationalAccess";
 
 function timeAgo(dateString: string): string {
   const seconds = Math.floor((Date.now() - new Date(dateString).getTime()) / 1000);
@@ -88,6 +89,12 @@ function CommentThread({ comment, depth }: { comment: CommentWithAuthor; depth: 
   const [menuOpen, setMenuOpen] = useState(false);
   const moreButtonRef = useRef<HTMLButtonElement>(null);
   const rowRef = useRef<HTMLDivElement>(null);
+  // Probational users don't get the social layer — see
+  // useProbationalAccess.ts. Hides the like/dislike row and the
+  // support/disagree/pushback reply triggers entirely; viewing
+  // comments and their counts is unaffected.
+  const reactLocked = useProbationalLock("probational_react_enabled");
+  const commentLocked = useProbationalLock("probational_comment_enabled");
 
   const isExpanded = ctx.expandedIds.has(comment.id);
   const { data: replies, isLoading: repliesLoading } = useCommentReplies(ctx.postId, comment.id, isExpanded);
@@ -174,34 +181,39 @@ function CommentThread({ comment, depth }: { comment: CommentWithAuthor; depth: 
           </p>
 
           <div className="flex items-center flex-wrap gap-x-4 gap-y-1.5 mt-2.5">
-            <button
-              onClick={() =>
-                ctx.onToggleReaction({ commentId: comment.id, type: "like", currentlyActive: isLiked })
-              }
-              className="flex items-center gap-1.5 text-danger -ml-1.5 p-1.5"
-            >
-              <LikeHeart active={isLiked} size={18} />
-              {comment.like_count > 0 && <span className="text-sm">{comment.like_count}</span>}
-            </button>
-            <button
-              onClick={() =>
-                ctx.onToggleReaction({ commentId: comment.id, type: "dislike", currentlyActive: isDisliked })
-              }
-              className={`flex items-center gap-1.5 p-1.5 ${isDisliked ? "text-danger" : "text-ink-muted"}`}
-            >
-              <ThumbsDown size={18} fill={isDisliked ? "currentColor" : "none"} />
-              {comment.dislike_count > 0 && <span className="text-sm">{comment.dislike_count}</span>}
-            </button>
+            {!reactLocked && (
+              <>
+                <button
+                  onClick={() =>
+                    ctx.onToggleReaction({ commentId: comment.id, type: "like", currentlyActive: isLiked })
+                  }
+                  className="flex items-center gap-1.5 text-danger -ml-1.5 p-1.5"
+                >
+                  <LikeHeart active={isLiked} size={18} />
+                  {comment.like_count > 0 && <span className="text-sm">{comment.like_count}</span>}
+                </button>
+                <button
+                  onClick={() =>
+                    ctx.onToggleReaction({ commentId: comment.id, type: "dislike", currentlyActive: isDisliked })
+                  }
+                  className={`flex items-center gap-1.5 p-1.5 ${isDisliked ? "text-danger" : "text-ink-muted"}`}
+                >
+                  <ThumbsDown size={18} fill={isDisliked ? "currentColor" : "none"} />
+                  {comment.dislike_count > 0 && <span className="text-sm">{comment.dislike_count}</span>}
+                </button>
+              </>
+            )}
 
-            {(["support", "disagree", "pushback"] as Stance[]).map((s) => (
-              <button
-                key={s}
-                onClick={() => setReplyStance(s)}
-                className={`text-sm font-medium py-1.5 hover:opacity-70 transition-opacity ${STANCE_COLORS[s].iconClass}`}
-              >
-                {STANCE_COLORS[s].label}
-              </button>
-            ))}
+            {!commentLocked &&
+              (["support", "disagree", "pushback"] as Stance[]).map((s) => (
+                <button
+                  key={s}
+                  onClick={() => setReplyStance(s)}
+                  className={`text-sm font-medium py-1.5 hover:opacity-70 transition-opacity ${STANCE_COLORS[s].iconClass}`}
+                >
+                  {STANCE_COLORS[s].label}
+                </button>
+              ))}
           </div>
 
           {/* Comment-specific: opens/closes only THIS comment's own
@@ -343,6 +355,10 @@ export function CommentSheet({
   const toast = useToast();
   const { data: roots, isLoading } = useRootComments(postId);
   const rootList = useMemo(() => roots ?? [], [roots]);
+  // Probational users don't get the social layer — see
+  // useProbationalAccess.ts. Viewing comments is unaffected; only
+  // the ability to add a new one is hidden.
+  const commentLocked = useProbationalLock("probational_comment_enabled");
 
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
   const [showComposer, setShowComposer] = useState(false);
@@ -485,14 +501,16 @@ export function CommentSheet({
           {/* Always posts a new top-level comment — replying to a
               specific comment (at any depth) happens inline via that
               comment's own Support/Disagree/Pushback buttons above. */}
-          <div className="border-t border-border px-4 py-2.5 flex-shrink-0">
-            <button
-              onClick={() => setShowComposer(true)}
-              className="w-full text-left text-sm text-ink-muted bg-canvas border border-border rounded-full px-4 py-2.5 truncate"
-            >
-              Add a comment…
-            </button>
-          </div>
+          {!commentLocked && (
+            <div className="border-t border-border px-4 py-2.5 flex-shrink-0">
+              <button
+                onClick={() => setShowComposer(true)}
+                className="w-full text-left text-sm text-ink-muted bg-canvas border border-border rounded-full px-4 py-2.5 truncate"
+              >
+                Add a comment…
+              </button>
+            </div>
+          )}
         </div>
       </div>
 

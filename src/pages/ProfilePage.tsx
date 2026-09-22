@@ -36,6 +36,7 @@ import {
   useCollaboratorMediaProjects,
 } from "../hooks/usePortfolio";
 import { useRecordProfileVisit } from "../hooks/useProfileVisits";
+import { useProbationalLock, useCreateEntirelyLocked } from "../hooks/useProbationalAccess";
 import { Avatar } from "../components/Avatar";
 import { AccountSwitcher } from "../components/AccountSwitcher";
 import { VerifiedBadge } from "../components/VerifiedBadge";
@@ -309,6 +310,12 @@ export function ProfilePage() {
   const cancelFollowRequest = useCancelFollowRequest(profile?.id ?? "");
   const incomingRequestCount = useIncomingFollowRequestCount();
   const isBlockedQuery = useIsBlocked(profile?.id ?? "");
+  // Probational users don't get the social layer — see
+  // useProbationalAccess.ts. These hide the toolbar's
+  // Follow/Message controls entirely rather than disabling them.
+  const followLocked = useProbationalLock("probational_follow_enabled");
+  const messageLocked = useProbationalLock("probational_message_enabled");
+  const createLocked = useCreateEntirelyLocked();
   const toggleBlock = useToggleBlock(profile?.id ?? "");
   const isMutedQuery = useIsMuted(profile?.id ?? "");
   const toggleMute = useToggleMute(profile?.id ?? "");
@@ -599,9 +606,11 @@ export function ProfilePage() {
             // currently showing nothing.
             <div className="flex items-center gap-2 w-full">
               <ProfileAdSlot className="flex-1 min-w-0" />
-              <Link to="/create" state={{ background: location }} aria-label="Create" className="p-2 text-ink-muted shrink-0">
-                <Plus size={22} />
-              </Link>
+              {!createLocked && (
+                <Link to="/create" state={{ background: location }} aria-label="Create" className="p-2 text-ink-muted shrink-0">
+                  <Plus size={22} />
+                </Link>
+              )}
 
               <div className="relative">
                 <button
@@ -722,13 +731,17 @@ export function ProfilePage() {
                   onClose={() => setRelationshipMenuOpen(false)}
                   widthClass="w-56"
                   items={[
-                    {
-                      key: "message",
-                      label: "Message",
-                      icon: <Send />,
-                      disabled: startConversation.isPending,
-                      onSelect: () => void handleMessage(),
-                    },
+                    ...(messageLocked
+                      ? []
+                      : [
+                          {
+                            key: "message",
+                            label: "Message",
+                            icon: <Send />,
+                            disabled: startConversation.isPending,
+                            onSelect: () => void handleMessage(),
+                          } as DropdownMenuItem,
+                        ]),
                     {
                       key: "mute",
                       label: isMuted ? "Unmute" : "Mute their updates",
@@ -758,32 +771,36 @@ export function ProfilePage() {
             </div>
           ) : (
             <div className="flex items-center justify-end gap-2 relative w-full">
-              <button
-                onClick={handleMessage}
-                disabled={startConversation.isPending || isBlocked}
-                className="flex items-center gap-1.5 text-sm text-ink-muted border border-border rounded-full px-4 py-2 disabled:opacity-40"
-              >
-                <MessageCircle size={16} />
-                Message
-              </button>
-              <button
-                onClick={handleFollowClick}
-                disabled={
-                  toggleFollow.isPending ||
-                  sendFollowRequest.isPending ||
-                  cancelFollowRequest.isPending ||
-                  isBlocked
-                }
-                className={`px-5 py-2 rounded-full text-sm font-medium disabled:opacity-40 ${
-                  hasPendingRequest
-                    ? "bg-accent-soft text-accent"
-                    : isFollowedByUser
-                    ? "bg-pushback/15 text-pushback"
-                    : "bg-ink/10 text-ink"
-                }`}
-              >
-                {hasPendingRequest ? "Requested" : isFollowedByUser ? "Follow back" : "Follow"}
-              </button>
+              {!messageLocked && (
+                <button
+                  onClick={handleMessage}
+                  disabled={startConversation.isPending || isBlocked}
+                  className="flex items-center gap-1.5 text-sm text-ink-muted border border-border rounded-full px-4 py-2 disabled:opacity-40"
+                >
+                  <MessageCircle size={16} />
+                  Message
+                </button>
+              )}
+              {!followLocked && (
+                <button
+                  onClick={handleFollowClick}
+                  disabled={
+                    toggleFollow.isPending ||
+                    sendFollowRequest.isPending ||
+                    cancelFollowRequest.isPending ||
+                    isBlocked
+                  }
+                  className={`px-5 py-2 rounded-full text-sm font-medium disabled:opacity-40 ${
+                    hasPendingRequest
+                      ? "bg-accent-soft text-accent"
+                      : isFollowedByUser
+                      ? "bg-pushback/15 text-pushback"
+                      : "bg-ink/10 text-ink"
+                  }`}
+                >
+                  {hasPendingRequest ? "Requested" : isFollowedByUser ? "Follow back" : "Follow"}
+                </button>
+              )}
 
               <button
                 onClick={() => setShareSheetOpen(true)}

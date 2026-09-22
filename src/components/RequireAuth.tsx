@@ -60,12 +60,15 @@ export function RequireAuth({ children, skipOnboardingCheck = false }: RequireAu
     );
   }
 
-  // A pending account is locked to the review screen regardless of
-  // onboarding state, deep links, or which route was requested — the
-  // review screen IS the application for a pending user. Server-side
-  // enforcement (RLS + edge-function checks) is the real backstop;
-  // this just avoids ever rendering protected UI for them.
-  if (access && !access.canAccess) {
+  // Only a declined/suspended account is locked to the review screen
+  // regardless of onboarding state, deep links, or which route was
+  // requested. A pending (probational) account is NOT blocked here —
+  // it gets full navigation into the app, with individual pages/
+  // actions locked per-feature instead (see useProbationalAccess.ts
+  // and the ProbationalGate/ProbationalAction components). Server-side
+  // enforcement (RLS + edge-function checks) is the real backstop for
+  // both cases either way.
+  if (access?.isBlocked) {
     return <AccountUnderReview />;
   }
 

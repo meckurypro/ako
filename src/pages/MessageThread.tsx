@@ -67,6 +67,7 @@ import { useKeyboardInset } from "../hooks/useKeyboardInset";
 import { useVoiceRecorder } from "../hooks/useVoiceRecorder";
 import { MessageBubble, SWIPE_THRESHOLD, SWIPE_MAX } from "../components/MessageBubble";
 import { useFeatureFlag } from "../hooks/useFeatureFlags";
+import { useProbationalLock } from "../hooks/useProbationalAccess";
 
 // Fetches header identity for the thread — a small dedicated query
 // since useConversations' list-summary shape isn't available when
@@ -79,6 +80,10 @@ import { useFeatureFlag } from "../hooks/useFeatureFlags";
 // total members) — this branches before ever reaching that query.
 function useConversationHeader(conversationId: string) {
   const { user } = useAuth();
+  // Probational users don't get the social layer — see
+  // useProbationalAccess.ts. Hides the composer entirely; viewing an
+  // existing conversation (if one exists from before review) is fine.
+  const messageLocked = useProbationalLock("probational_message_enabled");
 
   return useQuery({
     queryKey: ["conversation-header", conversationId, user?.id],
@@ -1287,6 +1292,7 @@ export function MessageThread() {
            mid-hold. aria-hidden + pointer-events:none keep it out of
            the way (and out of the accessibility tree) once it's
            covered, without ever unmounting it. */}
+        {!messageLocked && (
         <form
           onSubmit={handleSubmit}
           className="px-4 py-3 flex items-center gap-2"
@@ -1349,6 +1355,7 @@ export function MessageThread() {
             </button>
           )}
         </form>
+        )}
 
         {voiceRecorder.phase !== "idle" && (
           <div className="absolute inset-0 bg-canvas">

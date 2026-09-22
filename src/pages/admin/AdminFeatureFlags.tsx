@@ -14,6 +14,7 @@ import {
 // (see useFeatureFlags.ts), so they're not duplicated here.
 const CATEGORY_ORDER: FeatureFlagCategory[] = [
   "access",
+  "probational",
   "projects",
   "content",
   "messaging",
@@ -26,6 +27,7 @@ const CATEGORY_ORDER: FeatureFlagCategory[] = [
 const CATEGORY_LABELS: Record<FeatureFlagCategory, string> = {
   pages: "Pages & organisations",
   access: "Account access",
+  probational: "Probational users",
   projects: "Projects",
   content: "Content",
   messaging: "Messaging",
@@ -80,7 +82,10 @@ export function AdminFeatureFlags() {
                   </p>
                   <div className="bg-surface rounded-xl border border-border divide-y divide-border">
                     {defsInCategory.map((def) => {
-                      const checked = flags?.[def.key] ?? true;
+                      // Every flag defaults to enabled if its row is missing
+                      // EXCEPT probational_* ones, which default locked —
+                      // mirrors useFeatureFlag's fallback in useFeatureFlags.ts.
+                      const checked = flags?.[def.key] ?? !def.key.startsWith("probational_");
                       return (
                         <div key={def.key} className="flex items-center justify-between gap-3 p-4">
                           <div className="min-w-0">

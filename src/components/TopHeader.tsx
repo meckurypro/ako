@@ -4,6 +4,7 @@ import { Wordmark } from "./Wordmark";
 import { Avatar } from "./Avatar";
 import { useUnreadCount } from "../hooks/useNotifications";
 import { useMyProfile } from "../hooks/useProfile";
+import { useCreateEntirelyLocked } from "../hooks/useProbationalAccess";
 
 interface TopHeaderProps {
   // Feed passes "create" — a "+" that opens /create (see
@@ -26,10 +27,14 @@ export function TopHeader({ leftAction = "avatar" }: TopHeaderProps) {
   const unreadCount = useUnreadCount();
   const { data: me } = useMyProfile();
   const location = useLocation();
+  const createLocked = useCreateEntirelyLocked();
 
   return (
     <header className="px-4 pt-5 pb-2 flex items-center justify-between">
       {leftAction === "create" ? (
+        createLocked ? (
+          <span className="w-9 h-9 -ml-1.5" aria-hidden="true" />
+        ) : (
         <Link
           to="/create"
           state={{ background: location }}
@@ -38,6 +43,7 @@ export function TopHeader({ leftAction = "avatar" }: TopHeaderProps) {
         >
           <Plus size={24} strokeWidth={2} />
         </Link>
+        )
       ) : (
         <Link to={me ? `/profile/${me.username}` : "/me"} aria-label="Your profile">
           <Avatar src={me?.avatar_url} name={me?.display_name ?? "You"} size="sm" />

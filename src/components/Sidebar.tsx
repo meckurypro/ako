@@ -19,6 +19,7 @@ import { usePageInboxUnreadCount } from "../hooks/usePageInbox";
 import { useActiveIdentity } from "../hooks/usePages";
 import { useUnreadCount } from "../hooks/useNotifications";
 import { useIsAdmin } from "../hooks/useAdmin";
+import { useCreateEntirelyLocked } from "../hooks/useProbationalAccess";
 
 type IconProps = { size?: number; strokeWidth?: number; fill?: string; className?: string };
 
@@ -94,6 +95,7 @@ export function Sidebar({ collapsed, onToggleCollapsed }: SidebarProps) {
   const notifUnread = useUnreadCount();
   const { data: isAdmin } = useIsAdmin();
   const location = useLocation();
+  const createLocked = useCreateEntirelyLocked();
 
   // `collapsed` is the pinned preference (persisted — see AppShell),
   // toggled explicitly via the button at the bottom. `isHovering` is
@@ -160,19 +162,21 @@ export function Sidebar({ collapsed, onToggleCollapsed }: SidebarProps) {
       </nav>
 
       {/* Create — primary action, not buried in a submenu */}
-      <div className="px-3 pt-3">
-        <Link
-          to="/create"
-          state={{ background: location }}
-          className={`flex items-center gap-3 rounded-full bg-accent text-canvas font-semibold px-3 py-2.5 transition-opacity hover:opacity-90 ${
-            !showLabels ? "justify-center" : ""
-          }`}
-          title={!showLabels ? "Create" : undefined}
-        >
-          <Plus size={22} strokeWidth={2} />
-          {showLabels && <span>Create</span>}
-        </Link>
-      </div>
+      {!createLocked && (
+        <div className="px-3 pt-3">
+          <Link
+            to="/create"
+            state={{ background: location }}
+            className={`flex items-center gap-3 rounded-full bg-accent text-canvas font-semibold px-3 py-2.5 transition-opacity hover:opacity-90 ${
+              !showLabels ? "justify-center" : ""
+            }`}
+            title={!showLabels ? "Create" : undefined}
+          >
+            <Plus size={22} strokeWidth={2} />
+            {showLabels && <span>Create</span>}
+          </Link>
+        </div>
+      )}
 
       {/* Your Akọ */}
       <div className="px-3 pt-5">

@@ -53,6 +53,7 @@ import { useMyReaction, useToggleReaction } from "../hooks/useReactions";
 import { recordProfileVisitFromPost } from "../hooks/useProfileVisits";
 import { useEngagementOrder, type SecondaryActionKey } from "../hooks/useEngagementOrder";
 import { useCollaborators } from "../hooks/useCollaboration";
+import { useProbationalLock } from "../hooks/useProbationalAccess";
 import {
   useDeletePost,
   useSetPostArchived,
@@ -489,7 +490,13 @@ export function PostCard({
   // ─── Left (fixed): Like only. Reshare used to live here too but is now
   // ranked alongside the other secondary actions in the swipable middle
   // group (see `order` above) rather than getting a permanent slot.
-  const leftActions: EngagementAction[] = [
+  // Probational users don't get the social layer — see
+  // useProbationalAccess.ts. Removes the Like control entirely
+  // rather than disabling it; viewing the like COUNT still works
+  // fine since that's rendered separately from this action array.
+  const reactLocked = useProbationalLock("probational_react_enabled");
+
+  const leftActions: EngagementAction[] = reactLocked ? [] : [
     {
       key: "like",
       label: isLiked ? "Liked" : "Like",
