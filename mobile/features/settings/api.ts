@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import * as SecureStore from "expo-secure-store";
 import { supabase } from "@/lib/supabase";
+import { setVibrationEnabled, VIBRATION_ENABLED_KEY } from "@/lib/vibration";
 import { useAuth } from "@/providers/AuthProvider";
 
 const PROFILE_ROLES_SELECT = "profile_roles(position, role:roles(id, label, sort_order))";
@@ -250,4 +251,21 @@ export function useSoundSettings() {
     await SecureStore.setItemAsync(SOUND_MODE_KEY, value);
   }, []);
   return { enabled, setEnabled, mode, setMode };
+}
+
+export function useVibrationSettings() {
+  const [enabled, setEnabledState] = useState(true);
+  useEffect(() => {
+    let alive = true;
+    void SecureStore.getItemAsync(VIBRATION_ENABLED_KEY).then((stored) => {
+      if (!alive) return;
+      if (stored === "false") setEnabledState(false);
+    });
+    return () => { alive = false; };
+  }, []);
+  const setEnabled = useCallback(async (value: boolean) => {
+    setEnabledState(value);
+    await setVibrationEnabled(value);
+  }, []);
+  return { enabled, setEnabled };
 }

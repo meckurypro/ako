@@ -5,6 +5,7 @@ import Constants from "expo-constants";
 import { useRouter } from "expo-router";
 import { useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
+import { vibrateNotification } from "@/lib/vibration";
 import { useAuth } from "@/providers/AuthProvider";
 import type * as NotificationsType from "expo-notifications";
 
@@ -60,6 +61,7 @@ async function ensureAndroidChannel(Notifications: NotificationsModule) {
     vibrationPattern: [0, 250, 250, 250],
     lightColor: "#58B981",
     sound: "default",
+    enableVibrate: true,
   });
 }
 
@@ -136,6 +138,7 @@ export function usePushNotifications() {
     void getNotifications().then((Notifications) => {
       if (!active || !Notifications) return;
       received = Notifications.addNotificationReceivedListener((notification) => {
+        void vibrateNotification();
         const data = notification.request.content.data as PushData;
         const type = value(data, ["type"]);
         if (type === "message" || value(data, ["conversationId", "conversation_id", "roomId", "room_id"])) {

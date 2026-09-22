@@ -66,8 +66,9 @@ export default function Compose() {
         ...(status ? { status } : {}),
         ...(postingAsPage ? { posted_as_page_id: postingAsPage.id } : {}),
       });
-      if (status) Alert.alert("Draft saved", "Your post is available in your drafts.");
-      router.replace(status ? "/(tabs)/home" : { pathname: "/posts/[postId]", params: { postId: post.id } });
+      if (post.pending) Alert.alert("Saved offline", "Your post will publish automatically when your connection is back.");
+      else if (status) Alert.alert("Draft saved", "Your post is available in your drafts.");
+      router.replace(status || post.pending ? "/(tabs)/home" : { pathname: "/posts/[postId]", params: { postId: post.id } });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Couldn't publish this post.");
     }

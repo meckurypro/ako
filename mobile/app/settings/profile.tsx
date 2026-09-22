@@ -24,6 +24,7 @@ import {
   useUnmuteAccount,
   useUpdateProfileRoles,
   useUpdateSettingsProfile,
+  useVibrationSettings,
   useUsernameAvailability,
   type AccountRow,
   type SoundMode,
@@ -182,7 +183,7 @@ function AccountRowView({ account, label, onPress }: { account: AccountRow; labe
 
 function AppearanceSettings() { const { colors, preference, setPreference } = useTheme(); return <View style={[s.optionGroup, { borderColor: colors.border }]}>{THEME_OPTIONS.map((option, index) => <OptionRow key={option.value} first={index === 0} icon={option.icon} label={option.label} description={option.description} selected={preference === option.value} onPress={() => void setPreference(option.value)} />)}</View>; }
 
-function SoundSettings() { const sound = useSoundSettings(); const { colors } = useTheme(); const label = sound.enabled ? (SOUND_OPTIONS.find(option => option.value === sound.mode)?.label ?? "Normal") : "Off"; return <View><ToggleRow icon={sound.enabled ? "volume-high" : "volume-off"} title="Sounds" description="Play sounds for messages, likes, gifts, and more" checked={sound.enabled} pending={false} onToggle={() => void sound.setEnabled(!sound.enabled)} />{sound.enabled ? <View style={[s.optionGroup, { borderColor: colors.border }]}>{SOUND_OPTIONS.map((option, index) => <OptionRow key={option.value} first={index === 0} icon={option.icon} label={option.label} description={option.description} selected={sound.mode === option.value} onPress={() => void sound.setMode(option.value)} />)}</View> : null}<Text color="muted" variant="caption" style={s.soundSummary}>Current sound mode: {label}</Text></View>; }
+function SoundSettings() { const sound = useSoundSettings(); const vibration = useVibrationSettings(); const { colors } = useTheme(); const label = sound.enabled ? (SOUND_OPTIONS.find(option => option.value === sound.mode)?.label ?? "Normal") : "Off"; return <View><ToggleRow icon={sound.enabled ? "volume-high" : "volume-off"} title="Sounds" description="Play sounds for messages, likes, gifts, and more" checked={sound.enabled} pending={false} onToggle={() => void sound.setEnabled(!sound.enabled)} /><ToggleRow icon={vibration.enabled ? "vibrate" : "vibrate-off"} title="Vibrations" description="Vibrate for reactions, saves, messages, and notifications" checked={vibration.enabled} pending={false} onToggle={() => void vibration.setEnabled(!vibration.enabled)} />{sound.enabled ? <View style={[s.optionGroup, { borderColor: colors.border }]}>{SOUND_OPTIONS.map((option, index) => <OptionRow key={option.value} first={index === 0} icon={option.icon} label={option.label} description={option.description} selected={sound.mode === option.value} onPress={() => void sound.setMode(option.value)} />)}</View> : null}<Text color="muted" variant="caption" style={s.soundSummary}>Current sound mode: {label}</Text></View>; }
 
 function AdvancedSettings() {
   const { signOut, user } = useAuth(); const router = useRouter(); const deactivate = useDeactivateAccount();

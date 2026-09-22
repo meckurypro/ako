@@ -2,6 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import type { Session, User } from "@supabase/supabase-js";
 import * as Linking from "expo-linking";
 import { AppState } from "react-native";
+import { isOnline } from "@/lib/offline";
 import { queryClient } from "@/lib/query-client";
 import { supabase } from "@/lib/supabase";
 
@@ -84,11 +85,13 @@ export function AuthProvider({ children }: PropsWithChildren) {
   }, []);
 
   const signIn = useCallback((email: string, password: string) => runExclusive(async () => {
+    if (!isOnline()) throw new Error("No network connection. Sign in must connect to Supabase.");
     const { error } = await supabase.auth.signInWithPassword({ email: email.trim(), password });
     if (error) throw error;
   }), [runExclusive]);
 
   const signUp = useCallback((input: SignUpInput) => runExclusive(async () => {
+    if (!isOnline()) throw new Error("No network connection. Account creation must connect to Supabase.");
     const { data, error } = await supabase.auth.signUp({
       email: input.email.trim(), password: input.password,
       options: { data: { username: input.username, display_name: input.displayName.trim() }, emailRedirectTo: Linking.createURL("auth/callback") },
@@ -98,30 +101,37 @@ export function AuthProvider({ children }: PropsWithChildren) {
   }), [runExclusive]);
 
   const resendVerification = useCallback((email: string) => runExclusive(async () => {
+    if (!isOnline()) throw new Error("No network connection. Verification email must be sent by Supabase.");
     const { error } = await supabase.auth.resend({ type: "signup", email: email.trim(), options: { emailRedirectTo: Linking.createURL("auth/callback") } });
     if (error) throw error;
   }), [runExclusive]);
 
   const requestPasswordReset = useCallback((email: string) => runExclusive(async () => {
+    if (!isOnline()) throw new Error("No network connection. Password reset must connect to Supabase.");
     const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), { redirectTo: Linking.createURL("auth/callback") });
     if (error) throw error;
   }), [runExclusive]);
 
   const updatePassword = useCallback((password: string) => runExclusive(async () => {
+    if (!isOnline()) throw new Error("No network connection. Password update must connect to Supabase.");
     const { error } = await supabase.auth.updateUser({ password });
     if (error) throw error;
     setIsRecovery(false);
   }), [runExclusive]);
 
   const signOut = useCallback(async () => {
+    if (!isOnline()) throw new Error("No network connection. Sign out must connect to Supabase.");
     manualSignOut.current = true;
-    const { error } = await supabase.auth.signOut();
-    supabase.auth.stopAutoRefresh();
-    setIsRecovery(false);
-    queryClient.clear();
-    hadSession.current = false;
-    manualSignOut.current = false;
-    if (error) throw error;
+    try {
+      const { error } = await supabase.auth.signOut({ scope: "global" });
+      if (error) throw error;
+      supabase.auth.stopAutoRefresh();
+      setIsRecovery(false);
+      queryClient.clear();
+      hadSession.current = false;
+    } finally {
+      manualSignOut.current = false;
+    }
   }, []);
 
   const value = useMemo<AuthValue>(() => ({

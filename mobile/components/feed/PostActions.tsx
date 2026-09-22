@@ -1,5 +1,4 @@
 import { Alert, InteractionManager, Modal, Platform, Pressable, Share, StyleSheet, View } from "react-native";
-import * as Haptics from "expo-haptics";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { useState } from "react";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -17,6 +16,7 @@ import {
   type SecondaryActionKey,
 } from "@/features/feed/api";
 import type { Stance } from "@/features/feed/types";
+import { vibrateImpact, vibrateSelection } from "@/lib/vibration";
 import { useAuth } from "@/providers/AuthProvider";
 import { useTheme } from "@/providers/ThemeProvider";
 import { StanceComposer } from "./StanceComposer";
@@ -69,13 +69,13 @@ export function PostActions({ postId, recipientId, recipientName, recipientAvata
 
   const share = () => void Share.share({ message: `https://ako.app/post/${postId}` });
   const react = async (kind: "like" | "dislike") => {
-    void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    void vibrateImpact();
     try {
       if (kind === "like") { if (dislike.data) await toggleDislike.mutateAsync(true); await toggleLike.mutateAsync(!!like.data); }
       else { if (like.data) await toggleLike.mutateAsync(true); await toggleDislike.mutateAsync(!!dislike.data); }
     } catch { Alert.alert("Couldn't update reaction", "Check your connection and try again."); }
   };
-  const saved = () => { void Haptics.selectionAsync(); void toggleBookmark.mutateAsync(!!bookmark.data).catch(() => Alert.alert("Couldn't update saved posts")); };
+  const saved = () => { void vibrateSelection(); void toggleBookmark.mutateAsync(!!bookmark.data).catch(() => Alert.alert("Couldn't update saved posts")); };
   const chooseStance = (value: Stance) => setStance(value);
   const chooseGift = () => setGift(true);
   const chooseReshare = () => onReshare();
