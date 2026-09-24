@@ -229,7 +229,16 @@ function MessageBubbleImpl({
           measured against a shrink-to-fit container is circular —
           which is what was collapsing short messages down to one
           character per line. */}
-      <div className={`flex min-w-0 flex-1 ${isMine ? "justify-end" : "justify-start"}`}>
+      <div
+        className={`flex min-w-0 flex-1 ${isMine ? "justify-end" : "justify-start"}`}
+        onPointerDown={(e) => onPointerDown(m, e)}
+        onPointerMove={(e) => onPointerMove(m, e)}
+        onPointerUp={() => onEndGesture(m.id)}
+        onPointerLeave={() => onEndGesture(m.id)}
+        onPointerCancel={() => onEndGesture(m.id)}
+        onContextMenu={(e) => e.preventDefault()}
+        style={{ WebkitTouchCallout: "none", touchAction: "pan-y" }}
+      >
         <div className={`relative flex flex-col max-w-[78%] ${isMine ? "items-end" : "items-start"}`}>
           {/* Reply icon revealed in the gap uncovered by the swipe —
               fades/scales in with drag progress, "locks" past threshold. */}
@@ -247,12 +256,6 @@ function MessageBubbleImpl({
           <div
             ref={registerRef(m.id)}
             data-message-id={m.id}
-            onPointerDown={(e) => onPointerDown(m, e)}
-            onPointerMove={(e) => onPointerMove(m, e)}
-            onPointerUp={() => onEndGesture(m.id)}
-            onPointerLeave={() => onEndGesture(m.id)}
-            onPointerCancel={() => onEndGesture(m.id)}
-            onContextMenu={(e) => e.preventDefault()}
             className={`relative w-fit max-w-full text-sm whitespace-pre-wrap break-words select-none ${
               isJumboEmoji
                 ? "bg-transparent"
@@ -261,12 +264,15 @@ function MessageBubbleImpl({
                   }`
             } ${m.is_deleted ? "italic opacity-70" : ""}`}
             style={{
-              WebkitTouchCallout: "none",
-              touchAction: "pan-y",
               transform: `translateX(${offset}px)`,
               transition: isDraggingThis ? "none" : "transform 200ms ease-out, box-shadow 300ms, background-color 300ms",
             }}
           >
+            {/* Pointer handlers live on the row wrapper above so the
+                whole horizontal width of the row starts the gesture,
+                not just this bubble's own hit-box (a short bubble left
+                a lot of dead space next to it). Pointer capture is set
+                there too — see handlePointerDown in MessageThread. */}
             {/* Highlight, whatever the reason, is a shape-matching
                 overlay — never a ring/offset (which changes the
                 bubble's own outline) and never a background change on
