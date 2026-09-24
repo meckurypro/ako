@@ -601,18 +601,20 @@ body {
   this for dozens of already-read messages at once.
 */
 @keyframes ako-bubble-in-mine {
-  0% { opacity: 0; transform: translate(8px, 6px) scale(0.97); }
+  0% { opacity: 0; transform: translate(8px, 10px) scale(0.9); }
+  60% { opacity: 1; transform: translate(0, -2px) scale(1.03); }
   100% { opacity: 1; transform: translate(0, 0) scale(1); }
 }
 @keyframes ako-bubble-in-theirs {
-  0% { opacity: 0; transform: translate(-8px, 6px) scale(0.97); }
+  0% { opacity: 0; transform: translate(-8px, 10px) scale(0.9); }
+  60% { opacity: 1; transform: translate(0, -2px) scale(1.03); }
   100% { opacity: 1; transform: translate(0, 0) scale(1); }
 }
 .ako-bubble-in-mine {
-  animation: ako-bubble-in-mine 220ms cubic-bezier(0.22, 1, 0.36, 1);
+  animation: ako-bubble-in-mine 260ms cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 .ako-bubble-in-theirs {
-  animation: ako-bubble-in-theirs 220ms cubic-bezier(0.22, 1, 0.36, 1);
+  animation: ako-bubble-in-theirs 260ms cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
 /*
