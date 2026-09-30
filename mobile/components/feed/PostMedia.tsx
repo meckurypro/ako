@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Pressable, StyleSheet, useWindowDimensions, View } from "react-native";
+import { StyleSheet, useWindowDimensions, View } from "react-native";
 import { Image } from "expo-image";
 import { useVideoPlayer, VideoView } from "expo-video";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
@@ -68,11 +68,47 @@ export function PostMedia({ urls, compact = false }: { urls: string[]; compact?:
   const availableWidth = screenWidth - (compact ? 116 : 72);
   const frameWidth = availableWidth * .8;
   const frameHeight = frameWidth / ratio;
+  const singleTap = useMemo(() => Gesture.Tap().maxDeltaX(8).maxDeltaY(8).onEnd((_event, success) => {
+    "worklet";
+    if (success) runOnJS(setViewerIndex)(0);
+  }), []);
+
   if (!urls.length) return null;
 
   return <>
     <View style={[styles.frame, { width: frameWidth, height: frameHeight, backgroundColor: colors.background, borderColor: colors.border }]}>
-      {urls.length > 1 ? <InlineCarousel urls={urls} width={frameWidth} height={frameHeight} index={index} onIndexChange={setIndex} onOpen={setViewerIndex} onFirstImageLoad={(imageWidth, imageHeight) => { if (imageWidth && imageHeight) setRatio(Math.min(1.91, Math.max(.5, imageWidth / imageHeight))); }} /> : <Pressable onPress={() => setViewerIndex(0)} accessibilityRole="imagebutton" accessibilityLabel="Open post media" style={{ width: frameWidth, height: frameHeight }}>{VIDEO.test(urls[0]) ? <Video uri={urls[0]} width={frameWidth} height={frameHeight} /> : <Image source={{ uri: urls[0] }} style={{ width: frameWidth, height: frameHeight }} contentFit="contain" transition={160} cachePolicy="memory-disk" onLoad={event => { if (event.source.width && event.source.height) setRatio(event.source.width / event.source.height); }} />}</Pressable>}
+      {urls.length > 1 ? (
+        <InlineCarousel
+          urls={urls}
+          width={frameWidth}
+          height={frameHeight}
+          index={index}
+          onIndexChange={setIndex}
+          onOpen={setViewerIndex}
+          onFirstImageLoad={(imageWidth, imageHeight) => {
+            if (imageWidth && imageHeight) setRatio(Math.min(1.91, Math.max(.5, imageWidth / imageHeight)));
+          }}
+        />
+      ) : (
+        <GestureDetector gesture={singleTap}>
+          <Animated.View accessible accessibilityRole="imagebutton" accessibilityLabel="Open post media" style={{ width: frameWidth, height: frameHeight }}>
+            {VIDEO.test(urls[0]) ? (
+              <Video uri={urls[0]} width={frameWidth} height={frameHeight} />
+            ) : (
+              <Image
+                source={{ uri: urls[0] }}
+                style={{ width: frameWidth, height: frameHeight }}
+                contentFit="contain"
+                transition={160}
+                cachePolicy="memory-disk"
+                onLoad={event => {
+                  if (event.source.width && event.source.height) setRatio(event.source.width / event.source.height);
+                }}
+              />
+            )}
+          </Animated.View>
+        </GestureDetector>
+      )}
       {urls.length > 1 ? <><View pointerEvents="none" style={styles.dots}>{urls.map((_, dot) => <View key={dot} style={[styles.dot, dot === index ? styles.dotActive : null]} />)}</View><View pointerEvents="none" style={styles.counter}><Text style={styles.counterText}>{index + 1}/{urls.length}</Text></View></> : null}
     </View>
     <MediaViewer
