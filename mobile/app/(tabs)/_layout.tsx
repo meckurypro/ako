@@ -1,4 +1,4 @@
-import { Feather } from "@expo/vector-icons";
+import { Icon, type IconName } from "@/components/core/Icon";
 import { BlurView } from "expo-blur";
 import { Redirect, Tabs } from "expo-router";
 import { useMemo } from "react";
@@ -13,8 +13,7 @@ import { useAuth } from "@/providers/AuthProvider";
 import { useTheme } from "@/providers/ThemeProvider";
 
 type RouteName = "home" | "discover" | "create" | "inbox" | "profile";
-type FeatherIcon = keyof typeof Feather.glyphMap;
-const tabs: { route: RouteName; label: string; icon?: FeatherIcon }[] = [
+const tabs: { route: RouteName; label: string; icon?: IconName }[] = [
   { route: "home", label: "Feed" }, { route: "discover", label: "Discover", icon: "search" }, { route: "create", label: "Library" }, { route: "inbox", label: "Messages", icon: "message-circle" }, { route: "profile", label: "Profile", icon: "user" },
 ];
 
@@ -29,20 +28,20 @@ function LibraryIcon({ color, active }: { color: string; active: boolean }) {
 function NavGlyph({ item, color, active }: { item: (typeof tabs)[number]; color: string; active: boolean }) {
   if (item.route === "home") return <FeedIcon color={color} active={active} />;
   if (item.route === "create") return <LibraryIcon color={color} active={active} />;
-  return <Feather name={item.icon!} size={24} color={color} strokeWidth={active ? 2 : 1.75} />;
+  return <Icon name={item.icon!} size={24} color={color} strokeWidth={active ? 2 : 1.75} fill={active ? color : "none"} />;
 }
 
 function AutoHideTabBar({ state, navigation }: any) {
   const { colors, isDark } = useTheme(); const insets = useSafeAreaInsets(); const bottomInset = Platform.OS === "android" ? Math.max(insets.bottom, 34) : insets.bottom; const chromeStyle = useFeedChromeStyle(86 + bottomInset); const identity = useActiveIdentity(); const conversations = useConversations();
   const pageId = identity.data?.mode === "page" ? identity.data.page.id : undefined;
   const unread = useMemo(() => (conversations.data ?? []).filter(conversation => pageId ? conversation.team_page?.id === pageId : !conversation.team_page).reduce((sum, conversation) => sum + conversation.unreadCount, 0), [conversations.data, pageId]);
-  return <Animated.View style={[styles.bar, { borderTopColor: colors.border, paddingBottom: bottomInset + 12 }, chromeStyle]}><BlurView intensity={isDark ? 32 : 44} tint={isDark ? "dark" : "light"} style={StyleSheet.absoluteFill} /><View style={[StyleSheet.absoluteFill, { backgroundColor: colors.surface, opacity: 0.8 }]} /><View style={styles.items}>{tabs.map(item => { const routeIndex = state.routes.findIndex((route: { name: string }) => route.name === item.route); const route = state.routes[routeIndex]; const active = state.index === routeIndex; const color = active ? colors.accent : colors.textMuted; const onPress = () => { const event = navigation.emit({ type: "tabPress", target: route?.key, canPreventDefault: true }); if (!active && !event.defaultPrevented) navigation.navigate(item.route); }; return <Pressable key={item.route} accessibilityRole="tab" accessibilityLabel={item.label} accessibilityState={{ selected: active }} onPress={onPress} style={({ pressed }) => [styles.item, { opacity: pressed ? 0.7 : 1, transform: [{ scale: pressed ? 0.98 : 1 }] }]}><View style={styles.iconWrap}><NavGlyph item={item} color={color} active={active} />{item.route === "inbox" && unread > 0 ? <View style={[styles.badge, { backgroundColor: colors.danger }]}><Animated.Text style={[styles.badgeText, { color: colors.background }]}>{unread > 9 ? "9+" : unread}</Animated.Text></View> : null}</View><Animated.Text style={[styles.label, { color }]}>{item.label}</Animated.Text></Pressable>; })}</View></Animated.View>;
+  return <Animated.View style={[styles.bar, { borderTopColor: colors.border, paddingBottom: bottomInset + 12 }, chromeStyle]}><BlurView intensity={isDark ? 32 : 44} tint={isDark ? "dark" : "light"} style={StyleSheet.absoluteFill} /><View style={[StyleSheet.absoluteFill, { backgroundColor: colors.surface, opacity: 0.8 }]} /><View style={styles.items}>{tabs.map(item => { const routeIndex = state.routes.findIndex((route: { name: string }) => route.name === item.route); const active = state.index === routeIndex; const color = active ? colors.accent : colors.textMuted; return <Pressable key={item.route} accessibilityRole="tab" accessibilityLabel={item.label} accessibilityState={{ selected: active }} onPress={() => navigation.navigate(item.route)} style={({ pressed }) => [styles.item, { opacity: pressed ? 0.7 : 1, transform: [{ scale: pressed ? 0.98 : 1 }] }]}><View style={styles.iconWrap}><NavGlyph item={item} color={color} active={active} />{item.route === "inbox" && unread > 0 ? <View style={[styles.badge, { backgroundColor: colors.danger }]}><Animated.Text style={[styles.badgeText, { color: colors.background }]}>{unread > 9 ? "9+" : unread}</Animated.Text></View> : null}</View><Animated.Text style={[styles.label, { color }]}>{item.label}</Animated.Text></Pressable>; })}</View></Animated.View>;
 }
 
 export default function TabsLayout() {
   const { session, isReady, onboardingComplete } = useAuth();
   if (!isReady) return null; if (!session) return <Redirect href="/(auth)" />; if (!onboardingComplete) return <Redirect href="/(onboarding)" />;
-  return <FeedChromeProvider><Tabs backBehavior="history" tabBar={props => <AutoHideTabBar {...props} />} screenOptions={{ headerShown: false }}><Tabs.Screen name="home" options={{ title: "Feed" }} /><Tabs.Screen name="discover" options={{ title: "Discover" }} /><Tabs.Screen name="create" options={{ title: "Library" }} /><Tabs.Screen name="inbox" options={{ title: "Messages" }} /><Tabs.Screen name="profile" options={{ title: "Profile" }} /><Tabs.Screen name="notifications" options={{ href: null }} /></Tabs></FeedChromeProvider>;
+  return <FeedChromeProvider><Tabs tabBar={props => <AutoHideTabBar {...props} />} screenOptions={{ headerShown: false }}><Tabs.Screen name="home" options={{ title: "Feed" }} /><Tabs.Screen name="discover" options={{ title: "Discover" }} /><Tabs.Screen name="create" options={{ title: "Library" }} /><Tabs.Screen name="inbox" options={{ title: "Messages" }} /><Tabs.Screen name="profile" options={{ title: "Profile" }} /><Tabs.Screen name="notifications" options={{ href: null }} /></Tabs></FeedChromeProvider>;
 }
 
 const styles = StyleSheet.create({

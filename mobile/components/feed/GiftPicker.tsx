@@ -1,7 +1,6 @@
 import { useMemo, useState } from "react";
-import { ActivityIndicator, Modal, Pressable, ScrollView, StyleSheet, View } from "react-native";
-import { Image } from "expo-image";
-import { MaterialCommunityIcons } from "@expo/vector-icons";
+import { ActivityIndicator, Image, Modal, Pressable, ScrollView, StyleSheet, View } from "react-native";
+import { Icon } from "@/components/core/Icon";
 import { useRouter } from "expo-router";
 import { Avatar, Text } from "@/components/core";
 import { type MobileGiftType, useGiftTypes, useSendGift, useWallet } from "@/features/feed/api";
@@ -64,8 +63,8 @@ export function GiftPicker({ recipientId, recipientName, recipientAvatar, postId
       <Pressable style={[s.backdrop, { backgroundColor: colors.overlay }]} onPress={onClose} />
       <View style={[s.sheet, { backgroundColor: colors.surface, borderColor: colors.border }]}>
         <View style={[s.header, { borderBottomColor: colors.border }]}>
-          {step === "confirm" ? <Pressable onPress={() => setStep("catalog")} style={s.headerButton}><MaterialCommunityIcons name="arrow-left" size={21} color={colors.textMuted} /></Pressable> : <View><Text maxFontSizeMultiplier={1} style={s.title}>Send a gift</Text><Text maxFontSizeMultiplier={1} color="muted" style={s.subhead}>Send a piece of heritage.</Text></View>}
-          <View style={s.headerRight}>{step === "catalog" && <Text maxFontSizeMultiplier={1} color="muted" style={s.balance}>Balance <Text maxFontSizeMultiplier={1} style={[s.balanceValue, { color: colors.text }]}>${balance.toFixed(2)}</Text></Text>}<Pressable onPress={onClose} style={s.headerButton}><MaterialCommunityIcons name="close" size={21} color={colors.textMuted} /></Pressable></View>
+          {step === "confirm" ? <Pressable onPress={() => setStep("catalog")} style={s.headerButton}><Icon name="arrow-left" size={21} color={colors.textMuted} /></Pressable> : <View><Text maxFontSizeMultiplier={1} style={s.title}>Send a gift</Text><Text maxFontSizeMultiplier={1} color="muted" style={s.subhead}>Send a piece of heritage.</Text></View>}
+          <View style={s.headerRight}>{step === "catalog" && <Text maxFontSizeMultiplier={1} color="muted" style={s.balance}>Balance <Text maxFontSizeMultiplier={1} style={[s.balanceValue, { color: colors.text }]}>${balance.toFixed(2)}</Text></Text>}<Pressable onPress={onClose} style={s.headerButton}><Icon name="x" size={21} color={colors.textMuted} /></Pressable></View>
         </View>
 
         <ScrollView contentContainerStyle={s.content}>
@@ -90,7 +89,7 @@ export function GiftPicker({ recipientId, recipientName, recipientAvatar, postId
 function GiftImage({ gift, large, hero }: { gift: MobileGiftType; large?: boolean; hero?: boolean }) {
   const uri = imageUrl(gift.icon_url);
   const box = hero ? s.giftHero : large ? s.giftLarge : s.giftImage;
-  return <View style={box}>{uri ? <Image source={{ uri }} style={s.image} contentFit="contain" cachePolicy="memory-disk" /> : <Text style={hero ? s.fallbackHero : large ? s.fallbackLarge : s.fallback}>Ã°Å¸Å½Â</Text>}</View>;
+  return <View style={box}>{uri ? <Image source={{ uri }} style={s.image} resizeMode="contain" /> : <Text style={hero ? s.fallbackHero : large ? s.fallbackLarge : s.fallback}>🎁</Text>}</View>;
 }
 
 function Receipt({ label, value }: { label: string; value: string }) {

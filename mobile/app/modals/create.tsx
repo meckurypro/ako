@@ -1,20 +1,28 @@
-import { MaterialCommunityIcons } from "@expo/vector-icons";
+import { Icon } from "@/components/core/Icon";
 import { useRouter } from "expo-router";
 import { Pressable, StyleSheet, View } from "react-native";
 import Animated, { SlideInDown, useReducedMotion } from "react-native-reanimated";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Text } from "@/components/core";
 import { useTheme } from "@/providers/ThemeProvider";
+import { useProbationalLock } from "@/features/account/probational";
 
 const CHOICES = [
-  { key: "post", icon: "square-edit-outline", label: "Post", description: "Share a thought with your followers" },
-  { key: "project", icon: "folder-plus-outline", label: "Project", description: "List a file, event, course, or paid link" },
+  { key: "post", icon: "pen-square", label: "Post", description: "Share a thought with your followers" },
+  { key: "project", icon: "folder-plus", label: "Project", description: "List a file, event, course, or paid link" },
 ] as const;
 
 export default function CreateModal() {
   const router = useRouter();
   const { colors } = useTheme();
   const reduced = useReducedMotion();
+  // Probational users don't get the social layer, and Project
+  // creation is one of their four locked pages — see
+  // features/account/probational.ts. Both entries can disappear at
+  // once; see the empty-state fallback below.
+  const postLocked = useProbationalLock("probational_post_enabled");
+  const createProjectLocked = useProbationalLock("probational_create_project_enabled");
+  const choices = CHOICES.filter((c) => (c.key === "project" ? !createProjectLocked : !postLocked));
 
   const openPostComposer = () => {
     router.replace("/compose");
@@ -41,11 +49,16 @@ export default function CreateModal() {
           <View style={styles.header}>
             <Text style={styles.title} accessibilityRole="header">Create</Text>
             <Pressable accessibilityRole="button" accessibilityLabel="Close" hitSlop={10} onPress={() => router.back()} style={styles.close}>
-              <MaterialCommunityIcons name="close" size={22} color={colors.textMuted} />
+              <Icon name="x" size={22} color={colors.textMuted} />
             </Pressable>
           </View>
           <View style={styles.choices}>
-            {CHOICES.map((choice) => (
+            {choices.length === 0 && (
+              <Text color="muted" align="center" style={styles.empty}>
+                Nothing to create just yet — this unlocks once your account is approved.
+              </Text>
+            )}
+            {choices.map((choice) => (
               <Pressable
                 key={choice.key}
                 accessibilityRole="button"
@@ -54,13 +67,13 @@ export default function CreateModal() {
                 style={({ pressed }) => [styles.row, pressed && { backgroundColor: colors.surface }]}
               >
                 <View style={[styles.icon, { backgroundColor: colors.accentSoft }]}>
-                  <MaterialCommunityIcons name={choice.icon} size={20} color={colors.accent} />
+                  <Icon name={choice.icon} size={20} color={colors.accent} />
                 </View>
                 <View style={styles.copy}>
                   <Text style={styles.label}>{choice.label}</Text>
                   <Text style={styles.description} color="muted" numberOfLines={1}>{choice.description}</Text>
                 </View>
-                <MaterialCommunityIcons name="chevron-right" size={18} color={colors.textMuted} />
+                <Icon name="chevron-right" size={18} color={colors.textMuted} />
               </Pressable>
             ))}
           </View>
@@ -84,4 +97,5 @@ const styles = StyleSheet.create({
   copy: { flex: 1, minWidth: 0, gap: 1 },
   label: { fontSize: 15, lineHeight: 20, fontWeight: "500" },
   description: { fontSize: 12, lineHeight: 16 },
+  empty: { paddingVertical: 24, paddingHorizontal: 8 },
 });

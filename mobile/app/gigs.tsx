@@ -1,5 +1,5 @@
 import { ActivityIndicator, Platform, FlatList, Pressable, StyleSheet, View } from "react-native";
-import { Feather } from "@expo/vector-icons";
+import { Icon } from "@/components/core/Icon";
 import { Image } from "expo-image";
 import { useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -7,6 +7,8 @@ import Svg, { Path, Rect } from "react-native-svg";
 import { Text } from "@/components/core";
 import { type MyGig, useMyGigs } from "@/features/projects/api";
 import { useTheme } from "@/providers/ThemeProvider";
+import { OfflineState } from "@/components/feedback";
+import { getScreenState } from "@/lib/screenState";
 
 const STATUS_LABEL: Record<string, string> = { draft: "Draft", archived: "Archived", cancelled: "Cancelled" };
 const SOURCE_LABEL: Record<MyGig["source"], string> = { manual: "Created manually", auto_project: "Started from a project", auto_collaboration: "Started from a collaboration" };
@@ -32,13 +34,13 @@ export default function GigsScreen() {
   const { colors } = useTheme();
   const gigs = useMyGigs();
   const sections = groupGigs(gigs.data ?? []);
-  return <View style={[s.root, { backgroundColor: colors.background }]}><PlainHeader />{gigs.isLoading ? <ActivityIndicator color={colors.accent} style={s.loader} /> : sections.length === 0 ? <GigsEmpty /> : <FlatList data={sections} keyExtractor={(item) => item.key} contentContainerStyle={s.list} renderItem={({ item }) => <GigSection section={item} />} /> }<BottomNavigation /></View>;
+  return <View style={[s.root, { backgroundColor: colors.background }]}><PlainHeader />{getScreenState(gigs) === "offline" ? <OfflineState onRetry={() => void gigs.refetch()} /> : gigs.isLoading ? <ActivityIndicator color={colors.accent} style={s.loader} /> : sections.length === 0 ? <GigsEmpty /> : <FlatList data={sections} keyExtractor={(item) => item.key} contentContainerStyle={s.list} renderItem={({ item }) => <GigSection section={item} />} /> }<BottomNavigation /></View>;
 }
 
 function PlainHeader() {
   const router = useRouter();
   const { colors } = useTheme();
-  return <View style={s.header}><Pressable onPress={() => router.back()} style={s.back}><Feather name="arrow-left" size={22} color={colors.textSecondary} /></Pressable><Text style={s.title}>Your Gigs</Text><Text color="secondary" style={s.subtitle}>Every professional identity on your account — one Gig per role.</Text></View>;
+  return <View style={s.header}><Pressable onPress={() => router.back()} style={s.back}><Icon name="arrow-left" size={22} color={colors.textSecondary} /></Pressable><Text style={s.title}>Your Gigs</Text><Text color="secondary" style={s.subtitle}>Every professional identity on your account — one Gig per role.</Text></View>;
 }
 
 function GigSection({ section }: { section: Section }) {
@@ -50,12 +52,12 @@ function GigRow({ gig }: { gig: MyGig }) {
   const { colors } = useTheme();
   const status = gig.status !== "active" ? STATUS_LABEL[gig.status] ?? gig.status : null;
   const role = `${gig.role_label ?? "No role set"}${status ? ` · ${status}` : ""}`;
-  return <Pressable style={[s.gigRow, { backgroundColor: colors.surface, borderColor: colors.border }]}><View style={[s.thumb, { backgroundColor: colors.background }]}>{gig.thumbnail_url ? <Image source={{ uri: gig.thumbnail_url }} style={StyleSheet.absoluteFill} contentFit="cover" /> : <Feather name="briefcase" size={18} color={colors.textMuted} />}</View><View style={s.copy}><Text numberOfLines={1} style={s.gigTitle}>{gig.title}</Text><Text color="muted" numberOfLines={1} style={s.gigMeta}>{role}</Text></View>{!gig.is_complete ? <View style={[s.finishPill, { backgroundColor: colors.accentSoft }]}><Text color="accent" style={s.finishText}>Finish setup</Text></View> : null}</Pressable>;
+  return <Pressable style={[s.gigRow, { backgroundColor: colors.surface, borderColor: colors.border }]}><View style={[s.thumb, { backgroundColor: colors.background }]}>{gig.thumbnail_url ? <Image source={{ uri: gig.thumbnail_url }} style={StyleSheet.absoluteFill} contentFit="cover" /> : <Icon name="briefcase" size={18} color={colors.textMuted} />}</View><View style={s.copy}><Text numberOfLines={1} style={s.gigTitle}>{gig.title}</Text><Text color="muted" numberOfLines={1} style={s.gigMeta}>{role}</Text></View>{!gig.is_complete ? <View style={[s.finishPill, { backgroundColor: colors.accentSoft }]}><Text color="accent" style={s.finishText}>Finish setup</Text></View> : null}</Pressable>;
 }
 
 function GigsEmpty() {
   const { colors } = useTheme();
-  return <View style={s.empty}><Feather name="briefcase" size={32} color={colors.textMuted} /><Text color="muted" align="center" style={s.emptyTitle}>No Gigs yet.</Text><Text color="muted" align="center" style={s.emptyMessage}>Create one from the + button, or get credited as a collaborator and accept it — either way, it shows up here.</Text></View>;
+  return <View style={s.empty}><Icon name="briefcase" size={32} color={colors.textMuted} /><Text color="muted" align="center" style={s.emptyTitle}>No Gigs yet.</Text><Text color="muted" align="center" style={s.emptyMessage}>Create one from the + button, or get credited as a collaborator and accept it — either way, it shows up here.</Text></View>;
 }
 
 function FeedIcon({ color }: { color: string }) {
@@ -73,10 +75,10 @@ function BottomNavigation() {
   const bottomInset = Platform.OS === "android" ? Math.max(insets.bottom, 34) : insets.bottom;
   const items = [
     { label: "Feed", onPress: () => router.push("/(tabs)/home"), icon: <FeedIcon color={colors.textMuted} /> },
-    { label: "Discover", onPress: () => router.push("/(tabs)/discover"), icon: <Feather name="search" size={24} color={colors.textMuted} strokeWidth={1.75} /> },
+    { label: "Discover", onPress: () => router.push("/(tabs)/discover"), icon: <Icon name="search" size={24} color={colors.textMuted} strokeWidth={1.75} /> },
     { label: "Library", onPress: () => router.push("/(tabs)/create"), icon: <LibraryIcon color={colors.textMuted} /> },
-    { label: "Messages", onPress: () => router.push("/(tabs)/inbox"), icon: <Feather name="message-circle" size={24} color={colors.textMuted} strokeWidth={1.75} /> },
-    { label: "Profile", onPress: () => router.push("/(tabs)/profile"), icon: <Feather name="user" size={24} color={colors.textMuted} strokeWidth={1.75} /> },
+    { label: "Messages", onPress: () => router.push("/(tabs)/inbox"), icon: <Icon name="message-circle" size={24} color={colors.textMuted} strokeWidth={1.75} /> },
+    { label: "Profile", onPress: () => router.push("/(tabs)/profile"), icon: <Icon name="user" size={24} color={colors.textMuted} strokeWidth={1.75} /> },
   ];
   return <View style={[s.bottomNav, { backgroundColor: colors.surface, borderTopColor: colors.border, height: 76 + bottomInset, paddingBottom: bottomInset }]}>{items.map((item) => <Pressable key={item.label} onPress={item.onPress} style={s.navItem}>{item.icon}<Text color="muted" style={s.navLabel}>{item.label}</Text></Pressable>)}</View>;
 }
