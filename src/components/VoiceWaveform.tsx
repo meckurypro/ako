@@ -13,6 +13,8 @@ interface VoiceWaveformProps {
    *  WhatsApp's tap-to-scrub. */
   onSeek?: (ratio: number) => void;
   heightClass?: string;
+  /** WhatsApp's round scrub handle riding the bars at the current position (a bg-* class). */
+  thumbColor?: string;
 }
 
 export function VoiceWaveform({
@@ -22,6 +24,7 @@ export function VoiceWaveform({
   mutedColor,
   onSeek,
   heightClass = "h-7",
+  thumbColor,
 }: VoiceWaveformProps) {
   function handleClick(e: MouseEvent<HTMLDivElement>) {
     if (!onSeek) return;
@@ -32,7 +35,7 @@ export function VoiceWaveform({
 
   return (
     <div
-      className={`flex items-center gap-[2.5px] flex-1 min-w-0 ${heightClass} ${onSeek ? "cursor-pointer" : ""}`}
+      className={`relative flex items-center gap-[2.5px] flex-1 min-w-0 ${heightClass} ${onSeek ? "cursor-pointer" : ""}`}
       onClick={handleClick}
     >
       {levels.map((level, i) => {
@@ -45,6 +48,13 @@ export function VoiceWaveform({
           />
         );
       })}
+      {thumbColor && (
+        <span
+          aria-hidden
+          className={`pointer-events-none absolute top-1/2 w-3 h-3 -mt-1.5 rounded-full ${thumbColor}`}
+          style={{ left: `calc(${Math.min(1, Math.max(0, progress)) * 100}% - ${Math.min(1, Math.max(0, progress)) * 12}px)` }}
+        />
+      )}
     </div>
   );
 }

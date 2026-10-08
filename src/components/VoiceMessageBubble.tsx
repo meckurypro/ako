@@ -1,5 +1,5 @@
 // src/components/VoiceMessageBubble.tsx
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Play, Pause, EyeOff, Mic } from "lucide-react";
 import { formatVoiceDuration } from "../lib/voiceNotes";
 import { computeWaveformPeaks } from "../lib/waveform";
@@ -10,6 +10,8 @@ import {
   clearRememberedPosition,
   getRememberedPosition,
   getPreferredPlaybackSpeed,
+  hasPlayed,
+  markPlayed,
   nextPlaybackSpeed,
   setPreferredPlaybackSpeed,
   setRememberedPosition,
@@ -56,6 +58,8 @@ interface VoiceMessageBubbleProps {
    *  post where there's no single 1:1 sender photo to anchor. */
   senderAvatarUrl?: string | null;
   senderName?: string;
+  /** Time + ticks, drawn at the right end of the duration row (chat bubbles; rooms leave it out). */
+  footer?: ReactNode;
 }
 
 /**
@@ -85,6 +89,7 @@ export function VoiceMessageBubble({
   onOpened,
   senderAvatarUrl,
   senderName,
+  footer,
 }: VoiceMessageBubbleProps) {
   const stableKey = path ?? url ?? "";
   // Recipient-only: once the DB says this exact note has been opened,
@@ -97,6 +102,7 @@ export function VoiceMessageBubble({
   const [elapsed, setElapsed] = useState(0);
   const [fetchedPeaks, setFetchedPeaks] = useState<number[] | null>(null);
   const [speed, setSpeed] = useState<PlaybackSpeed>(() => getPreferredPlaybackSpeed());
+  const [played, setPlayed] = useState(() => hasPlayed(stableKey));
   // `url` is already playable as-is (optimistic local blob). A `path`
   // needs a signed URL fetched first — the bucket is private, so
   // there's nothing playable to point <audio> at until this resolves.
@@ -223,6 +229,10 @@ export function VoiceMessageBubble({
       audio.playbackRate = speed;
       audio.play().catch(() => {});
       setPlaying(true);
+      if (!played) {
+        markPlayed(stableKey);
+        setPlayed(true);
+      }
     }
   }
 
@@ -260,22 +270,32 @@ export function VoiceMessageBubble({
     );
   }
 
+  const showSpeed = playing || elapsed > 0;
+  // Received + not yet listened → accent mic; once played it turns blue (WhatsApp's green → blue).
+  const badgeClass = isMine ? "bg-white text-accent ring-accent" : played ? "bg-tick-blue text-white ring-surface" : "bg-accent text-white ring-surface";
+
   return (
-    <div className="flex items-center gap-2.5 min-w-[200px] py-0.5">
+    <div className="flex items-center gap-2 min-w-[230px] py-0.5">
       {/* eslint-disable-next-line jsx-a11y/media-has-caption */}
       {resolvedUrl && <audio ref={audioRef} src={resolvedUrl} preload="metadata" className="hidden" />}
-      {senderAvatarUrl !== undefined && (
+      {/* Leading slot: while a note is playing, the speed chip takes the avatar's place (as in WhatsApp). */}
+      {showSpeed ? (
+        <button
+          type="button"
+          onClick={cycleSpeed}
+          className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 text-xs font-bold tabular-nums ${chipClass}`}
+          aria-label={`Playback speed, currently ${speed}x. Tap to change.`}
+        >
+          {speed}x
+        </button>
+      ) : senderAvatarUrl !== undefined ? (
         <div className="relative flex-shrink-0">
           <Avatar src={senderAvatarUrl} name={senderName ?? "?"} size="sm" />
-          <span
-            className={`absolute -bottom-0.5 -right-0.5 w-4 h-4 rounded-full flex items-center justify-center ring-2 ${
-              isMine ? "bg-white text-accent ring-accent" : "bg-accent text-white ring-surface"
-            }`}
-          >
+          <span className={`absolute -bottom-0.5 -right-0.5 w-4 h-4 rounded-full flex items-center justify-center ring-2 ${badgeClass}`}>
             <Mic size={9} />
           </span>
         </div>
-      )}
+      ) : null}
       <button
         type="button"
         onClick={toggle}
@@ -283,40 +303,28 @@ export function VoiceMessageBubble({
         className={`w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0 ${buttonClass} ${!resolvedUrl ? "opacity-50" : ""}`}
         aria-label={playing ? "Pause voice message" : "Play voice message"}
       >
-        {playing ? (
-          <Pause size={15} fill="currentColor" />
-        ) : (
-          <Play size={15} fill="currentColor" className="ml-0.5" />
-        )}
+        {playing ? <Pause size={15} fill="currentColor" /> : <Play size={15} fill="currentColor" className="ml-0.5" />}
       </button>
-      <VoiceWaveform levels={barLevels} progress={progress} filledColor={filledColor} mutedColor={mutedColor} onSeek={seek} />
-      <div className="flex flex-col items-end gap-0.5 flex-shrink-0">
-        <span className="text-[11px] tabular-nums opacity-80 flex items-center gap-1">
-          {viewOnce && (
-            <span
-              className={`w-3.5 h-3.5 rounded-full flex items-center justify-center text-[9px] font-bold leading-none ${
-                isMine ? "bg-white/25" : "bg-accent/15 text-accent"
-              }`}
-              aria-label="View once"
-            >
-              1
-            </span>
-          )}
-          {formatVoiceDuration(playing || elapsed > 0 ? elapsed : durationSec)}
-        </span>
-        {/* Speed is discoverable but stays out of the way until a note
-           has actually started — showing "1x" on every idle bubble in
-           a long chat is noise, not a control. */}
-        {(playing || elapsed > 0) && (
-          <button
-            type="button"
-            onClick={cycleSpeed}
-            className={`text-[10px] font-semibold leading-none px-1.5 py-0.5 rounded-full tabular-nums ${chipClass}`}
-            aria-label={`Playback speed, currently ${speed}x. Tap to change.`}
-          >
-            {speed}x
-          </button>
-        )}
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center">
+          <VoiceWaveform levels={barLevels} progress={progress} filledColor={filledColor} mutedColor={mutedColor} onSeek={seek} thumbColor={filledColor} />
+        </div>
+        <div className="flex items-center justify-between gap-2 mt-0.5">
+          <span className="text-[11px] tabular-nums opacity-80 flex items-center gap-1">
+            {viewOnce && (
+              <span
+                className={`w-3.5 h-3.5 rounded-full flex items-center justify-center text-[9px] font-bold leading-none ${
+                  isMine ? "bg-white/25" : "bg-accent/15 text-accent"
+                }`}
+                aria-label="View once"
+              >
+                1
+              </span>
+            )}
+            {formatVoiceDuration(showSpeed ? elapsed : durationSec)}
+          </span>
+          {footer}
+        </div>
       </div>
     </div>
   );

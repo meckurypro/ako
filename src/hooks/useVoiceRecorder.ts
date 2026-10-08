@@ -49,9 +49,26 @@ interface PreviewData {
  * browser mid-gesture. Global listeners have no such dependency on a
  * particular element surviving the whole hold.
  */
+interface VoiceRecorderOptions {
+  /** Releasing an unlocked hold sends immediately (WhatsApp) instead of opening the preview.
+   *  Off by default so existing callers (rooms) keep their preview-then-send flow. */
+  sendOnRelease?: boolean;
+  /** Called when a hold was too short to be a recording — show "Hold to record, release to send". */
+  onTooShort?: () => void;
+}
+
+/** Holds shorter than this are treated as an accidental tap, not a recording. */
+const TAP_CANCEL_MS = 500;
+
 export function useVoiceRecorder(
-  onSend: (blob: Blob, durationSec: number, peaks: number[], viewOnce: boolean) => Promise<void>
+  onSend: (blob: Blob, durationSec: number, peaks: number[], viewOnce: boolean, localUrl: string) => Promise<void>,
+  options: VoiceRecorderOptions = {}
 ) {
+  const sendOnReleaseRef = useRef(!!options.sendOnRelease);
+  sendOnReleaseRef.current = !!options.sendOnRelease;
+  const onTooShortRef = useRef(options.onTooShort);
+  onTooShortRef.current = options.onTooShort;
+  const sendAfterStopRef = useRef(false);
   const [phase, setPhase] = useState<VoiceRecorderPhase>("idle");
   const [locked, setLocked] = useState(false);
   const [paused, setPaused] = useState(false);
@@ -59,6 +76,8 @@ export function useVoiceRecorder(
   const [drag, setDrag] = useState({ x: 0, y: 0 });
   const [preview, setPreview] = useState<PreviewData | null>(null);
   const [sending, setSending] = useState(false);
+  const onSendRef = useRef(onSend);
+  onSendRef.current = onSend;
   const [micStream, setMicStream] = useState<MediaStream | null>(null);
 
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
@@ -129,10 +148,11 @@ export function useVoiceRecorder(
     setDrag({ x: 0, y: 0 });
   }, []);
 
-  const stopToPreview = useCallback(() => {
+  const finishStop = useCallback((sendAfter: boolean) => {
     const mr = mediaRecorderRef.current;
     if (!mr || mr.state === "inactive") return;
     endedRef.current = true;
+    sendAfterStopRef.current = sendAfter;
     const finalElapsedMs = pausedRef.current
       ? accumulatedMsRef.current
       : accumulatedMsRef.current + (Date.now() - segmentStartRef.current);
@@ -141,9 +161,29 @@ export function useVoiceRecorder(
       const blob = new Blob(recordedChunksRef.current, { type: mr.mimeType || "audio/webm" });
       const url = URL.createObjectURL(blob);
       const durationSec = Math.max(1, Math.round(finalElapsedMs / 1000));
+      releaseMic();
+      if (sendAfterStopRef.current) {
+        // Release-to-send: hand the composer back at once; the bubble shows optimistically while it uploads.
+        sendAfterStopRef.current = false;
+        setLocked(false);
+        lockedRef.current = false;
+        setDrag({ x: 0, y: 0 });
+        setPhase("idle");
+        void (async () => {
+          const peaks = await computeWaveformPeaks(blob).catch(() => [] as number[]);
+          try {
+            await onSendRef.current(blob, durationSec, peaks, false, url);
+            URL.revokeObjectURL(url);
+          } catch {
+            // Upload failed: keep the clip as a draft so nothing recorded is lost.
+            setPreview({ blob, url, durationSec, peaks, viewOnce: false });
+            setPhase("preview");
+          }
+        })();
+        return;
+      }
       setPreview({ blob, url, durationSec, peaks: [], viewOnce: false });
       setPhase("preview");
-      releaseMic();
       // Fills in a beat after the preview bar is already visible —
       // see the PreviewData.peaks comment above.
       computeWaveformPeaks(blob)
@@ -153,6 +193,10 @@ export function useVoiceRecorder(
     if (recordingTimerRef.current) clearInterval(recordingTimerRef.current);
     mr.stop();
   }, []);
+
+  const stopToPreview = useCallback(() => finishStop(false), [finishStop]);
+  /** Stop and send in one step — the "release to send" / locked-mode send button. */
+  const stopAndSend = useCallback(() => finishStop(true), [finishStop]);
 
   const togglePauseResume = useCallback(() => {
     const mr = mediaRecorderRef.current;
@@ -186,7 +230,7 @@ export function useVoiceRecorder(
     if (!preview) return;
     setSending(true);
     try {
-      await onSend(preview.blob, preview.durationSec, preview.peaks, preview.viewOnce);
+      await onSend(preview.blob, preview.durationSec, preview.peaks, preview.viewOnce, preview.url);
       URL.revokeObjectURL(preview.url);
       setPreview(null);
       setPhase("idle");
@@ -230,7 +274,11 @@ export function useVoiceRecorder(
       function handleUp() {
         cleanup();
         if (endedRef.current || lockedRef.current) return; // locked → hands-free, only the toolbar's own buttons end it now
-        stopToPreview();
+        if (Date.now() - segmentStartRef.current + accumulatedMsRef.current < TAP_CANCEL_MS) {
+          cancelRecording();
+          onTooShortRef.current?.();
+        } else if (sendOnReleaseRef.current) stopAndSend();
+        else stopToPreview();
       }
       // A genuine pointerup (finger deliberately lifted) still goes to
       // preview even if it's short — that's a real, if brief, note.
@@ -256,7 +304,7 @@ export function useVoiceRecorder(
       window.addEventListener("pointerup", handleUp);
       window.addEventListener("pointercancel", handleCancel);
     },
-    [startRecording, cancelRecording, stopToPreview]
+    [startRecording, cancelRecording, stopToPreview, stopAndSend]
   );
 
   return {
@@ -273,6 +321,7 @@ export function useVoiceRecorder(
     micHandlers: { onPointerDown },
     cancelRecording,
     stopToPreview,
+    stopAndSend,
     togglePauseResume,
     toggleViewOnce,
     discardPreview,

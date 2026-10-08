@@ -3,6 +3,7 @@ import { useParams } from "react-router-dom";
 import { useSmartBack } from "../hooks/useSmartBack";
 import { ArrowLeft, Undo2 } from "lucide-react";
 import { useAuth } from "../hooks/useAuth";
+import { MessagePreviewLine } from "../components/MessagePreviewLine";
 import { useHiddenMessages, useUnhideMessage } from "../hooks/useMessageReactions";
 
 function formatTime(dateString: string): string {
@@ -53,9 +54,9 @@ export function HiddenMessages() {
                   <p className="text-xs text-ink-muted mb-0.5">
                     {isMine ? "You" : "Them"} · {formatTime(m.created_at)}
                   </p>
-                  <p className={`text-sm text-ink truncate ${m.is_deleted ? "italic opacity-70" : ""}`}>
-                    {m.is_deleted ? "This message was deleted" : m.content}
-                  </p>
+                  <div className={`text-sm text-ink ${m.is_deleted ? "italic opacity-70" : ""}`}>
+                    <MessagePreviewLine content={m.is_deleted ? "This message was deleted" : m.content} />
+                  </div>
                 </div>
                 <button
                   onClick={() => unhide.mutate(m.id)}

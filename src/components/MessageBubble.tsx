@@ -5,9 +5,12 @@ import type { MessageWithSender } from "../hooks/useMessaging";
 import type { MessageReaction } from "../hooks/useMessageReactions";
 import { MessageStatusTicks } from "./MessageStatusTicks";
 import { VoiceMessageBubble } from "./VoiceMessageBubble";
-import { decodeVoiceNote, VOICE_NOTE_LABEL } from "../lib/voiceNotes";
+import { decodeVoiceNote } from "../lib/voiceNotes";
+import { decodeMedia } from "../lib/chatMedia";
+import { MediaMessage } from "./MediaMessage";
+import { MessagePreviewLine } from "./MessagePreviewLine";
 import { getEmojiOnlyInfo, jumboEmojiSizeClass } from "../lib/emoji";
-import { formatMessageTime } from "../lib/messageTime";
+import { formatMessageDayLabel, formatMessageTime } from "../lib/messageTime";
 
 // Swipe-to-reply tuning — mirrors WhatsApp's feel: the bubble tracks
 // the finger 1:1 up to SWIPE_MAX, then resists further drag, and the
@@ -188,7 +191,8 @@ function MessageBubbleImpl({
   const voiceNote = !m.is_deleted ? decodeVoiceNote(m.content) : null;
   const offset = dragOffset;
   const repliedTo = m.reply_to?.[0];
-  const repliedToVoiceNote = repliedTo && !repliedTo.is_deleted ? decodeVoiceNote(repliedTo.content) : null;
+  const media = !m.is_deleted ? decodeMedia(m.content) : null;
+  const isPhoto = media?.items[0].kind === "image";
   const timeStr = formatMessageTime(m.created_at);
 
   // "Jumbo" emoji-only rendering (WhatsApp/iMessage behavior,
@@ -197,7 +201,7 @@ function MessageBubbleImpl({
   // something, since the reply-quote strip still needs an actual
   // bubble to sit inside.
   const emojiInfo =
-    !m.is_deleted && !voiceNote && !repliedTo ? getEmojiOnlyInfo(m.content) : { isEmojiOnly: false, count: 0 };
+    !m.is_deleted && !voiceNote && !media && !repliedTo ? getEmojiOnlyInfo(m.content) : { isEmojiOnly: false, count: 0 };
   const isJumboEmoji = emojiInfo.isEmojiOnly;
   const tailClass = isMine ? "bubble-tail-mine" : "bubble-tail-theirs";
 
@@ -259,7 +263,7 @@ function MessageBubbleImpl({
             className={`relative w-fit max-w-full text-sm whitespace-pre-wrap break-words select-none ${
               isJumboEmoji
                 ? "bg-transparent"
-                : `rounded-2xl px-3 py-2 ${tailClass} ${
+                : `rounded-2xl ${isPhoto ? "p-1" : "px-3 py-2"} ${tailClass} ${
                     isMine ? "bg-bubble-mine text-white" : "bg-bubble-theirs text-ink bubble-elevate"
                   }`
             } ${m.is_deleted ? "italic opacity-70" : ""}`}
@@ -301,9 +305,11 @@ function MessageBubbleImpl({
                 <span className="block font-medium">
                   {repliedTo.sender_id === currentUserId ? "You" : otherParticipantName}
                 </span>
-                <span className="block truncate">
-                  {repliedTo.is_deleted ? "Original message deleted" : repliedToVoiceNote ? VOICE_NOTE_LABEL : repliedTo.content}
-                </span>
+                {repliedTo.is_deleted ? (
+                  <span className="block truncate">Original message deleted</span>
+                ) : (
+                  <MessagePreviewLine content={repliedTo.content} />
+                )}
               </button>
             )}
 
@@ -317,6 +323,15 @@ function MessageBubbleImpl({
                   </span>
                 )}
               </span>
+            ) : media ? (
+              <MediaMessage
+                media={media}
+                isMine={isMine}
+                timeStr={timeStr}
+                ticks={ticks}
+                senderName={otherParticipantName}
+                sentLabel={`${formatMessageDayLabel(m.created_at)}, ${timeStr}`}
+              />
             ) : voiceNote ? (
               <span className="relative block">
                 <VoiceMessageBubble
@@ -330,13 +345,13 @@ function MessageBubbleImpl({
                   onOpened={() => onVoiceNoteOpened?.(m.id)}
                   senderAvatarUrl={isMine ? myAvatarUrl : otherParticipantAvatarUrl}
                   senderName={isMine ? myName ?? "You" : otherParticipantName}
+                  footer={
+                    <span className={`flex items-center gap-1 text-[11px] ${isMine ? "text-white/70" : "text-ink-muted"}`}>
+                      {timeStr}
+                      {ticks}
+                    </span>
+                  }
                 />
-                <span
-                  className={`flex items-center gap-1 justify-end mt-1 text-[11px] ${isMine ? "text-white/70" : "text-ink-muted"}`}
-                >
-                  {timeStr}
-                  {ticks}
-                </span>
               </span>
             ) : isJumboEmoji ? (
               <span className="relative flex flex-col items-end">

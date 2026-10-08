@@ -4,6 +4,8 @@ import { Copy, Trash2, Redo2, MoreHorizontal, Star, Pin, Plus, X, Reply, Forward
 import { useBackDismiss } from "../hooks/useBackDismiss";
 import { useScrollLock } from "../hooks/useScrollLock";
 import { DropdownMenu, type DropdownMenuItem } from "./DropdownMenu";
+import { MessagePreviewLine } from "./MessagePreviewLine";
+import { messagePlainText } from "../lib/chatMedia";
 
 interface MessageActionMenuProps {
   messageId: string;
@@ -185,16 +187,19 @@ export function MessageActionMenu({
             >
               <Forward size={19} />
             </button>
-            <button
-              onClick={() => {
-                onCopy();
-                onClose();
-              }}
-              className="p-2 text-ink"
-              aria-label="Copy"
-            >
-              <Copy size={19} />
-            </button>
+            {/* Copy only makes sense for text (or a photo's caption) — never a voice message / bare photo. */}
+            {!isDeleted && messagePlainText(content).trim().length > 0 && (
+              <button
+                onClick={() => {
+                  onCopy();
+                  onClose();
+                }}
+                className="p-2 text-ink"
+                aria-label="Copy"
+              >
+                <Copy size={19} />
+              </button>
+            )}
             <button
               onClick={() => {
                 onToggleStar();
@@ -340,7 +345,7 @@ export function MessageActionMenu({
             isMine ? "bg-accent text-white bubble-tail-mine" : "bg-surface text-ink bubble-tail-theirs"
           } ${isDeleted ? "italic opacity-70" : ""}`}
         >
-          {isDeleted ? "This message was deleted" : content}
+          <MessagePreviewLine content={isDeleted ? "This message was deleted" : content} className="whitespace-pre-wrap break-words" />
         </div>
       </div>
     </div>

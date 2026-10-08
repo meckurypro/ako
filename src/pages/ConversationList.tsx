@@ -20,7 +20,8 @@ import { MessageStatusTicks } from "../components/MessageStatusTicks";
 import { ConversationActionSheet } from "../components/ConversationActionSheet";
 import { ConfirmDialog } from "../components/ConfirmDialog";
 import { MediaViewer } from "../components/MediaViewer";
-import { decodeVoiceNote, VOICE_NOTE_LABEL } from "../lib/voiceNotes";
+import { MessagePreviewLine } from "../components/MessagePreviewLine";
+import { messagePlainText } from "../lib/chatMedia";
 
 const MAX_PINNED = 3;
 
@@ -209,7 +210,7 @@ export function ConversationList() {
         // A voice note's raw encoded content (the storage path, its
         // JSON wrapper) isn't something a search term should ever
         // match against — nothing about it is meant to be read as text.
-        (!!c.last_message && !decodeVoiceNote(c.last_message.content) && c.last_message.content.toLowerCase().includes(q))
+        (!!c.last_message && messagePlainText(c.last_message.content).toLowerCase().includes(q))
       );
     });
   }, [conversations, searchQuery]);
@@ -316,12 +317,11 @@ export function ConversationList() {
                 />
               </span>
             )}
-            <span className={`truncate min-w-0 flex-1 ${c.last_message?.is_deleted ? "italic opacity-70" : ""}`}>
-              {c.last_message?.is_deleted
-                ? "This message was deleted"
-                : c.last_message && decodeVoiceNote(c.last_message.content)
-                  ? VOICE_NOTE_LABEL
-                  : c.last_message?.content ?? "Say hello"}
+            <span className={`min-w-0 flex-1 ${c.last_message?.is_deleted ? "italic opacity-70" : ""}`}>
+              <MessagePreviewLine
+                variant="list"
+                content={c.last_message?.is_deleted ? "This message was deleted" : (c.last_message?.content ?? "Say hello")}
+              />
             </span>
           </p>
         </div>

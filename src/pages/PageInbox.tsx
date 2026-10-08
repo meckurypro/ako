@@ -10,7 +10,7 @@ import { useActiveIdentity } from "../hooks/usePages";
 import { usePageConversations, type PageConversationSummary } from "../hooks/usePageInbox";
 import { Avatar } from "../components/Avatar";
 import { BottomNav } from "../components/BottomNav";
-import { decodeVoiceNote, VOICE_NOTE_LABEL } from "../lib/voiceNotes";
+import { messagePreview } from "../lib/chatMedia";
 
 function timeAgo(dateString: string): string {
   const seconds = Math.floor((Date.now() - new Date(dateString).getTime()) / 1000);
@@ -39,9 +39,10 @@ function ConversationRow({ c }: { c: PageConversationSummary }) {
         </div>
         <p className={`text-sm truncate ${c.unreadCount > 0 ? "text-ink" : "text-ink-muted"}`}>
           {c.last_message
-            ? `${c.last_message.sender_type === "page" ? "You: " : ""}${
-                decodeVoiceNote(c.last_message.content) ? VOICE_NOTE_LABEL : c.last_message.content
-              }`
+            ? `${c.last_message.sender_type === "page" ? "You: " : ""}${(() => {
+                const p = messagePreview(c.last_message.content);
+                return p.icon === "mic" && p.meta ? `${p.label} (${p.meta})` : p.label;
+              })()}`
             : "Say hello"}
         </p>
       </div>

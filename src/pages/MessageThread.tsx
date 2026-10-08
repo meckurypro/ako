@@ -19,6 +19,8 @@ import {
   Mic,
   Share2,
   Users,
+  Paperclip,
+  Camera,
 } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { useVirtualizer } from "@tanstack/react-virtual";
@@ -56,11 +58,15 @@ import { MessageActionMenu } from "../components/MessageActionMenu";
 import { DeleteMessageSheet } from "../components/DeleteMessageSheet";
 import { ForwardMessageSheet } from "../components/ForwardMessageSheet";
 import { VoiceRecordingBar } from "../components/VoiceRecordingBar";
+import { AttachMenu } from "../components/AttachMenu";
+import { MediaComposeModal } from "../components/MediaComposeModal";
+import { MessagePreviewLine } from "../components/MessagePreviewLine";
+import { useSendMedia } from "../hooks/useSendMedia";
+import { MAX_ALBUM_ITEMS, MAX_MEDIA_BYTES, messagePlainText, messagePreview, type MediaKind } from "../lib/chatMedia";
 import { VoicePreviewBar } from "../components/VoicePreviewBar";
 import { EmojiPickerSheet, removeLastGrapheme } from "../components/EmojiPickerSheet";
 import { formatLastSeen } from "../lib/presence";
 import { dayKeyFor, formatMessageDayLabel } from "../lib/messageTime";
-import { decodeVoiceNote, VOICE_NOTE_LABEL } from "../lib/voiceNotes";
 import { ReactionOptionsPopover, type ReactionPopoverTarget } from "../components/ReactionOptionsPopover";
 import { useBackDismiss } from "../hooks/useBackDismiss";
 import { useKeyboardInset } from "../hooks/useKeyboardInset";
@@ -175,6 +181,7 @@ export function MessageThread() {
   const unseenPostId = otherParticipant ? unseenPosts?.[otherParticipant.id] : undefined;
   const sendMessage = useSendMessage(conversationId!);
   const sendVoiceNote = useSendVoiceNote(conversationId!);
+  const sendMedia = useSendMedia(conversationId!);
   const deleteMessage = useDeleteMessage(conversationId!);
   const bulkDeleteMessages = useBulkDeleteMessages(conversationId!);
   const bulkSetHidden = useBulkSetMessagesHidden(conversationId!);
@@ -465,7 +472,8 @@ export function MessageThread() {
   function handleBulkShare() {
     const text = selectedMessages
       .filter((m) => !m.is_deleted)
-      .map((m) => (decodeVoiceNote(m.content) ? VOICE_NOTE_LABEL : m.content))
+      .map((m) => messagePlainText(m.content) || messagePreview(m.content).label)
+      .filter(Boolean)
       .join("\n");
     if (!text) return;
     if (navigator.share) {
@@ -657,7 +665,7 @@ export function MessageThread() {
     // have no text content to match — both are excluded here so a
     // "match" always corresponds to something actually visible/searchable.
     return visibleMessages.filter(
-      (m) => !m.is_deleted && !decodeVoiceNote(m.content) && m.content.toLowerCase().includes(q)
+      (m) => !m.is_deleted && messagePlainText(m.content).toLowerCase().includes(q)
     );
   }, [visibleMessages, searchQuery]);
 
@@ -865,13 +873,12 @@ export function MessageThread() {
   // Full press-hold-record / slide-to-cancel / slide-up-to-lock /
   // preview-before-send lifecycle lives in this hook — see
   // useVoiceRecorder.ts for the gesture and MediaRecorder details.
-  const voiceRecorder = useVoiceRecorder(async (blob, durationSec, peaks, viewOnce) => {
+  const voiceRecorder = useVoiceRecorder(async (blob, durationSec, peaks, viewOnce, localUrl) => {
     const replyingTo = replyTarget;
     // Still a valid, playable blob URL at this point — useVoiceRecorder's
     // sendPreview only revokes it once this callback resolves. Passing it
     // through as `localUrl` lets the sent bubble appear instantly and
     // already be playable, instead of waiting on the storage upload.
-    const localUrl = voiceRecorder.preview?.url;
     try {
       await sendVoiceNote.mutateAsync({
         blob,
@@ -889,7 +896,65 @@ export function MessageThread() {
       flashError("Couldn't send the voice message. Please try again.");
       throw new Error("send failed"); // keeps the hook from clearing the preview it couldn't send
     }
+  }, {
+    // WhatsApp: release to send; slide up to lock for hands-free + draft preview.
+    sendOnRelease: true,
+    onTooShort: () => flashInfo("Hold to record, release to send"),
   });
+
+  // ── attach: gallery · camera · document → preview with caption → send ──
+  const [attachOpen, setAttachOpen] = useState(false);
+  const [mediaDraft, setMediaDraft] = useState<{ kind: MediaKind; files: File[] } | null>(null);
+  const galleryInputRef = useRef<HTMLInputElement>(null);
+  const cameraInputRef = useRef<HTMLInputElement>(null);
+  const documentInputRef = useRef<HTMLInputElement>(null);
+  useBackDismiss(() => setAttachOpen(false), attachOpen);
+
+  function onFilesPicked(kind: MediaKind, list: FileList | null) {
+    if (!list || list.length === 0) return;
+    const files = Array.from(list).slice(0, kind === "document" ? 1 : MAX_ALBUM_ITEMS);
+    if (files.some((f) => f.size > MAX_MEDIA_BYTES)) {
+      flashError("That file is larger than 25 MB.");
+      return;
+    }
+    if (kind === "image" && files.some((f) => !f.type.startsWith("image/"))) {
+      flashError("Only photos can be sent from the gallery.");
+      return;
+    }
+    setMediaDraft({ kind, files });
+  }
+
+  function handleSendMedia(files: File[], caption: string, hd: boolean) {
+    const draft = mediaDraft;
+    if (!draft) return;
+    const replyingTo = replyTarget;
+    setMediaDraft(null);
+    setReplyTarget(null);
+    sendMedia.mutate(
+      {
+        kind: draft.kind,
+        files,
+        caption,
+        hd,
+        replyToMessageId: replyingTo?.id ?? null,
+        replyToSnippet: replyingTo
+          ? { id: replyingTo.id, content: replyingTo.content, sender_id: replyingTo.sender_id, is_deleted: replyingTo.is_deleted }
+          : null,
+      },
+      {
+        onError: (err) => {
+          const msg = err instanceof Error ? err.message : "";
+          flashError(
+            msg === "too_large"
+              ? "That file is larger than 25 MB."
+              : /bucket not found/i.test(msg)
+                ? "Photo and file sharing isn't set up on the server yet."
+                : "Couldn't send that. Please try again."
+          );
+        },
+      }
+    );
+  }
 
   // Defensive layer matching ConversationList's own messaging_enabled
   // check — a conversation someone had open in a tab, or a deep link
@@ -1257,9 +1322,7 @@ export function MessageThread() {
               <p className="text-xs font-medium text-accent">
                 Replying to {replyTarget.sender_id === user?.id ? "yourself" : otherParticipant?.display_name ?? "them"}
               </p>
-              <p className="text-xs text-ink-muted truncate">
-                {decodeVoiceNote(replyTarget.content) ? VOICE_NOTE_LABEL : replyTarget.content}
-              </p>
+              <MessagePreviewLine content={replyTarget.content} className="text-xs text-ink-muted" />
             </div>
             <button
               type="button"
@@ -1289,66 +1352,88 @@ export function MessageThread() {
            covered, without ever unmounting it. */}
         <form
           onSubmit={handleSubmit}
-          className="px-4 py-3 flex items-center gap-2"
+          className="px-3 py-2.5 flex items-end gap-2"
           aria-hidden={voiceRecorder.phase !== "idle"}
           style={voiceRecorder.phase !== "idle" ? { pointerEvents: "none" } : undefined}
         >
-          <button
-            type="button"
-            onClick={() => {
-              const switchingToKeyboard = emojiPickerTarget?.mode === "input";
-              setEmojiPickerTarget(switchingToKeyboard ? null : { mode: "input" });
-              if (switchingToKeyboard) {
-                // Bring the real software keyboard straight back up —
-                // matches the feel of a native app's emoji/keyboard
-                // toggle instead of dropping the user with no keyboard
-                // and no focus.
-                requestAnimationFrame(() => inputRef.current?.focus());
-              } else {
-                inputRef.current?.blur(); // stop the OS keyboard from fighting our panel for space
-              }
-            }}
-            className="text-ink-muted flex-shrink-0"
-            aria-label={emojiPickerTarget?.mode === "input" ? "Switch to keyboard" : "Add emoji"}
-          >
-            {emojiPickerTarget?.mode === "input" ? <Keyboard size={22} /> : <Smile size={22} />}
-          </button>
-          <textarea
-            ref={inputRef}
-            value={content}
-            onChange={(e) => setContent(e.target.value)}
-            maxLength={2000}
-            rows={1}
-            placeholder="Message…"
-            // No onKeyDown at all on purpose — a bare <textarea> never
-            // submits its form on Enter (only <input> does that), so
-            // Enter already just inserts a newline for free. Sending
-            // only ever happens via the button below.
-            className="flex-1 px-4 py-2.5 rounded-3xl border border-border bg-surface text-ink resize-none
-              max-h-[120px] leading-snug
-              focus:outline-none focus:ring-2 focus:ring-accent/40 focus:border-accent"
-          />
+          {/* One rounded pill, like WhatsApp: emoji · message · attach · camera. */}
+          <div className="flex-1 min-w-0 flex items-end rounded-3xl border border-border bg-surface pl-3 pr-1.5 focus-within:border-accent focus-within:ring-2 focus-within:ring-accent/40">
+            <button
+              type="button"
+              onClick={() => {
+                const switchingToKeyboard = emojiPickerTarget?.mode === "input";
+                setEmojiPickerTarget(switchingToKeyboard ? null : { mode: "input" });
+                if (switchingToKeyboard) {
+                  // Bring the real software keyboard straight back up — matches the feel of a
+                  // native app's emoji/keyboard toggle.
+                  requestAnimationFrame(() => inputRef.current?.focus());
+                } else {
+                  inputRef.current?.blur(); // stop the OS keyboard from fighting our panel for space
+                }
+              }}
+              className="text-ink-muted flex-shrink-0 pb-[11px] pr-2"
+              aria-label={emojiPickerTarget?.mode === "input" ? "Switch to keyboard" : "Add emoji"}
+            >
+              {emojiPickerTarget?.mode === "input" ? <Keyboard size={23} /> : <Smile size={23} />}
+            </button>
+            <textarea
+              ref={inputRef}
+              value={content}
+              onChange={(e) => setContent(e.target.value)}
+              maxLength={2000}
+              rows={1}
+              placeholder="Message"
+              // No onKeyDown at all on purpose — a bare <textarea> never submits its form on
+              // Enter (only <input> does that), so Enter already just inserts a newline for free.
+              // Sending only ever happens via the button below.
+              className="flex-1 min-w-0 bg-transparent py-2.5 text-ink placeholder:text-ink-muted resize-none max-h-[120px] leading-snug focus:outline-none"
+            />
+            <button type="button" onClick={() => setAttachOpen((v) => !v)} className="text-ink-muted flex-shrink-0 px-2 pb-[11px]" aria-label="Attach" aria-expanded={attachOpen}>
+              <Paperclip size={22} />
+            </button>
+            {!content.trim() && (
+              <button type="button" onClick={() => cameraInputRef.current?.click()} className="text-ink-muted flex-shrink-0 px-2 pb-[11px]" aria-label="Take a photo">
+                <Camera size={22} />
+              </button>
+            )}
+          </div>
           {content.trim() ? (
             <button
               type="submit"
               disabled={sendMessage.isPending}
-              className="bg-accent text-white rounded-full p-2.5 transition-colors hover:bg-accent-hover active:scale-95 disabled:opacity-50 disabled:active:scale-100 flex-shrink-0"
+              className="bg-accent text-white rounded-full w-11 h-11 flex items-center justify-center transition-colors hover:bg-accent-hover active:scale-95 disabled:opacity-50 disabled:active:scale-100 flex-shrink-0"
               aria-label="Send"
             >
-              <Send size={18} />
+              <Send size={20} />
             </button>
           ) : (
             <button
               type="button"
               onPointerDown={voiceRecorder.micHandlers.onPointerDown}
-              className="bg-accent text-white rounded-full p-2.5 transition-colors hover:bg-accent-hover active:scale-95 flex-shrink-0"
+              className="bg-accent text-white rounded-full w-11 h-11 flex items-center justify-center transition-colors hover:bg-accent-hover active:scale-95 flex-shrink-0"
               style={{ touchAction: "none" }}
               aria-label="Hold to record a voice message"
             >
-              <Mic size={18} />
+              <Mic size={20} />
             </button>
           )}
+          <input ref={galleryInputRef} type="file" accept="image/*" multiple className="hidden" onChange={(e) => { onFilesPicked("image", e.target.files); e.target.value = ""; }} />
+          <input ref={cameraInputRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={(e) => { onFilesPicked("image", e.target.files); e.target.value = ""; }} />
+          <input ref={documentInputRef} type="file" className="hidden" onChange={(e) => { onFilesPicked("document", e.target.files); e.target.value = ""; }} />
         </form>
+
+        {attachOpen && (
+          <AttachMenu
+            onClose={() => setAttachOpen(false)}
+            onGallery={() => galleryInputRef.current?.click()}
+            onCamera={() => cameraInputRef.current?.click()}
+            onDocument={() => documentInputRef.current?.click()}
+          />
+        )}
+
+        {mediaDraft && (
+          <MediaComposeModal kind={mediaDraft.kind} files={mediaDraft.files} onClose={() => setMediaDraft(null)} onSend={handleSendMedia} />
+        )}
 
         {voiceRecorder.phase !== "idle" && (
           <div className="absolute inset-0 bg-canvas">
@@ -1364,6 +1449,8 @@ export function MessageThread() {
                 onCancel={voiceRecorder.cancelRecording}
                 onTogglePause={voiceRecorder.togglePauseResume}
                 onStop={voiceRecorder.stopToPreview}
+                onSend={voiceRecorder.stopAndSend}
+                onPreview={voiceRecorder.stopToPreview}
               />
             )}
             {voiceRecorder.phase === "preview" && voiceRecorder.preview && (
@@ -1417,7 +1504,7 @@ export function MessageThread() {
             setReactionPopover({ messageId: activeMessage.message.id, anchorRect, emoji: activeMyReaction })
           }
           onOpenFullPicker={() => setEmojiPickerTarget({ mode: "reaction", messageId: activeMessage.message.id })}
-          onCopy={() => navigator.clipboard.writeText(activeMessage.message.content)}
+          onCopy={() => navigator.clipboard.writeText(messagePlainText(activeMessage.message.content))}
           onDeletePress={() =>
             setDeleteTarget({
               messageIds: [activeMessage.message.id],
@@ -1425,10 +1512,11 @@ export function MessageThread() {
             })
           }
           onShare={() => {
+            const text = messagePlainText(activeMessage.message.content) || messagePreview(activeMessage.message.content).label;
             if (navigator.share) {
-              navigator.share({ text: activeMessage.message.content }).catch(() => {});
+              navigator.share({ text }).catch(() => {});
             } else {
-              navigator.clipboard.writeText(activeMessage.message.content);
+              navigator.clipboard.writeText(text);
             }
           }}
           onForward={() => setForwardMessages([{ content: activeMessage.message.content }])}
