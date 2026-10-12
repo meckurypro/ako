@@ -344,7 +344,7 @@ export function ConversationList() {
   if (!messagingEnabled) {
     return (
       <div className="min-h-screen bg-canvas pb-24">
-        <header className="px-4 pt-6 pb-3 flex items-center gap-3 sticky top-0 bg-canvas z-30 border-b border-border">
+        <header className="px-4 pt-6 pb-3 flex items-center gap-3 sticky top-0 bg-canvas z-chrome border-b border-border">
           <button onClick={smartBack} className="text-ink-muted">
             <ArrowLeft size={22} />
           </button>
@@ -360,7 +360,7 @@ export function ConversationList() {
 
   return (
     <div className="min-h-screen bg-canvas pb-24">
-      <header className="sticky top-0 bg-canvas z-30 border-b border-border">
+      <header className="sticky top-0 bg-canvas z-chrome border-b border-border">
         {selectMode ? (
           <div className="px-4 pt-6 pb-3 flex items-center gap-3">
             <button onClick={exitSelectMode} className="text-ink-muted" aria-label="Cancel selection">

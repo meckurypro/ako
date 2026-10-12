@@ -8,8 +8,8 @@
 //
 // Rendered once, at the shell level (see AppShell.tsx), not per-page — so
 // unlike TopHeader/BottomNav it is NOT imported by individual pages.
-import { useState, type ComponentType } from "react";
-import { Link, NavLink, useLocation, useMatch } from "react-router-dom";
+import { useEffect, useRef, useState, type ComponentType } from "react";
+import { Link, NavLink, useLocation, useMatch, type Location } from "react-router-dom";
 import { Search, MessageCircle, User, Bell, Plus, Wallet as WalletIcon, Settings as SettingsIcon, Radio, LibraryBig } from "lucide-react";
 import { AkoMark } from "./AkoMark";
 import { Avatar } from "./Avatar";
@@ -19,6 +19,7 @@ import { usePageInboxUnreadCount } from "../hooks/usePageInbox";
 import { useActiveIdentity } from "../hooks/usePages";
 import { useUnreadCount } from "../hooks/useNotifications";
 import { useIsAdmin } from "../hooks/useAdmin";
+import { useMediaQuery } from "../hooks/useMediaQuery";
 
 type IconProps = { size?: number; strokeWidth?: number; fill?: string; className?: string };
 
@@ -34,6 +35,39 @@ function FeedIcon({ size = 22, strokeWidth = 1.75, fill = "none", className }: I
       <path d="M5.5 10v9a1 1 0 0 0 1 1h11a1 1 0 0 0 1-1v-9" />
     </svg>
   );
+}
+
+// Hover intent: the rail only flies out once the pointer has settled on it
+// (so brushing the left edge doesn't flash it open) and only folds away
+// once the pointer has clearly left (so a slight overshoot doesn't).
+const HOVER_OPEN_DELAY_MS = 120;
+const HOVER_CLOSE_DELAY_MS = 80;
+
+// Two-pane and immersive routes where a flyout covering the left ~180px
+// of the page would hide real content (the conversation list, a reader,
+// a room). On these the collapsed rail stays icons-only on hover — the
+// `title` tooltips on each item name the destinations instead. A prefix
+// ending in "/" matches only children; any other prefix matches itself
+// and its children. /inbox is a redirect (MyInboxRedirect) to /messages
+// or /page-inbox; it's listed so the lock holds on the very first frame.
+const HOVER_LOCKED_PREFIXES = ["/messages", "/inbox", "/page-inbox", "/rooms/", "/meetings/"];
+
+function isHoverLockedPath(pathname: string) {
+  if (pathname.endsWith("/read")) return true;
+  return HOVER_LOCKED_PREFIXES.some((p) =>
+    p.endsWith("/") ? pathname.startsWith(p) : pathname === p || pathname.startsWith(p + "/")
+  );
+}
+
+// Only keyboard focus should fly the rail out. A mouse click also focuses
+// the link, and without this check the rail would stay open after every
+// click until focus moved elsewhere.
+function isKeyboardFocus(el: Element) {
+  try {
+    return el.matches(":focus-visible");
+  } catch {
+    return true;
+  }
 }
 
 interface NavItemProps {
@@ -108,7 +142,45 @@ export function Sidebar({ collapsed, onToggleCollapsed }: SidebarProps) {
   // and deliberately doesn't react to hover, or every mouse-over
   // would reflow the whole page.
   const [isHovering, setIsHovering] = useState(false);
-  const showLabels = !collapsed || isHovering;
+  const [isKeyboardFocused, setIsKeyboardFocused] = useState(false);
+  const hoverTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Below lg a pinned-open 256px rail plus the 380px message list leaves
+  // the thread cramped (~390px at 1024), so the pin only takes effect at
+  // lg+ (AppShell mirrors this in CSS for the reserved padding). Below
+  // lg the rail behaves as collapsed regardless of the stored pin.
+  const isLg = useMediaQuery("(min-width: 1024px)");
+  const pinnedOpen = !collapsed && isLg;
+
+  // Hover-lock is decided off the page underneath when /create is open
+  // as a modal over a background route (same rule AppShell uses).
+  const backgroundLocation = (location.state as { background?: Location } | null)?.background;
+  const hoverLocked = isHoverLockedPath((backgroundLocation ?? location).pathname);
+
+  // Derived, not stored: navigating onto a locked route folds the rail
+  // immediately even though the pointer is still over it.
+  const flyoutOpen = !pinnedOpen && ((isHovering && !hoverLocked) || isKeyboardFocused);
+  const showLabels = pinnedOpen || flyoutOpen;
+
+  useEffect(() => {
+    return () => {
+      if (hoverTimer.current) clearTimeout(hoverTimer.current);
+    };
+  }, []);
+
+  function setHoverIntent(next: boolean) {
+    if (hoverTimer.current) clearTimeout(hoverTimer.current);
+    hoverTimer.current = null;
+    // Re-entering before the close timer fired: still open, nothing to wait for.
+    if (next && isHovering) return;
+    hoverTimer.current = setTimeout(
+      () => {
+        hoverTimer.current = null;
+        setIsHovering(next);
+      },
+      next ? HOVER_OPEN_DELAY_MS : HOVER_CLOSE_DELAY_MS
+    );
+  }
 
   // Same active-state disambiguation BottomNav uses: /me and /page/:username
   // both represent "your own identity" depending on acting-as-page mode.
@@ -124,16 +196,31 @@ export function Sidebar({ collapsed, onToggleCollapsed }: SidebarProps) {
   const profileHref = user ? (identity?.mode === "page" ? `/page/${identity.page.username}` : "/me") : "/login";
 
   return (
+    <>
+    {/* Dim layer while the flyout is open: below the rail (z-scrim <
+        z-sidebar), above page chrome (z-chrome). Never intercepts input. */}
+    <div
+      aria-hidden
+      className={`hidden md:block pointer-events-none fixed inset-0 bg-ink/10 z-scrim transition-opacity duration-150 ${
+        flyoutOpen ? "opacity-100" : "opacity-0"
+      }`}
+    />
     <aside
-      onMouseEnter={() => setIsHovering(true)}
-      onMouseLeave={() => setIsHovering(false)}
-      className={`hidden md:flex md:flex-col fixed left-0 top-0 h-screen z-30 border-r border-border bg-surface transition-[width] duration-150 ${
+      onMouseEnter={() => setHoverIntent(true)}
+      onMouseLeave={() => setHoverIntent(false)}
+      onFocus={(e) => {
+        if (isKeyboardFocus(e.target)) setIsKeyboardFocused(true);
+      }}
+      onBlur={(e) => {
+        if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setIsKeyboardFocused(false);
+      }}
+      className={`hidden md:flex md:flex-col fixed left-0 top-0 h-screen z-sidebar border-r border-border bg-surface transition-[width] duration-150 ${
         showLabels ? "w-64" : "w-[76px]"
       } ${
-        // Only pinned-collapsed-but-hovering needs to visually float
-        // over the content behind it — pinned-expanded already has
-        // that space reserved for it, no shadow needed.
-        collapsed && isHovering ? "shadow-xl" : ""
+        // Only a flyout (collapsed rail temporarily open) floats over
+        // the content behind it — a pinned rail has its space reserved
+        // by AppShell, and a hover-locked rail never opens.
+        flyoutOpen ? "shadow-xl" : ""
       }`}
     >
       {/* Brand — icon only. The mark already reads as "Akọ" on its own,
@@ -200,6 +287,7 @@ export function Sidebar({ collapsed, onToggleCollapsed }: SidebarProps) {
             AccountSwitcher's full popover logic into this pass. */}
         <Link
           to={profileHref}
+          title={!showLabels ? "Your profile" : undefined}
           className={`mt-2 flex items-center gap-2.5 rounded-full px-3 py-2 hover:bg-canvas ${
             !showLabels ? "justify-center" : ""
           }`}
@@ -215,13 +303,14 @@ export function Sidebar({ collapsed, onToggleCollapsed }: SidebarProps) {
         <button
           onClick={onToggleCollapsed}
           aria-label={collapsed ? "Pin sidebar open" : "Collapse sidebar"}
-          title={collapsed ? "Pin sidebar open" : "Collapse sidebar"}
+          title={`${collapsed ? "Pin sidebar open" : "Collapse sidebar"}${isLg ? "" : " (applies on wider screens)"}`}
           className="mt-2 w-full text-left text-xs text-ink-muted hover:text-ink px-3 py-1.5"
         >
           {showLabels ? (collapsed ? "Pin open »" : "« Collapse") : "»"}
         </button>
       </div>
     </aside>
+    </>
   );
 }
 

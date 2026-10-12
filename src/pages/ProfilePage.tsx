@@ -583,7 +583,7 @@ export function ProfilePage() {
           tier1Collapsed), freeing that space for content and leaving
           just Tier 2's tab titles + indicator line pinned. */}
       <div
-        className={`sticky top-0 z-30 bg-canvas shadow-[0_2px_8px_-4px_rgba(var(--shadow-ink-rgb),0.10)] overflow-hidden transition-[opacity,max-height] duration-200 ease-out ${
+        className={`sticky top-0 z-chrome bg-canvas shadow-[0_2px_8px_-4px_rgba(var(--shadow-ink-rgb),0.10)] overflow-hidden transition-[opacity,max-height] duration-200 ease-out ${
           tier1Collapsed ? "opacity-0 max-h-0 pointer-events-none" : "opacity-100 max-h-14"
         }`}
       >
@@ -906,7 +906,7 @@ export function ProfilePage() {
           nothing behind either tab for a visitor to switch to. */}
       {!isPrivateLocked && (
         <div
-          className={`sticky z-20 bg-canvas shadow-[0_2px_8px_-4px_rgba(var(--shadow-ink-rgb),0.10)] transition-[top] duration-200 ease-out ${
+          className={`sticky z-subchrome bg-canvas shadow-[0_2px_8px_-4px_rgba(var(--shadow-ink-rgb),0.10)] transition-[top] duration-200 ease-out ${
             tier1Collapsed ? "top-0" : "top-14"
           }`}
         >
@@ -1062,7 +1062,7 @@ export function ProfilePage() {
           purely a function of scroll position. ako-pill-in gives each
           one the same soft scale+fade arrival already used for other
           "something just appeared" moments (see FollowButton.tsx). */}
-      <div className="fixed right-4 z-30 flex flex-col items-end gap-3 bottom-[calc(env(safe-area-inset-bottom)+5.5rem)]">
+      <div className="fixed right-4 z-chrome flex flex-col items-end gap-3 bottom-[calc(env(safe-area-inset-bottom)+5.5rem)]">
         {fromFeedPost && (
           <button
             onClick={handleBackToFeedPost}

@@ -965,7 +965,7 @@ export function MessageThread() {
   if (!messagingEnabled) {
     return (
       <div className="min-h-screen bg-canvas flex flex-col">
-        <header className="px-4 pt-6 pb-3 flex items-center gap-3 sticky top-0 bg-canvas z-30 border-b border-border">
+        <header className="px-4 pt-6 pb-3 flex items-center gap-3 sticky top-0 bg-canvas z-chrome border-b border-border">
           <button onClick={() => navigate("/messages")} className="text-ink-muted" aria-label="Back">
             <ArrowLeft size={22} />
           </button>
@@ -987,7 +987,7 @@ export function MessageThread() {
       // isn't enough once the keyboard is involved.
       style={{ height: viewportHeight }}
     >
-      <header className="px-4 pt-6 pb-3 sticky top-0 bg-canvas z-30 border-b border-border flex items-center gap-3">
+      <header className="px-4 pt-6 pb-3 sticky top-0 bg-canvas z-chrome border-b border-border flex items-center gap-3">
         {selectMode ? (
           <>
             <button onClick={exitSelectMode} className="text-ink-muted flex-shrink-0" aria-label="Cancel selection">
@@ -1200,7 +1200,7 @@ export function MessageThread() {
             the content scrolls under it. Opacity-toggled rather than
             unmounted so the fade transition can play both ways. */}
         <div
-          className={`pointer-events-none absolute top-2 left-1/2 -translate-x-1/2 z-20 transition-opacity duration-300 ${
+          className={`pointer-events-none absolute top-2 left-1/2 -translate-x-1/2 z-subchrome transition-opacity duration-300 ${
             stickyDayVisible && stickyDayLabel ? "opacity-100" : "opacity-0"
           }`}
         >
@@ -1212,7 +1212,7 @@ export function MessageThread() {
             Only ever shown while genuinely scrolled up; tapping it is
             the one thing that scrolls the list on its behalf. */}
         <div
-          className={`absolute bottom-3 left-1/2 -translate-x-1/2 z-20 transition-opacity duration-200 ${
+          className={`absolute bottom-3 left-1/2 -translate-x-1/2 z-subchrome transition-opacity duration-200 ${
             showNewMessagePill ? "opacity-100" : "opacity-0 pointer-events-none"
           }`}
         >

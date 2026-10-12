@@ -74,11 +74,13 @@ export function AppShell({ children }: { children: ReactNode }) {
       <Sidebar collapsed={collapsed} onToggleCollapsed={toggleCollapsed} />
       {/* Sidebar is `fixed`, so it's out of flow — this left padding is what
           actually reserves its space on md+ (pure CSS, so it responds to
-          viewport width without any JS resize listener). Below md it's 0
+          viewport width without any JS resize listener). A pinned-open
+          rail only reserves its full 256px at lg+ — below that the
+          Sidebar auto-collapses to the 76px rail (see Sidebar's isLg). Below md it's 0
           and BottomNav takes over exactly as before. Each page's own
           `min-h-screen` root div still works unchanged inside this padded
           parent — no page file needs to know the sidebar exists. */}
-      <div className={`transition-[padding-left] duration-150 ${collapsed ? "md:pl-[76px]" : "md:pl-64"}`}>
+      <div className={`transition-[padding-left] duration-150 ${collapsed ? "md:pl-[76px]" : "md:pl-[76px] lg:pl-64"}`}>
         {children}
       </div>
     </>

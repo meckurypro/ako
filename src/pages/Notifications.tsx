@@ -423,7 +423,7 @@ export function Notifications() {
 
   return (
     <div className="min-h-screen bg-canvas pb-24">
-      <header className="px-4 pt-6 pb-3 sticky top-0 bg-canvas z-30 border-b border-border flex items-center justify-between">
+      <header className="px-4 pt-6 pb-3 sticky top-0 bg-canvas z-chrome border-b border-border flex items-center justify-between">
         <h2 className="font-display text-2xl text-ink">
           {isPageMode ? `${identity.page.name}'s Notifications` : "Notifications"}
         </h2>

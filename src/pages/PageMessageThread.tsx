@@ -83,7 +83,7 @@ export function PageMessageThread() {
 
   return (
     <div className="min-h-screen bg-canvas pb-24 flex flex-col">
-      <header className="px-4 pt-6 pb-3 sticky top-0 bg-canvas z-30 border-b border-border flex items-center gap-3">
+      <header className="px-4 pt-6 pb-3 sticky top-0 bg-canvas z-chrome border-b border-border flex items-center gap-3">
         <button onClick={smartBack} className="text-ink-muted">
           <ArrowLeft size={22} />
         </button>
@@ -92,7 +92,7 @@ export function PageMessageThread() {
 
       <div className="relative flex-1 min-h-0">
         <div
-          className={`pointer-events-none absolute top-2 left-1/2 -translate-x-1/2 z-20 transition-opacity duration-300 ${
+          className={`pointer-events-none absolute top-2 left-1/2 -translate-x-1/2 z-subchrome transition-opacity duration-300 ${
             stickyDayVisible && stickyDayLabel ? "opacity-100" : "opacity-0"
           }`}
         >

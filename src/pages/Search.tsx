@@ -16,7 +16,7 @@ export function Search() {
 
   return (
     <div className="min-h-screen bg-canvas pb-24">
-      <header className="px-4 pt-6 pb-3 sticky top-0 bg-canvas z-30">
+      <header className="px-4 pt-6 pb-3 sticky top-0 bg-canvas z-chrome">
         <div className="flex items-center gap-3 max-w-xl md:max-w-2xl mx-auto">
           <button onClick={smartBack} className="text-ink-muted p-2 -m-2" aria-label="Back">
             <ArrowLeft size={22} />
