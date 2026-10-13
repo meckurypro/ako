@@ -55,8 +55,9 @@ const VIEWPORT_MARGIN = 8;
  * while actually open.
  *
  * Panel chrome is the shared .ako-overlay-panel (see index.css) — the
- * same fixed dark-glass/light-text treatment Modal.tsx uses, so this
- * kebab menu and a centered confirmation read as one design language.
+ * dark-glass/light-text treatment Modal.tsx uses — plus .ako-menu-panel,
+ * which flips just this menu to a light panel with dark text and icons
+ * in light mode (dark mode is unchanged).
  */
 export function DropdownMenu({ anchorRef, items, onClose, widthClass = "w-56" }: DropdownMenuProps) {
   useBackDismiss(onClose);
@@ -120,7 +121,7 @@ export function DropdownMenu({ anchorRef, items, onClose, widthClass = "w-56" }:
       <div
         ref={panelRef}
         style={style ?? { position: "fixed", opacity: 0 }}
-        className={`${widthClass} z-50 ako-overlay-panel rounded-2xl py-2 overflow-y-auto overscroll-contain scroll-smooth`}
+        className={`${widthClass} z-50 ako-overlay-panel ako-menu-panel rounded-2xl py-2 overflow-y-auto overscroll-contain scroll-smooth`}
       >
         {items.map((item, i) =>
           item === "divider" ? (

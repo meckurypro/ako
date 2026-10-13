@@ -203,6 +203,30 @@
 }
 
 /*
+  Kebab / anchored menu (DropdownMenu.tsx) in LIGHT mode: light panel, dark
+  text and icons. Dark mode keeps the dark-glass .ako-overlay-panel above
+  unchanged. Rather than touching every row, the overlay tokens are re-pointed
+  locally on the panel, so the existing text-overlay-ink / hover:bg-overlay-
+  surface-raised / bg-overlay-border / text-overlay-danger utilities (and
+  currentColor icons) all flip together. Page mode is covered too: it reads
+  its own --color-surface / --color-ink / --color-border.
+*/
+:root:not(.dark) .ako-menu-panel {
+  --color-overlay-ink: var(--color-ink);
+  --color-overlay-ink-muted: var(--color-ink-muted);
+  --color-overlay-surface-raised: rgba(var(--shadow-ink-rgb), 0.06);
+  --color-overlay-border: var(--color-border);
+  --color-overlay-danger: var(--color-danger);
+  --color-overlay-accent: var(--color-accent);
+  background: color-mix(in srgb, var(--color-surface) 96%, transparent);
+  border: 1px solid var(--color-border);
+  box-shadow:
+    0 1px 2px rgba(var(--shadow-ink-rgb), 0.08),
+    0 24px 48px -12px rgba(var(--shadow-ink-rgb), 0.22),
+    0 8px 24px -8px rgba(var(--shadow-ink-rgb), 0.14);
+}
+
+/*
   Dark palette, v3 — surface pulled much closer to canvas.
 
   v2 kept the light-theme's big canvas→surface jump (roughly +11 per
