@@ -4,6 +4,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { AuthProvider } from "./hooks/useAuth";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import { RequireAuth } from "./components/RequireAuth";
+import { RequireFullAccess, HomeRedirect } from "./components/RequireFullAccess";
 import { ScrollToTop } from "./components/ScrollToTop";
 import { PathHistoryTracker } from "./components/PathHistoryTracker";
 import { LoadingOverlay } from "./components/LoadingOverlay";
@@ -161,7 +162,14 @@ function AppRoutes() {
   return (
     <AppShell>
       <Routes location={backgroundLocation ?? location}>
-            <Route path="/" element={<Navigate to="/feed" replace />} />
+            <Route
+              path="/"
+              element={
+                <RequireAuth>
+                  <HomeRedirect />
+                </RequireAuth>
+              }
+            />
 
             {/* Auth */}
             <Route path="/signup" element={<SignUp />} />
@@ -229,7 +237,9 @@ function AppRoutes() {
               path="/feed"
               element={
                 <RequireAuth>
-                  <Feed />
+                  <RequireFullAccess>
+                    <Feed />
+                  </RequireFullAccess>
                 </RequireAuth>
               }
             />
@@ -237,7 +247,9 @@ function AppRoutes() {
               path="/compose"
               element={
                 <RequireAuth>
-                  <Compose />
+                  <RequireFullAccess>
+                    <Compose />
+                  </RequireFullAccess>
                 </RequireAuth>
               }
             />
@@ -245,7 +257,9 @@ function AppRoutes() {
               path="/create"
               element={
                 <RequireAuth>
-                  <CreateChoice />
+                  <RequireFullAccess>
+                    <CreateChoice />
+                  </RequireFullAccess>
                 </RequireAuth>
               }
             />
@@ -261,7 +275,9 @@ function AppRoutes() {
               path="/post/:postId/edit"
               element={
                 <RequireAuth>
-                  <EditPost />
+                  <RequireFullAccess>
+                    <EditPost />
+                  </RequireFullAccess>
                 </RequireAuth>
               }
             />
@@ -269,7 +285,9 @@ function AppRoutes() {
               path="/promote/:postId"
               element={
                 <RequireAuth>
-                  <PromoteComposer />
+                  <RequireFullAccess>
+                    <PromoteComposer />
+                  </RequireFullAccess>
                 </RequireAuth>
               }
             />
@@ -345,7 +363,9 @@ function AppRoutes() {
               path="/pages/new"
               element={
                 <RequireAuth>
-                  <CreatePage />
+                  <RequireFullAccess>
+                    <CreatePage />
+                  </RequireFullAccess>
                 </RequireAuth>
               }
             />
@@ -769,7 +789,9 @@ function AppRoutes() {
               path="/projects/new"
               element={
                 <RequireAuth>
-                  <CreateProject />
+                  <RequireFullAccess>
+                    <CreateProject />
+                  </RequireFullAccess>
                 </RequireAuth>
               }
             />
@@ -867,7 +889,9 @@ function AppRoutes() {
               path="/activity/drafts"
               element={
                 <RequireAuth>
-                  <DraftPosts />
+                  <RequireFullAccess>
+                    <DraftPosts />
+                  </RequireFullAccess>
                 </RequireAuth>
               }
             />
@@ -875,7 +899,9 @@ function AppRoutes() {
               path="/activity/scheduled"
               element={
                 <RequireAuth>
-                  <ScheduledPosts />
+                  <RequireFullAccess>
+                    <ScheduledPosts />
+                  </RequireFullAccess>
                 </RequireAuth>
               }
             />

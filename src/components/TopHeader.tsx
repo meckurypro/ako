@@ -4,6 +4,7 @@ import { Wordmark } from "./Wordmark";
 import { Avatar } from "./Avatar";
 import { useUnreadCount } from "../hooks/useNotifications";
 import { useMyProfile } from "../hooks/useProfile";
+import { useIsRestricted } from "../hooks/useAccountAccess";
 
 interface TopHeaderProps {
   // Feed passes "create" — a "+" that opens /create (see
@@ -26,10 +27,13 @@ export function TopHeader({ leftAction = "avatar" }: TopHeaderProps) {
   const unreadCount = useUnreadCount();
   const { data: me } = useMyProfile();
   const location = useLocation();
+  const restricted = useIsRestricted();
 
   return (
     <header className="px-4 pt-5 pb-2 flex items-center justify-between">
-      {leftAction === "create" ? (
+      {leftAction === "create" && restricted ? (
+        <span className="w-9 h-9 -ml-1.5" aria-hidden />
+      ) : leftAction === "create" ? (
         <Link
           to="/create"
           state={{ background: location }}

@@ -5,6 +5,7 @@ import { Avatar } from "./Avatar";
 import { useActiveIdentity, useMyPages, useSwitchActiveMode } from "../hooks/usePages";
 import { useMyProfile } from "../hooks/useProfile";
 import { usePagesFeatureSettings } from "../hooks/useAdmin";
+import { useIsRestricted } from "../hooks/useAccountAccess";
 import { pageModeLabel } from "../lib/pageRoles";
 
 // Lists "you" plus every page you have an active role on, with the
@@ -18,6 +19,7 @@ import { pageModeLabel } from "../lib/pageRoles";
 // you stranded on this hub with the mode changed underneath you but
 // nothing on screen reflecting it.
 export function AccountModeSwitcher() {
+  const restricted = useIsRestricted();
   const navigate = useNavigate();
   const { data: me } = useMyProfile();
   const { data: identity } = useActiveIdentity();
@@ -68,7 +70,7 @@ export function AccountModeSwitcher() {
       {/* Admin kill switch (see AdminPageSettings) — only ever hides
           starting a NEW page. Everyone's existing pages above stay
           fully switchable regardless of this setting. */}
-      {(pagesFeature?.pages_creation_enabled ?? true) && (
+      {(pagesFeature?.pages_creation_enabled ?? true) && !restricted && (
         <Link to="/pages/new" className="w-full flex items-center gap-3 p-4 text-accent">
           <span className="w-9 h-9 rounded-full bg-accent-soft flex items-center justify-center flex-shrink-0">
             <Plus size={18} />

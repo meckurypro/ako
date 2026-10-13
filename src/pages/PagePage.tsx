@@ -4,6 +4,7 @@ import { useParams, Link, useNavigate } from "react-router-dom";
 import { useSmartBack } from "../hooks/useSmartBack";
 import { ArrowLeft, ArrowLeftRight, Building2, Globe, MoreHorizontal, Pencil, Plus, Redo2, Trash2, Users, UserCog } from "lucide-react";
 import { useAuth } from "../hooks/useAuth";
+import { useIsRestricted } from "../hooks/useAccountAccess";
 import { useMyProfile } from "../hooks/useProfile";
 import { Avatar } from "../components/Avatar";
 import { VerifiedBadge } from "../components/VerifiedBadge";
@@ -50,6 +51,7 @@ export function PagePage() {
   const { username } = useParams<{ username: string }>();
   const navigate = useNavigate();
   const smartBack = useSmartBack();
+  const restricted = useIsRestricted();
   const [menuOpen, setMenuOpen] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -191,7 +193,7 @@ export function PagePage() {
                 already attribute the result to the active page identity
                 on their own (posted_as_page_id), so nothing else here
                 needs to know this is a page. */}
-            {isActiveHere && (
+            {isActiveHere && !restricted && (
               <Link to="/create" aria-label="Create" className="p-2 text-ink-muted">
                 <Plus size={22} />
               </Link>
@@ -261,7 +263,7 @@ export function PagePage() {
                   </Link>
                 )}
 
-                {isAdmin && subsidiariesEnabled && (
+                {isAdmin && subsidiariesEnabled && !restricted && (
                   <Link
                     to={`/pages/new?parent=${page.id}`}
                     onClick={() => setMenuOpen(false)}

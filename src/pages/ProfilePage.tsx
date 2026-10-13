@@ -52,6 +52,7 @@ import { ProjectCard } from "../components/ProjectCard";
 import { ProjectMiniCard, ProjectMiniGrid } from "../components/ProjectMiniCard";
 import { BottomNav } from "../components/BottomNav";
 import { ProfileAdSlot } from "../components/ProfileAdSlot";
+import { useIsRestricted } from "../hooks/useAccountAccess";
 
 // Website links are saved in full (whatever the user pastes, including
 // long query strings), but only the bare domain is ever shown — the
@@ -172,6 +173,7 @@ export function ProfilePage() {
   const { user } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
+  const restricted = useIsRestricted();
   const startConversation = useStartConversation();
   const toast = useToast();
   // Separate menu from the visitor-side "Send to" sheet below — the
@@ -599,9 +601,11 @@ export function ProfilePage() {
             // currently showing nothing.
             <div className="flex items-center gap-2 w-full">
               <ProfileAdSlot className="flex-1 min-w-0" />
-              <Link to="/create" state={{ background: location }} aria-label="Create" className="p-2 text-ink-muted shrink-0">
-                <Plus size={22} />
-              </Link>
+              {!restricted && (
+                <Link to="/create" state={{ background: location }} aria-label="Create" className="p-2 text-ink-muted shrink-0">
+                  <Plus size={22} />
+                </Link>
+              )}
 
               <div className="relative">
                 <button

@@ -19,6 +19,7 @@ import { usePageInboxUnreadCount } from "../hooks/usePageInbox";
 import { useActiveIdentity } from "../hooks/usePages";
 import { useUnreadCount } from "../hooks/useNotifications";
 import { useIsAdmin } from "../hooks/useAdmin";
+import { useIsRestricted } from "../hooks/useAccountAccess";
 import { useMediaQuery } from "../hooks/useMediaQuery";
 
 type IconProps = { size?: number; strokeWidth?: number; fill?: string; className?: string };
@@ -127,6 +128,7 @@ export function Sidebar({ collapsed, onToggleCollapsed }: SidebarProps) {
   const messagesUnread = activePageId ? pageUnread : personalUnread;
   const notifUnread = useUnreadCount();
   const { data: isAdmin } = useIsAdmin();
+  const restricted = useIsRestricted();
   const location = useLocation();
 
   // `collapsed` is the pinned preference (persisted — see AppShell),
@@ -233,7 +235,7 @@ export function Sidebar({ collapsed, onToggleCollapsed }: SidebarProps) {
 
       {/* Primary destinations */}
       <nav className="flex flex-col gap-1 px-3">
-        <NavItem to="/feed" icon={FeedIcon} label="Feed" collapsed={!showLabels} />
+        {!restricted && <NavItem to="/feed" icon={FeedIcon} label="Feed" collapsed={!showLabels} />}
         <NavItem to="/topics" icon={Search} label="Discover" collapsed={!showLabels} />
         <NavItem
           to={activePageId ? "/page-inbox" : "/inbox"}
@@ -247,19 +249,21 @@ export function Sidebar({ collapsed, onToggleCollapsed }: SidebarProps) {
       </nav>
 
       {/* Create — primary action, not buried in a submenu */}
-      <div className="px-3 pt-3">
-        <Link
-          to="/create"
-          state={{ background: location }}
-          className={`flex items-center gap-3 rounded-full bg-accent text-canvas font-semibold px-3 py-2.5 transition-opacity hover:opacity-90 ${
-            !showLabels ? "justify-center" : ""
-          }`}
-          title={!showLabels ? "Create" : undefined}
-        >
-          <Plus size={22} strokeWidth={2} />
-          {showLabels && <span>Create</span>}
-        </Link>
-      </div>
+      {!restricted && (
+        <div className="px-3 pt-3">
+          <Link
+            to="/create"
+            state={{ background: location }}
+            className={`flex items-center gap-3 rounded-full bg-accent text-canvas font-semibold px-3 py-2.5 transition-opacity hover:opacity-90 ${
+              !showLabels ? "justify-center" : ""
+            }`}
+            title={!showLabels ? "Create" : undefined}
+          >
+            <Plus size={22} strokeWidth={2} />
+            {showLabels && <span>Create</span>}
+          </Link>
+        </div>
+      )}
 
       {/* Your Akọ */}
       <div className="px-3 pt-5">

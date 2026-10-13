@@ -2,6 +2,7 @@ import type { ComponentType } from "react";
 import { NavLink, useMatch } from "react-router-dom";
 import { Search, LibraryBig, MessageCircle, User } from "lucide-react";
 import { useAuth } from "../hooks/useAuth";
+import { useIsRestricted } from "../hooks/useAccountAccess";
 import { useAutoHideOnScroll } from "../hooks/useAutoHideOnScroll";
 import { useUnreadConversationCount } from "../hooks/useMessaging";
 import { usePageInboxUnreadCount } from "../hooks/usePageInbox";
@@ -54,6 +55,7 @@ export function BottomNav() {
   // scroll-up — see useAutoHideOnScroll for the shared threshold logic
   // (also used by AutoHideTopBar for the top chrome).
   const visible = useAutoHideOnScroll();
+  const restricted = useIsRestricted();
   const { user, profile } = useAuth();
   const { data: identity } = useActiveIdentity();
   const activePageId = identity?.mode === "page" ? identity.page.id : undefined;
@@ -96,7 +98,7 @@ export function BottomNav() {
       }`}
     >
       <div className="flex items-center justify-around">
-        {navItems.map(({ to, icon: Icon, label }) => (
+        {navItems.filter((item) => !(restricted && item.to === "/feed")).map(({ to, icon: Icon, label }) => (
           <NavLink key={to} to={to} replace className={linkClass}>
             {({ isActive }) => (
               <>

@@ -4,6 +4,7 @@ import { useNavigate } from "react-router-dom";
 import { Check, Plus } from "lucide-react";
 import { Avatar } from "./Avatar";
 import { useAuth } from "../hooks/useAuth";
+import { useIsRestricted } from "../hooks/useAccountAccess";
 import { useMyProfile } from "../hooks/useProfile";
 import { useSavedAccounts, useSwitchAccount } from "../hooks/useAccountSwitcher";
 
@@ -17,6 +18,7 @@ import { useSavedAccounts, useSwitchAccount } from "../hooks/useAccountSwitcher"
 export function AccountSwitcher({ onClose }: { onClose: () => void }) {
   const navigate = useNavigate();
   const { user } = useAuth();
+  const restricted = useIsRestricted();
   const { data: me } = useMyProfile();
   const { accounts, refresh: refreshSavedAccounts } = useSavedAccounts();
   const switchAccount = useSwitchAccount();
@@ -94,21 +96,25 @@ export function AccountSwitcher({ onClose }: { onClose: () => void }) {
         <p className="px-4 py-2 text-xs text-danger border-t border-border">{switchError}</p>
       )}
 
-      {/* Full login/signup flow, not a lightweight password modal —
-          see Login.tsx's `add` mode, which snapshots this account
-          before signing into the new one instead of replacing it. */}
-      <button
-        onClick={() => {
-          onClose();
-          navigate("/login?add=1");
-        }}
-        className="w-full flex items-center gap-2.5 text-left px-4 py-2.5 text-sm text-accent hover:bg-surface"
-      >
-        <span className="w-7 h-7 rounded-full bg-accent-soft flex items-center justify-center flex-shrink-0">
-          <Plus size={14} />
-        </span>
-        Add account
-      </button>
+      {!restricted && (
+        <>
+          {/* Full login/signup flow, not a lightweight password modal —
+              see Login.tsx's `add` mode, which snapshots this account
+              before signing into the new one instead of replacing it. */}
+          <button
+            onClick={() => {
+              onClose();
+              navigate("/login?add=1");
+            }}
+            className="w-full flex items-center gap-2.5 text-left px-4 py-2.5 text-sm text-accent hover:bg-surface"
+          >
+            <span className="w-7 h-7 rounded-full bg-accent-soft flex items-center justify-center flex-shrink-0">
+              <Plus size={14} />
+            </span>
+            Add account
+          </button>
+        </>
+      )}
     </div>
   );
 }

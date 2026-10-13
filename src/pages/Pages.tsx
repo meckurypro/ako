@@ -6,12 +6,14 @@ import { Avatar } from "../components/Avatar";
 import { AccountModeSwitcher } from "../components/AccountModeSwitcher";
 import { useMyPendingPageInvites, useRespondToPageInvite } from "../hooks/usePages";
 import { usePagesFeatureSettings } from "../hooks/useAdmin";
+import { useIsRestricted } from "../hooks/useAccountAccess";
 import { useToast } from "../components/Toast";
 import { pageModeLabel } from "../lib/pageRoles";
 
 // /pages — the account-mode hub: switch between personal and any page
 // you manage, respond to pending role invites, or start a new page.
 export function Pages() {
+  const restricted = useIsRestricted();
   const smartBack = useSmartBack();
   const { data: invites } = useMyPendingPageInvites();
   const respond = useRespondToPageInvite();
@@ -83,7 +85,7 @@ export function Pages() {
         <p className="text-xs text-ink-muted mt-4 px-1">
           While you're acting as a page, your posts, name, and photo show its instead of
           yours — everyone managing it shares the same page.
-          {(pagesFeature?.pages_creation_enabled ?? true) && (
+          {(pagesFeature?.pages_creation_enabled ?? true) && !restricted && (
             <>
               {" "}
               <Link to="/pages/new" className="text-accent">
