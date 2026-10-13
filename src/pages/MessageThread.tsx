@@ -1315,7 +1315,7 @@ export function MessageThread() {
           You're no longer part of this chat.
         </div>
       ) : (
-      <div className="sticky bottom-0 bg-canvas border-t border-border max-w-xl mx-auto w-full relative">
+      <div className="sticky bottom-0 z-30 bg-canvas border-t border-border max-w-xl mx-auto w-full relative">
         {replyTarget && voiceRecorder.phase === "idle" && (
           <div className="flex items-start gap-2 px-4 pt-2.5">
             <div className="flex-1 min-w-0 border-l-2 border-accent pl-2 py-0.5">
@@ -1443,16 +1443,16 @@ export function MessageThread() {
               <VoiceRecordingBar
                 locked={voiceRecorder.locked}
                 paused={voiceRecorder.paused}
-                elapsedMs={voiceRecorder.elapsedMs}
-                drag={voiceRecorder.drag}
+                live={voiceRecorder.live}
                 cancelThresholdPx={voiceRecorder.cancelThresholdPx}
                 lockThresholdPx={voiceRecorder.lockThresholdPx}
-                liveLevels={voiceRecorder.liveLevels}
                 onCancel={voiceRecorder.cancelRecording}
                 onTogglePause={voiceRecorder.togglePauseResume}
                 onStop={voiceRecorder.stopToPreview}
                 onSend={voiceRecorder.stopAndSend}
                 onPreview={voiceRecorder.stopToPreview}
+                onTogglePlayback={voiceRecorder.togglePausedPlayback}
+                playingPaused={voiceRecorder.playingPaused}
               />
             )}
             {voiceRecorder.phase === "preview" && voiceRecorder.preview && (

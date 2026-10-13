@@ -5,48 +5,61 @@
 //   Locked:  a panel — row 1: timer + live waveform; row 2: trash · big "Pause" pill · send.
 //            (Without `onSend` — rooms — it keeps the original pause/stop layout.)
 import { Trash2, Pause, Play, Square, Lock, ChevronLeft, ChevronUp, Mic, Send } from "lucide-react";
+import { memo } from "react";
 import { formatVoiceDuration } from "../lib/voiceNotes";
+import { useRecorderLive, type RecorderLiveStore } from "../lib/recorderLiveStore";
 import { VoiceWaveform } from "./VoiceWaveform";
 
 interface VoiceRecordingBarProps {
   locked: boolean;
   paused: boolean;
-  elapsedMs: number;
-  drag: { x: number; y: number };
+  /** Timer, drag offset, live waveform and playhead — read here (not in the screen) so only this bar re-renders per tick. */
+  live: RecorderLiveStore;
   cancelThresholdPx: number;
   lockThresholdPx: number;
-  liveLevels: number[];
   onCancel: () => void;
   onTogglePause: () => void;
   onStop: () => void;
   /** When given, the locked bar shows a send button (record → send in one tap, like WhatsApp). */
   onSend?: () => void;
-  /** When given and paused, shows a play button that opens the draft preview. */
+  /** When given and paused, shows a play button that opens the draft preview (ends the recording). */
   onPreview?: () => void;
+  /** When given and paused, the play button plays back what's recorded so far WITHOUT ending the recording. */
+  onTogglePlayback?: () => void;
+  /** True while that "listen back" clip is playing. */
+  playingPaused?: boolean;
 }
 
-export function VoiceRecordingBar({
+function VoiceRecordingBarImpl({
   locked,
   paused,
-  elapsedMs,
-  drag,
+  live,
   cancelThresholdPx,
   lockThresholdPx,
-  liveLevels,
   onCancel,
   onTogglePause,
   onStop,
   onSend,
   onPreview,
+  onTogglePlayback,
+  playingPaused = false,
 }: VoiceRecordingBarProps) {
+  const { elapsedMs, drag, levels: liveLevels, playbackMs } = useRecorderLive(live);
   if (locked && onSend) {
     return (
       <div className="rounded-t-3xl border-t border-border bg-surface px-4 pt-5 pb-4">
         <div className="flex items-center gap-3">
-          <span className="tabular-nums text-base text-ink flex-shrink-0">{formatVoiceDuration(elapsedMs / 1000)}</span>
-          {paused && onPreview && (
-            <button type="button" onClick={onPreview} className="w-8 h-8 rounded-full bg-ink-muted/15 text-ink-muted flex items-center justify-center flex-shrink-0" aria-label="Play back recording">
-              <Play size={14} fill="currentColor" />
+          <span className="tabular-nums text-base text-ink flex-shrink-0">
+            {formatVoiceDuration((playingPaused ? playbackMs : elapsedMs) / 1000)}
+          </span>
+          {paused && (onTogglePlayback || onPreview) && (
+            <button
+              type="button"
+              onClick={onTogglePlayback ?? onPreview}
+              className="w-8 h-8 rounded-full bg-ink-muted/15 text-ink-muted flex items-center justify-center flex-shrink-0"
+              aria-label={playingPaused ? "Stop playback" : "Play back recording"}
+            >
+              {playingPaused ? <Square size={12} fill="currentColor" /> : <Play size={14} fill="currentColor" />}
             </button>
           )}
           <VoiceWaveform levels={liveLevels} filledColor="bg-ink-muted" mutedColor="bg-ink-muted/40" heightClass="h-8" />
@@ -148,3 +161,5 @@ export function VoiceRecordingBar({
     </div>
   );
 }
+
+export const VoiceRecordingBar = memo(VoiceRecordingBarImpl);

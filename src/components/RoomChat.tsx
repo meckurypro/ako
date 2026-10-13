@@ -110,11 +110,9 @@ export function RoomChat({ projectId, conversationId, canPost, cantPostReason }:
         <VoiceRecordingBar
           locked={voiceRecorder.locked}
           paused={voiceRecorder.paused}
-          elapsedMs={voiceRecorder.elapsedMs}
-          drag={voiceRecorder.drag}
+          live={voiceRecorder.live}
           cancelThresholdPx={voiceRecorder.cancelThresholdPx}
           lockThresholdPx={voiceRecorder.lockThresholdPx}
-          liveLevels={voiceRecorder.liveLevels}
           onCancel={voiceRecorder.cancelRecording}
           onTogglePause={voiceRecorder.togglePauseResume}
           onStop={voiceRecorder.stopToPreview}

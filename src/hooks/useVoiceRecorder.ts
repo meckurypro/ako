@@ -1,6 +1,7 @@
 // src/hooks/useVoiceRecorder.ts
-import { useCallback, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
-import { useLiveAudioLevels } from "./useLiveAudioLevels";
+import { useCallback, useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
+import { IDLE_LEVELS, useLiveAudioLevels } from "./useLiveAudioLevels";
+import { createRecorderLiveStore } from "../lib/recorderLiveStore";
 import { computeWaveformPeaks } from "../lib/waveform";
 
 /** How far left a hold has to drag before it's a cancel. */
@@ -60,6 +61,25 @@ interface VoiceRecorderOptions {
 /** Holds shorter than this are treated as an accidental tap, not a recording. */
 const TAP_CANCEL_MS = 500;
 
+/** Ask a MediaRecorder to flush what it has so far and wait for that chunk to land (works while paused). */
+function flushRecorder(mr: MediaRecorder): Promise<void> {
+  return new Promise((resolve) => {
+    if (mr.state === "inactive") return resolve();
+    const done = () => {
+      mr.removeEventListener("dataavailable", done);
+      clearTimeout(timer);
+      resolve();
+    };
+    const timer = setTimeout(done, 400); // never hang the UI on a browser that doesn't answer
+    mr.addEventListener("dataavailable", done, { once: true });
+    try {
+      mr.requestData();
+    } catch {
+      done();
+    }
+  });
+}
+
 export function useVoiceRecorder(
   onSend: (blob: Blob, durationSec: number, peaks: number[], viewOnce: boolean, localUrl: string) => Promise<void>,
   options: VoiceRecorderOptions = {}
@@ -72,8 +92,11 @@ export function useVoiceRecorder(
   const [phase, setPhase] = useState<VoiceRecorderPhase>("idle");
   const [locked, setLocked] = useState(false);
   const [paused, setPaused] = useState(false);
-  const [elapsedMs, setElapsedMs] = useState(0);
-  const [drag, setDrag] = useState({ x: 0, y: 0 });
+  const [playingPaused, setPlayingPaused] = useState(false);
+  // High-frequency values (timer, drag, waveform, playhead) live outside React state — see recorderLiveStore.ts.
+  const [live] = useState(() => createRecorderLiveStore(IDLE_LEVELS));
+  const setElapsedMs = useCallback((ms: number) => live.set({ elapsedMs: ms }), [live]);
+  const setDrag = useCallback((d: { x: number; y: number }) => live.set({ drag: d }), [live]);
   const [preview, setPreview] = useState<PreviewData | null>(null);
   const [sending, setSending] = useState(false);
   const onSendRef = useRef(onSend);
@@ -91,7 +114,32 @@ export function useVoiceRecorder(
   const endedRef = useRef(false); // true once cancel/stop has resolved this hold, so a trailing pointerup is a no-op
   const micStreamRef = useRef<MediaStream | null>(null); // mirrors `micStream` for cleanup paths that can't wait on state
 
-  const liveLevels = useLiveAudioLevels(micStream);
+  const pausedAudioRef = useRef<HTMLAudioElement | null>(null);
+  const pausedAudioUrlRef = useRef<string | null>(null);
+
+  useLiveAudioLevels(micStream, live, pausedRef);
+
+  /** Stop and discard the "listen to what I've recorded so far" clip (if any). */
+  const stopPausedPlayback = useCallback(() => {
+    const a = pausedAudioRef.current;
+    if (a) {
+      a.onended = null;
+      a.ontimeupdate = null;
+      a.onerror = null;
+      a.pause();
+      a.removeAttribute("src");
+      a.load();
+    }
+    pausedAudioRef.current = null;
+    if (pausedAudioUrlRef.current) {
+      URL.revokeObjectURL(pausedAudioUrlRef.current);
+      pausedAudioUrlRef.current = null;
+    }
+    live.set({ playbackMs: 0 });
+    setPlayingPaused(false);
+  }, [live]);
+
+  useEffect(() => stopPausedPlayback, [stopPausedPlayback]);
 
   function releaseMic() {
     if (recordingTimerRef.current) clearInterval(recordingTimerRef.current);
@@ -123,18 +171,24 @@ export function useVoiceRecorder(
       accumulatedMsRef.current = 0;
       segmentStartRef.current = Date.now();
       setElapsedMs(0);
+      live.set({ levels: IDLE_LEVELS, playbackMs: 0 });
       setPhase("recording");
       recordingTimerRef.current = setInterval(() => {
-        setElapsedMs(accumulatedMsRef.current + (Date.now() - segmentStartRef.current));
-      }, 100);
+        // Paused: the clock must stand still (it used to keep counting — and double-count — while paused).
+        if (pausedRef.current) return;
+        const ms = accumulatedMsRef.current + (Date.now() - segmentStartRef.current);
+        // The bar only shows whole seconds, so only publish when the second changes.
+        if (Math.floor(ms / 1000) !== Math.floor(live.get().elapsedMs / 1000)) setElapsedMs(ms);
+      }, 200);
     } catch {
       endedRef.current = true;
       setPhase("idle");
     }
-  }, []);
+  }, [live, setDrag, setElapsedMs]);
 
   const cancelRecording = useCallback(() => {
     endedRef.current = true;
+    stopPausedPlayback();
     const mr = mediaRecorderRef.current;
     if (mr && mr.state !== "inactive") {
       mr.onstop = null;
@@ -146,12 +200,13 @@ export function useVoiceRecorder(
     setLocked(false);
     lockedRef.current = false;
     setDrag({ x: 0, y: 0 });
-  }, []);
+  }, [setDrag, stopPausedPlayback]);
 
   const finishStop = useCallback((sendAfter: boolean) => {
     const mr = mediaRecorderRef.current;
     if (!mr || mr.state === "inactive") return;
     endedRef.current = true;
+    stopPausedPlayback();
     sendAfterStopRef.current = sendAfter;
     const finalElapsedMs = pausedRef.current
       ? accumulatedMsRef.current
@@ -192,7 +247,7 @@ export function useVoiceRecorder(
     };
     if (recordingTimerRef.current) clearInterval(recordingTimerRef.current);
     mr.stop();
-  }, []);
+  }, [setDrag, stopPausedPlayback]);
 
   const stopToPreview = useCallback(() => finishStop(false), [finishStop]);
   /** Stop and send in one step — the "release to send" / locked-mode send button. */
@@ -202,6 +257,7 @@ export function useVoiceRecorder(
     const mr = mediaRecorderRef.current;
     if (!mr) return;
     if (pausedRef.current) {
+      stopPausedPlayback(); // resuming ends any "listen back" in progress
       mr.resume();
       segmentStartRef.current = Date.now();
       pausedRef.current = false;
@@ -210,9 +266,41 @@ export function useVoiceRecorder(
       mr.pause();
       accumulatedMsRef.current += Date.now() - segmentStartRef.current;
       pausedRef.current = true;
+      setElapsedMs(accumulatedMsRef.current);
       setPaused(true);
     }
-  }, []);
+  }, [setElapsedMs, stopPausedPlayback]);
+
+  /**
+   * While paused: play what's been recorded so far WITHOUT ending the recording, so the user can listen,
+   * then Resume (keeps appending to the same note) or Send. Tapping again while it plays stops it.
+   * If the browser can't play a still-open recording, fall back to the full preview (stop + review).
+   */
+  const togglePausedPlayback = useCallback(async () => {
+    if (pausedAudioRef.current) {
+      stopPausedPlayback();
+      return;
+    }
+    const mr = mediaRecorderRef.current;
+    if (!mr || !pausedRef.current) return;
+    await flushRecorder(mr);
+    if (!pausedRef.current || recordedChunksRef.current.length === 0) return; // resumed/cancelled while flushing
+
+    const blob = new Blob(recordedChunksRef.current, { type: mr.mimeType || "audio/webm" });
+    const url = URL.createObjectURL(blob);
+    const audio = new Audio(url);
+    pausedAudioRef.current = audio;
+    pausedAudioUrlRef.current = url;
+    const fallbackToPreview = () => {
+      stopPausedPlayback();
+      finishStop(false);
+    };
+    audio.ontimeupdate = () => live.set({ playbackMs: audio.currentTime * 1000 });
+    audio.onended = stopPausedPlayback;
+    audio.onerror = fallbackToPreview;
+    setPlayingPaused(true);
+    audio.play().catch(fallbackToPreview);
+  }, [finishStop, live, stopPausedPlayback]);
 
   const toggleViewOnce = useCallback(() => {
     setPreview((prev) => (prev ? { ...prev, viewOnce: !prev.viewOnce } : prev));
@@ -304,16 +392,16 @@ export function useVoiceRecorder(
       window.addEventListener("pointerup", handleUp);
       window.addEventListener("pointercancel", handleCancel);
     },
-    [startRecording, cancelRecording, stopToPreview, stopAndSend]
+    [startRecording, cancelRecording, stopToPreview, stopAndSend, setDrag]
   );
 
   return {
     phase,
     locked,
     paused,
-    elapsedMs,
-    drag,
-    liveLevels,
+    playingPaused,
+    /** Timer, drag offset, live waveform and playhead — subscribe with useRecorderLive(live). */
+    live,
     preview,
     sending,
     cancelThresholdPx: CANCEL_THRESHOLD_PX,
@@ -323,6 +411,7 @@ export function useVoiceRecorder(
     stopToPreview,
     stopAndSend,
     togglePauseResume,
+    togglePausedPlayback,
     toggleViewOnce,
     discardPreview,
     sendPreview,
