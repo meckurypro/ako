@@ -1436,7 +1436,9 @@ export function MessageThread() {
         )}
 
         {voiceRecorder.phase !== "idle" && (
-          <div className="absolute inset-0 bg-canvas">
+          // Locked recording is a taller two-row panel that grows upward over the chat (WhatsApp);
+          // every other state exactly covers the composer.
+          <div className={voiceRecorder.phase === "recording" && voiceRecorder.locked ? "absolute inset-x-0 bottom-0" : "absolute inset-0 bg-canvas"}>
             {voiceRecorder.phase === "recording" && (
               <VoiceRecordingBar
                 locked={voiceRecorder.locked}

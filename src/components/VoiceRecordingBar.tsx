@@ -1,8 +1,8 @@
 // src/components/VoiceRecordingBar.tsx
 // Shown over the composer while recording, WhatsApp-style.
-//   Holding: pulsing dot + timer · "‹ Slide to cancel" (breathes, follows your finger) · the mic
-//            swells and follows your finger · a lock capsule above it fills as you slide up.
-//   Locked:  trash · live waveform + timer · pause/resume · send.
+//   Holding: one pill with pulsing dot + timer · "‹ Slide to cancel" (breathes, follows your finger) ·
+//            a big mic that follows your finger · a tall lock capsule standing above it fills as you slide up.
+//   Locked:  a panel — row 1: timer + live waveform; row 2: trash · big "Pause" pill · send.
 //            (Without `onSend` — rooms — it keeps the original pause/stop layout.)
 import { Trash2, Pause, Play, Square, Lock, ChevronLeft, ChevronUp, Mic, Send } from "lucide-react";
 import { formatVoiceDuration } from "../lib/voiceNotes";
@@ -41,36 +41,38 @@ export function VoiceRecordingBar({
 }: VoiceRecordingBarProps) {
   if (locked && onSend) {
     return (
-      <div className="px-3 py-3 flex items-center gap-2">
-        <button type="button" onClick={onCancel} className="w-10 h-10 rounded-full text-ink-muted flex items-center justify-center flex-shrink-0" aria-label="Delete recording">
-          <Trash2 size={22} />
-        </button>
-        <div className="flex-1 min-w-0 flex items-center gap-2.5 rounded-3xl border border-border bg-surface px-3 py-2">
-          <span className={`w-2.5 h-2.5 rounded-full bg-danger flex-shrink-0 ${paused ? "" : "animate-pulse"}`} />
-          <span className="tabular-nums text-sm text-ink flex-shrink-0">{formatVoiceDuration(elapsedMs / 1000)}</span>
-          <VoiceWaveform levels={liveLevels} filledColor="bg-accent" mutedColor="bg-ink-muted/25" heightClass="h-5" />
+      <div className="rounded-t-3xl border-t border-border bg-surface px-4 pt-5 pb-4">
+        <div className="flex items-center gap-3">
+          <span className="tabular-nums text-base text-ink flex-shrink-0">{formatVoiceDuration(elapsedMs / 1000)}</span>
+          {paused && onPreview && (
+            <button type="button" onClick={onPreview} className="w-8 h-8 rounded-full bg-ink-muted/15 text-ink-muted flex items-center justify-center flex-shrink-0" aria-label="Play back recording">
+              <Play size={14} fill="currentColor" />
+            </button>
+          )}
+          <VoiceWaveform levels={liveLevels} filledColor="bg-ink-muted" mutedColor="bg-ink-muted/40" heightClass="h-8" />
         </div>
-        {paused && onPreview && (
-          <button type="button" onClick={onPreview} className="w-10 h-10 rounded-full bg-surface text-ink flex items-center justify-center flex-shrink-0" aria-label="Play back recording">
-            <Play size={18} fill="currentColor" />
+        <div className="mt-5 flex items-center gap-3">
+          <button type="button" onClick={onCancel} className="w-14 h-14 rounded-full bg-danger/15 text-danger flex items-center justify-center flex-shrink-0 active:scale-95" aria-label="Delete recording">
+            <Trash2 size={24} />
           </button>
-        )}
-        <button
-          type="button"
-          onClick={onTogglePause}
-          className="w-10 h-10 rounded-full border-2 border-danger text-danger flex items-center justify-center flex-shrink-0"
-          aria-label={paused ? "Resume recording" : "Pause recording"}
-        >
-          {paused ? <Mic size={18} /> : <Pause size={18} />}
-        </button>
-        <button
-          type="button"
-          onClick={onSend}
-          className="w-11 h-11 rounded-full bg-accent text-white flex items-center justify-center flex-shrink-0 hover:bg-accent-hover active:scale-95"
-          aria-label="Send voice message"
-        >
-          <Send size={20} />
-        </button>
+          <button
+            type="button"
+            onClick={onTogglePause}
+            className="flex-1 min-w-0 h-14 rounded-full bg-ink-muted/15 hover:bg-ink-muted/25 text-ink flex items-center justify-center gap-3 text-base font-medium"
+            aria-label={paused ? "Resume recording" : "Pause recording"}
+          >
+            {paused ? <Mic size={22} /> : <Pause size={22} />}
+            <span>{paused ? "Resume" : "Pause"}</span>
+          </button>
+          <button
+            type="button"
+            onClick={onSend}
+            className="w-14 h-14 rounded-full bg-ink text-canvas flex items-center justify-center flex-shrink-0 hover:opacity-90 active:scale-95"
+            aria-label="Send voice message"
+          >
+            <Send size={24} />
+          </button>
+        </div>
       </div>
     );
   }
@@ -109,37 +111,39 @@ export function VoiceRecordingBar({
   const dy = Math.min(lockThresholdPx, Math.max(0, drag.y));
 
   return (
-    <div className="relative px-4 py-3 flex items-center gap-3">
-      {/* Lock capsule — fills and tints as the finger slides up toward it. */}
-      <div
-        className={`pointer-events-none absolute flex flex-col items-center gap-1 rounded-full border px-2.5 py-2.5 transition-colors ${
-          lockProgress >= 1 ? "border-accent bg-accent-soft text-accent" : "border-border bg-surface text-ink-muted"
-        }`}
-        style={{ right: 17, bottom: 58, opacity: 0.55 + lockProgress * 0.45, transform: `translateY(${-lockProgress * 10}px) scale(${1 + lockProgress * 0.1})` }}
-      >
-        <Lock size={16} />
-        <ChevronUp size={14} className="text-ink-muted" />
-      </div>
-
-      <span className="w-2.5 h-2.5 rounded-full bg-danger flex-shrink-0 animate-pulse" />
-      <span className="tabular-nums text-sm text-ink flex-shrink-0">{formatVoiceDuration(elapsedMs / 1000)}</span>
-
-      <div className="flex-1 min-w-0 flex justify-end pr-12">
-        <div
-          className={`flex items-center gap-0.5 text-sm animate-pulse ${willCancel ? "text-danger" : "text-ink-muted"}`}
-          style={{ transform: `translateX(${dx}px)`, opacity: 1 - cancelProgress * 0.85 }}
-        >
-          <ChevronLeft size={16} />
-          <span>Slide to cancel</span>
+    <div className="relative px-3 py-3">
+      {/* One pill: dot + timer on the left, "Slide to cancel" in the middle; the mic overlaps its right end. */}
+      <div className="h-12 flex items-center gap-3 rounded-full bg-surface pl-4 pr-16">
+        <span className="w-2.5 h-2.5 rounded-full bg-danger flex-shrink-0 animate-pulse" />
+        <span className="tabular-nums text-base text-ink-muted flex-shrink-0">{formatVoiceDuration(elapsedMs / 1000)}</span>
+        <div className="flex-1 min-w-0 flex justify-center">
+          <div
+            className={`flex items-center gap-1 text-base animate-pulse ${willCancel ? "text-danger" : "text-ink-muted"}`}
+            style={{ transform: `translateX(${dx}px)`, opacity: 1 - cancelProgress * 0.85 }}
+          >
+            <ChevronLeft size={16} />
+            <span className="whitespace-nowrap">Slide to cancel</span>
+          </div>
         </div>
       </div>
 
-      {/* The mic swells under the finger and follows it, like WhatsApp's. */}
+      {/* Tall lock capsule standing on the mic — it tints as the finger slides up into it. */}
       <div
-        className={`pointer-events-none absolute w-11 h-11 rounded-full text-white flex items-center justify-center shadow-md ${willCancel ? "bg-danger" : "bg-accent"}`}
-        style={{ right: 12, transform: `translate(${dx}px, ${-dy}px) scale(1.3)` }}
+        className={`pointer-events-none absolute w-12 flex flex-col items-center gap-3 pt-4 rounded-full border transition-colors ${
+          lockProgress >= 1 ? "border-accent bg-accent-soft text-accent" : "border-border bg-surface text-ink"
+        }`}
+        style={{ right: 12, bottom: 30, height: 112, opacity: 0.7 + lockProgress * 0.3, transform: `translateY(${-lockProgress * 12}px)` }}
       >
-        <Mic size={20} />
+        <Lock size={20} />
+        <ChevronUp size={16} className="text-ink-muted" />
+      </div>
+
+      {/* The big mic swells under the finger and follows it. */}
+      <div
+        className={`pointer-events-none absolute w-12 h-12 rounded-full flex items-center justify-center shadow-lg ${willCancel ? "bg-danger text-white" : "bg-ink text-canvas"}`}
+        style={{ right: 12, bottom: 12, transform: `translate(${dx}px, ${-dy}px) scale(1.5)` }}
+      >
+        <Mic size={22} />
       </div>
     </div>
   );
