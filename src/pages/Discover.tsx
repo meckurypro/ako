@@ -1,23 +1,37 @@
 import { useState } from "react";
-import { Search, X } from "lucide-react";
-import { useSuggestedPages, useSuggestedProjects } from "../hooks/useSearch";
+import { useNavigate } from "react-router-dom";
+import { Search, ChevronDown, X } from "lucide-react";
+import { useCategories } from "../hooks/useCategories";
+import { useSuggestedPages, useSuggestedPeople } from "../hooks/useSearch";
+import { usePageSuggestedPeople } from "../hooks/usePageDiscover";
+import { useActiveIdentity } from "../hooks/usePages";
 import { useDebouncedValue } from "../hooks/useDebouncedValue";
+import { PersonRow } from "../components/PersonRow";
 import { PageRow } from "../components/PageRow";
-import { ProjectMiniGrid } from "../components/ProjectMiniCard";
 import { SearchResults, isSearchable } from "../components/SearchResults";
 import { AutoHideTopBar } from "../components/AutoHideTopBar";
+import { useIsRestricted } from "../hooks/useAccountAccess";
+import { RestrictedDiscover } from "./RestrictedDiscover";
 import { BottomNav } from "../components/BottomNav";
 import { TopHeader } from "../components/TopHeader";
 
-// Discover is for finding projects and pages — never people or posts.
-export function Discover() {
+function FullDiscover() {
+  const navigate = useNavigate();
   const [query, setQuery] = useState("");
   // The input stays bound to `query` so typing feels instant; only the
-  // search queries wait for a pause (they used to fire on every
+  // four search queries wait for a pause (they used to fire on every
   // keystroke, one of them an unindexable leading-wildcard ilike).
   const debouncedQuery = useDebouncedValue(query, 300);
+  const [openCategoryId, setOpenCategoryId] = useState<string | null>(null);
 
-  const { data: suggestedProjects, isLoading: suggestedProjectsLoading } = useSuggestedProjects();
+  const { data: categories, isLoading: categoriesLoading } = useCategories();
+  const { data: identity } = useActiveIdentity();
+  const activePageId = identity?.mode === "page" ? identity.page.id : undefined;
+  const personalSuggestions = useSuggestedPeople();
+  const pageSuggestions = usePageSuggestedPeople(activePageId);
+  const { data: suggestedPeople, isLoading: suggestedLoading } = activePageId
+    ? pageSuggestions
+    : personalSuggestions;
   const { data: suggestedPages, isLoading: suggestedPagesLoading } = useSuggestedPages();
 
   const isSearching = isSearchable(query);
@@ -42,10 +56,10 @@ export function Discover() {
             autoComplete="off"
             autoCapitalize="none"
             spellCheck={false}
-            aria-label="Search pages and projects"
+            aria-label="Search people, pages, posts and projects"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search pages and projects…"
+            placeholder="Search people, pages, posts…"
             className="w-full pl-10 pr-11 py-3 rounded-2xl border border-border bg-surface text-ink text-sm
               placeholder:text-ink-muted focus:outline-none focus:ring-2 focus:ring-accent/40 focus:border-accent
               [&::-webkit-search-cancel-button]:appearance-none"
@@ -62,20 +76,26 @@ export function Discover() {
         </div>
 
         {isSearching ? (
-          <SearchResults query={debouncedQuery} isPending={query !== debouncedQuery} scope="discover" />
+          <SearchResults query={debouncedQuery} isPending={query !== debouncedQuery} />
         ) : (
           <>
-            {/* Suggested projects */}
+            {/* Suggested people */}
             <section className="mb-8">
-              <h2 className="font-display text-xl text-ink mb-0.5">Projects to explore</h2>
-              <p className="text-ink-muted text-sm mb-4">Popular and recent work from across Akọ.</p>
+              <h2 className="font-display text-xl text-ink mb-0.5">People to follow</h2>
+              <p className="text-ink-muted text-sm mb-4">
+                {activePageId ? "Based on this page's network and activity." : "Based on your network and activity."}
+              </p>
 
-              {suggestedProjectsLoading ? (
+              {suggestedLoading ? (
                 <p className="text-ink-muted text-sm py-4">Loading…</p>
-              ) : suggestedProjects && suggestedProjects.length > 0 ? (
-                <ProjectMiniGrid projects={suggestedProjects} />
+              ) : suggestedPeople && suggestedPeople.length > 0 ? (
+                <div className="divide-y divide-border">
+                  {suggestedPeople.map((p) => (
+                    <PersonRow key={p.id} profile={p} />
+                  ))}
+                </div>
               ) : (
-                <p className="text-ink-muted text-sm py-4">No projects to show right now.</p>
+                <p className="text-ink-muted text-sm py-4">No suggestions right now.</p>
               )}
             </section>
 
@@ -96,6 +116,62 @@ export function Discover() {
                 <p className="text-ink-muted text-sm py-4">No pages to suggest right now.</p>
               )}
             </section>
+
+            {/* Topics accordion */}
+            <section>
+              <h2 className="font-display text-xl text-ink mb-0.5">Topics</h2>
+              <p className="text-ink-muted text-sm mb-4">Explore by what you care about.</p>
+
+              {categoriesLoading ? (
+                <p className="text-ink-muted text-sm py-4">Loading…</p>
+              ) : (
+                <div className="divide-y divide-border">
+                  {categories?.map((category) => {
+                    const isOpen = openCategoryId === category.id;
+                    return (
+                      <div key={category.id}>
+                        <button
+                          onClick={() =>
+                            setOpenCategoryId((curr) =>
+                              curr === category.id ? null : category.id
+                            )
+                          }
+                          className="w-full flex items-center justify-between py-4 text-left"
+                        >
+                          <h3 className="font-display text-base text-ink">{category.name}</h3>
+                          <ChevronDown
+                            size={18}
+                            className={`text-ink-muted transition-transform duration-300 ease-in-out ${
+                              isOpen ? "rotate-180" : ""
+                            }`}
+                          />
+                        </button>
+
+                        <div
+                          className={`grid transition-[grid-template-rows] duration-300 ease-in-out ${
+                            isOpen ? "grid-rows-[1fr]" : "grid-rows-[0fr]"
+                          }`}
+                        >
+                          <div className="overflow-hidden">
+                            <div className="flex flex-wrap gap-2 pb-4">
+                              {category.interests.map((interest) => (
+                                <button
+                                  key={interest.id}
+                                  onClick={() => navigate(`/feed?interest=${interest.id}`)}
+                                  className="px-3.5 py-2 rounded-full text-sm bg-surface text-ink border border-border hover:border-accent/50"
+                                >
+                                  {interest.name}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </section>
           </>
         )}
       </div>
@@ -104,3 +180,7 @@ export function Discover() {
     </div>
   );
                   }
+
+export function Discover() {
+  return useIsRestricted() ? <RestrictedDiscover /> : <FullDiscover />;
+}
