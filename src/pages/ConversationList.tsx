@@ -1,8 +1,7 @@
 // src/pages/ConversationList.tsx
 import { useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { useSmartBack } from "../hooks/useSmartBack";
-import { ArrowLeft, Search, X, Pin, Archive, ChevronRight, Trash2, CheckSquare, Users } from "lucide-react";
+import { MessageCircle, Search, X, Pin, Archive, ChevronRight, Trash2, CheckSquare, Users } from "lucide-react";
 import {
   useConversations,
   useUpdateConversationState,
@@ -37,7 +36,6 @@ function timeAgo(dateString: string): string {
 
 export function ConversationList() {
   const navigate = useNavigate();
-  const smartBack = useSmartBack();
   const { user } = useAuth();
   const { data: conversations, isLoading } = useConversations();
   const authorIds = conversations?.map((c) => c.other_participant.id) ?? [];
@@ -345,9 +343,7 @@ export function ConversationList() {
     return (
       <div className="min-h-screen bg-canvas pb-24">
         <header className="px-4 pt-6 pb-3 flex items-center gap-3 sticky top-0 bg-canvas z-chrome border-b border-border">
-          <button onClick={smartBack} className="text-ink-muted">
-            <ArrowLeft size={22} />
-          </button>
+          <MessageCircle size={22} className="text-ink-muted shrink-0" />
           <h2 className="font-display text-2xl text-ink flex-1">Chats</h2>
         </header>
         <div className="max-w-xl md:max-w-2xl mx-auto px-4 pt-10 text-center">
@@ -386,9 +382,7 @@ export function ConversationList() {
           </div>
         ) : (
           <div className="px-4 pt-6 pb-3 flex items-center gap-3">
-            <button onClick={smartBack} className="text-ink-muted">
-              <ArrowLeft size={22} />
-            </button>
+            <MessageCircle size={22} className="text-ink-muted shrink-0" />
             <h2 className="font-display text-2xl text-ink flex-1">Chats</h2>
             {conversations && conversations.length > 0 && (
               <button

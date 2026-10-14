@@ -4,8 +4,7 @@
 // (no pin/archive/multi-select/search) for this first version. See the
 // scope note at the top of usePageInbox.ts.
 import { useNavigate } from "react-router-dom";
-import { ArrowLeft } from "lucide-react";
-import { useSmartBack } from "../hooks/useSmartBack";
+import { MessageCircle } from "lucide-react";
 import { useActiveIdentity } from "../hooks/usePages";
 import { usePageConversations, type PageConversationSummary } from "../hooks/usePageInbox";
 import { Avatar } from "../components/Avatar";
@@ -56,7 +55,6 @@ function ConversationRow({ c }: { c: PageConversationSummary }) {
 }
 
 export function PageInbox() {
-  const smartBack = useSmartBack();
   const { data: identity } = useActiveIdentity();
   const pageId = identity?.mode === "page" ? identity.page.id : undefined;
   const { data: conversations, isLoading } = usePageConversations(pageId);
@@ -64,9 +62,7 @@ export function PageInbox() {
   return (
     <div className="min-h-screen bg-canvas pb-24">
       <header className="px-4 pt-6 pb-3 sticky top-0 bg-canvas z-chrome border-b border-border flex items-center gap-3">
-        <button onClick={smartBack} className="text-ink-muted">
-          <ArrowLeft size={22} />
-        </button>
+        <MessageCircle size={22} className="text-ink-muted shrink-0" />
         <h2 className="font-display text-2xl text-ink flex-1">
           {identity?.mode === "page" ? `${identity.page.name}'s Chats` : "Chats"}
         </h2>

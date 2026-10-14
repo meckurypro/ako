@@ -1,7 +1,6 @@
 // src/pages/LibraryActivity.tsx
 import { Link } from "react-router-dom";
-import { useSmartBack } from "../hooks/useSmartBack";
-import { ArrowLeft, ImageIcon, LibraryBig, BookText, GraduationCap, Music, FileText, Link as LinkIcon } from "lucide-react";
+import { ImageIcon, LibraryBig, BookText, GraduationCap, Music, FileText, Link as LinkIcon } from "lucide-react";
 import { useTabState } from "../hooks/useTabState";
 import { useLibrary, libraryItemRoute, type LibraryItem, type LibraryItemType } from "../hooks/useLibrary";
 import { BottomNav } from "../components/BottomNav";
@@ -70,7 +69,6 @@ function LibraryRow({ item }: { item: LibraryItem }) {
 // should survive the creator profile, the post, and the notification
 // that led to it.
 export function LibraryActivity() {
-  const smartBack = useSmartBack();
   const { data: items, isLoading } = useLibrary();
   const [tab, setTab] = useTabState<LibraryTab>(TABS, "books");
   const meta = TAB_META[tab];
@@ -79,11 +77,10 @@ export function LibraryActivity() {
   return (
     <div className="min-h-screen bg-canvas px-4 md:px-8 pt-6 md:pt-10 pb-24">
       <div className="max-w-xl md:max-w-4xl mx-auto">
-        <button onClick={smartBack} className="text-ink-muted mb-4 md:hidden">
-          <ArrowLeft size={22} />
-        </button>
-
-        <h2 className="font-display text-2xl text-ink mb-6">Library</h2>
+        <h2 className="font-display text-2xl text-ink mb-6 flex items-center gap-2">
+          <LibraryBig size={22} className="text-ink-muted" />
+          Library
+        </h2>
 
         <div role="tablist" aria-label="Library" className="flex border-b border-border mb-5">
           {TABS.map((t) => (
