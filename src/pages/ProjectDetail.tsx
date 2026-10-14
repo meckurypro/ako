@@ -19,7 +19,7 @@ import {
   TrendingUp,
   Briefcase,
 } from "lucide-react";
-import { useProjectDetail, useSimilarProjects, PROJECT_TYPE_LABELS, type Project } from "../hooks/useProjects";
+import { useProjectDetail, useSimilarProjects, type Project } from "../hooks/useProjects";
 import {
   useEventDetails,
   useMeetingDetails,
@@ -57,9 +57,13 @@ function ProjectRail({ title, projects }: { title: string; projects: Project[] }
   return (
     <div className="mt-8">
       <h3 className="font-display text-lg font-semibold tracking-tight text-ink mb-3">{title}</h3>
-      <div className="flex gap-3 overflow-x-auto pb-1 -mx-4 px-4">
+      {/* One horizontal, swipeable row — never a stacked list. Snaps card to
+          card; scrollbar hidden so it reads as a swipe shelf on touch. */}
+      <div className="flex flex-nowrap gap-3 overflow-x-auto overscroll-x-contain snap-x snap-proximity pb-1 -mx-4 px-4 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden [-webkit-overflow-scrolling:touch]">
         {projects.map((p) => (
-          <ProjectMiniCard key={p.id} project={p} />
+          <div key={p.id} className="snap-start flex-none">
+            <ProjectMiniCard project={p} />
+          </div>
         ))}
       </div>
     </div>
@@ -364,13 +368,15 @@ export function ProjectDetail({ resolvedProjectId }: { resolvedProjectId?: strin
   return (
     <div className="min-h-screen bg-canvas px-4 pt-4 pb-24">
       <div className="max-w-xl md:max-w-2xl mx-auto">
-        <button
-          onClick={smartBack}
-          className="flex items-center justify-center w-10 h-10 rounded-full bg-surface border border-border/60 text-ink-muted mb-4 shadow-sm transition-colors hover:text-ink"
-          aria-label="Back"
-        >
-          <ArrowLeft size={20} />
-        </button>
+        {user && (
+          <button
+            onClick={smartBack}
+            className="flex items-center justify-center w-10 h-10 rounded-full bg-surface border border-border/60 text-ink-muted mb-4 shadow-sm transition-colors hover:text-ink"
+            aria-label="Back"
+          >
+            <ArrowLeft size={20} />
+          </button>
+        )}
 
         {isLoading || !project ? (
           <p className="text-ink-muted">Loading…</p>
@@ -578,11 +584,7 @@ export function ProjectDetail({ resolvedProjectId }: { resolvedProjectId?: strin
               title={`More from ${project.posted_as_page ? project.posted_as_page.name : project.owner.display_name}`}
               projects={similar?.moreFromCreator ?? []}
             />
-            <ProjectRail title="Similar topics" projects={similar?.moreOnTopic ?? []} />
-            <ProjectRail
-              title={`More ${PROJECT_TYPE_LABELS[project.project_type]}s`}
-              projects={similar?.moreOfType ?? []}
-            />
+            <ProjectRail title="Similar contents" projects={similar?.similarContent ?? []} />
           </>
         )}
       </div>

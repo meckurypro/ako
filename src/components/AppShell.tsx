@@ -14,6 +14,7 @@
 import { useState, type ReactNode } from "react";
 import { useLocation, type Location } from "react-router-dom";
 import { Sidebar } from "./Sidebar";
+import { useAuth } from "../hooks/useAuth";
 import { ScrollToTopButton } from "./ScrollToTopButton";
 
 const SHELL_EXCLUDED_PREFIXES = [
@@ -34,6 +35,9 @@ function shouldShowShell(pathname: string) {
 
 export function AppShell({ children }: { children: ReactNode }) {
   const location = useLocation();
+  // A signed-out visitor on a shared link (project, page, course, book) sees
+  // only that content — no sidebar, no app chrome. Actions send them to /login.
+  const { user } = useAuth();
   // Defaults to collapsed (icons only) — hovering the rail reveals
   // labels without needing this pinned open (see Sidebar's
   // showLabels). Once a person explicitly pins it one way or the
@@ -66,7 +70,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   const backgroundLocation = (location.state as { background?: Location } | null)?.background;
   const effectivePathname = (backgroundLocation ?? location).pathname;
 
-  if (!shouldShowShell(effectivePathname)) {
+  if (!user || !shouldShowShell(effectivePathname)) {
     return <>{children}</>;
   }
 

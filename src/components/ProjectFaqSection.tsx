@@ -133,7 +133,9 @@ export function ProjectFaqSection({
   // nothing at all; one that somehow already has entries still shows
   // them, just without the "eligible" affordances (scaffold, add).
   const eligible = projectTypeSupportsFaq(projectType);
-  if (!eligible && (!faqs || faqs.length === 0)) return null;
+  const hasFaqs = !!faqs && faqs.length > 0;
+  // Nothing saved → nothing shown to visitors: no "FAQ" heading, no empty state.
+  if (!hasFaqs && !(isOwner && eligible)) return null;
 
   async function handleDelete(id: string) {
     setDeletingId(id);
@@ -146,8 +148,8 @@ export function ProjectFaqSection({
 
   return (
     <div className="mt-6">
-      <div className="flex items-center justify-between mb-3">
-        <h3 className="font-display text-base text-ink">FAQ</h3>
+      <div className={`flex items-center mb-3 ${hasFaqs ? "justify-between" : "justify-end"}`}>
+        {hasFaqs && <h3 className="font-display text-base text-ink">FAQ</h3>}
         {isOwner && eligible && (
           <div className="flex items-center gap-3">
             {(faqs?.length ?? 0) === 0 && (
@@ -170,13 +172,7 @@ export function ProjectFaqSection({
         )}
       </div>
 
-      {!faqs || faqs.length === 0 ? (
-        isOwner ? (
-          <p className="text-sm text-ink-muted">
-            No FAQ yet — add your own, or use the starter questions above to get going quickly.
-          </p>
-        ) : null
-      ) : (
+      {!hasFaqs ? null : (
         <div className="space-y-2">
           {faqs.map((faq) =>
             isOwner ? (

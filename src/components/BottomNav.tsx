@@ -112,6 +112,10 @@ export function BottomNav() {
 
   const navList = restricted ? restrictedNavItems : fullNavItems;
 
+  // Signed-out visitors (e.g. a shared project link) get no app chrome at all —
+  // no tabs, no floating chat button. All hooks above run unconditionally.
+  if (!user) return null;
+
   const linkClass = ({ isActive }: { isActive: boolean }) =>
     `flex flex-col items-center gap-1 w-14 text-[11px] font-medium transition-colors ${
       isActive ? "text-accent" : "text-ink-muted"
