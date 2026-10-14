@@ -20,7 +20,6 @@ import {
   useCancelFollowRequest,
   useIncomingFollowRequestCount,
 } from "../hooks/useFollowRequests";
-import { useUserPostsWithArchived } from "../hooks/usePosts";
 import { useStartConversation } from "../hooks/useMessaging";
 import { useIsBlocked, useToggleBlock, useIsMuted, useToggleMute, useRemoveFollower } from "../hooks/usePrivacy";
 import { useContactNickname } from "../hooks/useContactNicknames";
@@ -47,7 +46,6 @@ import { ProfileShareScreen } from "../components/ProfileShareScreen";
 import { useToast } from "../components/Toast";
 import { TierBadge } from "../components/TierBadge";
 import { RoleTags } from "../components/RoleTags";
-import { PostCard } from "../components/PostCard";
 import { ProjectCard } from "../components/ProjectCard";
 import { ProjectMiniCard, ProjectMiniGrid } from "../components/ProjectMiniCard";
 import { BottomNav } from "../components/BottomNav";
@@ -71,8 +69,9 @@ function getWebsiteDomain(url: string): string {
   }
 }
 
-// AKỌ_DYNAMIC_PROFILE_PORTFOLIOS_AND_GIG_SYSTEM spec: Posts is always
-// present; everything else is derived per-profile from the account's
+// AKỌ_DYNAMIC_PROFILE_PORTFOLIOS_AND_GIG_SYSTEM spec: profiles list
+// projects only — posts are never shown here, on anyone's profile, by
+// any route. Every tab is derived per-profile from the account's
 // active Gigs (see usePortfolioCategories) plus a "projects" fallback
 // for non-gig work that hasn't been categorized yet (spec section 44
 // — a deliberate fallback, never a dumping ground merely because
@@ -348,7 +347,6 @@ export function ProfilePage() {
   // request entirely — a locked-out visitor's client never asks the
   // server for this profile's posts/projects in the first place.
   const { data: projects } = useUserProjects(isPrivateLocked ? "" : profile?.id ?? "", showOwnerView);
-  const { data: posts } = useUserPostsWithArchived(isPrivateLocked ? "" : profile?.id ?? "", false);
   const { data: portfolioCategories } = usePortfolioCategories(isPrivateLocked ? undefined : profile?.id);
   const { data: categorizedProjectIds } = useCategorizedProjectIds(isPrivateLocked ? undefined : profile?.id);
   const { data: typeCategories } = useTypePortfolioCategories(isPrivateLocked ? undefined : profile?.id);
@@ -419,13 +417,12 @@ export function ProfilePage() {
     return true;
   });
 
-  // Posts is always first. Dynamic categories come from the account's
+  // Projects only — no Posts tab. Dynamic categories come from the account's
   // active Gigs (spec sections 2-5), then the type-based categories
   // (Books/Courses/Events/Rooms/Files) — never an empty one either
   // way. The uncategorized-work fallback comes last, only if there's
   // anything left in it.
   const tabDefs: { id: string; label: string }[] = [
-    { id: "posts", label: "Posts" },
     ...(portfolioCategories ?? []).map((c) => ({ id: categoryToTabId(c.category), label: c.category })),
     ...(typeCategories ?? []).map((c) => ({ id: `type-${c.project_type}`, label: c.category })),
     ...(mediaProjects.length > 0 ? [{ id: "media", label: "Media" }] : []),
@@ -436,7 +433,9 @@ export function ProfilePage() {
   // Lets a shared project link (?tab=projects) land directly on a
   // tab, and now also survives a refresh either way — see
   // useTabState.
-  const [activeTab, setActiveTab] = useTabState<ProfileTab>(TAB_IDS, "posts");
+  // Default is whichever tab comes first; a stale ?tab=posts link just
+  // falls back to it.
+  const [activeTab, setActiveTab] = useTabState<ProfileTab>(TAB_IDS, TAB_IDS[0] ?? "projects");
   // Continuous tab position fed by SwipeableTabs' onProgress, same idea as
   // Feed's tab row — lets the sliding indicator bar track the finger
   // during a drag instead of only jumping once the swipe commits.
@@ -908,7 +907,7 @@ export function ProfilePage() {
           the avatar/bio/stats block has scrolled past. Hidden entirely
           for a locked private profile, same as before, since there's
           nothing behind either tab for a visitor to switch to. */}
-      {!isPrivateLocked && (
+      {!isPrivateLocked && tabDefs.length > 0 && (
         <div
           className={`sticky z-subchrome bg-canvas shadow-[0_2px_8px_-4px_rgba(var(--shadow-ink-rgb),0.10)] transition-[top] duration-200 ease-out ${
             tier1Collapsed ? "top-0" : "top-14"
@@ -961,9 +960,13 @@ export function ProfilePage() {
               </div>
               <p className="text-ink font-medium">This account is private</p>
               <p className="text-ink-muted text-sm mt-1 max-w-xs">
-                Follow {firstName || "this account"} to see their posts and projects.
+                Follow {firstName || "this account"} to see their projects.
               </p>
             </div>
+          ) : tabDefs.length === 0 ? (
+            <p className="text-ink-muted text-center py-10 text-sm">
+              {showOwnerView ? "No projects yet — publish your first one." : "No projects yet."}
+            </p>
           ) : (
             <SwipeableTabs
               index={activeIndex}
@@ -974,19 +977,6 @@ export function ProfilePage() {
               }}
             >
               {tabDefs.map((tab) => {
-                if (tab.id === "posts") {
-                  return (
-                    <div key="posts">
-                      {posts && posts.length > 0 ? (
-                        posts.map((post: any) => (
-                          <PostCard key={post.id} post={post} isOwnerView={showOwnerView} />
-                        ))
-                      ) : (
-                        <p className="text-ink-muted text-center py-10 text-sm">No posts yet.</p>
-                      )}
-                    </div>
-                  );
-                }
                 if (tab.id === "media") {
                   return (
                     <div key="media">

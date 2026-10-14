@@ -21,6 +21,11 @@ import { ProjectMiniGrid } from "./ProjectMiniCard";
 const TABS = ["all", "people", "pages", "posts", "projects"] as const;
 export type SearchTab = (typeof TABS)[number];
 
+// Discover is about pages and projects only — no accounts, no posts.
+// The standalone Search screen keeps the full set.
+const DISCOVER_TABS = ["all", "pages", "projects"] as const;
+export type SearchScope = "all" | "discover";
+
 const TAB_LABELS: Record<SearchTab, string> = {
   all: "All",
   people: "People",
@@ -38,8 +43,8 @@ export function isSearchable(query: string): boolean {
   return query.trim().length >= MIN_QUERY_LENGTH;
 }
 
-export function useSearchTab() {
-  return useTabState<SearchTab>(TABS, "all");
+export function useSearchTab(scope: SearchScope = "all") {
+  return useTabState<SearchTab>(scope === "discover" ? DISCOVER_TABS : TABS, "all");
 }
 
 function SkeletonRows({ count = 3 }: { count?: number }) {
@@ -108,20 +113,34 @@ export function SearchResults({
   query,
   isPending = false,
   stickyTabsClassName = "",
+  scope = "all",
 }: {
   /** Already-debounced query. */
   query: string;
   /** True while the typed text is ahead of `query` — keeps stale empties from flashing. */
   isPending?: boolean;
   stickyTabsClassName?: string;
+  /** "discover" searches pages and projects only. */
+  scope?: SearchScope;
 }) {
   const { user } = useAuth();
-  const [tab, setTab] = useSearchTab();
+  const [tab, setTab] = useSearchTab(scope);
+  const visibleTabs = scope === "discover" ? DISCOVER_TABS : TABS;
+  const showPeople = scope === "all";
+  const showPosts = scope === "all";
 
-  const people = useSearchPeople(query);
+  // An empty query makes each hook's own `enabled` guard skip the
+  // request, so a scoped-out source is never fetched at all.
+  const people = useSearchPeople(showPeople ? query : "");
   const pages = useSearchPages(query);
-  const posts = useSearchPosts(query);
+  const posts = useSearchPosts(showPosts ? query : "");
   const projects = useSearchProjects(query);
+  const sources = [
+    ...(showPeople ? [people] : []),
+    pages,
+    ...(showPosts ? [posts] : []),
+    projects,
+  ];
 
   const onVisit = (profileId: string) => recordSearchVisit(user?.id, profileId);
 
@@ -174,10 +193,8 @@ export function SearchResults({
   // "All": show only sections that have something, so a query that only
   // matches a page doesn't render three empty headings above it. The
   // one empty state appears only once every source has settled empty.
-  const settled = !isPending && ![people, pages, posts, projects].some((q) => q.isLoading);
-  const allEmpty =
-    settled &&
-    [people, pages, posts, projects].every((q) => !q.isError && (q.data ?? []).length === 0);
+  const settled = !isPending && !sources.some((q) => q.isLoading);
+  const allEmpty = settled && sources.every((q) => !q.isError && (q.data ?? []).length === 0);
 
   return (
     <div>
@@ -186,7 +203,7 @@ export function SearchResults({
         aria-label="Search results"
         className={`flex gap-5 border-b border-border mb-4 overflow-x-auto no-scrollbar ${stickyTabsClassName}`}
       >
-        {TABS.map((t) => (
+        {visibleTabs.map((t) => (
           <button
             key={t}
             role="tab"
@@ -212,7 +229,7 @@ export function SearchResults({
             <EmptyState label={`No results for “${query.trim()}”`} hint="Check the spelling or try a shorter search." />
           ) : (
             <>
-              {(loading(people) || (people.data?.length ?? 0) > 0 || people.isError) && (
+              {showPeople && (loading(people) || (people.data?.length ?? 0) > 0 || people.isError) && (
                 <Section title="People" showSeeAll={(people.data?.length ?? 0) > PREVIEW_COUNT} onSeeAll={() => setTab("people")}>
                   {renderPeople(PREVIEW_COUNT)}
                 </Section>
@@ -227,7 +244,7 @@ export function SearchResults({
                   {renderProjects(PREVIEW_COUNT)}
                 </Section>
               )}
-              {(loading(posts) || (posts.data?.length ?? 0) > 0 || posts.isError) && (
+              {showPosts && (loading(posts) || (posts.data?.length ?? 0) > 0 || posts.isError) && (
                 <Section title="Posts" showSeeAll={(posts.data?.length ?? 0) > PREVIEW_COUNT} onSeeAll={() => setTab("posts")}>
                   {renderPosts(PREVIEW_COUNT)}
                 </Section>

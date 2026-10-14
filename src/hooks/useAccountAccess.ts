@@ -32,7 +32,7 @@ export interface AccountAccess {
   canAccess: boolean;
   /**
    * Consumer-only mode: the gate is enforced and this account is still
-   * 'pending'. They get the app minus the Feed and every creation entry
+   * 'pending'. They land on Library and get the app minus the Feed and every creation entry
    * point, with NO messaging about being restricted — the UI simply
    * doesn't offer those surfaces. Server-side RLS/edge checks
    * (fn_can_access_feature) are the real enforcement.
@@ -98,8 +98,12 @@ export function useIsRestricted(): boolean {
   return data?.restricted ?? false;
 }
 
-/** Where a restricted user lands instead of the Feed. */
-export const RESTRICTED_HOME = "/topics";
+/**
+ * Where a restricted user lands instead of the Feed — after login,
+ * after onboarding, and when they hit a full-access-only route. Library
+ * is the consumer-only home (it holds what they've bought/saved).
+ */
+export const RESTRICTED_HOME = "/library";
 
 /** Logout from the Under Review screen — same signOut used by Settings. */
 export function useSignOut() {

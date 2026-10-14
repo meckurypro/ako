@@ -8,7 +8,6 @@ import { useIsRestricted } from "../hooks/useAccountAccess";
 import { useMyProfile } from "../hooks/useProfile";
 import { Avatar } from "../components/Avatar";
 import { VerifiedBadge } from "../components/VerifiedBadge";
-import { PostCard } from "../components/PostCard";
 import { BottomNav } from "../components/BottomNav";
 import {
   usePageByUsername,
@@ -24,9 +23,7 @@ import {
   useResolvePageOwner,
   useDeletePage,
 } from "../hooks/usePages";
-import { usePagePosts } from "../hooks/usePosts";
 import { usePageProjects } from "../hooks/useProjects";
-import { useTabState } from "../hooks/useTabState";
 import { ProjectMiniGrid } from "../components/ProjectMiniCard";
 import { pageModeLabel } from "../lib/pageRoles";
 import { ConfirmDialog } from "../components/ConfirmDialog";
@@ -68,11 +65,7 @@ export function PagePage() {
   const { data: me } = useMyProfile();
   const { data: page, isLoading } = usePageByUsername(username!);
   const { data: members } = usePageMembers(page?.id ?? "");
-  const { data: posts } = usePagePosts(page?.id ?? "");
   const { data: projects, isLoading: projectsLoading } = usePageProjects(page?.id);
-  // ?tab=projects survives refresh and is what CreateProject lands on
-  // after publishing as this page (see useTabState).
-  const [activeTab, setActiveTab] = useTabState<"posts" | "projects">(["posts", "projects"], "posts");
   const { data: myPages } = useMyPages();
   const { data: identity } = useActiveIdentity();
   const switchMode = useSwitchActiveMode();
@@ -445,35 +438,22 @@ export function PagePage() {
           )}
         </div>
 
+        {/* Pages list projects only — posts are never shown here. */}
         <div role="tablist" aria-label={`${page.name} content`} className="flex gap-6 px-4 border-t border-border">
-          {(["posts", "projects"] as const).map((t) => (
-            <button
-              key={t}
-              role="tab"
-              aria-selected={activeTab === t}
-              onClick={() => setActiveTab(t)}
-              className={`text-sm font-medium py-3 border-b-2 -mb-px transition-colors ${
-                activeTab === t ? "text-accent border-accent" : "text-ink-muted border-transparent"
-              }`}
-            >
-              {t === "posts" ? "Posts" : "Projects"}
-              {t === "projects" && projects && projects.length > 0 && (
-                <span className="ml-1.5 text-xs text-ink-muted">{projects.length}</span>
-              )}
-            </button>
-          ))}
+          <button
+            role="tab"
+            aria-selected="true"
+            className="text-sm font-medium py-3 border-b-2 -mb-px text-accent border-accent"
+          >
+            Projects
+            {projects && projects.length > 0 && (
+              <span className="ml-1.5 text-xs text-ink-muted">{projects.length}</span>
+            )}
+          </button>
         </div>
 
         <div role="tabpanel" className="border-t border-border">
-          {activeTab === "posts" ? (
-            !posts || posts.length === 0 ? (
-              <p className="text-ink-muted text-center py-14 text-sm">
-                {page.name} hasn't posted anything yet.
-              </p>
-            ) : (
-              posts.map((post) => <PostCard key={post.id} post={post} />)
-            )
-          ) : projectsLoading ? (
+          {projectsLoading ? (
             <p className="text-ink-muted text-center py-14 text-sm">Loading…</p>
           ) : !projects || projects.length === 0 ? (
             <p className="text-ink-muted text-center py-14 text-sm px-6">

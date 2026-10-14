@@ -36,6 +36,7 @@ function FeedIcon({ size = 24, strokeWidth = 1.75, fill = "none" }: IconProps) {
 // composing. That entry point moved to the "+" on Feed's header,
 // which opens /create (see CreateChoice.tsx).
 const navItems = [
+  { to: "/library", icon: LibraryBig, label: "Library" },
   { to: "/feed", icon: FeedIcon, label: "Feed" },
   { to: "/topics", icon: Search, label: "Discover" },
 ] as const;
@@ -108,15 +109,6 @@ export function BottomNav() {
             )}
           </NavLink>
         ))}
-
-        <NavLink to="/library" replace className={linkClass}>
-          {({ isActive }) => (
-            <>
-              <NavIcon Icon={LibraryBig} isActive={isActive} />
-              Library
-            </>
-          )}
-        </NavLink>
 
         <NavLink to="/inbox" replace className={() => linkClass({ isActive: isMessagesActive })}>
           <div className="relative">
