@@ -2,17 +2,21 @@
 import { Link } from "react-router-dom";
 import { useSmartBack } from "../hooks/useSmartBack";
 import { ArrowLeft, ImageIcon, LibraryBig, BookText, GraduationCap, Music, FileText, Link as LinkIcon } from "lucide-react";
+import { useTabState } from "../hooks/useTabState";
 import { useLibrary, libraryItemRoute, type LibraryItem, type LibraryItemType } from "../hooks/useLibrary";
 import { BottomNav } from "../components/BottomNav";
 
-// Grouping mirrors the user's mental model from the audit doc — a
-// book and a course are both "things I'm working through", while
-// media/files/links are one-off grabs. Two sections, not five, keeps
-// this a quick scan rather than a taxonomy exercise.
-const SECTIONS: { title: string; types: LibraryItemType[] }[] = [
-  { title: "Books & courses", types: ["book", "course"] },
-  { title: "Media, files & links", types: ["media", "file", "url"] },
-];
+// One tab per kind of thing you own — same tabbed shape as Connect.
+const TABS = ["books", "courses", "media", "files", "links"] as const;
+type LibraryTab = (typeof TABS)[number];
+
+const TAB_META: Record<LibraryTab, { label: string; type: LibraryItemType; empty: string }> = {
+  books: { label: "Books", type: "book", empty: "Books you buy or open will show up here." },
+  courses: { label: "Courses", type: "course", empty: "Courses you buy or open will show up here." },
+  media: { label: "Media", type: "media", empty: "Music, video and other media you buy or open will show up here." },
+  files: { label: "Files", type: "file", empty: "Files you buy or open will show up here." },
+  links: { label: "Links", type: "url", empty: "Links you buy or open will show up here." },
+};
 
 const ICON_FOR: Record<LibraryItemType, typeof BookText> = {
   book: BookText,
@@ -68,6 +72,9 @@ function LibraryRow({ item }: { item: LibraryItem }) {
 export function LibraryActivity() {
   const smartBack = useSmartBack();
   const { data: items, isLoading } = useLibrary();
+  const [tab, setTab] = useTabState<LibraryTab>(TABS, "books");
+  const meta = TAB_META[tab];
+  const rows = (items ?? []).filter((i) => i.projectType === meta.type);
 
   return (
     <div className="min-h-screen bg-canvas px-4 md:px-8 pt-6 md:pt-10 pb-24">
@@ -78,38 +85,38 @@ export function LibraryActivity() {
 
         <h2 className="font-display text-2xl text-ink mb-6">Library</h2>
 
-        <>
-            {isLoading ? (
-              <p className="text-ink-muted text-sm">Loading…</p>
-            ) : (items ?? []).length === 0 ? (
-              <div className="flex flex-col items-center text-center gap-2 mt-16 text-ink-muted">
-                <LibraryBig size={24} />
-                <p className="text-sm">
-                  Books, courses, media, files, and links you buy or open will show up here.
-                </p>
-              </div>
-            ) : (
-              SECTIONS.map(({ title, types }) => {
-                const rows = (items ?? []).filter((i) => types.includes(i.projectType));
-                if (rows.length === 0) return null;
-                return (
-                  <div key={title} className="mb-6">
-                    <h3 className="text-sm font-medium text-ink-muted mb-2">{title}</h3>
-                    {/* Desktop: "grid/list width" per audit doc §13 — each
-                        LibraryRow is already a self-contained thumbnail+title
-                        tile, so a 3-up grid is a genuine reflow, not a
-                        reinvented component. Mobile keeps the single-column
-                        list unchanged. */}
-                    <div className="flex flex-col gap-2 md:grid md:grid-cols-3 md:gap-3">
-                      {rows.map((item) => (
-                        <LibraryRow key={item.projectId} item={item} />
-                      ))}
-                    </div>
-                  </div>
-                );
-              })
-            )}
-        </>
+        <div role="tablist" aria-label="Library" className="flex border-b border-border mb-5">
+          {TABS.map((t) => (
+            <button
+              key={t}
+              role="tab"
+              aria-selected={tab === t}
+              onClick={() => setTab(t)}
+              className={`flex-1 text-center text-sm font-medium whitespace-nowrap pb-3 border-b-2 -mb-px transition-colors ${
+                tab === t ? "text-accent border-accent" : "text-ink-muted border-transparent"
+              }`}
+            >
+              {TAB_META[t].label}
+            </button>
+          ))}
+        </div>
+
+        {isLoading ? (
+          <p className="text-ink-muted text-sm">Loading…</p>
+        ) : rows.length === 0 ? (
+          <div className="flex flex-col items-center text-center gap-2 mt-16 text-ink-muted">
+            <LibraryBig size={24} />
+            <p className="text-sm">{meta.empty}</p>
+          </div>
+        ) : (
+          // Desktop: each LibraryRow is a self-contained thumbnail+title tile, so a
+          // 3-up grid is a genuine reflow. Mobile keeps the single-column list.
+          <div className="flex flex-col gap-2 md:grid md:grid-cols-3 md:gap-3">
+            {rows.map((item) => (
+              <LibraryRow key={item.projectId} item={item} />
+            ))}
+          </div>
+        )}
       </div>
 
       <BottomNav />
