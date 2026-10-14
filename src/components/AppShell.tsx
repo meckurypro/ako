@@ -14,6 +14,7 @@
 import { useState, type ReactNode } from "react";
 import { useLocation, type Location } from "react-router-dom";
 import { Sidebar } from "./Sidebar";
+import { ScrollToTopButton } from "./ScrollToTopButton";
 
 const SHELL_EXCLUDED_PREFIXES = [
   "/signup",
@@ -83,6 +84,7 @@ export function AppShell({ children }: { children: ReactNode }) {
       <div className={`transition-[padding-left] duration-150 ${collapsed ? "md:pl-[76px]" : "md:pl-[76px] lg:pl-64"}`}>
         {children}
       </div>
+      <ScrollToTopButton />
     </>
   );
 }

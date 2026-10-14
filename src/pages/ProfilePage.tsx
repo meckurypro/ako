@@ -1,7 +1,7 @@
 // src/pages/ProfilePage.tsx
 import { useState, useRef, useEffect } from "react";
 import { useParams, Link, useNavigate, useLocation } from "react-router-dom";
-import { Settings, Wallet, MessageCircle, MoreHorizontal, Plus, Eye, X, Globe, UserCheck, Lock, Redo2, Building2, ArrowUp, Undo2, ChevronDown, UserMinus, Bell, BellOff, Send, Briefcase, Activity as ActivityIcon } from "lucide-react";
+import { Settings, Wallet, MessageCircle, MoreHorizontal, Plus, Eye, X, Globe, UserCheck, Lock, Redo2, Building2, Undo2, ChevronDown, UserMinus, Bell, BellOff, Send, Briefcase, Activity as ActivityIcon } from "lucide-react";
 import { useAuth } from "../hooks/useAuth";
 import {
   useProfileByUsername,
@@ -157,10 +157,6 @@ function TypeCategoryPane({
   );
 }
 
-// How far down the page (px, plain window.scrollY) before the
-// "scroll to top" FAB appears.
-const SCROLL_TOP_THRESHOLD = 480;
-
 // Tier 1's rendered height — the always-sticky toolbar row (see the
 // wrapper below). Tier 2 (the Posts/Projects tab bar) docks its own
 // `top` offset directly under this, via the matching `top-14`
@@ -261,19 +257,6 @@ export function ProfilePage() {
     if (!fromFeedPost) return;
     navigate("/feed", { state: { scrollToPostId: fromFeedPost.id } });
   }
-
-  // "Scroll to top" FAB — purely a function of raw scroll position,
-  // not any layout measurement, so it stays correct regardless of how
-  // tall the (now non-sticky) avatar/bio/stats block above the tabs
-  // happens to render for any given profile.
-  const [showScrollTop, setShowScrollTop] = useState(false);
-  useEffect(() => {
-    function onScroll() {
-      setShowScrollTop(window.scrollY > SCROLL_TOP_THRESHOLD);
-    }
-    window.addEventListener("scroll", onScroll, { passive: true });
-    return () => window.removeEventListener("scroll", onScroll);
-  }, []);
 
   // Tier 1 (the toolbar row — Plus/⋯, or Message/Follow/⋯ for a
   // visitor) fades and collapses away once the non-sticky header block
@@ -1079,7 +1062,7 @@ export function ProfilePage() {
           purely a function of scroll position. ako-pill-in gives each
           one the same soft scale+fade arrival already used for other
           "something just appeared" moments (see FollowButton.tsx). */}
-      <div className="fixed right-4 z-chrome flex flex-col items-end gap-3 bottom-[calc(env(safe-area-inset-bottom)+5.5rem)]">
+      <div className="fixed right-4 z-chrome flex flex-col items-end gap-3 bottom-[calc(env(safe-area-inset-bottom)+9.5rem)] md:bottom-8">
         {fromFeedPost && (
           <button
             onClick={handleBackToFeedPost}
@@ -1088,15 +1071,6 @@ export function ProfilePage() {
           >
             <Undo2 size={16} />
             Back to post
-          </button>
-        )}
-        {showScrollTop && (
-          <button
-            onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
-            className="ako-pill-in w-11 h-11 flex items-center justify-center bg-canvas border border-border text-ink rounded-full shadow-lg"
-            aria-label="Scroll to top"
-          >
-            <ArrowUp size={18} />
           </button>
         )}
       </div>
