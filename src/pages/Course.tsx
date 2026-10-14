@@ -1,5 +1,5 @@
 // src/pages/Course.tsx
-import { useEffect, useMemo, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useSmartBack } from "../hooks/useSmartBack";
 import {
@@ -15,13 +15,17 @@ import {
   Eye,
   PlayCircle,
   FileText,
-  PartyPopper,
 } from "lucide-react";
 import { useAuth } from "../hooks/useAuth";
 import { useRecordFreeProjectOpen } from "../hooks/useProjectAccess";
 import { useProject, useHasPurchased, isProjectFree } from "../hooks/useProjects";
 import { useFeedDoorway } from "../hooks/useFeedDoorway";
 import { FeedDoorway } from "../components/FeedDoorway";
+import { CourseHero } from "../components/course/CourseHero";
+import { LessonReader } from "../components/course/LessonReader";
+import { ProgressBar } from "../components/course/ProgressBar";
+import { useToast } from "../components/Toast";
+import { buildReaderModel, readMinutes } from "../lib/lessonFormat";
 import {
   useCourseModules,
   useAddModule,
@@ -147,10 +151,10 @@ function LessonForm({
         className="w-full px-3 py-2 rounded-lg border border-border bg-canvas text-sm text-ink"
       />
       <textarea
-        placeholder="Article text / lesson notes (optional)"
+        placeholder={"Lesson text (optional)\nTip: # heading, - list, 1. steps, > note, ``` code ```, **bold**, `code`"}
         value={value.content}
         onChange={(e) => setValue({ ...value, content: e.target.value })}
-        rows={2}
+        rows={6}
         className="w-full px-3 py-2 rounded-lg border border-border bg-canvas text-sm text-ink resize-none"
       />
       <button
@@ -199,7 +203,7 @@ export function Course() {
 
   const { data: modules } = useCourseModules(projectId);
   const progressQuery = useCourseProgress(projectId, user?.id);
-  const completedIds = progressQuery.data ?? new Set<string>();
+  const completedIds = useMemo(() => progressQuery.data ?? new Set<string>(), [progressQuery.data]);
   const setLessonComplete = useSetLessonComplete(projectId ?? "", user?.id);
 
   const addModule = useAddModule(projectId ?? "");
@@ -220,14 +224,11 @@ export function Course() {
   const [selectedLessonId, setSelectedLessonId] = useState<string | null>(null);
   const [collapsedModules, setCollapsedModules] = useState<Set<string>>(new Set());
 
-  const flatLessons = useMemo(
-    () => (modules ?? []).flatMap((m) => m.lessons),
-    [modules]
-  );
-  const totalLessons = flatLessons.length;
-  const completedCount = flatLessons.filter((l) => completedIds.has(l.id)).length;
-  const progressPct = totalLessons > 0 ? Math.round((completedCount / totalLessons) * 100) : 0;
-  const allComplete = totalLessons > 0 && completedCount === totalLessons;
+  const model = useMemo(() => buildReaderModel(modules ?? [], completedIds), [modules, completedIds]);
+  const { flat: flatLessons, total: totalLessons, done: completedCount, pct: progressPct, allDone: allComplete } = model;
+  const toast = useToast();
+  // "outline" = hero + module list; "lesson" = focused reader (on wide screens both show side by side).
+  const [view, setView] = useState<"outline" | "lesson">("outline");
   // Milestone completion only — deliberately not wired to individual
   // lesson completion (spec: "avoid showing the invitation after
   // every lesson; prefer milestone completion over micro-completion").
@@ -244,25 +245,23 @@ export function Course() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [hasAccess, flatLessons, progressQuery.isLoading]);
 
+  // Learners see the module they're up to open and the rest folded; owners keep everything open to edit.
+  const collapseInit = useRef(false);
+  useEffect(() => {
+    if (collapseInit.current || !modules || modules.length === 0 || progressQuery.isLoading || !project) return;
+    collapseInit.current = true;
+    if (isOwner) return;
+    const current = model.next ? model.next.module_id : modules[0].id;
+    setCollapsedModules(new Set(modules.filter((m) => m.id !== current).map((m) => m.id)));
+  }, [modules, progressQuery.isLoading, project, isOwner, model.next]);
+
   const selectedLesson = flatLessons.find((l) => l.id === selectedLessonId) ?? null;
   const canOpen = (lesson: CourseLesson) => hasAccess || lesson.is_free_preview;
   const selectedIndex = selectedLesson ? flatLessons.findIndex((l) => l.id === selectedLesson.id) : -1;
   const prevLesson = selectedIndex > 0 ? flatLessons[selectedIndex - 1] : null;
   const nextLesson = selectedIndex >= 0 && selectedIndex < flatLessons.length - 1 ? flatLessons[selectedIndex + 1] : null;
 
-  // Udemy auto-marks text/article lectures complete a few seconds
-  // after they load, since there's no "watched to the end" signal for
-  // plain text the way there is for video. Mirrors that here for any
-  // lesson with no video attached.
-  useEffect(() => {
-    if (!selectedLesson || !hasAccess || selectedLesson.media_url) return;
-    if (completedIds.has(selectedLesson.id)) return;
-    const timer = window.setTimeout(() => {
-      setLessonComplete.mutate({ lessonId: selectedLesson.id, completed: true });
-    }, 4000);
-    return () => window.clearTimeout(timer);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedLesson?.id, hasAccess]);
+  // Lessons complete when the learner clicks "Complete & continue" (or, for video files, when playback ends).
 
   function toggleModuleCollapsed(moduleId: string) {
     setCollapsedModules((prev) => {
@@ -283,7 +282,61 @@ export function Course() {
   function selectLesson(lesson: CourseLesson) {
     if (!canOpen(lesson)) return;
     setSelectedLessonId(lesson.id);
+    setView("lesson");
+    window.scrollTo({ top: 0, behavior: "smooth" });
   }
+
+  function resume() {
+    const target = model.next ?? flatLessons[0];
+    if (target) selectLesson(target);
+  }
+
+  function completeAndContinue() {
+    if (!selectedLesson) return;
+    const goNext = () => {
+      if (nextLesson && canOpen(nextLesson)) selectLesson(nextLesson);
+      else {
+        setView("outline");
+        window.scrollTo({ top: 0, behavior: "smooth" });
+      }
+    };
+    if (!hasAccess) {
+      if (nextLesson && canOpen(nextLesson)) selectLesson(nextLesson);
+      else navigate(`/projects/${projectId}`);
+      return;
+    }
+    if (completedIds.has(selectedLesson.id)) {
+      goNext();
+      return;
+    }
+    const mods = modules ?? [];
+    const mod = mods.find((m) => m.id === selectedLesson.module_id);
+    const moduleDone = !!mod && mod.lessons.every((l) => l.id === selectedLesson.id || completedIds.has(l.id));
+    const courseDone = completedCount + 1 === totalLessons;
+    const moduleNumber = mods.findIndex((m) => m.id === selectedLesson.module_id) + 1;
+    setLessonComplete.mutate(
+      { lessonId: selectedLesson.id, completed: true },
+      {
+        onSuccess: () => {
+          if (courseDone) {
+            toast("You finished the course. Well done!", { variant: "success" });
+            setView("outline");
+            window.scrollTo({ top: 0, behavior: "smooth" });
+          } else {
+            if (moduleDone) toast(`Module ${moduleNumber} complete`, { variant: "success" });
+            goNext();
+          }
+        },
+      }
+    );
+  }
+
+  const lessonNumberOf = (lesson: CourseLesson) => {
+    const mods = modules ?? [];
+    const mi = mods.findIndex((m) => m.id === lesson.module_id);
+    const li = mi >= 0 ? mods[mi].lessons.findIndex((l) => l.id === lesson.id) : 0;
+    return `${mi + 1}.${li + 1}`;
+  };
 
   if (!project) {
     return (
@@ -295,7 +348,7 @@ export function Course() {
 
   return (
     <div className="min-h-screen bg-canvas px-4 pt-4 pb-10">
-      <div className="max-w-md mx-auto">
+      <div className="max-w-md lg:max-w-6xl mx-auto">
         <button onClick={smartBack} className="text-ink-muted mb-3">
           <ArrowLeft size={22} />
         </button>
@@ -325,26 +378,16 @@ export function Course() {
           </div>
         )}
 
-        {/* Progress bar — visible to anyone with access, buyer or
-            owner-previewing-their-own-course, same as Udemy's "Your
-            progress" readout at the top of the course player. */}
         {hasAccess && totalLessons > 0 && (
-          <div className="mb-4">
-            <div className="flex items-center justify-between text-xs text-ink-muted mb-1">
-              <span>
-                {completedCount}/{totalLessons} lessons complete
-              </span>
-              <span>{progressPct}%</span>
-            </div>
-            <div className="h-1.5 rounded-full bg-border overflow-hidden">
-              <div className="h-full bg-accent transition-[width]" style={{ width: `${progressPct}%` }} />
-            </div>
-            {allComplete && (
-              <div className="flex items-center gap-1.5 text-sm text-accent font-medium mt-2">
-                <PartyPopper size={15} />
-                Course complete!
-              </div>
-            )}
+          <div className={view === "lesson" ? "hidden lg:block" : ""}>
+            <CourseHero
+              pct={progressPct}
+              done={completedCount}
+              total={totalLessons}
+              minutesLeft={model.minutesLeft}
+              nextTitle={model.next ? `${lessonNumberOf(model.next)}  ${model.next.title}` : null}
+              onContinue={resume}
+            />
             {allComplete && courseDoorway.visible && (
               <FeedDoorway context="course_complete" onEnter={courseDoorway.markEnteredFeed} />
             )}
@@ -365,82 +408,15 @@ export function Course() {
           </div>
         )}
 
-        {/* Player pane — the lesson currently open. Only ever shows a
-            locked lesson's content if it's flagged for free preview;
-            everything else routes through canOpen(). */}
-        {selectedLesson && canOpen(selectedLesson) && (
-          <div className="rounded-xl border border-border bg-surface p-3 mb-4">
-            <div className="flex items-center justify-between gap-2 mb-2">
-              <p className="text-ink font-medium text-sm">{selectedLesson.title}</p>
-              {!hasAccess && selectedLesson.is_free_preview && (
-                <span className="flex items-center gap-1 text-xs text-accent font-medium flex-shrink-0">
-                  <Eye size={12} /> Preview
-                </span>
-              )}
-            </div>
-
-            {selectedLesson.media_url && (
-              <LessonMedia
-                url={selectedLesson.media_url}
-                onWatched={() => {
-                  if (hasAccess) setLessonComplete.mutate({ lessonId: selectedLesson.id, completed: true });
-                }}
-              />
-            )}
-            {selectedLesson.content && (
-              <p className="text-sm text-ink whitespace-pre-wrap mb-2">{selectedLesson.content}</p>
-            )}
-            {!selectedLesson.media_url && !selectedLesson.content && (
-              <p className="text-sm text-ink-muted mb-2">No content yet.</p>
-            )}
-
-            {hasAccess && (
-              <button
-                onClick={() =>
-                  setLessonComplete.mutate({ lessonId: selectedLesson.id, completed: !completedIds.has(selectedLesson.id) })
-                }
-                disabled={setLessonComplete.isPending}
-                className="flex items-center gap-1.5 text-sm font-medium disabled:opacity-50"
-              >
-                {completedIds.has(selectedLesson.id) ? (
-                  <>
-                    <CheckCircle2 size={16} className="text-accent" />
-                    <span className="text-accent">Completed — mark incomplete</span>
-                  </>
-                ) : (
-                  <>
-                    <Circle size={16} className="text-ink-muted" />
-                    <span className="text-ink-muted">Mark as complete</span>
-                  </>
-                )}
-              </button>
-            )}
-
-            <div className="flex items-center justify-between mt-3 pt-3 border-t border-border">
-              <button
-                onClick={() => prevLesson && selectLesson(prevLesson)}
-                disabled={!prevLesson}
-                className="text-xs font-medium text-ink-muted disabled:opacity-30"
-              >
-                ← Previous
-              </button>
-              <button
-                onClick={() => nextLesson && selectLesson(nextLesson)}
-                disabled={!nextLesson || !canOpen(nextLesson)}
-                className="text-xs font-medium text-accent disabled:opacity-30 disabled:text-ink-muted"
-              >
-                Next →
-              </button>
-            </div>
-          </div>
-        )}
-
+        <div className="lg:grid lg:grid-cols-[minmax(300px,390px)_minmax(0,1fr)] lg:items-start lg:gap-8">
+          <div className={`${view === "lesson" ? "hidden lg:block" : ""} lg:sticky lg:top-4 lg:max-h-[calc(100vh-2rem)] lg:overflow-y-auto lg:pr-1`}>
         {/* Curriculum outline — always visible so a prospective buyer
             can see what's inside, same as a Udemy course landing page;
             locked rows just can't be opened. */}
         <div className="flex flex-col gap-3">
           {(modules ?? []).map((m, moduleIdx) => {
             const collapsed = collapsedModules.has(m.id);
+            const prog = model.perModule.get(m.id);
             return (
               <div key={m.id} className="rounded-xl border border-border bg-surface p-3">
                 <div className="flex items-center justify-between gap-2 mb-1.5">
@@ -477,10 +453,19 @@ export function Course() {
                       ) : (
                         <ChevronUp size={14} className="text-ink-muted flex-shrink-0" />
                       )}
-                      <span className="text-ink font-medium text-sm truncate">
-                        Section {moduleIdx + 1}: {m.title}
+                      <span className="min-w-0 flex-1">
+                        <span className="block text-[10.5px] font-bold uppercase tracking-[0.09em] text-ink-muted">Module {moduleIdx + 1}</span>
+                        <span className="block text-[15px] font-semibold leading-5 text-ink">{m.title}</span>
                       </span>
-                      <span className="text-xs text-ink-muted flex-shrink-0">({m.lessons.length})</span>
+                      {hasAccess && prog?.complete ? (
+                        <CheckCircle2 size={16} className="text-accent flex-shrink-0" />
+                      ) : hasAccess && prog ? (
+                        <span className="text-xs text-ink-muted flex-shrink-0">
+                          {prog.done}/{prog.total}
+                        </span>
+                      ) : (
+                        <span className="text-xs text-ink-muted flex-shrink-0">({m.lessons.length})</span>
+                      )}
                     </button>
                   )}
 
@@ -507,6 +492,12 @@ export function Course() {
                     </div>
                   )}
                 </div>
+
+                {hasAccess && prog && prog.total > 0 && (
+                  <div className="mb-2 mt-1">
+                    <ProgressBar pct={Math.round((prog.done / prog.total) * 100)} height={4} />
+                  </div>
+                )}
 
                 {!collapsed && (
                   <div className="flex flex-col gap-1 mb-2">
@@ -540,7 +531,7 @@ export function Course() {
                             />
                           ) : (
                             <div
-                              className={`flex items-center gap-2 pl-2 py-1.5 rounded-lg border-l-2 ${
+                              className={`flex items-center gap-2 pl-2.5 py-2.5 rounded-lg border-l-2 ${
                                 isSelected ? "border-accent bg-accent-soft/40" : "border-border"
                               }`}
                             >
@@ -569,8 +560,9 @@ export function Course() {
                                   <FileText size={13} className="text-ink-muted flex-shrink-0" />
                                 )}
                                 <span className={`text-sm truncate ${locked ? "text-ink-muted" : "text-ink"}`}>
-                                  {lessonIdx + 1}. {l.title}
+                                  {moduleIdx + 1}.{lessonIdx + 1}&nbsp;&nbsp;{l.title}
                                 </span>
+                                <span className="text-[11px] text-ink-muted flex-shrink-0">{l.media_url ? "video" : `${readMinutes(l.content)} min`}</span>
                                 {!hasAccess && l.is_free_preview && (
                                   <span className="text-[11px] text-accent font-medium flex-shrink-0">Preview</span>
                                 )}
@@ -651,6 +643,50 @@ export function Course() {
           )}
 
           {!isOwner && (modules ?? []).length === 0 && <p className="text-sm text-ink-muted">No content yet — check back later.</p>}
+        </div>
+          </div>
+
+          {/* Reader pane — the lesson currently open. Only ever shows a locked lesson's content if it's
+              flagged for free preview; everything else routes through canOpen(). */}
+          <div className={`${view === "outline" ? "hidden lg:block" : ""} min-w-0`}>
+            {selectedLesson && canOpen(selectedLesson) ? (
+              <LessonReader
+                lesson={selectedLesson}
+                moduleNumber={(modules ?? []).findIndex((m) => m.id === selectedLesson.module_id) + 1}
+                lessonNumber={lessonNumberOf(selectedLesson)}
+                position={selectedIndex + 1}
+                total={totalLessons}
+                pct={progressPct}
+                hasAccess={hasAccess}
+                completed={completedIds.has(selectedLesson.id)}
+                pending={setLessonComplete.isPending}
+                hasPrev={!!prevLesson}
+                hasNext={!!nextLesson}
+                nextLocked={!!nextLesson && !canOpen(nextLesson)}
+                media={
+                  selectedLesson.media_url ? (
+                    <LessonMedia
+                      url={selectedLesson.media_url}
+                      onWatched={() => {
+                        if (hasAccess) setLessonComplete.mutate({ lessonId: selectedLesson.id, completed: true });
+                      }}
+                    />
+                  ) : null
+                }
+                onOutline={() => setView("outline")}
+                onPrev={() => prevLesson && selectLesson(prevLesson)}
+                onPrimary={completeAndContinue}
+                onToggleComplete={() =>
+                  setLessonComplete.mutate({ lessonId: selectedLesson.id, completed: !completedIds.has(selectedLesson.id) })
+                }
+              />
+            ) : (
+              <div className="hidden rounded-3xl border border-dashed border-border p-10 text-center lg:block">
+                <p className="font-display text-xl text-ink">Pick a lesson to begin</p>
+                <p className="mt-1 text-sm text-ink-muted">Your lessons are on the left. Start anywhere, or press Continue.</p>
+              </div>
+            )}
+          </div>
         </div>
       </div>
     </div>
