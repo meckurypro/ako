@@ -1647,7 +1647,7 @@ export function ProjectCard({
               {detailCta &&
                 (() => {
                   const ctaClass =
-                    "h-12 w-full rounded-2xl bg-accent text-white text-base font-semibold flex items-center justify-center gap-2 shadow-[0_4px_14px_-4px_rgba(var(--shadow-ink-rgb),0.35)] transition-transform active:scale-[0.98] disabled:opacity-50 disabled:active:scale-100";
+                    "h-12 w-full rounded-2xl bg-cta text-white text-base font-semibold flex items-center justify-center gap-2 shadow-[0_4px_14px_-4px_rgba(var(--shadow-ink-rgb),0.35)] transition-transform active:scale-[0.98] disabled:opacity-50 disabled:active:scale-100";
                   return detailCta.href ? (
                     <a
                       href={detailCta.href}

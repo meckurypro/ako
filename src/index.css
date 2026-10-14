@@ -33,6 +33,7 @@
   --color-accent: #3D5A45;        /* deep sage green — primary accent */
   --color-accent-hover: #2F4636;  /* darker sage for hover/active states */
   --color-accent-soft: #E3E9E1;   /* pale sage tint for subtle backgrounds/badges */
+  --color-cta: #3D5A45;           /* fill for primary buttons carrying WHITE text — must hold ≥4.5:1 against #FFF (WCAG AA). Light: == accent (7.7:1). Overridden in .dark / page-mode below, where the bright accent alone fails. */
   --color-border: #E9E4D8;        /* hairline borders, nudged for brighter surface */
   --color-danger: #A64B3F;        /* warm brick-red for destructive/dislike states, not pure red */
   --color-pushback: #B8862E;      /* muted warm gold/ochre — Pushback stance only (was raw amber-*) */
@@ -252,6 +253,7 @@
   --color-accent: #4CAE7C;
   --color-accent-hover: #63C695;
   --color-accent-soft: #17281F;
+  --color-cta: #377F5B;           /* accent #4CAE7C is only 2.7:1 with white text; this is the same green darkened to 4.8:1 */
   --color-border: #232220;
   --color-danger: #C97C6B;
   --color-pushback: #D9A857;
@@ -329,6 +331,7 @@
   --color-ink-muted: #7C6A57;     /* warm taupe-grey, replaces the cooler warm-grey used in personal mode */
   --color-accent: #A8501F;        /* muted burnt orange/terracotta — ~19° hue, sits clearly between --color-danger's ~7° and --color-pushback's ~38° so none of the three get confused for each other */
   --color-accent-hover: #7E3B16;  /* darker on press, same "hover is darker in light mode" convention as the green palette */
+  --color-cta: #A8501F;           /* == accent, already 5.5:1 with white */
   --color-accent-soft: #F0DCC9;   /* pale peach tint for badges/pills, analogous role to the green's #E3E9E1 */
   --color-border: #EDDFCB;
   --color-highlight: #F0C08A;     /* saturated peach — unread rows / jump-to-comment flash, analogous to the green's #BFE6C6 */
@@ -352,6 +355,7 @@
   --color-accent: #D9773D;        /* mild warm orange — deliberately NOT as bright as it could go; "mild but clear against near-black" per the brief, similar territory to GitHub's dark-mode orange */
   --color-accent-hover: #EF9159;  /* lighter on press, same "hover is brighter in dark mode" convention as the green palette */
   --color-accent-soft: #2B1912;
+  --color-cta: #A95D30;           /* accent #D9773D is 3.2:1 with white; darkened to 4.9:1 */
   --color-border: #2E2015;
   --color-highlight: #5C3018;
 
