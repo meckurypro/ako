@@ -348,7 +348,7 @@ export function ConversationList() {
           <button onClick={smartBack} className="text-ink-muted">
             <ArrowLeft size={22} />
           </button>
-          <h2 className="font-display text-2xl text-ink flex-1">Messages</h2>
+          <h2 className="font-display text-2xl text-ink flex-1">Chats</h2>
         </header>
         <div className="max-w-xl md:max-w-2xl mx-auto px-4 pt-10 text-center">
           <p className="text-sm text-ink-muted">Messaging is temporarily unavailable. Check back later.</p>
@@ -389,7 +389,7 @@ export function ConversationList() {
             <button onClick={smartBack} className="text-ink-muted">
               <ArrowLeft size={22} />
             </button>
-            <h2 className="font-display text-2xl text-ink flex-1">Messages</h2>
+            <h2 className="font-display text-2xl text-ink flex-1">Chats</h2>
             {conversations && conversations.length > 0 && (
               <button
                 onClick={() => setSelectMode(true)}

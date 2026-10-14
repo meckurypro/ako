@@ -68,7 +68,7 @@ export function PageInbox() {
           <ArrowLeft size={22} />
         </button>
         <h2 className="font-display text-2xl text-ink flex-1">
-          {identity?.mode === "page" ? `${identity.page.name}'s Messages` : "Messages"}
+          {identity?.mode === "page" ? `${identity.page.name}'s Chats` : "Chats"}
         </h2>
       </header>
 

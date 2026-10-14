@@ -969,7 +969,7 @@ export function MessageThread() {
           <button onClick={() => navigate("/messages")} className="text-ink-muted" aria-label="Back">
             <ArrowLeft size={22} />
           </button>
-          <h2 className="font-display text-lg text-ink">Messages</h2>
+          <h2 className="font-display text-lg text-ink">Chats</h2>
         </header>
         <div className="flex-1 flex items-center justify-center px-4">
           <p className="text-sm text-ink-muted text-center">Messaging is temporarily unavailable. Check back later.</p>

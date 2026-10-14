@@ -240,7 +240,7 @@ export function Sidebar({ collapsed, onToggleCollapsed }: SidebarProps) {
         <NavItem
           to={activePageId ? "/page-inbox" : "/inbox"}
           icon={MessageCircle}
-          label="Messages"
+          label="Chats"
           isActive={isMessagesActive}
           badge={messagesUnread}
           collapsed={!showLabels}
