@@ -1,9 +1,18 @@
 // src/pages/LibraryActivity.tsx
 import { Link } from "react-router-dom";
 import { useSmartBack } from "../hooks/useSmartBack";
-import { ArrowLeft, ImageIcon, LibraryBig, BookText, GraduationCap, Music, FileText, Link as LinkIcon } from "lucide-react";
+import { ArrowLeft, Bookmark, ImageIcon, LibraryBig, BookText, GraduationCap, Music, FileText, Link as LinkIcon } from "lucide-react";
 import { useLibrary, libraryItemRoute, type LibraryItem, type LibraryItemType } from "../hooks/useLibrary";
+import { useSavedProjects } from "../hooks/useSavedProjects";
+import { useTabState } from "../hooks/useTabState";
+import { ProjectCard } from "../components/ProjectCard";
 import { BottomNav } from "../components/BottomNav";
+
+// Two sibling shelves under one "my stuff" home: what you own, and what
+// you've saved for later. Kept as separate tabs (not one mixed list) so a
+// saved paid project never looks like something you already have.
+const TABS = ["owned", "saved"] as const;
+type LibraryTab = (typeof TABS)[number];
 
 // Grouping mirrors the user's mental model from the audit doc — a
 // book and a course are both "things I'm working through", while
@@ -68,6 +77,8 @@ function LibraryRow({ item }: { item: LibraryItem }) {
 export function LibraryActivity() {
   const smartBack = useSmartBack();
   const { data: items, isLoading } = useLibrary();
+  const { data: saved, isLoading: savedLoading } = useSavedProjects();
+  const [tab, setTab] = useTabState<LibraryTab>(TABS, "owned");
 
   return (
     <div className="min-h-screen bg-canvas px-4 md:px-8 pt-6 md:pt-10 pb-24">
@@ -78,35 +89,69 @@ export function LibraryActivity() {
 
         <h2 className="font-display text-2xl text-ink mb-6">Library</h2>
 
-        {isLoading ? (
-          <p className="text-ink-muted text-sm">Loading…</p>
-        ) : (items ?? []).length === 0 ? (
-          <div className="flex flex-col items-center text-center gap-2 mt-16 text-ink-muted">
-            <LibraryBig size={24} />
-            <p className="text-sm">
-              Books, courses, media, files, and links you buy or open will show up here.
-            </p>
-          </div>
+        <div role="tablist" aria-label="Library" className="flex border-b border-border mb-5">
+          {TABS.map((t) => (
+            <button
+              key={t}
+              role="tab"
+              aria-selected={tab === t}
+              onClick={() => setTab(t)}
+              className={`flex-1 text-center text-sm font-medium pb-3 border-b-2 -mb-px transition-colors ${
+                tab === t ? "text-accent border-accent" : "text-ink-muted border-transparent"
+              }`}
+            >
+              {t === "owned" ? "Owned" : "Saved"}
+              {t === "saved" && saved && saved.length > 0 && (
+                <span className="ml-1.5 text-xs text-ink-muted">{saved.length}</span>
+              )}
+            </button>
+          ))}
+        </div>
+
+        {tab === "saved" ? (
+          savedLoading ? (
+            <p className="text-ink-muted text-sm">Loading…</p>
+          ) : (saved ?? []).length === 0 ? (
+            <div className="flex flex-col items-center text-center gap-2 mt-16 text-ink-muted">
+              <Bookmark size={24} />
+              <p className="text-sm">Tap the bookmark icon on a project to keep it here for later.</p>
+            </div>
+          ) : (
+            saved!.map((project) => <ProjectCard key={project.id} project={project} />)
+          )
         ) : (
-          SECTIONS.map(({ title, types }) => {
-            const rows = (items ?? []).filter((i) => types.includes(i.projectType));
-            if (rows.length === 0) return null;
-            return (
-              <div key={title} className="mb-6">
-                <h3 className="text-sm font-medium text-ink-muted mb-2">{title}</h3>
-                {/* Desktop: "grid/list width" per audit doc §13 — each
-                    LibraryRow is already a self-contained thumbnail+title
-                    tile, so a 3-up grid is a genuine reflow, not a
-                    reinvented component. Mobile keeps the single-column
-                    list unchanged. */}
-                <div className="flex flex-col gap-2 md:grid md:grid-cols-3 md:gap-3">
-                  {rows.map((item) => (
-                    <LibraryRow key={item.projectId} item={item} />
-                  ))}
-                </div>
+          <>
+            {isLoading ? (
+              <p className="text-ink-muted text-sm">Loading…</p>
+            ) : (items ?? []).length === 0 ? (
+              <div className="flex flex-col items-center text-center gap-2 mt-16 text-ink-muted">
+                <LibraryBig size={24} />
+                <p className="text-sm">
+                  Books, courses, media, files, and links you buy or open will show up here.
+                </p>
               </div>
-            );
-          })
+            ) : (
+              SECTIONS.map(({ title, types }) => {
+                const rows = (items ?? []).filter((i) => types.includes(i.projectType));
+                if (rows.length === 0) return null;
+                return (
+                  <div key={title} className="mb-6">
+                    <h3 className="text-sm font-medium text-ink-muted mb-2">{title}</h3>
+                    {/* Desktop: "grid/list width" per audit doc §13 — each
+                        LibraryRow is already a self-contained thumbnail+title
+                        tile, so a 3-up grid is a genuine reflow, not a
+                        reinvented component. Mobile keeps the single-column
+                        list unchanged. */}
+                    <div className="flex flex-col gap-2 md:grid md:grid-cols-3 md:gap-3">
+                      {rows.map((item) => (
+                        <LibraryRow key={item.projectId} item={item} />
+                      ))}
+                    </div>
+                  </div>
+                );
+              })
+            )}
+          </>
         )}
       </div>
 

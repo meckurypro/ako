@@ -961,7 +961,7 @@ function AppRoutes() {
             />
             {/* Folded into the Activity hub's Saved tab now — kept as a
                 redirect so any stale links still land somewhere valid. */}
-            <Route path="/saved-projects" element={<Navigate to="/activity/saved" replace />} />
+            <Route path="/saved-projects" element={<Navigate to="/library?tab=saved" replace />} />
 
             {/* A Project's public custom URL — a flat, globally unique
                 address like /calling, not scoped under any
