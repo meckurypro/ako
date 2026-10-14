@@ -49,7 +49,7 @@ import { useToast } from "./Toast";
 import { useAuth } from "../hooks/useAuth";
 import { useActiveIdentity } from "../hooks/usePages";
 import { useIsBookmarked, useToggleBookmark } from "../hooks/useBookmarks";
-import { useMyReaction, useToggleReaction } from "../hooks/useReactions";
+import { useMyReaction, useReactionOverlay, useToggleReaction } from "../hooks/useReactions";
 import { recordProfileVisitFromPost } from "../hooks/useProfileVisits";
 import { useEngagementOrder, type SecondaryActionKey } from "../hooks/useEngagementOrder";
 import { useCollaborators } from "../hooks/useCollaboration";
@@ -220,8 +220,13 @@ export function PostCard({
   const toggleLike   = useToggleReaction(post.id, "post", "like");
   const toggleDislike = useToggleReaction(post.id, "post", "dislike");
   const toggleShare  = useToggleReaction(post.id, "post", "share");
-  const isLiked    = !!likeQuery.data;
-  const isDisliked = !!dislikeQuery.data;
+  // Render server state + any unconfirmed tap (queued/offline included) so hearts and counts move instantly.
+  const likeView = useReactionOverlay(post.id, "post", "like", !!likeQuery.data);
+  const dislikeView = useReactionOverlay(post.id, "post", "dislike", !!dislikeQuery.data);
+  const isLiked = likeView.active;
+  const isDisliked = dislikeView.active;
+  const likeCount = Math.max(0, post.like_count + likeView.countDelta);
+  const dislikeCount = Math.max(0, post.dislike_count + dislikeView.countDelta);
 
   const deletePost = useDeletePost();
   const toast = useToast();
@@ -248,11 +253,9 @@ export function PostCard({
   function handleContentTap() {
     const now = Date.now();
     if (now - lastTapRef.current < DOUBLE_TAP_WINDOW_MS) {
-      // Same pending-guard as the Like button itself (see leftActions
-      // below) — without it, a double-tap on the image right as a
-      // separate tap on the Like icon is still in flight could fire
-      // this on a stale `isLiked` read too.
-      if (!isLiked && !toggleLike.isPending) toggleLike.mutate(false);
+      // Safe without an in-flight guard: the toggle enqueues an idempotent "liked: yes" intent computed from what the
+      // user sees, so a stale read can only repeat the same intent, never undo it.
+      if (!isLiked) toggleLike.mutate(false);
     }
     lastTapRef.current = now;
   }
@@ -408,7 +411,7 @@ export function PostCard({
           fill={isDisliked ? "currentColor" : "none"}
         />
       ),
-      count: post.dislike_count > 0 ? post.dislike_count : null,
+      count: dislikeCount > 0 ? dislikeCount : null,
       onAction: () => toggleDislike.mutate(isDisliked),
     },
     gift: {
@@ -486,21 +489,11 @@ export function PostCard({
       icon: (
         <LikeHeart active={isLiked} size={24} className="text-danger" />
       ),
-      count: post.like_count > 0 ? post.like_count : null,
-      // Guards against the classic optimistic-UI double-tap trap: this
-      // onClick closes over `isLiked` from render time, so two taps
-      // landing close enough together both read the SAME (stale)
-      // value once React's re-render from the first tap's optimistic
-      // update hasn't painted yet — tap-tap fires mutate(false) then
-      // mutate(true) (or vice versa), which looks exactly like "I
-      // liked it and it instantly undid itself." Ignoring a second tap
-      // while the first is still in flight closes that window; a
-      // genuine second tap AFTER the first settles still toggles
-      // normally, since isPending is false again by then.
-      onClick: () => {
-        if (toggleLike.isPending) return;
-        toggleLike.mutate(isLiked);
-      },
+      count: likeCount > 0 ? likeCount : null,
+      // No in-flight guard needed (and none wanted — it made taps feel dead on slow networks): the tap enqueues an
+      // idempotent intent computed from what the user SEES. Two taps in one frame read the same stale value and
+      // enqueue the same intent twice (harmless); a genuine second tap after a re-render flips it back, in order.
+      onClick: () => toggleLike.mutate(isLiked),
     },
   ];
 

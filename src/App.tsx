@@ -110,6 +110,7 @@ import { Connect } from "./pages/Connect";
 import { LibraryActivity } from "./pages/LibraryActivity";
 import { MyGigs } from "./pages/MyGigs";
 import { HistoryActivity } from "./pages/HistoryActivity";
+import { registerOfflineMutations } from "./lib/offlineMutations";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -119,6 +120,10 @@ const queryClient = new QueryClient({
     },
   },
 });
+
+// Reaction / comment-reaction / bookmark writes are offline-first intents (see lib/offlineMutations.ts): the UI
+// updates instantly and the write is retried / resumed on reconnect. Their mutationFn lives in these defaults.
+registerOfflineMutations(queryClient);
 
 export default function App() {
   return (

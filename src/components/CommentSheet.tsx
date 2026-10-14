@@ -22,6 +22,7 @@ import {
 import {
   useMyCommentReactions,
   useToggleCommentReaction,
+  type CommentCountDeltas,
   type CommentReactionState,
 } from "../hooks/useReactions";
 import { useReportReasons, useSubmitReport } from "../hooks/useReports";
@@ -55,6 +56,8 @@ interface CommentSheetCtx {
   expandedIds: Set<string>;
   toggleExpand: (id: string) => void;
   reactions: Map<string, CommentReactionState> | undefined;
+  /** Unconfirmed taps (queued/offline included) to add to each comment's stored counts. */
+  reactionDeltas: CommentCountDeltas;
   onToggleReaction: ToggleReaction;
   onIdsLoaded: (ids: string[]) => void;
   onShare: (comment: CommentWithAuthor) => void;
@@ -106,6 +109,9 @@ function CommentThread({ comment, depth }: { comment: CommentWithAuthor; depth: 
   const reactionState = ctx.reactions?.get(comment.id);
   const isLiked = !!reactionState?.liked;
   const isDisliked = !!reactionState?.disliked;
+  const delta = ctx.reactionDeltas.get(comment.id);
+  const likeCount = Math.max(0, comment.like_count + (delta?.like ?? 0));
+  const dislikeCount = Math.max(0, comment.dislike_count + (delta?.dislike ?? 0));
   const isMine = !!ctx.currentUserId && comment.author.id === ctx.currentUserId;
 
   useEffect(() => {
@@ -181,7 +187,7 @@ function CommentThread({ comment, depth }: { comment: CommentWithAuthor; depth: 
               className="flex items-center gap-1.5 text-danger -ml-1.5 p-1.5"
             >
               <LikeHeart active={isLiked} size={18} />
-              {comment.like_count > 0 && <span className="text-sm">{comment.like_count}</span>}
+              {likeCount > 0 && <span className="text-sm">{likeCount}</span>}
             </button>
             <button
               onClick={() =>
@@ -190,7 +196,7 @@ function CommentThread({ comment, depth }: { comment: CommentWithAuthor; depth: 
               className={`flex items-center gap-1.5 p-1.5 ${isDisliked ? "text-danger" : "text-ink-muted"}`}
             >
               <ThumbsDown size={18} fill={isDisliked ? "currentColor" : "none"} />
-              {comment.dislike_count > 0 && <span className="text-sm">{comment.dislike_count}</span>}
+              {dislikeCount > 0 && <span className="text-sm">{dislikeCount}</span>}
             </button>
 
             {(["support", "disagree", "pushback"] as Stance[]).map((s) => (
@@ -401,7 +407,7 @@ export function CommentSheet({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [rootList]);
 
-  const { data: reactions } = useMyCommentReactions(postId, knownIds);
+  const { data: reactions, deltas: reactionDeltas } = useMyCommentReactions(postId, knownIds);
   const toggleReaction = useToggleCommentReaction(postId, knownIds.length);
 
   const totalCount = commentCount ?? rootList.length;
@@ -427,6 +433,7 @@ export function CommentSheet({
     expandedIds,
     toggleExpand,
     reactions,
+    reactionDeltas,
     onToggleReaction: toggleReaction.mutate,
     onIdsLoaded: registerIds,
     onShare: (c) => void handleShare(c),
