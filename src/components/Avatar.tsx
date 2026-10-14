@@ -1,7 +1,7 @@
 interface AvatarProps {
   src?: string | null;
   name: string;
-  size?: "sm" | "md" | "lg" | "xl";
+  size?: "sm" | "md" | "vn" | "lg" | "xl";
 }
 
 const sizeClasses = {
@@ -9,6 +9,7 @@ const sizeClasses = {
   // Matches the Uche reference: avatar reads as a compact identity marker,
   // not a headline element — roughly in line with the name+role stack.
   md: "w-10 h-10 text-sm",
+  vn: "w-12 h-12 text-base",
   xl: "w-16 h-16 text-xl",
   lg: "w-20 h-20 text-2xl",
 };

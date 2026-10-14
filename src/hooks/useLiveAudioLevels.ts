@@ -49,6 +49,7 @@ export function useLiveAudioLevels(
       const rms = Math.sqrt(sumSquares / data.length);
       // Raw mic RMS reads very quiet at typical speaking volume — scaled up so ordinary speech fills the bars.
       const level = Math.max(0.08, Math.min(1, rms * 4));
+      if (live.history.length < 12000) live.history.push(level); // ≈ 11 min at one sample / 55 ms
       live.set({ levels: [...live.get().levels.slice(1), level] });
     }
     raf = requestAnimationFrame(tick);

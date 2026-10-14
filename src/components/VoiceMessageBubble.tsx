@@ -17,6 +17,7 @@ import {
   setRememberedPosition,
   type PlaybackSpeed,
 } from "../lib/voicePlayback";
+import { durationOf, resolveInfiniteDuration } from "../lib/audioDuration";
 import { VoiceWaveform } from "./VoiceWaveform";
 import { Avatar } from "./Avatar";
 
@@ -63,9 +64,10 @@ interface VoiceMessageBubbleProps {
 }
 
 /**
- * WhatsApp-style voice note bubble: a round play/pause button, a real
- * amplitude waveform (tap anywhere on it to seek), elapsed/total time,
- * and a speed toggle — backed by a plain, hidden <audio> element
+ * WhatsApp-style voice note bubble: a plain play/pause triangle, a blue scrub dot riding a real
+ * amplitude waveform (click to jump or drag to scrub), duration under the dot with time + ticks at the
+ * far end, the sender's photo on the opposite side with a little mic (received: [play][wave][photo];
+ * sent: [photo][play][wave]), and a speed toggle — backed by a plain, hidden <audio> element
  * rather than the browser's native controls.
  *
  * Two cross-bubble behaviors live here, coordinated through
@@ -97,9 +99,11 @@ export function VoiceMessageBubble({
   const enforceViewOnce = !!viewOnce && !isMine;
   const spent = enforceViewOnce && !!openedOnceAt;
   const audioRef = useRef<HTMLAudioElement>(null);
+  const resolving = useRef(false);
   const [playing, setPlaying] = useState(false);
   const [progress, setProgress] = useState(0);
   const [elapsed, setElapsed] = useState(0);
+  const [scrub, setScrub] = useState<number | null>(null);
   const [fetchedPeaks, setFetchedPeaks] = useState<number[] | null>(null);
   const [speed, setSpeed] = useState<PlaybackSpeed>(() => getPreferredPlaybackSpeed());
   const [played, setPlayed] = useState(() => hasPlayed(stableKey));
@@ -148,16 +152,30 @@ export function VoiceMessageBubble({
     const audio = audioRef.current;
     if (!audio) return;
     const applyRememberedPosition = () => {
+      const total = durationOf(audio, durationSec);
       const remembered = getRememberedPosition(stableKey);
-      if (remembered > 0 && remembered < audio.duration) {
+      if (remembered > 0 && remembered < total) {
         audio.currentTime = remembered;
         setElapsed(remembered);
-        setProgress(audio.duration ? remembered / audio.duration : 0);
+        setProgress(total ? remembered / total : 0);
       }
     };
-    audio.addEventListener("loadedmetadata", applyRememberedPosition);
-    return () => audio.removeEventListener("loadedmetadata", applyRememberedPosition);
-  }, [stableKey, resolvedUrl]);
+    // Notes recorded in the browser have no duration header (Infinity) → learn the real one first, or
+    // the progress fill and scrubbing never work. See lib/audioDuration.ts.
+    const onMeta = () => {
+      if (audio.duration === Infinity) {
+        resolving.current = true;
+        resolveInfiniteDuration(audio, () => {
+          resolving.current = false;
+          applyRememberedPosition();
+        });
+        return;
+      }
+      applyRememberedPosition();
+    };
+    audio.addEventListener("loadedmetadata", onMeta);
+    return () => audio.removeEventListener("loadedmetadata", onMeta);
+  }, [stableKey, resolvedUrl, durationSec]);
 
   useEffect(() => {
     const audio = audioRef.current;
@@ -169,8 +187,10 @@ export function VoiceMessageBubble({
     const audio = audioRef.current;
     if (!audio) return;
     const onTime = () => {
+      if (resolving.current) return;
+      const total = durationOf(audio, durationSec);
       setElapsed(audio.currentTime);
-      setProgress(audio.duration ? audio.currentTime / audio.duration : 0);
+      setProgress(total ? Math.min(1, audio.currentTime / total) : 0);
     };
     const onEnd = () => {
       setPlaying(false);
@@ -187,7 +207,7 @@ export function VoiceMessageBubble({
       audio.removeEventListener("ended", onEnd);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [stableKey, resolvedUrl]);
+  }, [stableKey, resolvedUrl, durationSec]);
 
   // Pausing (including via another bubble starting, tab close, or
   // unmount-while-playing) always remembers where this note stopped.
@@ -238,8 +258,8 @@ export function VoiceMessageBubble({
 
   function seek(ratio: number) {
     const audio = audioRef.current;
-    if (!audio || !audio.duration) return;
-    audio.currentTime = ratio * audio.duration;
+    if (!audio) return;
+    audio.currentTime = ratio * durationOf(audio, durationSec);
     setProgress(ratio);
     setElapsed(audio.currentTime);
     if (playing) setRememberedPosition(stableKey, audio.currentTime);
@@ -252,10 +272,11 @@ export function VoiceMessageBubble({
   }
 
   const barLevels = peaks?.length ? peaks : fetchedPeaks ?? FLAT_PEAKS;
-  const mutedColor = isMine ? "bg-white/35" : "bg-ink-muted/25";
-  const filledColor = isMine ? "bg-white" : "bg-accent";
-  const buttonClass = isMine ? "bg-white text-accent" : "bg-accent text-white";
+  // Received waveforms are neutral grey-blue like WhatsApp; sent ones sit on the accent bubble in white.
+  const mutedColor = isMine ? "bg-white/35" : "bg-ink-muted/40";
+  const filledColor = isMine ? "bg-white/70" : "bg-ink-muted";
   const chipClass = isMine ? "bg-white/20 text-white" : "bg-accent/10 text-accent";
+  const iconTone = isMine ? "text-white/80" : "text-ink-muted";
 
   // Recipient already opened this view-once note — collapse to a
   // spent placeholder rather than the normal playable bubble. Matches
@@ -271,46 +292,57 @@ export function VoiceMessageBubble({
   }
 
   const showSpeed = playing || elapsed > 0;
+  const shownProgress = scrub ?? progress;
+  const shownElapsed = scrub !== null ? scrub * durationOf(audioRef.current, durationSec) : elapsed;
   // Received + not yet listened → accent mic; once played it turns blue (WhatsApp's green → blue).
-  const badgeClass = isMine ? "bg-white text-accent ring-accent" : played ? "bg-tick-blue text-white ring-surface" : "bg-accent text-white ring-surface";
+  const micTone = isMine ? "text-white/80" : played ? "text-tick-blue" : "text-accent";
+
+  // The photo slot: while a note plays, the speed chip takes its place (as in WhatsApp).
+  const photoSlot = showSpeed ? (
+    <button
+      type="button"
+      onClick={cycleSpeed}
+      className={`w-12 h-12 rounded-full flex items-center justify-center flex-shrink-0 text-sm font-bold tabular-nums ${chipClass}`}
+      aria-label={`Playback speed, currently ${speed}x. Tap to change.`}
+    >
+      {speed}x
+    </button>
+  ) : senderAvatarUrl !== undefined ? (
+    <div className="relative flex-shrink-0">
+      <Avatar src={senderAvatarUrl} name={senderName ?? "?"} size="vn" />
+      {/* The mic hangs off the photo's lower inner corner, outside the circle, like WhatsApp. */}
+      <Mic size={19} strokeWidth={2.4} className={`pointer-events-none absolute -bottom-1 ${isMine ? "-right-2.5" : "-left-2.5"} ${micTone}`} />
+    </div>
+  ) : null;
 
   return (
-    <div className="flex items-center gap-2 min-w-[230px] py-0.5">
+    <div className="flex items-center gap-2 w-[264px] max-w-full py-1">
       {/* eslint-disable-next-line jsx-a11y/media-has-caption */}
       {resolvedUrl && <audio ref={audioRef} src={resolvedUrl} preload="metadata" className="hidden" />}
-      {/* Leading slot: while a note is playing, the speed chip takes the avatar's place (as in WhatsApp). */}
-      {showSpeed ? (
-        <button
-          type="button"
-          onClick={cycleSpeed}
-          className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 text-xs font-bold tabular-nums ${chipClass}`}
-          aria-label={`Playback speed, currently ${speed}x. Tap to change.`}
-        >
-          {speed}x
-        </button>
-      ) : senderAvatarUrl !== undefined ? (
-        <div className="relative flex-shrink-0">
-          <Avatar src={senderAvatarUrl} name={senderName ?? "?"} size="sm" />
-          <span className={`absolute -bottom-0.5 -right-0.5 w-4 h-4 rounded-full flex items-center justify-center ring-2 ${badgeClass}`}>
-            <Mic size={9} />
-          </span>
-        </div>
-      ) : null}
+      {isMine && photoSlot}
       <button
         type="button"
         onClick={toggle}
         disabled={!resolvedUrl}
-        className={`w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0 ${buttonClass} ${!resolvedUrl ? "opacity-50" : ""}`}
+        className={`w-8 h-10 flex items-center justify-center flex-shrink-0 ${iconTone} ${!resolvedUrl ? "opacity-40" : ""}`}
         aria-label={playing ? "Pause voice message" : "Play voice message"}
       >
-        {playing ? <Pause size={15} fill="currentColor" /> : <Play size={15} fill="currentColor" className="ml-0.5" />}
+        {playing ? <Pause size={30} fill="currentColor" /> : <Play size={30} fill="currentColor" />}
       </button>
       <div className="flex-1 min-w-0">
         <div className="flex items-center">
-          <VoiceWaveform levels={barLevels} progress={progress} filledColor={filledColor} mutedColor={mutedColor} onSeek={seek} thumbColor={filledColor} />
+          <VoiceWaveform
+            levels={barLevels}
+            progress={shownProgress}
+            filledColor={filledColor}
+            mutedColor={mutedColor}
+            thumbColor="bg-tick-blue"
+            onSeek={seek}
+            onScrub={setScrub}
+          />
         </div>
-        <div className="flex items-center justify-between gap-2 mt-0.5">
-          <span className="text-[11px] tabular-nums opacity-80 flex items-center gap-1">
+        <div className="flex items-center justify-between gap-2 -mt-0.5">
+          <span className={`text-[12px] tabular-nums flex items-center gap-1 ${isMine ? "text-white/70" : "text-ink-muted"}`}>
             {viewOnce && (
               <span
                 className={`w-3.5 h-3.5 rounded-full flex items-center justify-center text-[9px] font-bold leading-none ${
@@ -321,11 +353,12 @@ export function VoiceMessageBubble({
                 1
               </span>
             )}
-            {formatVoiceDuration(showSpeed ? elapsed : durationSec)}
+            {formatVoiceDuration(showSpeed || shownElapsed > 0 ? shownElapsed : durationSec)}
           </span>
           {footer}
         </div>
       </div>
+      {!isMine && photoSlot}
     </div>
   );
 }

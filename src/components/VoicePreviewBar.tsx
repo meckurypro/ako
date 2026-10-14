@@ -2,6 +2,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Trash2, Play, Pause, Send } from "lucide-react";
 import { formatVoiceDuration } from "../lib/voiceNotes";
+import { durationOf, resolveInfiniteDuration } from "../lib/audioDuration";
 import { VoiceWaveform } from "./VoiceWaveform";
 
 const FLAT_PEAKS = Array(40).fill(0.12);
@@ -44,14 +45,27 @@ export function VoicePreviewBar({
   const [playing, setPlaying] = useState(false);
   const [progress, setProgress] = useState(0);
   const [elapsed, setElapsed] = useState(0);
+  const [scrub, setScrub] = useState<number | null>(null);
+  const resolving = useRef(false);
 
   useEffect(() => {
     const audio = audioRef.current;
     if (!audio) return;
-    const onTime = () => {
-      setElapsed(audio.currentTime);
-      setProgress(audio.duration ? audio.currentTime / audio.duration : 0);
+    // A MediaRecorder blob has no duration header (Infinity) — learn the real one so scrubbing works.
+    const onMeta = () => {
+      if (audio.duration !== Infinity) return;
+      resolving.current = true;
+      resolveInfiniteDuration(audio, () => {
+        resolving.current = false;
+      });
     };
+    const onTime = () => {
+      if (resolving.current) return;
+      const total = durationOf(audio, durationSec);
+      setElapsed(audio.currentTime);
+      setProgress(total ? Math.min(1, audio.currentTime / total) : 0);
+    };
+    audio.addEventListener("loadedmetadata", onMeta);
     const onEnd = () => {
       setPlaying(false);
       setProgress(0);
@@ -60,10 +74,11 @@ export function VoicePreviewBar({
     audio.addEventListener("timeupdate", onTime);
     audio.addEventListener("ended", onEnd);
     return () => {
+      audio.removeEventListener("loadedmetadata", onMeta);
       audio.removeEventListener("timeupdate", onTime);
       audio.removeEventListener("ended", onEnd);
     };
-  }, [url]);
+  }, [url, durationSec]);
 
   function toggle() {
     const audio = audioRef.current;
@@ -79,8 +94,8 @@ export function VoicePreviewBar({
 
   function seek(ratio: number) {
     const audio = audioRef.current;
-    if (!audio || !audio.duration) return;
-    audio.currentTime = ratio * audio.duration;
+    if (!audio) return;
+    audio.currentTime = ratio * durationOf(audio, durationSec);
     setProgress(ratio);
     setElapsed(audio.currentTime);
   }
@@ -108,13 +123,15 @@ export function VoicePreviewBar({
         </button>
         <VoiceWaveform
           levels={peaks.length ? peaks : FLAT_PEAKS}
-          progress={progress}
+          progress={scrub ?? progress}
           filledColor="bg-accent"
           mutedColor="bg-ink-muted/25"
-          onSeek={peaks.length ? seek : undefined}
+          thumbColor="bg-tick-blue"
+          onSeek={seek}
+          onScrub={setScrub}
         />
         <span className="text-[11px] tabular-nums flex-shrink-0 text-ink-muted">
-          {formatVoiceDuration(playing || elapsed > 0 ? elapsed : durationSec)}
+          {formatVoiceDuration(scrub !== null ? scrub * durationOf(audioRef.current, durationSec) : playing || elapsed > 0 ? elapsed : durationSec)}
         </span>
         {onToggleViewOnce && (
           <button

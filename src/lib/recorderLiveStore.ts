@@ -24,6 +24,8 @@ export function createRecorderLiveStore(idleLevels: number[]) {
   let state: RecorderLive = { elapsedMs: 0, drag: { x: 0, y: 0 }, levels: idleLevels, playbackMs: 0 };
   const listeners = new Set<() => void>();
   return {
+    /** Every level sampled during this recording (mutable, NOT reactive) — the paused waveform is drawn from it. */
+    history: [] as number[],
     get: (): RecorderLive => state,
     set(patch: Partial<RecorderLive>) {
       state = { ...state, ...patch };

@@ -2,6 +2,7 @@
 import { useCallback, useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
 import { IDLE_LEVELS, useLiveAudioLevels } from "./useLiveAudioLevels";
 import { createRecorderLiveStore } from "../lib/recorderLiveStore";
+import { durationOf, resolveInfiniteDuration } from "../lib/audioDuration";
 import { computeWaveformPeaks } from "../lib/waveform";
 
 /** How far left a hold has to drag before it's a cancel. */
@@ -171,6 +172,7 @@ export function useVoiceRecorder(
       accumulatedMsRef.current = 0;
       segmentStartRef.current = Date.now();
       setElapsedMs(0);
+      live.history.length = 0;
       live.set({ levels: IDLE_LEVELS, playbackMs: 0 });
       setPhase("recording");
       recordingTimerRef.current = setInterval(() => {
@@ -272,35 +274,77 @@ export function useVoiceRecorder(
   }, [setElapsedMs, stopPausedPlayback]);
 
   /**
-   * While paused: play what's been recorded so far WITHOUT ending the recording, so the user can listen,
-   * then Resume (keeps appending to the same note) or Send. Tapping again while it plays stops it.
-   * If the browser can't play a still-open recording, fall back to the full preview (stop + review).
+   * While paused: build (once) an <audio> of what's been recorded so far, WITHOUT ending the recording, so the
+   * user can listen and scrub, then Resume (keeps appending to the same note) or Send. Discarded on resume.
+   * Returns null if the browser can't produce one (then callers fall back to the full preview).
    */
-  const togglePausedPlayback = useCallback(async () => {
-    if (pausedAudioRef.current) {
-      stopPausedPlayback();
-      return;
-    }
+  const ensurePausedAudio = useCallback(async (): Promise<HTMLAudioElement | null> => {
+    if (pausedAudioRef.current) return pausedAudioRef.current;
     const mr = mediaRecorderRef.current;
-    if (!mr || !pausedRef.current) return;
+    if (!mr || !pausedRef.current) return null;
     await flushRecorder(mr);
-    if (!pausedRef.current || recordedChunksRef.current.length === 0) return; // resumed/cancelled while flushing
+    if (!pausedRef.current || recordedChunksRef.current.length === 0) return null; // resumed/cancelled while flushing
+    if (pausedAudioRef.current) return pausedAudioRef.current;
 
     const blob = new Blob(recordedChunksRef.current, { type: mr.mimeType || "audio/webm" });
     const url = URL.createObjectURL(blob);
     const audio = new Audio(url);
     pausedAudioRef.current = audio;
     pausedAudioUrlRef.current = url;
-    const fallbackToPreview = () => {
+    const fallbackSec = accumulatedMsRef.current / 1000;
+    let resolving = false;
+    const toPreview = () => {
       stopPausedPlayback();
       finishStop(false);
     };
-    audio.ontimeupdate = () => live.set({ playbackMs: audio.currentTime * 1000 });
-    audio.onended = stopPausedPlayback;
-    audio.onerror = fallbackToPreview;
-    setPlayingPaused(true);
-    audio.play().catch(fallbackToPreview);
+    // A still-open MediaRecorder clip has no duration header (Infinity) — learn it so scrubbing works.
+    audio.addEventListener("loadedmetadata", () => {
+      if (audio.duration !== Infinity) return;
+      resolving = true;
+      resolveInfiniteDuration(audio, () => {
+        resolving = false;
+      });
+    });
+    audio.ontimeupdate = () => {
+      if (!resolving) live.set({ playbackMs: Math.min(audio.currentTime, durationOf(audio, fallbackSec)) * 1000 });
+    };
+    audio.onended = () => {
+      audio.currentTime = 0;
+      live.set({ playbackMs: 0 });
+      setPlayingPaused(false);
+    };
+    audio.onpause = () => setPlayingPaused(false);
+    audio.onplay = () => setPlayingPaused(true);
+    audio.onerror = toPreview;
+    return audio;
   }, [finishStop, live, stopPausedPlayback]);
+
+  /** Play / pause the paused clip (pausing keeps its position; resuming the recording discards it). */
+  const togglePausedPlayback = useCallback(async () => {
+    const existing = pausedAudioRef.current;
+    if (existing && !existing.paused) {
+      existing.pause();
+      return;
+    }
+    const audio = await ensurePausedAudio();
+    if (!audio) return;
+    audio.play().catch(() => {
+      stopPausedPlayback();
+      finishStop(false);
+    });
+  }, [ensurePausedAudio, finishStop, stopPausedPlayback]);
+
+  /** Scrub the paused clip to a 0..1 position. */
+  const seekPausedPlayback = useCallback(
+    async (ratio: number) => {
+      const audio = await ensurePausedAudio();
+      if (!audio) return;
+      const total = durationOf(audio, accumulatedMsRef.current / 1000);
+      audio.currentTime = ratio * total;
+      live.set({ playbackMs: ratio * total * 1000 });
+    },
+    [ensurePausedAudio, live]
+  );
 
   const toggleViewOnce = useCallback(() => {
     setPreview((prev) => (prev ? { ...prev, viewOnce: !prev.viewOnce } : prev));
@@ -412,6 +456,7 @@ export function useVoiceRecorder(
     stopAndSend,
     togglePauseResume,
     togglePausedPlayback,
+    seekPausedPlayback,
     toggleViewOnce,
     discardPreview,
     sendPreview,

@@ -1452,6 +1452,7 @@ export function MessageThread() {
                 onSend={voiceRecorder.stopAndSend}
                 onPreview={voiceRecorder.stopToPreview}
                 onTogglePlayback={voiceRecorder.togglePausedPlayback}
+                onSeekPlayback={voiceRecorder.seekPausedPlayback}
                 playingPaused={voiceRecorder.playingPaused}
               />
             )}
