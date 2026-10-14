@@ -34,7 +34,8 @@ function FeedIcon({ size = 24, strokeWidth = 1.75, fill = "none" }: IconProps) {
 
 // Bottom nav order. Unrestricted accounts: Feed · Discover · Library ·
 // Connect · Profile. Restricted (consumer-only) accounts have no Feed and
-// land on Library, so Library stays first for them. Messages no longer has
+// land on Discover, so Discover is first for them: Discover · Library ·
+// Connect · Profile. Messages no longer has
 // a tab — it's the floating chat button above the nav (see ChatFab below).
 // "Connect" is the home for Events, Meetings, Rooms and Affiliates (see
 // pages/Connect.tsx).
@@ -44,7 +45,7 @@ const libraryItem = { to: "/library", icon: LibraryBig, label: "Library" } as co
 const connectItem = { to: "/connect", icon: Users, label: "Connect" } as const;
 
 const fullNavItems = [feedItem, discoverItem, libraryItem, connectItem] as const;
-const restrictedNavItems = [libraryItem, discoverItem, connectItem] as const;
+const restrictedNavItems = [discoverItem, libraryItem, connectItem] as const;
 
 // Solid chat bubble with a "+" knocked out of it — the same glyph the
 // reference design uses for its floating new-chat button. Square top-left
