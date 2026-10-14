@@ -2,7 +2,7 @@
 import { useState } from "react";
 import { useParams } from "react-router-dom";
 import { useSmartBack } from "../hooks/useSmartBack";
-import { ArrowLeft, Search, ShieldCheck, X } from "lucide-react";
+import { ArrowLeft, ChevronDown, Search, ShieldCheck, X } from "lucide-react";
 import { useAuth } from "../hooks/useAuth";
 import { useSearchPeople } from "../hooks/useSearch";
 import { Avatar } from "../components/Avatar";
@@ -13,9 +13,72 @@ import {
   useRemovePageMember,
   useUpdatePageMemberRole,
   usePageRoleLabelSuggestions,
+  useSetPageMemberPermissions,
 } from "../hooks/usePages";
+import { PagePermissionsEditor } from "../components/PagePermissionsEditor";
+import {
+  LEGACY_MEMBER_PERMISSIONS,
+  resolvePagePermissions,
+  samePermissions,
+  type PagePermissions,
+} from "../lib/pagePermissions";
 import { useToast } from "../components/Toast";
-import type { ProfileWithRoles } from "../types/database";
+import type { PageMemberWithProfile, ProfileWithRoles } from "../types/database";
+
+
+// One team member's permissions, collapsed by default. Admins can't be
+// restricted (they have everything by definition) — demote them first.
+function MemberPermissions({ pageId, member }: { pageId: string; member: PageMemberWithProfile }) {
+  const toast = useToast();
+  const setPermissions = useSetPageMemberPermissions();
+  const saved = resolvePagePermissions(member.is_admin, member.permissions);
+  const [open, setOpen] = useState(false);
+  const [draft, setDraft] = useState<PagePermissions>(saved);
+
+  if (member.is_admin) return null;
+  const dirty = !samePermissions(draft, saved);
+
+  return (
+    <div className="px-4 pb-4 -mt-1">
+      <button
+        type="button"
+        onClick={() => {
+          setDraft(saved);
+          setOpen((v) => !v);
+        }}
+        className="flex items-center gap-1 text-xs text-accent"
+        aria-expanded={open}
+      >
+        Permissions
+        <ChevronDown size={13} className={open ? "rotate-180 transition-transform" : "transition-transform"} />
+      </button>
+      {open && (
+        <div className="mt-3 space-y-3">
+          <PagePermissionsEditor value={draft} onChange={setDraft} disabled={setPermissions.isPending} />
+          <button
+            type="button"
+            disabled={!dirty || setPermissions.isPending}
+            onClick={() =>
+              setPermissions.mutate(
+                { page_id: pageId, user_id: member.user_id, permissions: draft },
+                {
+                  onSuccess: () => {
+                    toast(`${member.profile.display_name}'s permissions updated.`, { variant: "success" });
+                    setOpen(false);
+                  },
+                  onError: () => toast("Couldn't update permissions.", { variant: "error" }),
+                }
+              )
+            }
+            className="w-full bg-accent text-canvas rounded-xl py-2 text-sm font-medium disabled:opacity-50"
+          >
+            Save permissions
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
 
 // /page/:username/team — admin view: active roster + pending invites,
 // invite-by-username form, remove/leave. Reachable from the gear icon
@@ -47,6 +110,8 @@ export function PageTeam() {
   // typed, and reopened on refocus/further typing.
   const [showRoleSuggestions, setShowRoleSuggestions] = useState(false);
   const [inviteAsAdmin, setInviteAsAdmin] = useState(false);
+  // What a non-admin invitee may do as the page — the admin decides here.
+  const [invitePermissions, setInvitePermissions] = useState<PagePermissions>({ ...LEGACY_MEMBER_PERMISSIONS });
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
@@ -81,11 +146,13 @@ export function PageTeam() {
         user_id: selectedUser.id,
         role_label: inviteRole.trim(),
         is_admin: inviteAsAdmin,
+        permissions: invitePermissions,
       });
       setSelectedUser(null);
       setInviteRole("");
       setShowRoleSuggestions(false);
       setInviteAsAdmin(false);
+      setInvitePermissions({ ...LEGACY_MEMBER_PERMISSIONS });
       toast("Invite sent.", { variant: "success" });
     } catch (err: any) {
       setError(err.message ?? "Couldn't send that invite.");
@@ -229,8 +296,16 @@ export function PageTeam() {
               onChange={(e) => setInviteAsAdmin(e.target.checked)}
               className="rounded"
             />
-            Make them an admin (can post as {page.name} and manage the team)
+            Make them an admin (full access to {page.name}, including managing the team)
           </label>
+          {inviteAsAdmin ? (
+            <p className="text-xs text-ink-muted">Admins can do everything on the page.</p>
+          ) : (
+            <div className="bg-canvas rounded-xl p-3 space-y-3">
+              <p className="text-xs font-medium text-ink-muted uppercase tracking-wide">What they can do as {page.name}</p>
+              <PagePermissionsEditor value={invitePermissions} onChange={setInvitePermissions} />
+            </div>
+          )}
           {error && <p className="text-sm text-danger">{error}</p>}
           <button
             type="submit"
@@ -277,7 +352,8 @@ export function PageTeam() {
         </p>
         <div className="bg-surface rounded-2xl overflow-hidden divide-y divide-border">
           {active.map((m) => (
-            <div key={m.id} className="flex items-center gap-3 p-4">
+            <div key={m.id}>
+            <div className="flex items-center gap-3 p-4">
               <Avatar src={m.profile.avatar_url} name={m.profile.display_name} size="sm" />
               <div className="flex-1 min-w-0">
                 <p className="text-sm text-ink truncate flex items-center gap-1">
@@ -325,6 +401,8 @@ export function PageTeam() {
                   </button>
                 </div>
               )}
+            </div>
+            {m.user_id !== user?.id && <MemberPermissions pageId={page.id} member={m} />}
             </div>
           ))}
         </div>

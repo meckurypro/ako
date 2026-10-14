@@ -13,6 +13,7 @@ import { BottomNav } from "../components/BottomNav";
 import {
   usePageByUsername,
   useIsFollowingPage,
+  useMyPagePermissions,
   useTogglePageFollow,
   usePageMembers,
   usePageSubsidiaries,
@@ -90,6 +91,13 @@ export function PagePage() {
   const isAdmin = !!myMembership?.is_admin;
   const { data: pageOwnerId } = useResolvePageOwner(page?.id ?? "", isAdmin);
   const isOwnerOfPage = isAdmin && !!user && pageOwnerId === user.id;
+  // Admins can always edit; other members only if an admin granted "edit page details".
+  const { data: myPagePerms } = useMyPagePermissions(page?.id);
+  const canEditPage = isAdmin || !!myPagePerms?.permissions.edit_page;
+  // Following is something a PERSON does to a page. Never offered to the
+  // page's own team (you'd be following yourself), and never while acting as
+  // a page — pages don't follow pages.
+  const canFollowPage = !isMember && identity?.mode !== "page";
   const deletePage = useDeletePage();
   const activeMembers = (members ?? []).filter((m) => m.status === "active");
 
@@ -241,7 +249,7 @@ export function PagePage() {
                   </button>
                 )}
 
-                {isAdmin && (
+                {canEditPage && (
                   <Link
                     to={`/page/${page.username}/edit`}
                     onClick={() => setMenuOpen(false)}
@@ -387,16 +395,18 @@ export function PagePage() {
             </Link>
           </div>
 
-          <button
-            type="button"
-            onClick={() => (user ? toggleFollow.mutate(isFollowing) : navigate(`/login?redirect=/page/${page.username}`))}
-            disabled={toggleFollow.isPending}
-            className={`w-full mt-4 rounded-xl py-2.5 text-sm font-medium ${
-              isFollowing ? "bg-surface text-ink" : "bg-accent text-canvas"
-            }`}
-          >
-            {isFollowing ? "Following" : "Follow"}
-          </button>
+          {canFollowPage && (
+            <button
+              type="button"
+              onClick={() => (user ? toggleFollow.mutate(isFollowing) : navigate(`/login?redirect=/page/${page.username}`))}
+              disabled={toggleFollow.isPending}
+              className={`w-full mt-4 rounded-xl py-2.5 text-sm font-medium ${
+                isFollowing ? "bg-surface text-ink" : "bg-accent text-canvas"
+              }`}
+            >
+              {isFollowing ? "Following" : "Follow"}
+            </button>
+          )}
 
           {activeMembers.length > 0 && (
             <div className="mt-5">

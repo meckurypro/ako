@@ -6,6 +6,7 @@ import { Fragment, useCallback, useEffect, useRef, useState } from "react";
 import { useParams } from "react-router-dom";
 import { ArrowLeft, Send } from "lucide-react";
 import { useSmartBack } from "../hooks/useSmartBack";
+import { useActivePagePermissions } from "../hooks/usePages";
 import { usePageThread, useSendPageMessage, useMarkPageThreadRead } from "../hooks/usePageInbox";
 import { BottomNav } from "../components/BottomNav";
 import { useFeatureFlag } from "../hooks/useFeatureFlags";
@@ -31,6 +32,9 @@ export function PageMessageThread() {
   const bottomRef = useRef<HTMLDivElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
   const messagingEnabled = useFeatureFlag("page_messaging_enabled");
+  // Replying as the page needs the "reply to messages" permission.
+  const pagePerms = useActivePagePermissions();
+  const canReply = pagePerms.loading || pagePerms.can("reply_messages");
 
   // Same WhatsApp-style floating date badge as MessageThread.tsx —
   // see the longer comment there for the reasoning.
@@ -74,7 +78,7 @@ export function PageMessageThread() {
   }, [messages?.length]);
 
   function handleSend() {
-    if (!messagingEnabled) return;
+    if (!messagingEnabled || !canReply) return;
     const content = draft.trim();
     if (!content) return;
     sendMessage.mutate(content);
@@ -159,6 +163,9 @@ export function PageMessageThread() {
 
       <div className="sticky bottom-0 bg-canvas border-t border-border px-4 py-3">
         <div className="max-w-xl mx-auto">
+          {messagingEnabled && !canReply && (
+            <p className="text-xs text-ink-muted text-center mb-2">You don't have permission to reply as this page.</p>
+          )}
           {!messagingEnabled && (
             <p className="text-xs text-ink-muted text-center mb-2">Page messaging is temporarily disabled.</p>
           )}
@@ -168,13 +175,13 @@ export function PageMessageThread() {
               onChange={(e) => setDraft(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && handleSend()}
               placeholder="Message as your page…"
-              disabled={!messagingEnabled}
+              disabled={!messagingEnabled || !canReply}
               className="flex-1 px-4 py-2.5 rounded-full border border-border bg-surface text-ink text-sm
                 focus:outline-none focus:ring-2 focus:ring-accent/40 focus:border-accent disabled:opacity-50"
             />
             <button
               onClick={handleSend}
-              disabled={!messagingEnabled || !draft.trim() || sendMessage.isPending}
+              disabled={!messagingEnabled || !canReply || !draft.trim() || sendMessage.isPending}
               className="w-10 h-10 rounded-full bg-accent text-canvas flex items-center justify-center disabled:opacity-40 flex-shrink-0"
               aria-label="Send"
             >

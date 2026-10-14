@@ -7,7 +7,8 @@ import { X, Image as ImageIcon, Link2, MoreHorizontal } from "lucide-react";
 import { useCreatePost, useDeleteDraftOrScheduledPost } from "../hooks/usePosts";
 import { TopicPicker, MAX_TOPICS } from "../components/TopicPicker";
 import { useUploadPostMedia, isVideoUrl } from "../hooks/useUploadPostMedia";
-import { useActiveIdentity } from "../hooks/usePages";
+import { useActiveIdentity, useActivePagePermissions } from "../hooks/usePages";
+import { PageActionBlocked } from "../components/PageActionBlocked";
 import { useMyProfile } from "../hooks/useProfile";
 import { supabase } from "../lib/supabase";
 import { Avatar } from "../components/Avatar";
@@ -127,6 +128,7 @@ export function Compose() {
   // was active when Compose opened (switching mid-draft would be
   // confusing, so we don't watch for that here).
   const postingAsPage = identity?.mode === "page" ? identity.page : null;
+  const pagePerms = useActivePagePermissions();
 
   // A post can be heading-only or details-only — either is enough to post.
   const canPost = heading.trim().length > 0 || content.trim().length > 0;
@@ -255,6 +257,10 @@ export function Compose() {
       disabled: !canPost,
     },
   ];
+
+  if (postingAsPage && !pagePerms.loading && !pagePerms.can("create_posts")) {
+    return <PageActionBlocked pageName={postingAsPage.name} action="create posts" />;
+  }
 
   return (
     <div className="min-h-screen bg-canvas">

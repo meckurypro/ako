@@ -4,7 +4,7 @@ import { useNavigate, useParams } from "react-router-dom";
 import { useSmartBack } from "../hooks/useSmartBack";
 import { ArrowLeft, Camera } from "lucide-react";
 import { useAuth } from "../hooks/useAuth";
-import { usePageByUsername, usePageMembers, useUpdatePage, usePageTopics } from "../hooks/usePages";
+import { usePageByUsername, usePageMembers, useUpdatePage, usePageTopics, useMyPagePermissions } from "../hooks/usePages";
 import { TopicPicker, MAX_TOPICS } from "../components/TopicPicker";
 import { useUploadAvatar } from "../hooks/useUploadAvatar";
 import { Avatar } from "../components/Avatar";
@@ -46,6 +46,9 @@ export function EditPage() {
 
   const myMembership = members?.find((m) => m.user_id === user?.id && m.status === "active");
   const isAdmin = !!myMembership?.is_admin;
+  // Admins, or a member an admin granted "edit page details" to.
+  const { data: myPagePerms, isLoading: permsLoading } = useMyPagePermissions(page?.id);
+  const canEdit = isAdmin || !!myPagePerms?.permissions.edit_page;
 
   useEffect(() => {
     if (page && !hydrated) {
@@ -141,10 +144,11 @@ export function EditPage() {
     );
   }
 
-  if (!isAdmin) {
+  if (!canEdit) {
+    if (permsLoading) return null;
     return (
       <div className="min-h-screen flex items-center justify-center bg-canvas px-6 text-center">
-        <p className="text-ink-muted">Only a {page.name} admin can edit its details.</p>
+        <p className="text-ink-muted">You don't have permission to edit {page.name}'s details.</p>
       </div>
     );
   }

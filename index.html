@@ -60,7 +60,20 @@
               window.matchMedia("(prefers-color-scheme: dark)").matches);
           if (isDark) document.documentElement.classList.add("dark");
 
-          var isPageMode = localStorage.getItem("ako-active-mode") === "page";
+          // The hint is "page:<userId>" and only counts for the person whose
+          // session is stored right now — otherwise a different account
+          // opened on this browser would inherit the last one's page palette.
+          var isPageMode = false;
+          var hint = localStorage.getItem("ako-active-mode") || "";
+          if (hint.indexOf("page:") === 0) {
+            for (var i = 0; i < localStorage.length; i++) {
+              var k = localStorage.key(i);
+              if (k && /^sb-.*-auth-token$/.test(k)) {
+                var sess = JSON.parse(localStorage.getItem(k) || "null");
+                if (sess && sess.user && sess.user.id === hint.slice(5)) isPageMode = true;
+              }
+            }
+          }
           if (isPageMode) document.documentElement.classList.add("page-mode");
 
           // Keep in sync with --color-surface in src/index.css (topnav/

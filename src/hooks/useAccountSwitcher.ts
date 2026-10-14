@@ -10,6 +10,8 @@ import {
   updateSavedAccountTokens,
   type SavedAccount,
 } from "../lib/accountSessions";
+import { clearPageModeHint } from "../lib/pageModeHint";
+import { syncThemeColorMeta } from "./useTheme";
 
 /**
  * The device's saved-account list, re-read after anything that could
@@ -134,6 +136,11 @@ export function useSwitchAccount() {
       }
     },
     onSuccess: () => {
+      // The new account starts in its own palette — never the previous
+      // account's page colours (see lib/pageModeHint).
+      document.documentElement.classList.remove("page-mode");
+      syncThemeColorMeta();
+      clearPageModeHint();
       queryClient.clear();
     },
   });
@@ -224,6 +231,11 @@ export function useAddAccount() {
       return newProfile;
     },
     onSuccess: () => {
+      // The new account starts in its own palette — never the previous
+      // account's page colours (see lib/pageModeHint).
+      document.documentElement.classList.remove("page-mode");
+      syncThemeColorMeta();
+      clearPageModeHint();
       queryClient.clear();
     },
   });

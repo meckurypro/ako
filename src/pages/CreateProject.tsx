@@ -17,7 +17,8 @@ import {
   type ProjectType,
 } from "../hooks/useProjects";
 import { useFeatureFlag } from "../hooks/useFeatureFlags";
-import { useActiveIdentity } from "../hooks/usePages";
+import { useActiveIdentity, useActivePagePermissions } from "../hooks/usePages";
+import { PageActionBlocked } from "../components/PageActionBlocked";
 import { useMyProfile } from "../hooks/useProfile";
 import { useUploadProjectThumbnail } from "../hooks/useUploadProjectThumbnail";
 import { FormField } from "../components/FormField";
@@ -78,6 +79,7 @@ export function CreateProject() {
   // no chance of a type picked for one identity ending up attributed
   // to the other mid-draft.
   const postingAsPage = identity?.mode === "page" ? identity.page : null;
+  const pagePerms = useActivePagePermissions();
 
   // Admin can switch a type off entirely (project_type_settings), and
   // separately choose whether a type a user doesn't qualify for
@@ -450,6 +452,10 @@ export function CreateProject() {
   // either way; this only stops NEW ones from being created. Also
   // enforced server-side in enforce_project_type_rules, so this is a
   // convenience, not the only thing standing in the way.
+  if (postingAsPage && !pagePerms.loading && !pagePerms.can("create_projects")) {
+    return <PageActionBlocked pageName={postingAsPage.name} action="create projects" />;
+  }
+
   if (!projectsEnabled) {
     return (
       <div className="min-h-screen bg-canvas px-4 pt-4 pb-10">
