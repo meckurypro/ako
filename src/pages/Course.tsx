@@ -18,6 +18,7 @@ import {
   PartyPopper,
 } from "lucide-react";
 import { useAuth } from "../hooks/useAuth";
+import { useRecordFreeProjectOpen } from "../hooks/useProjectAccess";
 import { useProject, useHasPurchased, isProjectFree } from "../hooks/useProjects";
 import { useFeedDoorway } from "../hooks/useFeedDoorway";
 import { FeedDoorway } from "../components/FeedDoorway";
@@ -194,6 +195,7 @@ export function Course() {
   const isFree = !!project && isProjectFree(project);
   const hasPurchasedQuery = useHasPurchased(projectId ?? "");
   const hasAccess = isOwner || isFree || !!hasPurchasedQuery.data;
+  useRecordFreeProjectOpen(project, { isOwner });
 
   const { data: modules } = useCourseModules(projectId);
   const progressQuery = useCourseProgress(projectId, user?.id);

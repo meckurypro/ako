@@ -17,6 +17,7 @@ import {
   Lock,
 } from "lucide-react";
 import { useAuth } from "../hooks/useAuth";
+import { useRecordFreeProjectOpen } from "../hooks/useProjectAccess";
 import { useProject, useHasPurchased, isProjectFree, getEffectivePrice, usePurchaseProject } from "../hooks/useProjects";
 import { useFeedDoorway } from "../hooks/useFeedDoorway";
 import { FeedDoorway } from "../components/FeedDoorway";
@@ -68,6 +69,7 @@ export function Book() {
   const isMemberQuery = useIsProjectMember(projectId ?? "", project?.is_private ?? false);
   const privacyBlocked = !!project?.is_private && !isOwner && !isMemberQuery.data;
   const hasAccess = !privacyBlocked && (isOwner || isFree || !!hasPurchasedQuery.data);
+  useRecordFreeProjectOpen(project, { isOwner, enabled: !privacyBlocked });
 
   const { data: chapters } = useBookChapters(projectId);
   const publishBook = usePublishBook(projectId ?? "");

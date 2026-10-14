@@ -30,6 +30,7 @@ import {
 import { ProjectMiniCard } from "../components/ProjectMiniCard";
 import { useMarkProjectSeen } from "../hooks/useMarkProjectSeen";
 import { useAuth } from "../hooks/useAuth";
+import { useRecordFreeProjectOpen } from "../hooks/useProjectAccess";
 import { useCountdown, formatCountdown } from "../hooks/useCountdown";
 import { downloadIcsEvent } from "../lib/calendar";
 import {
@@ -334,6 +335,7 @@ export function ProjectDetail({ resolvedProjectId }: { resolvedProjectId?: strin
     project && project.project_type !== "gig" ? projectId : undefined
   );
   const isOwner = !!user && !!project && project.owner.id === user.id;
+  useRecordFreeProjectOpen(project, { isOwner });
   const eventCountdownMs = useCountdown(project?.project_type === "event" ? eventDetails?.event_date : undefined);
 
   // Affiliate forking — pitch projects don't route through

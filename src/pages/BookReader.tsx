@@ -8,6 +8,7 @@ import { useProject, useHasPurchased, isProjectFree, useGetProjectFile } from ".
 import { useBookDetails, usePdfReadingProgress, useSavePdfReadingProgress } from "../hooks/useProjectTypeDetails";
 import { useIsProjectMember } from "../hooks/useProjectMembers";
 import { useAuth } from "../hooks/useAuth";
+import { useRecordFreeProjectOpen } from "../hooks/useProjectAccess";
 import { resolveFunctionErrorMessage } from "../lib/functionErrors";
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
@@ -64,6 +65,7 @@ export function BookReader() {
   const isFree = project ? isProjectFree(project) : false;
   const privacyBlocked = !!project?.is_private && !isOwner && !isMemberQuery.data;
   const hasAccess = !privacyBlocked && (isOwner || !!hasPurchasedQuery.data || isFree);
+  useRecordFreeProjectOpen(project, { isOwner, enabled: !privacyBlocked });
 
   const [pdf, setPdf] = useState<PDFDocumentProxy | null>(null);
   const [pageNum, setPageNum] = useState(1);
