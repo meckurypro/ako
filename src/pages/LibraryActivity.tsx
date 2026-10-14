@@ -1,18 +1,9 @@
 // src/pages/LibraryActivity.tsx
 import { Link } from "react-router-dom";
 import { useSmartBack } from "../hooks/useSmartBack";
-import { ArrowLeft, Bookmark, ImageIcon, LibraryBig, BookText, GraduationCap, Music, FileText, Link as LinkIcon } from "lucide-react";
+import { ArrowLeft, ImageIcon, LibraryBig, BookText, GraduationCap, Music, FileText, Link as LinkIcon } from "lucide-react";
 import { useLibrary, libraryItemRoute, type LibraryItem, type LibraryItemType } from "../hooks/useLibrary";
-import { useSavedProjects } from "../hooks/useSavedProjects";
-import { useTabState } from "../hooks/useTabState";
-import { ProjectCard } from "../components/ProjectCard";
 import { BottomNav } from "../components/BottomNav";
-
-// Two sibling shelves under one "my stuff" home: what you own, and what
-// you've saved for later. Kept as separate tabs (not one mixed list) so a
-// saved paid project never looks like something you already have.
-const TABS = ["owned", "saved"] as const;
-type LibraryTab = (typeof TABS)[number];
 
 // Grouping mirrors the user's mental model from the audit doc — a
 // book and a course are both "things I'm working through", while
@@ -67,9 +58,9 @@ function LibraryRow({ item }: { item: LibraryItem }) {
   );
 }
 
-// Reachable from the Activity hub (see Activity.tsx). Answers "where
+// Reachable from the Library tab in BottomNav. Answers "where
 // are the things I bought/opened that aren't tied to a date" — the
-// counterpart to EventsActivity, which answers the same question for
+// counterpart to Connect, which answers the same question for
 // events/meetings/rooms. See
 // B_AKO_PERSONAL_PROJECT_LIBRARY_AND_ACCESS_UX_AUDIT.md: a purchase
 // should survive the creator profile, the post, and the notification
@@ -77,8 +68,6 @@ function LibraryRow({ item }: { item: LibraryItem }) {
 export function LibraryActivity() {
   const smartBack = useSmartBack();
   const { data: items, isLoading } = useLibrary();
-  const { data: saved, isLoading: savedLoading } = useSavedProjects();
-  const [tab, setTab] = useTabState<LibraryTab>(TABS, "owned");
 
   return (
     <div className="min-h-screen bg-canvas px-4 md:px-8 pt-6 md:pt-10 pb-24">
@@ -89,38 +78,7 @@ export function LibraryActivity() {
 
         <h2 className="font-display text-2xl text-ink mb-6">Library</h2>
 
-        <div role="tablist" aria-label="Library" className="flex border-b border-border mb-5">
-          {TABS.map((t) => (
-            <button
-              key={t}
-              role="tab"
-              aria-selected={tab === t}
-              onClick={() => setTab(t)}
-              className={`flex-1 text-center text-sm font-medium pb-3 border-b-2 -mb-px transition-colors ${
-                tab === t ? "text-accent border-accent" : "text-ink-muted border-transparent"
-              }`}
-            >
-              {t === "owned" ? "Owned" : "Saved"}
-              {t === "saved" && saved && saved.length > 0 && (
-                <span className="ml-1.5 text-xs text-ink-muted">{saved.length}</span>
-              )}
-            </button>
-          ))}
-        </div>
-
-        {tab === "saved" ? (
-          savedLoading ? (
-            <p className="text-ink-muted text-sm">Loading…</p>
-          ) : (saved ?? []).length === 0 ? (
-            <div className="flex flex-col items-center text-center gap-2 mt-16 text-ink-muted">
-              <Bookmark size={24} />
-              <p className="text-sm">Tap the bookmark icon on a project to keep it here for later.</p>
-            </div>
-          ) : (
-            saved!.map((project) => <ProjectCard key={project.id} project={project} />)
-          )
-        ) : (
-          <>
+        <>
             {isLoading ? (
               <p className="text-ink-muted text-sm">Loading…</p>
             ) : (items ?? []).length === 0 ? (
@@ -151,8 +109,7 @@ export function LibraryActivity() {
                 );
               })
             )}
-          </>
-        )}
+        </>
       </div>
 
       <BottomNav />

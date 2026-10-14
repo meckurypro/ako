@@ -14,7 +14,7 @@ import { formatUsd } from "../lib/money";
 import { getEffectivePrice } from "../hooks/useProjects";
 import { getProjectUrl } from "../lib/projectLinks";
 
-function AffiliateLinkRow({ relationship }: { relationship: AffiliateRelationshipWithProject }) {
+export function AffiliateLinkRow({ relationship }: { relationship: AffiliateRelationshipWithProject }) {
   const toast = useToast();
   const [copied, setCopied] = useState(false);
   const { data: dashboard } = useAffiliateDashboard(

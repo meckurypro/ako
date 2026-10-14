@@ -655,21 +655,25 @@ export function ProfilePage() {
                             },
                           ] satisfies DropdownMenuItem[])
                         : []),
-                      {
-                        key: "gigs",
-                        label: "Your Gigs",
-                        icon: <Briefcase />,
-                        onSelect: () => navigate("/gigs"),
-                      },
-                      {
-                        key: "page",
-                        label: "Page",
-                        icon: <Building2 />,
-                        onSelect: () => {
-                          setOwnerMenuOpen(false);
-                          navigate("/pages");
-                        },
-                      },
+                      ...(restricted
+                        ? []
+                        : ([
+                          {
+                            key: "gigs",
+                            label: "Your Gigs",
+                            icon: <Briefcase />,
+                            onSelect: () => navigate("/gigs"),
+                          },
+                          {
+                            key: "page",
+                            label: "Page",
+                            icon: <Building2 />,
+                            onSelect: () => {
+                              setOwnerMenuOpen(false);
+                              navigate("/pages");
+                            },
+                          },
+                          ] satisfies DropdownMenuItem[])),
                       { key: "wallet", label: "Wallet", icon: <Wallet />, onSelect: () => navigate("/wallet") },
                       {
                         key: "view-as-visitor",

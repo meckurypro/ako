@@ -1,0 +1,165 @@
+// src/pages/Connect.tsx
+//
+// Bottom-nav home for everything you attend or earn from outside the
+// feed: Events, Meetings, Rooms and Affiliates. Replaces the old
+// "Events & meetings" and "Affiliates" rows in the Activity hub, and the
+// Messages tab (messages now live behind the floating chat button).
+import { Link } from "react-router-dom";
+import { CalendarClock, ImageIcon, TrendingUp, Users } from "lucide-react";
+import { useActivity, type ActivityItem } from "../hooks/useActivity";
+import { useMyAffiliateRelationships } from "../hooks/useAffiliates";
+import { useTabState } from "../hooks/useTabState";
+import { AffiliateLinkRow } from "./MyAffiliateLinks";
+import { BottomNav } from "../components/BottomNav";
+
+const TABS = ["events", "meetings", "rooms", "affiliates"] as const;
+type ConnectTab = (typeof TABS)[number];
+
+const TAB_LABEL: Record<ConnectTab, string> = {
+  events: "Events",
+  meetings: "Meetings",
+  rooms: "Rooms",
+  affiliates: "Affiliates",
+};
+
+const KIND_FOR_TAB: Record<Exclude<ConnectTab, "affiliates">, ActivityItem["kind"]> = {
+  events: "event",
+  meetings: "meeting",
+  rooms: "room_meeting",
+};
+
+const ROUTE_FOR: Record<ActivityItem["kind"], (item: ActivityItem) => string> = {
+  event: (item) => `/projects/${item.projectId}/ticket`,
+  meeting: (item) => `/meetings/${item.projectId}`,
+  room_meeting: (item) => `/rooms/${item.projectId}`,
+};
+
+const LABEL_FOR: Record<ActivityItem["kind"], string> = {
+  event: "Event",
+  meeting: "Meeting",
+  room_meeting: "Room meeting",
+};
+
+const EMPTY_COPY: Record<ConnectTab, string> = {
+  events: "Events you have tickets for will show up here.",
+  meetings: "Meetings you've joined or bought access to will show up here.",
+  rooms: "Room meetings for rooms you're a member of will show up here.",
+  affiliates:
+    "Projects you fork to earn a commission on will show up here — look for \"Share & earn\" on any project that has affiliate forking turned on.",
+};
+
+function ActivityRow({ item }: { item: ActivityItem }) {
+  return (
+    <Link
+      to={ROUTE_FOR[item.kind](item)}
+      className="flex items-center gap-3 p-3 rounded-xl border border-border bg-surface"
+    >
+      <div className="w-12 h-12 rounded-lg bg-canvas flex items-center justify-center overflow-hidden shrink-0">
+        {item.thumbnailUrl ? (
+          <img src={item.thumbnailUrl} alt="" className="w-full h-full object-cover" />
+        ) : (
+          <ImageIcon size={18} className="text-ink-muted" />
+        )}
+      </div>
+      <div className="min-w-0">
+        <p className="text-sm text-ink truncate">{item.projectTitle}</p>
+        <p className="text-xs text-ink-muted">
+          {LABEL_FOR[item.kind]}
+          {item.when ? ` · ${new Date(item.when).toLocaleString()}` : " · Date TBA"}
+        </p>
+      </div>
+    </Link>
+  );
+}
+
+function Empty({ tab }: { tab: ConnectTab }) {
+  const Icon = tab === "affiliates" ? TrendingUp : CalendarClock;
+  return (
+    <div className="flex flex-col items-center text-center gap-2 mt-16 text-ink-muted">
+      <Icon size={24} />
+      <p className="text-sm">{EMPTY_COPY[tab]}</p>
+    </div>
+  );
+}
+
+export function Connect() {
+  const [tab, setTab] = useTabState<ConnectTab>(TABS, "events");
+  const { data: items, isLoading: activityLoading } = useActivity();
+  const { data: relationships, isLoading: affiliatesLoading } = useMyAffiliateRelationships();
+
+  const now = Date.now();
+  const kindItems =
+    tab === "affiliates" ? [] : (items ?? []).filter((i) => i.kind === KIND_FOR_TAB[tab]);
+  const upcoming = kindItems.filter((i) => !i.when || new Date(i.when).getTime() >= now);
+  const past = kindItems.filter((i) => i.when && new Date(i.when).getTime() < now);
+
+  return (
+    <div className="min-h-screen bg-canvas px-4 md:px-8 pt-6 md:pt-10 pb-28">
+      <div className="max-w-xl md:max-w-4xl mx-auto">
+        <h2 className="font-display text-2xl text-ink mb-6 flex items-center gap-2">
+          <Users size={22} className="text-ink-muted" />
+          Connect
+        </h2>
+
+        <div role="tablist" aria-label="Connect" className="flex border-b border-border mb-5">
+          {TABS.map((t) => (
+            <button
+              key={t}
+              role="tab"
+              aria-selected={tab === t}
+              onClick={() => setTab(t)}
+              className={`flex-1 text-center text-sm font-medium pb-3 border-b-2 -mb-px transition-colors ${
+                tab === t ? "text-accent border-accent" : "text-ink-muted border-transparent"
+              }`}
+            >
+              {TAB_LABEL[t]}
+            </button>
+          ))}
+        </div>
+
+        {tab === "affiliates" ? (
+          affiliatesLoading ? (
+            <p className="text-ink-muted text-sm">Loading…</p>
+          ) : (relationships ?? []).length === 0 ? (
+            <Empty tab={tab} />
+          ) : (
+            relationships!.map((r) => <AffiliateLinkRow key={r.id} relationship={r} />)
+          )
+        ) : activityLoading ? (
+          <p className="text-ink-muted text-sm">Loading…</p>
+        ) : kindItems.length === 0 ? (
+          <Empty tab={tab} />
+        ) : (
+          <>
+            <div className="mb-6">
+              <h3 className="text-sm font-medium text-ink-muted mb-2">Upcoming</h3>
+              <div className="flex flex-col gap-2">
+                {upcoming.length === 0 ? (
+                  <p className="text-xs text-ink-muted">Nothing upcoming.</p>
+                ) : (
+                  upcoming.map((item, i) => (
+                    <ActivityRow key={`${item.kind}-${item.projectId}-${i}`} item={item} />
+                  ))
+                )}
+              </div>
+            </div>
+            <div>
+              <h3 className="text-sm font-medium text-ink-muted mb-2">Past</h3>
+              <div className="flex flex-col gap-2">
+                {past.length === 0 ? (
+                  <p className="text-xs text-ink-muted">Nothing past yet.</p>
+                ) : (
+                  past.map((item, i) => (
+                    <ActivityRow key={`${item.kind}-${item.projectId}-${i}`} item={item} />
+                  ))
+                )}
+              </div>
+            </div>
+          </>
+        )}
+      </div>
+
+      <BottomNav />
+    </div>
+  );
+}

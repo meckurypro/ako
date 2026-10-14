@@ -1,6 +1,6 @@
 import type { ComponentType } from "react";
-import { NavLink, useMatch } from "react-router-dom";
-import { Search, LibraryBig, MessageCircle, User } from "lucide-react";
+import { Link, NavLink, useMatch } from "react-router-dom";
+import { Search, LibraryBig, Users, User } from "lucide-react";
 import { useAuth } from "../hooks/useAuth";
 import { useIsRestricted } from "../hooks/useAccountAccess";
 import { useAutoHideOnScroll } from "../hooks/useAutoHideOnScroll";
@@ -32,14 +32,34 @@ function FeedIcon({ size = 24, strokeWidth = 1.75, fill = "none" }: IconProps) {
   );
 }
 
-// All five items now render at the same weight — no raised FAB for
-// composing. That entry point moved to the "+" on Feed's header,
-// which opens /create (see CreateChoice.tsx).
-const navItems = [
-  { to: "/library", icon: LibraryBig, label: "Library" },
-  { to: "/feed", icon: FeedIcon, label: "Feed" },
-  { to: "/topics", icon: Search, label: "Discover" },
-] as const;
+// Bottom nav order. Unrestricted accounts: Feed · Discover · Library ·
+// Connect · Profile. Restricted (consumer-only) accounts have no Feed and
+// land on Library, so Library stays first for them. Messages no longer has
+// a tab — it's the floating chat button above the nav (see ChatFab below).
+// "Connect" is the home for Events, Meetings, Rooms and Affiliates (see
+// pages/Connect.tsx).
+const feedItem = { to: "/feed", icon: FeedIcon, label: "Feed" } as const;
+const discoverItem = { to: "/topics", icon: Search, label: "Discover" } as const;
+const libraryItem = { to: "/library", icon: LibraryBig, label: "Library" } as const;
+const connectItem = { to: "/connect", icon: Users, label: "Connect" } as const;
+
+const fullNavItems = [feedItem, discoverItem, libraryItem, connectItem] as const;
+const restrictedNavItems = [libraryItem, discoverItem, connectItem] as const;
+
+// Solid chat bubble with a "+" knocked out of it — the same glyph the
+// reference design uses for its floating new-chat button. Square top-left
+// corner is the bubble's "tail"; the rest of the outline is rounded.
+function ChatPlusIcon({ size = 26 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" aria-hidden>
+      <path
+        d="M2.5 3.5H18a3.5 3.5 0 0 1 3.5 3.5v8a3.5 3.5 0 0 1-3.5 3.5H6A3.5 3.5 0 0 1 2.5 15V3.5Z"
+        fill="currentColor"
+      />
+      <path d="M12 7.5v7M8.5 11h7" stroke="var(--color-ink)" strokeWidth="1.9" strokeLinecap="round" />
+    </svg>
+  );
+}
 
 function NavIcon({ Icon, isActive }: { Icon: ComponentType<IconProps>; isActive: boolean }) {
   return (
@@ -84,6 +104,13 @@ export function BottomNav() {
   const pageInboxMatch = useMatch("/page-inbox/*");
   const isMessagesActive = !!messagesMatch || !!pageInboxMatch;
 
+  // The chat button points at the messages list, so it's redundant (and
+  // would sit on top of the conversation list) while already in messaging.
+  const showChatFab = !isMessagesActive;
+  const inboxHref = activePageId ? "/page-inbox" : "/inbox";
+
+  const navList = restricted ? restrictedNavItems : fullNavItems;
+
   const linkClass = ({ isActive }: { isActive: boolean }) =>
     `flex flex-col items-center gap-1 w-14 text-[11px] font-medium transition-colors ${
       isActive ? "text-accent" : "text-ink-muted"
@@ -98,8 +125,25 @@ export function BottomNav() {
         visible ? "translate-y-0 opacity-100" : "translate-y-full opacity-0"
       }`}
     >
+      {/* Floating chat button — pinned just above the nav's right edge and
+          moves with it when the nav auto-hides on scroll. */}
+      {showChatFab && (
+        <Link
+          to={inboxHref}
+          aria-label={unreadCount > 0 ? `Messages, ${unreadCount} unread` : "Messages"}
+          className="absolute right-4 bottom-full mb-4 w-14 h-14 rounded-[18px] bg-ink text-canvas flex items-center justify-center shadow-[0_4px_14px_rgba(var(--shadow-ink-rgb),0.25)] active:scale-95 transition-transform"
+        >
+          <ChatPlusIcon />
+          {unreadCount > 0 && (
+            <span className="absolute -top-1.5 -right-1.5 bg-danger text-canvas text-[10px] font-medium rounded-full min-w-4 h-4 px-1 flex items-center justify-center">
+              {unreadCount > 9 ? "9+" : unreadCount}
+            </span>
+          )}
+        </Link>
+      )}
+
       <div className="flex items-center justify-around">
-        {navItems.filter((item) => !(restricted && item.to === "/feed")).map(({ to, icon: Icon, label }) => (
+        {navList.map(({ to, icon: Icon, label }) => (
           <NavLink key={to} to={to} replace className={linkClass}>
             {({ isActive }) => (
               <>
@@ -109,18 +153,6 @@ export function BottomNav() {
             )}
           </NavLink>
         ))}
-
-        <NavLink to="/inbox" replace className={() => linkClass({ isActive: isMessagesActive })}>
-          <div className="relative">
-            <NavIcon Icon={MessageCircle} isActive={isMessagesActive} />
-            {unreadCount > 0 && (
-              <span className="absolute -top-1 -right-1 bg-danger text-canvas text-[10px] font-medium rounded-full w-4 h-4 flex items-center justify-center">
-                {unreadCount > 9 ? "9+" : unreadCount}
-              </span>
-            )}
-          </div>
-          Messages
-        </NavLink>
 
         <NavLink
           to={user ? "/me" : "/login"}

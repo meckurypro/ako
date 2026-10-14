@@ -106,7 +106,7 @@ import { NotFound } from "./pages/NotFound";
 import { CreateChoice } from "./pages/CreateChoice";
 import { SavedHub } from "./pages/SavedHub";
 import { LikedHub } from "./pages/LikedHub";
-import { EventsActivity } from "./pages/EventsActivity";
+import { Connect } from "./pages/Connect";
 import { LibraryActivity } from "./pages/LibraryActivity";
 import { MyGigs } from "./pages/MyGigs";
 import { HistoryActivity } from "./pages/HistoryActivity";
@@ -926,26 +926,18 @@ function AppRoutes() {
               }
             />
             <Route path="/activity/library" element={<Navigate to="/library" replace />} />
+            {/* Events, Meetings, Rooms and Affiliates live under Connect
+                (bottom-nav tab) now — old Activity links redirect there. */}
             <Route
-              path="/activity/events"
+              path="/connect"
               element={
                 <RequireAuth>
-                  <EventsActivity />
+                  <Connect />
                 </RequireAuth>
               }
             />
-            {/* Same page as /wallet/affiliate-links (kept mounted there
-                too, since Wallet still links to it directly) — surfaced
-                here as well so forking a project has an obvious home in
-                the Activity hub, not just buried under Wallet. */}
-            <Route
-              path="/activity/affiliates"
-              element={
-                <RequireAuth>
-                  <MyAffiliateLinks />
-                </RequireAuth>
-              }
-            />
+            <Route path="/activity/events" element={<Navigate to="/connect" replace />} />
+            <Route path="/activity/affiliates" element={<Navigate to="/connect?tab=affiliates" replace />} />
             {/* "Your Gigs" management hub — see AKO_GIG_ROLE_EXPANSION_
                 AND_COLLABORATION_SYSTEM.md section 21. Reached from the
                 profile owner menu (ProfilePage.tsx), not Activity — a
@@ -961,7 +953,7 @@ function AppRoutes() {
             />
             {/* Folded into the Activity hub's Saved tab now — kept as a
                 redirect so any stale links still land somewhere valid. */}
-            <Route path="/saved-projects" element={<Navigate to="/library?tab=saved" replace />} />
+            <Route path="/saved-projects" element={<Navigate to="/activity/saved" replace />} />
 
             {/* A Project's public custom URL — a flat, globally unique
                 address like /calling, not scoped under any
