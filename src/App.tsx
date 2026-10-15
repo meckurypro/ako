@@ -840,11 +840,25 @@ function AppRoutes() {
             {/* Public — same reasoning as ProjectDetail: a shared course
                 link should load for a logged-out visitor, who then just
                 sees the "buy to unlock" state Course.tsx already handles. */}
-            <Route path="/courses/:projectId" element={<Course />} />
+            <Route
+              path="/courses/:projectId"
+              element={
+                <RequireAuth>
+                  <Course />
+                </RequireAuth>
+              }
+            />
             {/* Public — same reasoning as Course: a shared book link
                 should load for a logged-out visitor, who then sees
                 Book.tsx's own "buy to unlock" state. */}
-            <Route path="/books/:projectId" element={<Book />} />
+            <Route
+              path="/books/:projectId"
+              element={
+                <RequireAuth>
+                  <Book />
+                </RequireAuth>
+              }
+            />
             <Route
               path="/projects/:projectId/read"
               element={

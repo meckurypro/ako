@@ -1,6 +1,6 @@
 // src/pages/ProjectDetail.tsx
 import { useRef, useState } from "react";
-import { useParams, Link } from "react-router-dom";
+import { useParams, Link, useLocation } from "react-router-dom";
 import { useSmartBack } from "../hooks/useSmartBack";
 import {
   ArrowLeft,
@@ -52,6 +52,8 @@ import { useAffiliateProgram } from "../hooks/useAffiliates";
 import { PublishMusicButton } from "../components/music/PublishMusicButton";
 import { ProjectFaqSection } from "../components/ProjectFaqSection";
 import { getProjectUrl } from "../lib/projectLinks";
+import { loginPathFor, returnPathOf, signupPathFor } from "../lib/authRedirect";
+import { Wordmark } from "../components/Wordmark";
 
 function ProjectRail({ title, projects }: { title: string; projects: Project[] }) {
   if (projects.length === 0) return null;
@@ -325,9 +327,16 @@ export function ProjectDetail({ resolvedProjectId }: { resolvedProjectId?: strin
   const { projectId: routeProjectId } = useParams<{ projectId: string }>();
   const projectId = resolvedProjectId ?? routeProjectId;
   const smartBack = useSmartBack();
-  const { user } = useAuth();
+  const { user, loading: authLoading } = useAuth();
+  const location = useLocation();
+  // Signed-out visitors get the page as a landing: the project itself,
+  // but no way to wander off into the rest of the app. Everything that
+  // would (creator profile, other projects, back-nav) is hidden or
+  // sent through login first.
+  const isGuest = !authLoading && !user;
+  const returnTo = returnPathOf(location);
   const { data: project, isLoading } = useProjectDetail(projectId);
-  const { data: similar } = useSimilarProjects(project);
+  const { data: similar } = useSimilarProjects(user ? project : undefined);
   const { data: eventDetails } = useEventDetails(project?.project_type === "event" ? projectId : undefined);
   const { data: meetingDetails } = useMeetingDetails(project?.project_type === "meeting" ? projectId : undefined);
   const { data: gigDetails } = useGigDetails(project?.project_type === "gig" ? projectId : undefined);
@@ -371,6 +380,25 @@ export function ProjectDetail({ resolvedProjectId }: { resolvedProjectId?: strin
   return (
     <div className="min-h-screen bg-canvas px-4 pt-4 pb-24">
       <div className="max-w-xl md:max-w-2xl mx-auto">
+        {isGuest && (
+          <div className="flex items-center justify-between mb-4">
+            <Wordmark size="sm" />
+            <div className="flex items-center gap-2">
+              <Link
+                to={loginPathFor(returnTo)}
+                className="px-4 py-2 rounded-full border border-border/60 bg-surface text-sm font-medium text-ink shadow-sm"
+              >
+                Log in
+              </Link>
+              <Link
+                to={signupPathFor(returnTo)}
+                className="px-4 py-2 rounded-full bg-accent text-canvas text-sm font-semibold shadow-sm"
+              >
+                Sign up
+              </Link>
+            </div>
+          </div>
+        )}
         {user && (
           <button
             onClick={smartBack}
@@ -381,7 +409,7 @@ export function ProjectDetail({ resolvedProjectId }: { resolvedProjectId?: strin
           </button>
         )}
 
-        {isLoading || !project ? (
+        {authLoading || isLoading || !project ? (
           <p className="text-ink-muted">Loading…</p>
         ) : (
           <>
@@ -392,7 +420,7 @@ export function ProjectDetail({ resolvedProjectId }: { resolvedProjectId?: strin
                 post, a share) has no way to discover the gig page
                 itself ("Message to inquire", pricing, the rest of the
                 sample rail) short of finding a link to it elsewhere. */}
-            {featuringGigs && featuringGigs.length > 0 && (
+            {!isGuest && featuringGigs && featuringGigs.length > 0 && (
               <div className="-mt-2 mb-4 flex flex-wrap gap-2">
                 {featuringGigs.map((gig) => (
                   <Link
@@ -552,7 +580,16 @@ export function ProjectDetail({ resolvedProjectId }: { resolvedProjectId?: strin
                 creating user underneath (see posted_as_page_id in
                 useProjects.ts), this is purely a display swap. */}
             <Link
-              to={project.posted_as_page ? `/page/${project.posted_as_page.username}` : `/profile/${project.owner.username}`}
+              to={
+                isGuest
+                  ? // Profiles are members-only: log in first, then land on the profile.
+                    loginPathFor(
+                      project.posted_as_page ? `/page/${project.posted_as_page.username}` : `/profile/${project.owner.username}`
+                    )
+                  : project.posted_as_page
+                    ? `/page/${project.posted_as_page.username}`
+                    : `/profile/${project.owner.username}`
+              }
               className="flex items-center gap-3 bg-surface rounded-2xl border border-border/60 p-4 shadow-[0_1px_2px_rgba(var(--shadow-ink-rgb),0.04),0_8px_20px_-12px_rgba(var(--shadow-ink-rgb),0.14)] transition-shadow hover:shadow-[0_1px_2px_rgba(var(--shadow-ink-rgb),0.06),0_14px_28px_-14px_rgba(var(--shadow-ink-rgb),0.18)]"
             >
               {project.posted_as_page ? (
@@ -583,11 +620,38 @@ export function ProjectDetail({ resolvedProjectId }: { resolvedProjectId?: strin
               )}
             </Link>
 
+            {!isGuest && (
+              <>
             <ProjectRail
               title={`More from ${project.posted_as_page ? project.posted_as_page.name : project.owner.display_name}`}
               projects={similar?.moreFromCreator ?? []}
             />
             <ProjectRail title="Similar contents" projects={similar?.similarContent ?? []} />
+              </>
+            )}
+
+            {isGuest && (
+              <div className="mt-6 rounded-2xl border border-border/60 bg-surface p-5 text-center shadow-sm">
+                <p className="font-display text-lg font-semibold tracking-tight text-ink">Join Akọ to continue</p>
+                <p className="text-sm text-ink-muted mt-1">
+                  Log in or create a free account to open this and discover more from {project.posted_as_page ? project.posted_as_page.name : project.owner.display_name}.
+                </p>
+                <div className="flex gap-2 mt-4">
+                  <Link
+                    to={loginPathFor(returnTo)}
+                    className="flex-1 h-11 rounded-2xl border border-border/60 bg-canvas text-ink text-sm font-semibold flex items-center justify-center"
+                  >
+                    Log in
+                  </Link>
+                  <Link
+                    to={signupPathFor(returnTo)}
+                    className="flex-1 h-11 rounded-2xl bg-cta text-white text-sm font-semibold flex items-center justify-center"
+                  >
+                    Sign up
+                  </Link>
+                </div>
+              </div>
+            )}
           </>
         )}
       </div>

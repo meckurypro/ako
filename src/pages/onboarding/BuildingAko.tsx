@@ -5,6 +5,7 @@ import { useCompleteOnboarding } from "../../hooks/useOnboarding";
 import { Wordmark } from "../../components/Wordmark";
 import { Button } from "../../components/Button";
 import { AuthPattern } from "../../components/AuthPattern";
+import { takeReturnTo } from "../../lib/authRedirect";
 
 const MIN_DISPLAY_MS = 1100;
 
@@ -29,7 +30,9 @@ export function BuildingAko() {
       const elapsed = Date.now() - startedAt;
       await new Promise((resolve) => setTimeout(resolve, Math.max(0, MIN_DISPLAY_MS - elapsed)));
 
-      if (!cancelledRef.current) navigate("/feed", { replace: true });
+      // A visitor who signed up from a shared link (e.g. a project
+      // slug) goes back to it rather than the generic feed.
+      if (!cancelledRef.current) navigate(takeReturnTo() ?? "/feed", { replace: true });
     } catch (err) {
       console.error("Failed to complete onboarding:", err);
       if (!cancelledRef.current) setFailed(true);

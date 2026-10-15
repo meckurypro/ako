@@ -9,16 +9,15 @@ import { AuthPattern } from "../../components/AuthPattern";
 import { FormField } from "../../components/FormField";
 import { PasswordField } from "../../components/PasswordField";
 import { Button } from "../../components/Button";
+import { safeReturnPath, signupPathFor } from "../../lib/authRedirect";
 
 export function Login() {
   const navigate = useNavigate();
   const { user, loading: authLoading } = useAuth();
   const [searchParams] = useSearchParams();
   const redirectParam = searchParams.get("redirect");
-  const redirectTo =
-    redirectParam && redirectParam.startsWith("/") && !redirectParam.startsWith("//")
-      ? redirectParam
-      : "/feed";
+  const returnTo = safeReturnPath(redirectParam);
+  const redirectTo = returnTo ?? "/feed";
   // ?add=1 — arrived here from AccountSwitcher/ProfilePage to sign
   // into an ADDITIONAL personal account rather than replace the
   // current one. Changes both the redirect-if-already-signed-in guard
@@ -117,6 +116,10 @@ export function Login() {
           <Wordmark />
         </div>
 
+        {!addMode && returnTo && (
+          <p className="text-center text-sm text-ink-muted mb-6">Log in to continue.</p>
+        )}
+
         {addMode && (
           <p className="text-center text-sm text-ink-muted mb-6">
             Sign into another personal account. Your current account stays saved on this
@@ -175,7 +178,7 @@ export function Login() {
 
         <p className="text-center text-sm text-ink-muted mt-6">
           New to Akọ?{" "}
-          <Link to={addMode ? "/signup?add=1" : "/signup"} className="text-accent font-medium hover:underline">
+          <Link to={addMode ? "/signup?add=1" : signupPathFor(returnTo)} className="text-accent font-medium hover:underline">
             Create an account
           </Link>
         </p>

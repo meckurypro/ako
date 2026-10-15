@@ -8,6 +8,7 @@ import { AuthPattern } from "../../components/AuthPattern";
 import { FormField } from "../../components/FormField";
 import { PasswordField } from "../../components/PasswordField";
 import { Button } from "../../components/Button";
+import { loginPathFor, rememberReturnTo, safeReturnPath } from "../../lib/authRedirect";
 
 type UsernameStatus = "idle" | "checking" | "available" | "taken" | "error";
 
@@ -32,6 +33,11 @@ export function SignUp() {
   // account" link while adding a second account (see AccountSwitcher),
   // rather than as a fresh, signed-out sign-up.
   const addMode = searchParams.get("add") === "1";
+  // Where the visitor was headed (e.g. a shared project link). Parked
+  // in sessionStorage because sign-up goes through email confirmation
+  // and onboarding before it can land anywhere — BuildingAko picks it
+  // up at the end. See lib/authRedirect.ts.
+  const returnTo = safeReturnPath(searchParams.get("redirect"));
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [username, setUsername] = useState("");
@@ -178,6 +184,8 @@ export function SignUp() {
       return;
     }
 
+    rememberReturnTo(returnTo);
+
     // signUp() does not establish a session until the email is
     // confirmed — send the user to check their inbox for the link.
     navigate("/verify-email", { state: { email } });
@@ -190,6 +198,10 @@ export function SignUp() {
         <div className="mb-10">
           <Wordmark />
         </div>
+
+        {!addMode && returnTo && (
+          <p className="text-center text-sm text-ink-muted mb-6">Create an account to continue.</p>
+        )}
 
         {addMode && (
           <p className="text-center text-sm text-ink-muted mb-6">
@@ -260,7 +272,7 @@ export function SignUp() {
 
         <p className="text-center text-sm text-ink-muted mt-6">
           Already have an account?{" "}
-          <Link to={addMode ? "/login?add=1" : "/login"} className="text-accent font-medium hover:underline">
+          <Link to={addMode ? "/login?add=1" : loginPathFor(returnTo)} className="text-accent font-medium hover:underline">
             Log in
           </Link>
         </p>

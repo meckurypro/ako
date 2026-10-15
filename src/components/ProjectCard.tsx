@@ -1,6 +1,6 @@
 // src/components/ProjectCard.tsx
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import {
   Lock,
   Download,
@@ -72,6 +72,7 @@ import { useIsProjectMember } from "../hooks/useProjectMembers";
 import { resolveFunctionErrorMessage } from "../lib/functionErrors";
 import { ProjectImageCarousel } from "./ProjectImageCarousel";
 import { projectGalleryImages } from "../lib/projectImages";
+import { loginPathFor, returnPathOf } from "../lib/authRedirect";
 
 // File and URL keep the original single-link/download "unlock"
 // pattern inline in the action row. Media's audio/video preview now
@@ -359,6 +360,7 @@ export function ProjectCard({
 }) {
   const { user } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
   // Ownership is judged against the identity being acted as: a project created
   // personally is NOT a Page's own, even though owner_id is the same user.
   const ownership = useProjectOwnership();
@@ -457,15 +459,43 @@ export function ProjectCard({
   // hasAccess itself means every existing hasAccess check below
   // automatically respects it without touching each one individually.
   const privacyBlocked = project.is_private && !isOwner && !isMember;
-  const hasAccess = !privacyBlocked && (isOwner || hasPurchased || (isFree && !isRoom));
+  // A signed-out visitor never has access to anything, free or not:
+  // a shared link is a landing page, and every way past it (Read,
+  // Download, Open, Listen, Join…) goes through login first. Folding
+  // it in here keeps every hasAccess-gated surface (external links,
+  // media preview, unlocked content) closed to guests in one place.
+  const hasAccess = !!user && !privacyBlocked && (isOwner || hasPurchased || (isFree && !isRoom));
   const isSaved = !!isSavedQuery.data;
 
   // Outside-click / back-dismiss for the kebab menu is handled
   // internally by <DropdownMenu> now.
 
+  // Sends a signed-out visitor to login and back to THIS page (the
+  // pretty /:slug address when that's how they arrived), not the
+  // id-based route.
+  function goToLogin() {
+    navigate(loginPathFor(returnPathOf(location)));
+  }
+
+  function handleOpenGift() {
+    if (!user) {
+      goToLogin();
+      return;
+    }
+    setShowGiftPicker(true);
+  }
+
+  function handleOpenSupport() {
+    if (!user) {
+      goToLogin();
+      return;
+    }
+    setSupportSheetOpen(true);
+  }
+
   async function handleBuy() {
     if (!user) {
-      navigate(`/login?redirect=${encodeURIComponent(`/projects/${project.id}`)}`);
+      goToLogin();
       return;
     }
     setError(null);
@@ -495,7 +525,7 @@ export function ProjectCard({
   // id for exactly that, unlike handleBuy above.
   async function handleBookGig() {
     if (!user) {
-      navigate(`/login?redirect=${encodeURIComponent(`/projects/${project.id}`)}`);
+      goToLogin();
       return;
     }
     setError(null);
@@ -512,7 +542,7 @@ export function ProjectCard({
   // for every other type.
   async function handleMessage() {
     if (!user) {
-      navigate(`/login?redirect=${encodeURIComponent(`/projects/${project.id}`)}`);
+      goToLogin();
       return;
     }
     setError(null);
@@ -531,7 +561,7 @@ export function ProjectCard({
   // See MessageThread's draftMessage nav-state handling.
   async function handleRequestAccess() {
     if (!user) {
-      navigate(`/login?redirect=${encodeURIComponent(`/projects/${project.id}`)}`);
+      goToLogin();
       return;
     }
     setError(null);
@@ -581,7 +611,7 @@ export function ProjectCard({
 
   async function handleOpenFile() {
     if (!user) {
-      navigate(`/login?redirect=${encodeURIComponent(`/projects/${project.id}`)}`);
+      goToLogin();
       return;
     }
     setError(null);
@@ -615,7 +645,7 @@ export function ProjectCard({
 
   async function handleDownloadBookFile() {
     if (!user) {
-      navigate(`/login?redirect=${encodeURIComponent(`/projects/${project.id}`)}`);
+      goToLogin();
       return;
     }
     setError(null);
@@ -636,7 +666,7 @@ export function ProjectCard({
 
   function handleOpenBookReader() {
     if (!user) {
-      navigate(`/login?redirect=${encodeURIComponent(`/projects/${project.id}`)}`);
+      goToLogin();
       return;
     }
     logFreeAccessIfNeeded("stream");
@@ -683,7 +713,7 @@ export function ProjectCard({
   // channel streams in place, with no download or redirect at all.
   async function handlePlayAudio() {
     if (!user) {
-      navigate(`/login?redirect=${encodeURIComponent(`/projects/${project.id}`)}`);
+      goToLogin();
       return;
     }
     setError(null);
@@ -698,7 +728,7 @@ export function ProjectCard({
 
   async function handlePlayVideo() {
     if (!user) {
-      navigate(`/login?redirect=${encodeURIComponent(`/projects/${project.id}`)}`);
+      goToLogin();
       return;
     }
     setError(null);
@@ -713,7 +743,7 @@ export function ProjectCard({
 
   async function handleViewImage() {
     if (!user) {
-      navigate(`/login?redirect=${encodeURIComponent(`/projects/${project.id}`)}`);
+      goToLogin();
       return;
     }
     setError(null);
@@ -758,7 +788,7 @@ export function ProjectCard({
 
   function handleToggleSaved() {
     if (!user) {
-      navigate(`/login?redirect=${encodeURIComponent(`/projects/${project.id}`)}`);
+      goToLogin();
       return;
     }
     toggleSaved.mutate(isSaved);
@@ -803,7 +833,7 @@ export function ProjectCard({
             label: "Gift",
             icon: <GiftIcon size={24} className="text-ink" />,
             count: null,
-            onClick: () => setShowGiftPicker(true),
+            onClick: () => handleOpenGift(),
           } satisfies EngagementAction,
         ]
       : []),
@@ -989,9 +1019,46 @@ export function ProjectCard({
     isBook && bookDetails?.content_source === "upload" && !!bookDetails.allow_download;
   const gigBookable = project.project_type === "gig" && !isOwner && !isFree && !hasPurchased;
 
+  const hasMediaLink =
+    isMedia && ((!!mediaDetails?.has_audio && !!mediaDetails.audio_url) || (!!mediaDetails?.has_video && !!mediaDetails.video_url));
+  const bookIsLink = isBook && bookDetails?.content_source === "link";
+  let guestCtaLabel = "Continue";
+  let guestCtaIcon: ReactNode = undefined;
+  if (project.project_type === "file") {
+    guestCtaLabel = "Download";
+    guestCtaIcon = <Download size={18} />;
+  } else if (project.project_type === "url") {
+    guestCtaLabel = "Open link";
+    guestCtaIcon = <LinkIcon size={18} />;
+  } else if (isBook) {
+    if (bookIsLink) {
+      guestCtaLabel = "Open link";
+      guestCtaIcon = <LinkIcon size={18} />;
+    } else if (!bookReadsInApp && bookCanDownload) {
+      guestCtaLabel = "Download";
+      guestCtaIcon = <Download size={18} />;
+    } else {
+      guestCtaLabel = "Read";
+      guestCtaIcon = <BookText size={18} />;
+    }
+  } else if (isMedia) {
+    const guestIsAudio = !!mediaDetails?.has_audio && !!mediaDetails.audio_url;
+    guestCtaLabel = guestIsAudio ? "Listen" : "Watch";
+    guestCtaIcon = guestIsAudio ? <Music size={18} /> : <Video size={18} />;
+  } else if (project.project_type === "event") {
+    guestCtaLabel = "Get ticket";
+    guestCtaIcon = TypeIcon ? <TypeIcon size={18} /> : undefined;
+  } else if (project.project_type === "meeting") {
+    guestCtaLabel = "Join meeting";
+    guestCtaIcon = TypeIcon ? <TypeIcon size={18} /> : undefined;
+  } else if (project.project_type === "course") {
+    guestCtaLabel = "Start course";
+    guestCtaIcon = TypeIcon ? <TypeIcon size={18} /> : undefined;
+  }
+
   let detailCta: DetailCta | null = null;
   if (isPitch) {
-    if (!isOwner) detailCta = { label: "Support", icon: <Heart size={18} />, onClick: () => setSupportSheetOpen(true) };
+    if (!isOwner) detailCta = { label: "Support", icon: <Heart size={18} />, onClick: () => handleOpenSupport() };
   } else if (project.project_type === "gig") {
     if (!isOwner) {
       detailCta = gigBookable
@@ -1016,6 +1083,14 @@ export function ProjectCard({
           onClick: handleJoinRoom,
           disabled: purchaseProject.isPending,
         };
+  } else if (!user && isFree && !isCourseUnpublished && !isBookDraftUnpublished) {
+    // Signed-out visitor on a FREE project: there's no price to show
+    // ("Buy for $0.00" reads wrong), so the CTA is the action they'd
+    // get once in — and tapping it opens login, never the content.
+    detailCta =
+      isMedia && !hasMediaLink
+        ? { label: "Gift", icon: <GiftIcon size={18} />, onClick: handleOpenGift }
+        : { label: guestCtaLabel, icon: guestCtaIcon, onClick: goToLogin };
   } else if (!hasAccess) {
     if (!isCourseUnpublished && !isBookDraftUnpublished) {
       detailCta = {
@@ -1083,7 +1158,7 @@ export function ProjectCard({
         href: mediaHref,
       };
     } else if (!isOwner) {
-      detailCta = { label: "Gift", icon: <GiftIcon size={18} />, onClick: () => setShowGiftPicker(true) };
+      detailCta = { label: "Gift", icon: <GiftIcon size={18} />, onClick: () => handleOpenGift() };
     }
   } else if (TYPE_ROUTE[project.project_type]) {
     detailCta = {
@@ -1113,7 +1188,7 @@ export function ProjectCard({
       { key: "share", label: "Share", icon: <Redo2 />, onSelect: handleShare },
     ];
     if (isMedia) {
-      items.push({ key: "gift", label: "Gift", icon: <GiftIcon />, onSelect: () => setShowGiftPicker(true) });
+      items.push({ key: "gift", label: "Gift", icon: <GiftIcon />, onSelect: () => handleOpenGift() });
     }
     if (project.project_type === "gig" && gigBookable) {
       items.push({ key: "message", label: "Message", icon: <MessageCircle />, onSelect: () => void handleMessage() });
@@ -1597,7 +1672,7 @@ export function ProjectCard({
               hasAccess like the generic Buy pill below. */}
           {isPitch && !isOwner && (
             <button
-              onClick={() => setSupportSheetOpen(true)}
+              onClick={() => handleOpenSupport()}
               className="ml-auto flex items-center gap-1.5 bg-accent text-canvas px-4 py-1.5 rounded-full text-sm font-semibold shadow-[0_4px_14px_-4px_rgba(var(--shadow-ink-rgb),0.35)] transition-transform active:scale-[0.97]"
             >
               <Heart size={15} />
