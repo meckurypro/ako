@@ -11,6 +11,7 @@ import { useAuth } from "../hooks/useAuth";
 import { useReaderTheme, type ReaderTheme } from "../hooks/useReaderTheme";
 import { useProjectOwnership } from "../hooks/useProjectOwnership";
 import { useRecordFreeProjectOpen } from "../hooks/useProjectAccess";
+import { ResumePrompt } from "../components/ResumePrompt";
 import { resolveFunctionErrorMessage } from "../lib/functionErrors";
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
@@ -59,7 +60,7 @@ export function BookReader() {
   const hasPurchasedQuery = useHasPurchased(projectId ?? "");
   const isMemberQuery = useIsProjectMember(projectId ?? "", project?.is_private ?? false);
   const getBookFile = useGetProjectFile();
-  const { data: savedProgress } = usePdfReadingProgress(projectId, user?.id);
+  const { data: savedProgress, isLoading: progressLoading } = usePdfReadingProgress(projectId, user?.id);
   const saveProgress = useSavePdfReadingProgress(projectId ?? "", user?.id);
 
   const ownership = useProjectOwnership();
@@ -83,6 +84,8 @@ export function BookReader() {
     () => Number(localStorage.getItem("ako-reader-brightness")) || 100
   );
   const [resumeApplied, setResumeApplied] = useState(false);
+  // Where the reader stopped last time, offered once on reopening: continue there, or start from the beginning.
+  const [resumeOffer, setResumeOffer] = useState<{ page: number } | null>(null);
 
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -131,16 +134,51 @@ export function BookReader() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [projectId, hasAccess, bookDetails?.content_source]);
 
-  // Resume where the reader left off, once (not on every re-render) —
-  // clamped in case the file changed and has fewer pages now.
+  // Resume: once the saved page has loaded, offer to reopen it — or start from page 1. Progress isn't saved until
+  // that choice is made, so the offer can't be overwritten by the page the reader happens to be showing.
+  // (Waits for the saved progress to arrive — resolving before it did used to skip resuming altogether.)
+  // Clamped in case the file changed and has fewer pages now.
   useEffect(() => {
-    if (!resumeApplied && numPages > 0 && savedProgress?.current_page) {
-      setPageNum(Math.min(Math.max(1, savedProgress.current_page), numPages));
-      setResumeApplied(true);
-    } else if (!resumeApplied && numPages > 0) {
-      setResumeApplied(true);
-    }
-  }, [numPages, savedProgress, resumeApplied]);
+    if (resumeApplied || resumeOffer || numPages === 0 || progressLoading) return;
+    const saved = savedProgress?.current_page;
+    if (saved && saved > 1) setResumeOffer({ page: Math.min(Math.max(1, saved), numPages) });
+    else setResumeApplied(true);
+  }, [numPages, savedProgress, progressLoading, resumeApplied, resumeOffer]);
+
+  function continueReading() {
+    if (!resumeOffer) return;
+    setPageNum(resumeOffer.page);
+    setResumeOffer(null);
+    setResumeApplied(true);
+  }
+
+  function startOver() {
+    setPageNum(1);
+    setResumeOffer(null);
+    setResumeApplied(true);
+  }
+
+  // The debounced save below is dropped if the reader leaves inside its 900ms window; send the latest page
+  // straight away when the tab is hidden or the page is left.
+  const latest = useRef({ page: 1, total: 0, ok: false });
+  latest.current = { page: pageNum, total: numPages, ok: !!user && numPages > 0 && resumeApplied };
+  const flushMutate = saveProgress.mutate;
+  useEffect(() => {
+    const flush = () => {
+      const l = latest.current;
+      if (l.ok) flushMutate({ currentPage: l.page, totalPages: l.total });
+    };
+    const onHide = () => {
+      if (document.visibilityState === "hidden") flush();
+    };
+    document.addEventListener("visibilitychange", onHide);
+    window.addEventListener("pagehide", flush);
+    return () => {
+      document.removeEventListener("visibilitychange", onHide);
+      window.removeEventListener("pagehide", flush);
+      flush();
+    };
+  }, [flushMutate]);
 
   const renderPage = useCallback(async () => {
     if (!pdf || !canvasRef.current || !containerRef.current) return;
@@ -298,6 +336,16 @@ export function BookReader() {
           />
         )}
       </div>
+
+      {resumeOffer && (
+        <ResumePrompt
+          kind="book"
+          where={`page ${resumeOffer.page} of ${numPages}`}
+          percent={numPages > 0 ? (resumeOffer.page / numPages) * 100 : null}
+          onContinue={continueReading}
+          onStartOver={startOver}
+        />
+      )}
 
       {/* Bottom bar */}
       <div
