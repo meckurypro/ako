@@ -741,7 +741,13 @@ export function BookReflowReader({ projectId, title, chapters, userId, onBack, t
           themeId={themeId}
           onTheme={setThemeId}
           fontSize={fontSize}
-          onFontSize={(n) => setFontSize(clampFontSize(n))}
+          onFontSize={(n) => {
+            const next = clampFontSize(n);
+            if (next === fontSize) return;
+            // Keep the reader on the same sentence while the text reflows (scroll fraction is re-applied after layout).
+            pendingFraction.current = fraction;
+            setFontSize(next);
+          }}
           font={font}
           onFont={setFontPick}
           spacing={spacing}

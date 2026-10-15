@@ -37,6 +37,7 @@ function Sheet({
   headerRight,
   children,
   tall,
+  peek,
 }: {
   theme: ReaderThemeSpec;
   title: string;
@@ -45,25 +46,32 @@ function Sheet({
   headerRight?: ReactNode;
   children: ReactNode;
   tall?: boolean;
+  /** While true the sheet turns see-through so the page behind it can be read (used by the text-size slider). */
+  peek?: boolean;
 }) {
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center" role="dialog" aria-modal="true" aria-label={title}>
-      <div className="absolute inset-0" style={{ background: "rgba(0,0,0,0.38)" }} onClick={onClose} />
+      <div
+        className="absolute inset-0"
+        style={{ background: peek ? "rgba(0,0,0,0)" : "rgba(0,0,0,0.38)", pointerEvents: peek ? "none" : "auto", transition: "background 160ms ease-out" }}
+        onClick={onClose}
+      />
       <div
         className="ako-reader-anim relative flex w-full max-w-xl flex-col overflow-hidden"
         style={{
-          background: theme.sheet,
+          background: peek ? "transparent" : theme.sheet,
           color: theme.ink,
           borderTopLeftRadius: 28,
           borderTopRightRadius: 28,
           maxHeight: tall ? "88vh" : "78vh",
           minHeight: tall ? "62vh" : undefined,
           paddingBottom: "env(safe-area-inset-bottom)",
-          boxShadow: "0 -10px 40px rgba(0,0,0,0.25)",
+          boxShadow: peek ? "none" : "0 -10px 40px rgba(0,0,0,0.25)",
+          transition: "background 160ms ease-out, box-shadow 160ms ease-out",
           animation: "ako-reader-sheet-up 220ms ease-out",
         }}
       >
-        <div className="flex items-start justify-between px-5 pb-2 pt-4">
+        <div className="flex items-start justify-between px-5 pb-2 pt-4" style={{ opacity: peek ? 0 : 1, transition: "opacity 140ms ease-out", pointerEvents: peek ? "none" : "auto" }}>
           <div className="min-w-0">
             <p className="text-[17px] font-semibold leading-tight">{title}</p>
             {subtitle ? <div className="mt-0.5 text-[13px]" style={{ color: theme.muted }}>{subtitle}</div> : null}
@@ -334,7 +342,25 @@ export function SettingsSheet({
   onClose: () => void;
 }) {
   const [options, setOptions] = useState(false);
+  const [peek, setPeek] = useState(false);
   const chip = theme.dark ? "rgba(255,255,255,0.10)" : "rgba(0,0,0,0.07)";
+  const fade = { opacity: peek ? 0 : 1, transition: "opacity 140ms ease-out", pointerEvents: peek ? ("none" as const) : ("auto" as const) };
+  const tickCount = Math.round((MAX_FONT_SIZE - MIN_FONT_SIZE) / FONT_STEP) + 1;
+
+  // "Peek": while the thumb is held the sheet turns see-through and everything but the slider fades, so you
+  // watch the page itself reflow as you drag. Letting go (anywhere) brings the sheet back.
+  useEffect(() => {
+    if (!peek) return;
+    const end = () => setPeek(false);
+    window.addEventListener("pointerup", end);
+    window.addEventListener("pointercancel", end);
+    window.addEventListener("touchend", end);
+    return () => {
+      window.removeEventListener("pointerup", end);
+      window.removeEventListener("pointercancel", end);
+      window.removeEventListener("touchend", end);
+    };
+  }, [peek]);
 
   const Seg = <T extends string>({ items, value, onPick, label }: { items: { id: T; label: string }[]; value: T; onPick: (v: T) => void; label: string }) => (
     <div className="mb-3">
@@ -360,6 +386,7 @@ export function SettingsSheet({
       theme={theme}
       title="Themes & Settings"
       onClose={onClose}
+      peek={peek}
       subtitle={
         <button onClick={() => setOptions((o) => !o)} className="flex items-center gap-1" aria-expanded={options}>
           <span>{READER_THEMES[themeId].label}</span>
@@ -370,35 +397,54 @@ export function SettingsSheet({
     >
       <div className="overflow-y-auto px-5 pb-5 pt-2">
         <div className="mb-3 flex gap-2">
-          <button
-            onClick={() => onFontSize(fontSize - FONT_STEP)}
-            disabled={fontSize <= MIN_FONT_SIZE}
-            aria-label="Smaller text"
-            className="flex h-11 flex-1 items-center justify-center rounded-xl disabled:opacity-35"
-            style={{ background: chip }}
+          <div
+            className="flex h-12 flex-1 items-center gap-3 rounded-xl px-4"
+            style={{
+              background: peek ? theme.sheet : chip,
+              boxShadow: peek ? "0 6px 24px rgba(0,0,0,0.28), inset 0 0 0 1px " + theme.rule : "none",
+              transition: "background 160ms ease-out, box-shadow 160ms ease-out",
+            }}
           >
-            <span className="text-[14px] font-semibold">A</span>
-          </button>
-          <button
-            onClick={() => onFontSize(fontSize + FONT_STEP)}
-            disabled={fontSize >= MAX_FONT_SIZE}
-            aria-label="Larger text"
-            className="flex h-11 flex-1 items-center justify-center rounded-xl disabled:opacity-35"
-            style={{ background: chip }}
-          >
-            <span className="text-[22px] font-semibold leading-none">A</span>
-          </button>
+            <span aria-hidden className="text-[13px] font-semibold leading-none">A</span>
+            <div className="relative flex-1">
+              <div aria-hidden className="pointer-events-none absolute inset-x-2 top-1/2 flex -translate-y-1/2 justify-between">
+                {Array.from({ length: tickCount }).map((_, i) => (
+                  <span
+                    key={i}
+                    className="block rounded-full"
+                    style={{ width: 3, height: 3, background: MIN_FONT_SIZE + i * FONT_STEP <= fontSize ? theme.ink : theme.muted, opacity: 0.55 }}
+                  />
+                ))}
+              </div>
+              <input
+                type="range"
+                min={MIN_FONT_SIZE}
+                max={MAX_FONT_SIZE}
+                step={FONT_STEP}
+                value={fontSize}
+                onChange={(e) => onFontSize(Number(e.target.value))}
+                onPointerDown={() => setPeek(true)}
+                onKeyUp={() => setPeek(false)}
+                aria-label="Text size"
+                aria-valuetext={`${fontSize} points`}
+                className="relative block w-full"
+                style={{ accentColor: theme.ink, height: 28, touchAction: "none", background: "transparent" }}
+              />
+            </div>
+            <span aria-hidden className="text-[24px] font-semibold leading-none">A</span>
+          </div>
           <button
             onClick={() => onJustify(!justify)}
             aria-label={justify ? "Left-align text" : "Justify text"}
             aria-pressed={justify}
-            className="flex h-11 w-14 items-center justify-center rounded-xl"
-            style={justify ? { background: theme.ink, color: theme.bg } : { background: chip }}
+            className="flex h-12 w-14 items-center justify-center rounded-xl"
+            style={{ ...(justify ? { background: theme.ink, color: theme.bg } : { background: chip }), ...fade }}
           >
             {justify ? <AlignJustify size={18} /> : <AlignLeft size={18} />}
           </button>
         </div>
 
+        <div style={fade}>
         {options && (
           <div className="mb-2 mt-4">
             <Seg label="Font" items={FONTS} value={font} onPick={onFont} />
@@ -430,6 +476,7 @@ export function SettingsSheet({
               </button>
             );
           })}
+        </div>
         </div>
       </div>
     </Sheet>
