@@ -30,6 +30,7 @@ import {
 import { ProjectMiniCard } from "../components/ProjectMiniCard";
 import { useMarkProjectSeen } from "../hooks/useMarkProjectSeen";
 import { useAuth } from "../hooks/useAuth";
+import { useProjectOwnership } from "../hooks/useProjectOwnership";
 import { useRecordFreeProjectOpen } from "../hooks/useProjectAccess";
 import { useCountdown, formatCountdown } from "../hooks/useCountdown";
 import { downloadIcsEvent } from "../lib/calendar";
@@ -338,8 +339,10 @@ export function ProjectDetail({ resolvedProjectId }: { resolvedProjectId?: strin
   const { data: featuringGigs } = useGigsFeaturingProject(
     project && project.project_type !== "gig" ? projectId : undefined
   );
-  const isOwner = !!user && !!project && project.owner.id === user.id;
-  useRecordFreeProjectOpen(project, { isOwner });
+  const ownership = useProjectOwnership();
+  const isOwner = ownership.isOwner(project);
+  const isCreator = !!user && !!project && project.owner.id === user.id;
+  useRecordFreeProjectOpen(project, { isOwner: isCreator });
   const eventCountdownMs = useCountdown(project?.project_type === "event" ? eventDetails?.event_date : undefined);
 
   // Affiliate forking — pitch projects don't route through

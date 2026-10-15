@@ -8,6 +8,7 @@ import { useProject, useHasPurchased, isProjectFree, useGetProjectFile } from ".
 import { useBookDetails, usePdfReadingProgress, useSavePdfReadingProgress } from "../hooks/useProjectTypeDetails";
 import { useIsProjectMember } from "../hooks/useProjectMembers";
 import { useAuth } from "../hooks/useAuth";
+import { useProjectOwnership } from "../hooks/useProjectOwnership";
 import { useRecordFreeProjectOpen } from "../hooks/useProjectAccess";
 import { resolveFunctionErrorMessage } from "../lib/functionErrors";
 
@@ -61,11 +62,13 @@ export function BookReader() {
   const { data: savedProgress } = usePdfReadingProgress(projectId, user?.id);
   const saveProgress = useSavePdfReadingProgress(projectId ?? "", user?.id);
 
-  const isOwner = !!user && project?.owner_id === user.id;
+  const ownership = useProjectOwnership();
+  const isOwner = ownership.isOwner(project);
+  const isCreator = !!user && project?.owner_id === user.id;
   const isFree = project ? isProjectFree(project) : false;
   const privacyBlocked = !!project?.is_private && !isOwner && !isMemberQuery.data;
   const hasAccess = !privacyBlocked && (isOwner || !!hasPurchasedQuery.data || isFree);
-  useRecordFreeProjectOpen(project, { isOwner, enabled: !privacyBlocked });
+  useRecordFreeProjectOpen(project, { isOwner: isCreator, enabled: !privacyBlocked });
 
   const [pdf, setPdf] = useState<PDFDocumentProxy | null>(null);
   const [pageNum, setPageNum] = useState(1);

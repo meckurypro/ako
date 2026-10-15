@@ -4,7 +4,7 @@ import { useParams } from "react-router-dom";
 import jsQR from "jsqr";
 import { useSmartBack } from "../hooks/useSmartBack";
 import { ArrowLeft, CheckCircle2, XCircle, Camera, Keyboard, Users } from "lucide-react";
-import { useAuth } from "../hooks/useAuth";
+import { useProjectOwnership } from "../hooks/useProjectOwnership";
 import { useProject } from "../hooks/useProjects";
 import {
   useTicketByCode,
@@ -23,9 +23,9 @@ import {
 export function EventCheckIn() {
   const { projectId } = useParams<{ projectId: string }>();
   const smartBack = useSmartBack();
-  const { user } = useAuth();
   const { data: project } = useProject(projectId);
-  const isOwner = !!user && project?.owner_id === user.id;
+  const ownership = useProjectOwnership();
+  const isOwner = ownership.isOwner(project);
 
   const [mode, setMode] = useState<"camera" | "manual">("camera");
   const [manualCode, setManualCode] = useState("");
@@ -105,7 +105,7 @@ export function EventCheckIn() {
     setManualCode("");
   }
 
-  if (!project) {
+  if (!project || ownership.loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-canvas">
         <p className="text-ink-muted">Loading…</p>

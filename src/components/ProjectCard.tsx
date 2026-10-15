@@ -35,6 +35,7 @@ import {
   Gift as GiftIcon,
 } from "lucide-react";
 import { useAuth } from "../hooks/useAuth";
+import { useProjectOwnership } from "../hooks/useProjectOwnership";
 import { useAffiliateProgram } from "../hooks/useAffiliates";
 import { AffiliateShareSheet } from "./AffiliateShareSheet";
 import { ConfirmDialog } from "./ConfirmDialog";
@@ -356,7 +357,10 @@ export function ProjectCard({
 }) {
   const { user } = useAuth();
   const navigate = useNavigate();
-  const isOwner = isOwnerView ?? user?.id === project.owner_id;
+  // Ownership is judged against the identity being acted as: a project created
+  // personally is NOT a Page's own, even though owner_id is the same user.
+  const ownership = useProjectOwnership();
+  const isOwner = isOwnerView ?? ownership.isOwner(project);
   // Same reasoning as PostCard's isArchivedFrozen — an archived
   // project's engagement is frozen (only ever relevant to the owner,
   // viewing their own archived project from the Archive screen). The

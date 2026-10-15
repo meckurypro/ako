@@ -29,7 +29,7 @@ import {
   Circle,
   Square,
 } from "lucide-react";
-import { useAuth } from "../hooks/useAuth";
+import { useProjectOwnership } from "../hooks/useProjectOwnership";
 import { useProject } from "../hooks/useProjects";
 import { useCountdown, formatCountdown } from "../hooks/useCountdown";
 import { useVoiceRecorder } from "../hooks/useVoiceRecorder";
@@ -836,9 +836,9 @@ export function Room() {
   const { projectId } = useParams<{ projectId: string }>();
   const navigate = useNavigate();
   const smartBack = useSmartBack();
-  const { user } = useAuth();
   const { data: project } = useProject(projectId);
-  const isOwner = !!user && project?.owner_id === user.id;
+  const ownership = useProjectOwnership();
+  const isOwner = ownership.isOwner(project);
 
   const { data: isMember } = useIsRoomMember(projectId);
   const { data: isHostQuery } = useIsRoomHost(projectId);

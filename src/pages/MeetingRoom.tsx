@@ -23,6 +23,7 @@ import {
 import { useProject, useHasPurchased, isProjectFree } from "../hooks/useProjects";
 import { useMeetingDetails } from "../hooks/useProjectTypeDetails";
 import { useAuth } from "../hooks/useAuth";
+import { useProjectOwnership } from "../hooks/useProjectOwnership";
 import { useStartConversation } from "../hooks/useMessaging";
 import { useIsProjectMember } from "../hooks/useProjectMembers";
 import { PrivateProjectNotice } from "../components/PrivateProjectNotice";
@@ -310,7 +311,8 @@ export function MeetingRoom() {
   const { data: project } = useProject(projectId);
   const { data: details } = useMeetingDetails(projectId);
   const hasPurchasedQuery = useHasPurchased(projectId ?? "");
-  const isOwner = !!user && project?.owner_id === user.id;
+  const ownership = useProjectOwnership();
+  const isOwner = ownership.isOwner(project);
   const isFree = !!project && isProjectFree(project);
 
   // Same privacy gate as ProjectCard/PrivateProjectNotice — a private

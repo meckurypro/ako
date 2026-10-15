@@ -17,6 +17,7 @@ import {
   FileText,
 } from "lucide-react";
 import { useAuth } from "../hooks/useAuth";
+import { useProjectOwnership } from "../hooks/useProjectOwnership";
 import { useRecordFreeProjectOpen } from "../hooks/useProjectAccess";
 import { useProject, useHasPurchased, isProjectFree } from "../hooks/useProjects";
 import { useFeedDoorway } from "../hooks/useFeedDoorway";
@@ -195,11 +196,13 @@ export function Course() {
   const smartBack = useSmartBack();
   const { user } = useAuth();
   const { data: project } = useProject(projectId);
-  const isOwner = !!user && project?.owner_id === user.id;
+  const ownership = useProjectOwnership();
+  const isOwner = ownership.isOwner(project);
+  const isCreator = !!user && project?.owner_id === user.id;
   const isFree = !!project && isProjectFree(project);
   const hasPurchasedQuery = useHasPurchased(projectId ?? "");
   const hasAccess = isOwner || isFree || !!hasPurchasedQuery.data;
-  useRecordFreeProjectOpen(project, { isOwner });
+  useRecordFreeProjectOpen(project, { isOwner: isCreator });
 
   const { data: modules } = useCourseModules(projectId);
   const progressQuery = useCourseProgress(projectId, user?.id);

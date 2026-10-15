@@ -2,6 +2,7 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { useSmartBack } from "../hooks/useSmartBack";
+import { useProjectOwnership } from "../hooks/useProjectOwnership";
 import { ArrowLeft, ImageIcon } from "lucide-react";
 import {
   useProject,
@@ -55,6 +56,7 @@ export function EditProject() {
   const smartBack = useSmartBack();
 
   const { data: project, isLoading } = useProject(projectId);
+  const ownership = useProjectOwnership();
   const [manageAccessOpen, setManageAccessOpen] = useState(false);
   const [affiliateSheetOpen, setAffiliateSheetOpen] = useState(false);
   const [linkSheetOpen, setLinkSheetOpen] = useState(false);
@@ -531,10 +533,27 @@ export function EditProject() {
     }
   }
 
-  if (isLoading || !project || !typeDetailsHydrated) {
+  if (isLoading || !project || !typeDetailsHydrated || ownership.loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-canvas">
         <p className="text-ink-muted">Loading…</p>
+      </div>
+    );
+  }
+
+  // A Page is its own account: while acting as one, a project published from
+  // the person's own profile (or another Page) is someone else's content and
+  // can't be edited from here — switch accounts first. (Server RLS is still the
+  // real gate; this keeps the UI from offering what it shouldn't.)
+  if (!ownership.isOwner(project)) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center gap-4 bg-canvas px-6 text-center">
+        <p className="text-ink-muted">
+          {ownership.actingAsPageId
+            ? "This project wasn't published by the Page you're acting as. Switch to the account that published it to edit it."
+            : "You can't edit this project."}
+        </p>
+        <Button onClick={smartBack}>Go back</Button>
       </div>
     );
   }

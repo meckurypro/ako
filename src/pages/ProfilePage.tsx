@@ -3,6 +3,7 @@ import { useState, useRef, useEffect } from "react";
 import { useParams, Link, useNavigate, useLocation } from "react-router-dom";
 import { Settings, Wallet, MessageCircle, MoreHorizontal, Plus, Eye, X, Globe, UserCheck, Lock, Redo2, Building2, Undo2, ChevronDown, UserMinus, Bell, BellOff, Send, Briefcase, Activity as ActivityIcon } from "lucide-react";
 import { useAuth } from "../hooks/useAuth";
+import { useProjectOwnership } from "../hooks/useProjectOwnership";
 import {
   useProfileByUsername,
   useIsFollowingAsActiveIdentity,
@@ -306,6 +307,11 @@ export function ProfilePage() {
 
   const isOwnProfile = user?.id === profile?.id;
   const showOwnerView = isOwnProfile && !previewingAsVisitor;
+  // Projects on this profile are the PERSON's. While acting as a Page, the
+  // Page is a different account, so they read as another user's content: no
+  // owner controls and no drafts/archived — same as any visitor.
+  const { actingAsPageId, loading: identityLoading } = useProjectOwnership();
+  const projectsOwnerView = showOwnerView && !identityLoading && !actingAsPageId;
 
   const isFollowing = !!isFollowingQuery.data;
   const isFollowedByUser = !!isFollowedByUserQuery.data;
@@ -331,7 +337,7 @@ export function ProfilePage() {
   // Passing "" makes each hook's own `enabled: !!userId` guard skip the
   // request entirely — a locked-out visitor's client never asks the
   // server for this profile's posts/projects in the first place.
-  const { data: projects } = useUserProjects(isPrivateLocked ? "" : profile?.id ?? "", showOwnerView);
+  const { data: projects } = useUserProjects(isPrivateLocked ? "" : profile?.id ?? "", projectsOwnerView);
   // Restricted (consumer-only) accounts see projects only — never posts. Everyone else
   // gets the Posts tab; an empty id keeps the query from firing at all.
   const { data: posts } = useUserPostsWithArchived(isPrivateLocked || restricted ? "" : profile?.id ?? "", false);
@@ -958,7 +964,7 @@ export function ProfilePage() {
             </div>
           ) : tabDefs.length === 0 ? (
             <p className="text-ink-muted text-center py-10 text-sm">
-              {showOwnerView ? "No projects yet — publish your first one." : "No projects yet."}
+              {projectsOwnerView ? "No projects yet — publish your first one." : "No projects yet."}
             </p>
           ) : (
             <SwipeableTabs
@@ -996,7 +1002,7 @@ export function ProfilePage() {
                           // to manage, just to appear on. showOwnerView
                           // already resolves per-card against
                           // project.owner_id when left undefined here.
-                          isOwnerView={showOwnerView && project.owner_id === profile.id}
+                          isOwnerView={projectsOwnerView && project.owner_id === profile.id}
                         />
                       ))}
                     </div>
@@ -1016,7 +1022,7 @@ export function ProfilePage() {
                         <ProjectMiniGrid projects={fallbackProjects} />
                       ) : (
                         <p className="text-ink-muted text-center py-10 text-sm">
-                          {showOwnerView ? "No projects yet — publish your first one." : "No projects yet."}
+                          {projectsOwnerView ? "No projects yet — publish your first one." : "No projects yet."}
                         </p>
                       )}
                     </div>
@@ -1029,7 +1035,7 @@ export function ProfilePage() {
                       <TypeCategoryPane
                         accountId={profile.id}
                         projectType={projectType}
-                        showOwnerView={showOwnerView}
+                        showOwnerView={projectsOwnerView}
                       />
                     </div>
                   );
@@ -1041,7 +1047,7 @@ export function ProfilePage() {
                     <PortfolioCategoryPane
                       accountId={profile.id}
                       category={tab.label}
-                      showOwnerView={showOwnerView}
+                      showOwnerView={projectsOwnerView}
                     />
                   </div>
                 );
