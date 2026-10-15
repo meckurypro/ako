@@ -1,8 +1,8 @@
 // src/components/BookRichText.tsx
 // Renders an authored chapter's Markdown (see lib/bookFormat.ts) for the reflow
-// reader: headings, paragraphs, **bold**, *italic*, lists, quotes, dividers.
+// reader: headings, paragraphs, **bold**, *italic*, links, lists, quotes, code (with Copy), dividers.
 // Colours and size come from the reader's theme, not the app theme.
-import { Fragment, useMemo, type ReactNode } from "react";
+import { Fragment, useMemo, useState, type ReactNode } from "react";
 
 import { parseBook, type BookBlock, type BookInline } from "../lib/bookFormat";
 
@@ -12,6 +12,8 @@ interface BookRichTextProps {
   blocks?: BookBlock[];
   ink: string;
   muted: string;
+  /** Link colour (the reader theme's accent). Falls back to the text colour. */
+  accent?: string;
   fontSize: number;
   // Optional typography controls used by the book reader's Themes & Settings. Defaults keep the old look.
   fontFamily?: string;
@@ -33,16 +35,60 @@ function Ornament({ color }: { color: string }) {
   );
 }
 
-function renderInline(nodes: BookInline[], keyPrefix: string): ReactNode[] {
+/** A fenced code block with a Copy button: the book is full of commands people paste into a terminal. */
+function CodeBlock({ text, fontSize, muted, gap }: { text: string; fontSize: number; muted: string; gap: number }) {
+  const [copied, setCopied] = useState(false);
+  async function copy() {
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 1600);
+    } catch {
+      /* Clipboard blocked: the text is still selectable. */
+    }
+  }
+  return (
+    <div style={{ border: `1px solid ${muted}`, borderRadius: 10, marginBottom: gap, overflow: "hidden" }}>
+      <div className="flex justify-end" style={{ padding: "4px 8px 0" }}>
+        <button
+          type="button"
+          onClick={copy}
+          aria-label="Copy code"
+          style={{ fontSize: 12, lineHeight: 1.2, padding: "3px 8px", borderRadius: 6, border: `1px solid ${muted}`, color: muted, background: "transparent" }}
+        >
+          {copied ? "Copied" : "Copy"}
+        </button>
+      </div>
+      <pre className="font-mono overflow-x-auto" style={{ fontSize: fontSize - 2, lineHeight: 1.5, padding: "6px 12px 12px", margin: 0 }}>
+        {text}
+      </pre>
+    </div>
+  );
+}
+
+function renderInline(nodes: BookInline[], keyPrefix: string, accent?: string): ReactNode[] {
   return nodes.map((n, i) => {
     const key = `${keyPrefix}-${i}`;
     switch (n.t) {
       case "text":
         return <Fragment key={key}>{n.v}</Fragment>;
       case "bold":
-        return <strong key={key} style={{ fontWeight: 700 }}>{renderInline(n.c, key)}</strong>;
+        return <strong key={key} style={{ fontWeight: 700 }}>{renderInline(n.c, key, accent)}</strong>;
       case "italic":
-        return <em key={key}>{renderInline(n.c, key)}</em>;
+        return <em key={key}>{renderInline(n.c, key, accent)}</em>;
+      case "link":
+        // The parser only emits http(s) links. handleTap in the reader ignores clicks on <a>, so the chrome doesn't toggle.
+        return (
+          <a
+            key={key}
+            href={n.href}
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{ color: accent ?? "inherit", textDecoration: "underline", textUnderlineOffset: 3, overflowWrap: "anywhere" }}
+          >
+            {renderInline(n.c, key, accent)}
+          </a>
+        );
       case "code":
         return (
           <code key={key} className="font-mono" style={{ fontSize: "0.9em" }}>
@@ -58,6 +104,7 @@ export function BookRichText({
   blocks: given,
   ink,
   muted,
+  accent,
   fontSize,
   fontFamily,
   lineHeight = 1.625,
@@ -94,14 +141,14 @@ export function BookRichText({
                 className="font-semibold whitespace-pre-wrap"
                 style={{ fontSize: size, lineHeight: 1.3, marginTop: fontSize * 0.9, marginBottom: fontSize * 0.55 }}
               >
-                {renderInline(b.inline, key)}
+                {renderInline(b.inline, key, accent)}
               </p>
             );
           }
           case "p":
             return (
               <p key={key} className="whitespace-pre-wrap" style={{ marginBottom: gap }}>
-                {renderInline(b.inline, key)}
+                {renderInline(b.inline, key, accent)}
               </p>
             );
           case "list":
@@ -112,7 +159,7 @@ export function BookRichText({
                     <span className="shrink-0" style={{ width: fontSize * (item.marker.length > 2 ? 2.2 : 1.5) }}>
                       {item.marker}
                     </span>
-                    <span className="min-w-0 flex-1 whitespace-pre-wrap">{renderInline(item.inline, `${key}-${j}`)}</span>
+                    <span className="min-w-0 flex-1 whitespace-pre-wrap">{renderInline(item.inline, `${key}-${j}`, accent)}</span>
                   </div>
                 ))}
               </div>
@@ -124,18 +171,12 @@ export function BookRichText({
                 className="italic whitespace-pre-wrap"
                 style={{ color: muted, borderLeft: `3px solid ${muted}`, paddingLeft: 14, marginBottom: gap }}
               >
-                {renderInline(b.inline, key)}
+                {renderInline(b.inline, key, accent)}
               </blockquote>
             );
           case "code":
             return (
-              <pre
-                key={key}
-                className="font-mono overflow-x-auto"
-                style={{ fontSize: fontSize - 2, lineHeight: 1.5, padding: 12, borderRadius: 10, border: `1px solid ${muted}`, marginBottom: gap }}
-              >
-                {b.text}
-              </pre>
+              <CodeBlock key={key} text={b.text} fontSize={fontSize} muted={muted} gap={gap} />
             );
           case "hr":
             return ornament ? (

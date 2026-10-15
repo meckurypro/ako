@@ -594,6 +594,7 @@ export function BookReflowReader({ projectId, title, chapters, userId, onBack, t
               blocks={opener.body}
               ink={theme.ink}
               muted={theme.muted}
+              accent={theme.accent}
               fontSize={fontSize}
               lineHeight={lineHeight}
               justify={justify}
