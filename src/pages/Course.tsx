@@ -1,5 +1,5 @@
 // src/pages/Course.tsx
-import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useSmartBack } from "../hooks/useSmartBack";
 import {
@@ -24,6 +24,7 @@ import { useFeedDoorway } from "../hooks/useFeedDoorway";
 import { FeedDoorway } from "../components/FeedDoorway";
 import { CourseHero } from "../components/course/CourseHero";
 import { LessonReader } from "../components/course/LessonReader";
+import { ResumePrompt } from "../components/ResumePrompt";
 import { ProgressBar } from "../components/course/ProgressBar";
 import { useToast } from "../components/Toast";
 import { buildReaderModel, readMinutes } from "../lib/lessonFormat";
@@ -39,6 +40,8 @@ import {
   useMoveLesson,
   usePublishCourse,
   useCourseProgress,
+  useCourseResume,
+  useSaveCourseResume,
   useSetLessonComplete,
   type CourseLesson,
 } from "../hooks/useCourseBuilder";
@@ -63,8 +66,21 @@ function resolveEmbed(url: string): EmbedKind {
   return { type: "link" };
 }
 
-function LessonMedia({ url, onWatched }: { url: string; onWatched: () => void }) {
+function LessonMedia({
+  url,
+  onWatched,
+  startAt,
+  onTime,
+}: {
+  url: string;
+  onWatched: () => void;
+  /** Direct video only: second to resume from. (YouTube/Vimeo embeds are cross-origin: they can't be seeked or read.) */
+  startAt?: number | null;
+  /** Direct video only: called every few seconds with the playback position. */
+  onTime?: (seconds: number) => void;
+}) {
   const embed = resolveEmbed(url);
+  const lastReported = useRef(0);
   if (embed.type === "youtube" || embed.type === "vimeo") {
     return (
       <div className="w-full aspect-video rounded-xl overflow-hidden bg-canvas mb-2">
@@ -85,7 +101,22 @@ function LessonMedia({ url, onWatched }: { url: string; onWatched: () => void })
       // actually observe playback on (YouTube/Vimeo iframes are
       // cross-origin, so there's no "ended" event to listen for there;
       // those rely on the manual Mark complete button instead).
-      <video controls src={url} onEnded={onWatched} className="w-full rounded-xl max-h-80 mb-2 bg-canvas" />
+      <video
+        controls
+        src={url}
+        onEnded={onWatched}
+        onLoadedMetadata={(e) => {
+          if (startAt && startAt > 1 && startAt < e.currentTarget.duration - 2) e.currentTarget.currentTime = startAt;
+        }}
+        onTimeUpdate={(e) => {
+          const t = e.currentTarget.currentTime;
+          if (onTime && Math.abs(t - lastReported.current) >= 4) {
+            lastReported.current = t;
+            onTime(t);
+          }
+        }}
+        className="w-full rounded-xl max-h-80 mb-2 bg-canvas"
+      />
     );
   }
   return (
@@ -260,6 +291,112 @@ export function Course() {
 
   const selectedLesson = flatLessons.find((l) => l.id === selectedLessonId) ?? null;
   const canOpen = (lesson: CourseLesson) => hasAccess || lesson.is_free_preview;
+
+  // ── Resume: where the learner stopped (lesson + how far down it / into its video) ──────────────────────────────
+  const resumeQuery = useCourseResume(projectId, user?.id);
+  const saveResume = useSaveCourseResume(projectId ?? "", user?.id);
+  type ResumeAt = { lessonId: string; scrollFraction: number | null; mediaSeconds: number | null };
+  const [resumeOffer, setResumeOffer] = useState<ResumeAt | null>(null);
+  const [resumeAt, setResumeAt] = useState<ResumeAt | null>(null);
+  const offerChecked = useRef(false);
+  const tracking = !!user && hasAccess && !isOwner;
+
+  // Offer to pick up where they stopped. Runs once, after access, progress and the saved position have all loaded.
+  useEffect(() => {
+    if (offerChecked.current || !tracking || flatLessons.length === 0) return;
+    if (progressQuery.isLoading || resumeQuery.isLoading) return;
+    offerChecked.current = true;
+    const saved = resumeQuery.data;
+    const lesson = saved?.lesson_id ? flatLessons.find((l) => l.id === saved.lesson_id) : undefined;
+    if (!saved || !lesson) return;
+    const fraction = saved.scroll_fraction ?? 0;
+    const seconds = saved.media_seconds ?? 0;
+    const startedInside = fraction >= 0.02 || seconds >= 5;
+    // Nothing to return to: still at the very start of the first lesson, or a finished lesson left at its top.
+    if (!startedInside && (lesson.id === flatLessons[0].id || completedIds.has(lesson.id))) return;
+    setResumeOffer({ lessonId: lesson.id, scrollFraction: fraction, mediaSeconds: seconds });
+  }, [tracking, flatLessons, progressQuery.isLoading, resumeQuery.isLoading, resumeQuery.data, completedIds]);
+
+  // Position tracking. The lesson scrolls with the page, so progress is measured against the reader pane.
+  const paneRef = useRef<HTMLDivElement>(null);
+  const pendingFraction = useRef<number | null>(null);
+  const fractionRef = useRef(0);
+  const mediaRef = useRef<number | null>(null);
+  const unsaved = useRef<{ lessonId: string; scrollFraction: number; mediaSeconds: number | null } | null>(null);
+  const saveTimer = useRef<number | null>(null);
+  const saveResumeMutate = saveResume.mutate;
+  const flushPosition = useCallback(() => {
+    if (saveTimer.current) window.clearTimeout(saveTimer.current);
+    saveTimer.current = null;
+    const pending = unsaved.current;
+    unsaved.current = null;
+    if (pending) saveResumeMutate(pending);
+  }, [saveResumeMutate]);
+  const queuePosition = useCallback(
+    (lessonId: string) => {
+      unsaved.current = { lessonId, scrollFraction: fractionRef.current, mediaSeconds: mediaRef.current };
+      if (saveTimer.current) window.clearTimeout(saveTimer.current);
+      saveTimer.current = window.setTimeout(flushPosition, 1200);
+    },
+    [flushPosition]
+  );
+  const paneFraction = useCallback(() => {
+    const pane = paneRef.current;
+    if (!pane) return null;
+    const rect = pane.getBoundingClientRect();
+    const total = rect.height - window.innerHeight;
+    return { rect, total, fraction: total > 0 ? Math.min(1, Math.max(0, -rect.top / total)) : 0 };
+  }, []);
+
+  const lessonOpenId = view === "lesson" || (typeof window !== "undefined" && window.matchMedia("(min-width: 1024px)").matches) ? selectedLessonId : null;
+  useEffect(() => {
+    if (!tracking || !lessonOpenId) return;
+    const lessonId = lessonOpenId;
+    // Start from the resume point for this lesson (or the top), and jump to it once the lesson has laid out.
+    const at = resumeAt && resumeAt.lessonId === lessonId ? resumeAt : null;
+    fractionRef.current = at?.scrollFraction ?? 0;
+    mediaRef.current = at?.mediaSeconds ?? null;
+    pendingFraction.current = at?.scrollFraction != null && at.scrollFraction > 0.01 ? at.scrollFraction : null;
+    const timers: number[] = [];
+    if (pendingFraction.current != null) {
+      const apply = () => {
+        const m = paneFraction();
+        const f = pendingFraction.current;
+        if (!m || f == null || m.total <= 0) return;
+        window.scrollTo({ top: window.scrollY + m.rect.top + f * m.total });
+      };
+      [0, 80, 250, 600].forEach((ms) => timers.push(window.setTimeout(apply, ms)));
+      timers.push(window.setTimeout(() => (pendingFraction.current = null), 800));
+    }
+    const onScroll = () => {
+      if (pendingFraction.current != null) return; // the page is still being moved to the saved spot
+      const m = paneFraction();
+      if (!m) return;
+      fractionRef.current = m.fraction;
+      queuePosition(lessonId);
+    };
+    const onHide = () => {
+      if (document.visibilityState === "hidden") flushPosition();
+    };
+    window.addEventListener("scroll", onScroll, { passive: true });
+    document.addEventListener("visibilitychange", onHide);
+    window.addEventListener("pagehide", flushPosition);
+    return () => {
+      timers.forEach(window.clearTimeout);
+      window.removeEventListener("scroll", onScroll);
+      document.removeEventListener("visibilitychange", onHide);
+      window.removeEventListener("pagehide", flushPosition);
+      flushPosition(); // leaving this lesson / the course: send the last position now, don't drop it
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tracking, lessonOpenId, resumeAt]);
+  const handleMediaTime = useCallback(
+    (seconds: number) => {
+      mediaRef.current = seconds;
+      if (lessonOpenId) queuePosition(lessonOpenId);
+    },
+    [lessonOpenId, queuePosition]
+  );
   const selectedIndex = selectedLesson ? flatLessons.findIndex((l) => l.id === selectedLesson.id) : -1;
   const prevLesson = selectedIndex > 0 ? flatLessons[selectedIndex - 1] : null;
   const nextLesson = selectedIndex >= 0 && selectedIndex < flatLessons.length - 1 ? flatLessons[selectedIndex + 1] : null;
@@ -284,9 +421,26 @@ export function Course() {
 
   function selectLesson(lesson: CourseLesson) {
     if (!canOpen(lesson)) return;
+    setResumeAt(null); // a lesson picked by hand opens at its top
     setSelectedLessonId(lesson.id);
     setView("lesson");
     window.scrollTo({ top: 0, behavior: "smooth" });
+    // This lesson is now the place to come back to, even if they leave before scrolling.
+    if (tracking) saveResume.mutate({ lessonId: lesson.id, scrollFraction: 0, mediaSeconds: 0 });
+  }
+
+  function continueFromResume() {
+    if (!resumeOffer) return;
+    setResumeAt(resumeOffer);
+    setSelectedLessonId(resumeOffer.lessonId);
+    setView("lesson");
+    setResumeOffer(null);
+  }
+
+  function startCourseOver() {
+    setResumeOffer(null);
+    // Back to the first lesson. Completed lessons keep their ticks — this only moves the reading position.
+    if (flatLessons[0]) selectLesson(flatLessons[0]);
   }
 
   function resume() {
@@ -651,7 +805,7 @@ export function Course() {
 
           {/* Reader pane — the lesson currently open. Only ever shows a locked lesson's content if it's
               flagged for free preview; everything else routes through canOpen(). */}
-          <div className={`${view === "outline" ? "hidden lg:block" : ""} min-w-0`}>
+          <div ref={paneRef} className={`${view === "outline" ? "hidden lg:block" : ""} min-w-0`}>
             {selectedLesson && canOpen(selectedLesson) ? (
               <LessonReader
                 lesson={selectedLesson}
@@ -670,6 +824,8 @@ export function Course() {
                   selectedLesson.media_url ? (
                     <LessonMedia
                       url={selectedLesson.media_url}
+                      startAt={resumeAt && resumeAt.lessonId === selectedLesson.id ? resumeAt.mediaSeconds : null}
+                      onTime={tracking ? handleMediaTime : undefined}
                       onWatched={() => {
                         if (hasAccess) setLessonComplete.mutate({ lessonId: selectedLesson.id, completed: true });
                       }}
@@ -692,6 +848,21 @@ export function Course() {
           </div>
         </div>
       </div>
+      {resumeOffer &&
+        (() => {
+          const lesson = flatLessons.find((l) => l.id === resumeOffer.lessonId);
+          if (!lesson) return null;
+          const idx = flatLessons.findIndex((l) => l.id === lesson.id);
+          return (
+            <ResumePrompt
+              kind="course"
+              where={`lesson ${lessonNumberOf(lesson)}, “${lesson.title}”`}
+              percent={totalLessons > 0 ? ((idx + (resumeOffer.scrollFraction ?? 0)) / totalLessons) * 100 : null}
+              onContinue={continueFromResume}
+              onStartOver={startCourseOver}
+            />
+          );
+        })()}
     </div>
   );
 }

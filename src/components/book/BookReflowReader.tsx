@@ -27,6 +27,7 @@ import {
 } from "lucide-react";
 
 import { FeedDoorway } from "../FeedDoorway";
+import { ResumePrompt } from "../ResumePrompt";
 import { useFeedDoorway } from "../../hooks/useFeedDoorway";
 import {
   BOOK_SECTION_INFO,
@@ -92,7 +93,7 @@ interface BookReflowReaderProps {
 }
 
 export function BookReflowReader({ projectId, title, chapters, userId, onBack, thumbnailUrl, shareUrl }: BookReflowReaderProps) {
-  const { data: progress } = useBookProgress(projectId, userId);
+  const { data: progress, isLoading: progressLoading } = useBookProgress(projectId, userId);
   const saveProgress = useSaveBookProgress(projectId, userId);
   const { data: bookmarkData } = useBookBookmarks(projectId, userId);
   const addBookmark = useAddBookBookmark(projectId, userId);
@@ -119,6 +120,8 @@ export function BookReflowReader({ projectId, title, chapters, userId, onBack, t
   const [sheet, setSheet] = useState<Sheet>(null);
   const [contentsTab, setContentsTab] = useState<ContentsTab>("contents");
   const [resumed, setResumed] = useState(false);
+  // Where the reader stopped last time, offered once on reopening: continue there, or start from the beginning.
+  const [resumeOffer, setResumeOffer] = useState<{ chapterId: string; fraction: number } | null>(null);
   const [fraction, setFraction] = useState(0);
   const [dims, setDims] = useState({ vw: 390, vh: 800, contentH: 0 });
   const [scrub, setScrub] = useState<number | null>(null);
@@ -140,22 +143,69 @@ export function BookReflowReader({ projectId, title, chapters, userId, onBack, t
   useEffect(() => writeStored(READER_STORAGE.justify, justify ? "1" : "0"), [justify]);
   useEffect(
     () => () => {
-      if (saveTimer.current) window.clearTimeout(saveTimer.current);
       if (rafRef.current != null) cancelAnimationFrame(rafRef.current);
     },
     []
   );
 
-  // Resume once, straight into the saved chapter at the saved spot.
+  // The last position not yet sent. Saves are debounced while scrolling, so leaving the page or hiding the tab
+  // must send it straight away rather than drop it.
+  const unsaved = useRef<{ chapterId: string; scrollFraction: number } | null>(null);
+  const saveMutate = saveProgress.mutate;
+  const flushSave = useCallback(() => {
+    if (saveTimer.current) window.clearTimeout(saveTimer.current);
+    saveTimer.current = null;
+    const pending = unsaved.current;
+    unsaved.current = null;
+    if (pending) saveMutate(pending);
+  }, [saveMutate]);
   useEffect(() => {
-    if (resumed || chapters.length === 0) return;
-    if (progress?.current_chapter_id && chapters.some((c) => c.id === progress.current_chapter_id)) {
-      pendingFraction.current = progress.scroll_fraction ?? null;
-      setChapterId(progress.current_chapter_id);
-      setView("chapter");
-    }
+    const onHide = () => {
+      if (document.visibilityState === "hidden") flushSave();
+    };
+    document.addEventListener("visibilitychange", onHide);
+    window.addEventListener("pagehide", flushSave);
+    return () => {
+      document.removeEventListener("visibilitychange", onHide);
+      window.removeEventListener("pagehide", flushSave);
+      flushSave();
+    };
+  }, [flushSave]);
+
+  // Resume: once the saved position has loaded, offer to reopen the last chapter at the saved spot — or start from
+  // the beginning. (Waits for the progress query: resolving before it arrived used to skip resuming altogether.)
+  useEffect(() => {
+    if (resumed || chapters.length === 0 || progressLoading) return;
     setResumed(true);
-  }, [resumed, chapters, progress]);
+    const savedId = progress?.current_chapter_id;
+    const idx = savedId ? chapters.findIndex((c) => c.id === savedId) : -1;
+    if (idx < 0) return;
+    const f = progress?.scroll_fraction ?? 0;
+    // Nothing worth resuming if they only ever opened the very start of the first chapter.
+    if (idx === 0 && f < 0.02) return;
+    setResumeOffer({ chapterId: chapters[idx].id, fraction: f });
+  }, [resumed, chapters, progress, progressLoading]);
+
+  function continueReading() {
+    if (!resumeOffer) return;
+    setJumpBack(null);
+    pendingFraction.current = resumeOffer.fraction;
+    setChapterId(resumeOffer.chapterId);
+    setView("chapter");
+    setResumeOffer(null);
+  }
+
+  function startOver() {
+    setResumeOffer(null);
+    if (!chapters[0]) return;
+    setJumpBack(null);
+    pendingFraction.current = null;
+    setChapterId(chapters[0].id);
+    setView("chapter");
+    // The beginning is now the place to come back to.
+    unsaved.current = { chapterId: chapters[0].id, scrollFraction: 0 };
+    flushSave();
+  }
 
   const currentIndex = chapters.findIndex((c) => c.id === chapterId);
   const current = currentIndex >= 0 ? chapters[currentIndex] : null;
@@ -234,6 +284,9 @@ export function BookReflowReader({ projectId, title, chapters, userId, onBack, t
       if (pendingFraction.current == null) {
         el.scrollTop = 0;
         setFraction(0);
+        // Record that this chapter is now the place, even if they leave before scrolling.
+        unsaved.current = { chapterId: current.id, scrollFraction: 0 };
+        flushSave();
       }
     }
     applyPending();
@@ -257,9 +310,11 @@ export function BookReflowReader({ projectId, title, chapters, userId, onBack, t
 
     const range = el.scrollHeight - el.clientHeight;
     const f = range > 0 ? Math.min(1, Math.max(0, el.scrollTop / range)) : 0;
+    // While a saved position is still waiting to be applied the scroller sits at the top: that isn't progress.
+    if (pendingFraction.current != null) return;
     if (saveTimer.current) window.clearTimeout(saveTimer.current);
-    const id = current.id;
-    saveTimer.current = window.setTimeout(() => saveProgress.mutate({ chapterId: id, scrollFraction: f }), SAVE_DEBOUNCE_MS);
+    unsaved.current = { chapterId: current.id, scrollFraction: f };
+    saveTimer.current = window.setTimeout(flushSave, SAVE_DEBOUNCE_MS);
   }
 
   function handleTap(e: React.MouseEvent) {
@@ -410,6 +465,19 @@ export function BookReflowReader({ projectId, title, chapters, userId, onBack, t
             {bookDoorway.visible && <FeedDoorway context="book" onEnter={bookDoorway.markEnteredFeed} />}
           </div>
         </div>
+        {resumeOffer &&
+          (() => {
+            const i = chapters.findIndex((c) => c.id === resumeOffer.chapterId);
+            return (
+              <ResumePrompt
+                kind="book"
+                where={i >= 0 ? `“${chapters[i].title}”` : "where you stopped"}
+                percent={i >= 0 ? ((i + resumeOffer.fraction) / chapters.length) * 100 : null}
+                onContinue={continueReading}
+                onStartOver={startOver}
+              />
+            );
+          })()}
       </div>
     );
   }
