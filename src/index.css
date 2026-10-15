@@ -732,3 +732,16 @@ body {
     transform: translateY(0);
   }
 }
+
+/* Book reader: bottom sheets (contents, search, themes & settings) and the menu popover. */
+@keyframes ako-reader-sheet-up {
+  from { transform: translateY(24px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+@keyframes ako-reader-pop {
+  from { transform: scale(0.94); opacity: 0; }
+  to { transform: scale(1); opacity: 1; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ako-reader-anim { animation: none !important; }
+}

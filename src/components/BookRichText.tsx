@@ -4,13 +4,33 @@
 // Colours and size come from the reader's theme, not the app theme.
 import { Fragment, useMemo, type ReactNode } from "react";
 
-import { parseBook, type BookInline } from "../lib/bookFormat";
+import { parseBook, type BookBlock, type BookInline } from "../lib/bookFormat";
 
 interface BookRichTextProps {
-  content: string;
+  /** Markdown source. Ignored when `blocks` is given (the reader pre-parses to lift the chapter heading out). */
+  content?: string;
+  blocks?: BookBlock[];
   ink: string;
   muted: string;
   fontSize: number;
+  // Optional typography controls used by the book reader's Themes & Settings. Defaults keep the old look.
+  fontFamily?: string;
+  /** Line height as a multiple of font size. */
+  lineHeight?: number;
+  justify?: boolean;
+  /** "Bold" theme: heavier body + bold weights. */
+  heavy?: boolean;
+  /** Render `---` as a small centred ornament instead of a hairline. */
+  ornament?: boolean;
+}
+
+function Ornament({ color }: { color: string }) {
+  return (
+    <svg width={84} height={12} viewBox="0 0 112 12" fill="none" aria-hidden="true" style={{ color }}>
+      <path d="M0 6h44M68 6h44" stroke="currentColor" strokeWidth="1" strokeLinecap="round" opacity="0.55" />
+      <path d="M56 1.5 60.5 6 56 10.5 51.5 6z" stroke="currentColor" strokeWidth="1" fill="currentColor" opacity="0.7" />
+    </svg>
+  );
 }
 
 function renderInline(nodes: BookInline[], keyPrefix: string): ReactNode[] {
@@ -20,7 +40,7 @@ function renderInline(nodes: BookInline[], keyPrefix: string): ReactNode[] {
       case "text":
         return <Fragment key={key}>{n.v}</Fragment>;
       case "bold":
-        return <strong key={key}>{renderInline(n.c, key)}</strong>;
+        return <strong key={key} style={{ fontWeight: 700 }}>{renderInline(n.c, key)}</strong>;
       case "italic":
         return <em key={key}>{renderInline(n.c, key)}</em>;
       case "code":
@@ -33,13 +53,36 @@ function renderInline(nodes: BookInline[], keyPrefix: string): ReactNode[] {
   });
 }
 
-export function BookRichText({ content, ink, muted, fontSize }: BookRichTextProps) {
-  const blocks = useMemo(() => parseBook(content), [content]);
-  const lineHeight = 1.625;
+export function BookRichText({
+  content,
+  blocks: given,
+  ink,
+  muted,
+  fontSize,
+  fontFamily,
+  lineHeight = 1.625,
+  justify = false,
+  heavy = false,
+  ornament = false,
+}: BookRichTextProps) {
+  const parsed = useMemo(() => given ?? parseBook(content ?? ""), [given, content]);
+  const blocks = parsed;
   const gap = fontSize * 0.9;
 
   return (
-    <div style={{ color: ink, fontSize, lineHeight }}>
+    <div
+      style={{
+        color: ink,
+        fontSize,
+        lineHeight,
+        fontFamily,
+        fontWeight: heavy ? 600 : undefined,
+        textAlign: justify ? "justify" : undefined,
+        hyphens: justify ? "auto" : undefined,
+        WebkitHyphens: justify ? "auto" : undefined,
+        overflowWrap: "break-word",
+      }}
+    >
       {blocks.map((b, i) => {
         const key = `b${i}`;
         switch (b.k) {
@@ -95,7 +138,13 @@ export function BookRichText({ content, ink, muted, fontSize }: BookRichTextProp
               </pre>
             );
           case "hr":
-            return <hr key={key} style={{ border: 0, height: 1, background: muted, opacity: 0.35, margin: `${fontSize * 1.1}px 0` }} />;
+            return ornament ? (
+              <div key={key} className="flex justify-center" style={{ margin: `${fontSize * 1.3}px 0` }}>
+                <Ornament color={muted} />
+              </div>
+            ) : (
+              <hr key={key} style={{ border: 0, height: 1, background: muted, opacity: 0.35, margin: `${fontSize * 1.1}px 0` }} />
+            );
         }
       })}
     </div>

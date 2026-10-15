@@ -1,5 +1,5 @@
 // src/pages/Book.tsx
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import {
   ArrowLeft,
@@ -8,22 +8,15 @@ import {
   Trash2,
   ChevronUp,
   ChevronDown,
-  ChevronLeft,
-  ChevronRight,
   ImageIcon,
-  Sun,
-  Settings2,
-  X,
   Lock,
 } from "lucide-react";
 import { useAuth } from "../hooks/useAuth";
 import { useProjectOwnership } from "../hooks/useProjectOwnership";
 import { useRecordFreeProjectOpen } from "../hooks/useProjectAccess";
 import { useProject, useHasPurchased, isProjectFree, getEffectivePrice, usePurchaseProject } from "../hooks/useProjects";
-import { useFeedDoorway } from "../hooks/useFeedDoorway";
-import { useReaderTheme, type ReaderTheme } from "../hooks/useReaderTheme";
-import { BookRichText } from "../components/BookRichText";
-import { FeedDoorway } from "../components/FeedDoorway";
+import { getProjectUrl } from "../lib/projectLinks";
+import { BookReflowReader } from "../components/book/BookReflowReader";
 import { useIsProjectMember } from "../hooks/useProjectMembers";
 import { useUploadProjectThumbnail } from "../hooks/useUploadProjectThumbnail";
 import { Button } from "../components/Button";
@@ -34,30 +27,12 @@ import {
   useMoveChapter,
   useDeleteChapter,
   usePublishBook,
-  useBookProgress,
-  useSaveBookProgress,
   BOOK_SECTION_INFO,
   OPTIONAL_SECTION_ORDER,
   type BookChapter,
   type BookChapterKind,
 } from "../hooks/useBookBuilder";
 
-
-const THEME_BG: Record<ReaderTheme, string> = {
-  light: "#F7F4EF",
-  sepia: "#EFE4CC",
-  dark: "#17140F",
-};
-const THEME_INK: Record<ReaderTheme, string> = {
-  light: "#1F1D1A",
-  sepia: "#3A2E1F",
-  dark: "#F0EEE8",
-};
-const THEME_INK_MUTED: Record<ReaderTheme, string> = {
-  light: "#6B6558",
-  sepia: "#7A6444",
-  dark: "#9C978A",
-};
 
 export function Book() {
   const { projectId } = useParams<{ projectId: string }>();
@@ -109,7 +84,15 @@ export function Book() {
     );
   }
 
-  return <BookReflowReader projectId={project.id} title={project.title} chapters={ordered} userId={user?.id} onBack={() => navigate(-1)} />;
+  return <BookReflowReader
+      projectId={project.id}
+      title={project.title}
+      chapters={ordered}
+      userId={user?.id}
+      thumbnailUrl={project.thumbnail_url}
+      shareUrl={getProjectUrl(project)}
+      onBack={() => navigate(-1)}
+    />;
 }
 
 // ---------------------------------------------------------------
@@ -409,202 +392,6 @@ function BookBuilder({
           </div>
         )}
       </div>
-    </div>
-  );
-}
-
-// ---------------------------------------------------------------
-// Reflowable reader — real text, not a raster page, so unlike
-// BookReader.tsx (the PDF renderer) this one can actually reflow:
-// theme, font size, and a simple prev/next-chapter model instead of
-// PDF-style page numbers. Progress = (chapter, scroll fraction) via
-// useBookProgress/useSaveBookProgress.
-// ---------------------------------------------------------------
-
-function BookReflowReader({
-  projectId,
-  title,
-  chapters,
-  userId,
-  onBack,
-}: {
-  projectId: string;
-  title: string;
-  chapters: BookChapter[];
-  userId: string | undefined;
-  onBack: () => void;
-}) {
-  const { data: progress } = useBookProgress(projectId, userId);
-  const saveProgress = useSaveBookProgress(projectId, userId);
-
-  const [view, setView] = useState<"toc" | "chapter">("toc");
-  const [chapterId, setChapterId] = useState<string | null>(null);
-  // Opens in the app's light/dark; picking sepia etc. lasts for this reading session (see useReaderTheme).
-  const [theme, setTheme] = useReaderTheme();
-  const [fontSize, setFontSize] = useState<number>(() => Number(localStorage.getItem("ako-reader-font-size")) || 17);
-  const [settingsOpen, setSettingsOpen] = useState(false);
-  const [resumed, setResumed] = useState(false);
-
-  const scrollRef = useRef<HTMLDivElement>(null);
-  const saveTimer = useRef<number | null>(null);
-
-  // The table of contents is the reader's natural stopping point —
-  // reached after finishing a chapter, or right after unlocking the
-  // book, never mid-read. See useFeedDoorway for the session budget
-  // that keeps this from reappearing every time the reader returns
-  // here.
-  const bookDoorway = useFeedDoorway("book");
-
-  useEffect(() => {
-    localStorage.setItem("ako-reader-font-size", String(fontSize));
-  }, [fontSize]);
-
-  // Resume once, straight into the saved chapter.
-  useEffect(() => {
-    if (!resumed && chapters.length > 0) {
-      if (progress?.current_chapter_id && chapters.some((c) => c.id === progress.current_chapter_id)) {
-        setChapterId(progress.current_chapter_id);
-        setView("chapter");
-      }
-      setResumed(true);
-    }
-  }, [resumed, chapters, progress]);
-
-  const currentIndex = chapters.findIndex((c) => c.id === chapterId);
-  const current = currentIndex >= 0 ? chapters[currentIndex] : null;
-  const prev = currentIndex > 0 ? chapters[currentIndex - 1] : null;
-  const next = currentIndex >= 0 && currentIndex < chapters.length - 1 ? chapters[currentIndex + 1] : null;
-
-  function openChapter(id: string) {
-    setChapterId(id);
-    setView("chapter");
-    if (scrollRef.current) scrollRef.current.scrollTop = 0;
-  }
-
-  function handleScroll() {
-    if (!scrollRef.current || !current) return;
-    const el = scrollRef.current;
-    const fraction = el.scrollHeight > el.clientHeight ? el.scrollTop / (el.scrollHeight - el.clientHeight) : 0;
-    if (saveTimer.current) window.clearTimeout(saveTimer.current);
-    saveTimer.current = window.setTimeout(() => {
-      saveProgress.mutate({ chapterId: current.id, scrollFraction: Math.min(1, Math.max(0, fraction)) });
-    }, 900);
-  }
-
-  if (view === "toc" || !current) {
-    return (
-      <div className="min-h-screen bg-canvas">
-        <div className="sticky top-0 z-10 bg-canvas/95 backdrop-blur border-b border-border px-4 py-3 flex items-center gap-3">
-          <button onClick={onBack} className="text-ink">
-            <ArrowLeft size={22} />
-          </button>
-          <p className="text-sm font-medium text-ink truncate">{title}</p>
-        </div>
-        <div className="px-4 py-4 max-w-xl mx-auto flex flex-col gap-1">
-          {chapters.map((c) => (
-            <button
-              key={c.id}
-              onClick={() => openChapter(c.id)}
-              className="flex items-center justify-between px-3 py-3 rounded-xl hover:bg-surface text-left"
-            >
-              <div>
-                <p className="text-xs text-ink-muted uppercase tracking-wide">
-                  {c.kind === "chapter" ? "Chapter" : BOOK_SECTION_INFO[c.kind].label}
-                </p>
-                <p className="text-sm font-medium text-ink">{c.title}</p>
-              </div>
-              <ChevronRight size={16} className="text-ink-muted shrink-0" />
-            </button>
-          ))}
-          {bookDoorway.visible && <FeedDoorway context="book" onEnter={bookDoorway.markEnteredFeed} />}
-        </div>
-      </div>
-    );
-  }
-
-  return (
-    <div className="fixed inset-0 flex flex-col" style={{ backgroundColor: THEME_BG[theme] }}>
-      <div className="flex items-center justify-between px-3 py-3" style={{ color: THEME_INK[theme] }}>
-        <button onClick={() => setView("toc")}>
-          <ArrowLeft size={22} />
-        </button>
-        <p className="text-sm font-medium truncate max-w-[55%]">{current.title}</p>
-        <button onClick={() => setSettingsOpen(true)}>
-          <Settings2 size={20} />
-        </button>
-      </div>
-
-      <div ref={scrollRef} onScroll={handleScroll} className="flex-1 overflow-y-auto px-6 pb-20">
-        <div className="max-w-xl mx-auto">
-          <h1 className="font-semibold mb-4" style={{ color: THEME_INK[theme], fontSize: fontSize + 8 }}>
-            {current.title}
-          </h1>
-          {current.content ? (
-            <BookRichText content={current.content} ink={THEME_INK[theme]} muted={THEME_INK_MUTED[theme]} fontSize={fontSize} />
-          ) : (
-            <div style={{ color: THEME_INK_MUTED[theme], fontSize }}>Nothing here yet.</div>
-          )}
-
-          <div className="flex items-center justify-between mt-10 mb-6">
-            <button
-              onClick={() => prev && openChapter(prev.id)}
-              disabled={!prev}
-              className="flex items-center gap-1 text-sm font-medium disabled:opacity-30"
-              style={{ color: THEME_INK[theme] }}
-            >
-              <ChevronLeft size={16} /> Previous
-            </button>
-            <button
-              onClick={() => next && openChapter(next.id)}
-              disabled={!next}
-              className="flex items-center gap-1 text-sm font-medium disabled:opacity-30"
-              style={{ color: THEME_INK[theme] }}
-            >
-              Next <ChevronRight size={16} />
-            </button>
-          </div>
-        </div>
-      </div>
-
-      {settingsOpen && (
-        <div className="fixed inset-0 z-30 flex items-end" onClick={() => setSettingsOpen(false)}>
-          <div className="absolute inset-0 bg-ink/40" />
-          <div onClick={(e) => e.stopPropagation()} className="relative w-full bg-surface rounded-t-2xl p-5 pb-8">
-            <div className="flex items-center justify-between mb-4">
-              <p className="font-medium text-ink">Reading settings</p>
-              <button onClick={() => setSettingsOpen(false)} className="text-ink-muted">
-                <X size={20} />
-              </button>
-            </div>
-            <p className="text-xs font-medium text-ink-muted mb-2">Theme</p>
-            <div className="flex gap-2 mb-5">
-              {(["light", "sepia", "dark"] as ReaderTheme[]).map((t) => (
-                <button
-                  key={t}
-                  onClick={() => setTheme(t)}
-                  className={`flex-1 py-2.5 rounded-xl border text-sm font-medium capitalize ${
-                    theme === t ? "border-accent bg-accent-soft text-ink" : "border-border text-ink-muted"
-                  }`}
-                  style={{ backgroundColor: theme === t ? undefined : THEME_BG[t] }}
-                >
-                  {t}
-                </button>
-              ))}
-            </div>
-            <p className="text-xs font-medium text-ink-muted mb-2 flex items-center gap-1.5">
-              <Sun size={13} /> Text size
-            </p>
-            <input
-              type="range"
-              min={13}
-              max={28}
-              value={fontSize}
-              onChange={(e) => setFontSize(Number(e.target.value))}
-              className="w-full accent-accent"
-            />
-          </div>
-        </div>
-      )}
     </div>
   );
 }
