@@ -745,3 +745,14 @@ body {
 @media (prefers-reduced-motion: reduce) {
   .ako-reader-anim { animation: none !important; }
 }
+
+/* Bottom-anchored overlays (sheets, composers, pickers, dialogs with inputs) stay above the on-screen keyboard.
+   --kb-inset / data-kb-open are published by lib/keyboardInset.ts; they only change where the browser doesn't
+   resize the layout viewport itself (iOS Safari). While the keyboard is open the panel is also capped to the room
+   that's left, so a tall sheet shrinks (and scrolls inside) instead of pushing its header off-screen. */
+.ako-keyboard-aware {
+  padding-bottom: var(--kb-inset, 0px);
+}
+html[data-kb-open] .ako-keyboard-aware > * {
+  max-height: 100% !important;
+}

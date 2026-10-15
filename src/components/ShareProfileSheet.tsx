@@ -188,7 +188,7 @@ export function ShareProfileSheet({
   if (mode === "nickname") {
     return (
       <Portal>
-        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center">
+        <div className="fixed inset-0 ako-keyboard-aware z-50 flex items-end sm:items-center justify-center">
           <div className="absolute inset-0 bg-canvas/70 backdrop-blur-overlay" onClick={onClose} />
           <div className="relative w-full max-w-md bg-surface rounded-t-2xl sm:rounded-2xl border-t sm:border border-border p-5 pb-[calc(env(safe-area-inset-bottom)+1.25rem)]">
             <p className="text-sm font-medium text-ink mb-1">Customise name</p>
@@ -224,7 +224,7 @@ export function ShareProfileSheet({
   if (mode === "report") {
     return (
       <Portal>
-        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center">
+        <div className="fixed inset-0 ako-keyboard-aware z-50 flex items-end sm:items-center justify-center">
           <div className="absolute inset-0 bg-canvas/70 backdrop-blur-overlay" onClick={onClose} />
           <div className="relative w-full max-w-md bg-surface rounded-t-2xl sm:rounded-2xl border-t sm:border border-border max-h-[85vh] overflow-y-auto pb-[env(safe-area-inset-bottom)]">
             {reportSubmitted ? (
@@ -347,7 +347,7 @@ export function ShareProfileSheet({
 
   return (
     <Portal>
-      <div className="fixed inset-0 z-50 flex items-end justify-center">
+      <div className="fixed inset-0 ako-keyboard-aware z-50 flex items-end justify-center">
         <div className="absolute inset-0 bg-canvas/70 backdrop-blur-overlay" onClick={onClose} />
         <div className="relative w-full max-w-xl bg-surface rounded-t-2xl border-t border-border max-h-[88vh] overflow-y-auto pb-[env(safe-area-inset-bottom)]">
           <div className="flex items-center justify-between px-4 pt-4 pb-3">

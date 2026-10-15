@@ -177,7 +177,7 @@ export function PublishMusicSheet({ onClose, onPublished, projectId }: PublishMu
 
   return (
     <Portal>
-      <div className="fixed inset-0 z-[60] flex items-end justify-center" role="dialog" aria-modal="true">
+      <div className="fixed inset-0 ako-keyboard-aware z-[60] flex items-end justify-center" role="dialog" aria-modal="true">
         <div className="absolute inset-0 bg-canvas/70 backdrop-blur-overlay" onClick={onClose} />
 
         <div className="relative w-full max-w-xl bg-surface rounded-t-3xl border border-border max-h-[90vh] flex flex-col">

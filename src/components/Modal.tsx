@@ -98,7 +98,7 @@ export function Modal({
 
   return (
     <Portal>
-      <div className={`fixed inset-0 ${zIndexClass} flex items-center justify-center px-6`} role={role} aria-modal="true" aria-label={ariaLabel}>
+      <div className={`fixed inset-0 ako-keyboard-aware ${zIndexClass} flex items-center justify-center px-6`} role={role} aria-modal="true" aria-label={ariaLabel}>
         <div className="absolute inset-0 bg-black/40 backdrop-blur-overlay" onClick={onClose} />
         <div
           className={

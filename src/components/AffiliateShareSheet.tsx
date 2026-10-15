@@ -82,7 +82,7 @@ export function AffiliateShareSheet({ projectId, projectTitle, shareUrl, onClose
 
   return (
     <Portal>
-      <div className="fixed inset-0 z-50 flex items-end justify-center">
+      <div className="fixed inset-0 ako-keyboard-aware z-50 flex items-end justify-center">
         <div className="absolute inset-0 bg-ink/40" onClick={onClose} />
         <div className="relative w-full max-w-xl bg-surface rounded-t-2xl border-t border-border max-h-[85vh] overflow-y-auto pb-[env(safe-area-inset-bottom)]">
           <div className="flex items-center justify-between px-4 pt-4 pb-2 sticky top-0 bg-surface">

@@ -63,7 +63,7 @@ export function ForwardMessageSheet({ messages, onClose, onSent }: ForwardMessag
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center">
+    <div className="fixed inset-0 ako-keyboard-aware z-50 flex items-end justify-center">
       <div className="absolute inset-0 bg-canvas/70 backdrop-blur-overlay" onClick={onClose} />
       <div className="relative w-full max-w-xl bg-surface rounded-t-2xl border-t border-border max-h-[80vh] flex flex-col pb-[env(safe-area-inset-bottom)]">
         <div className="flex items-center justify-between px-4 pt-4 pb-2">

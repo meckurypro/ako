@@ -50,7 +50,7 @@ function Sheet({
   peek?: boolean;
 }) {
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center" role="dialog" aria-modal="true" aria-label={title}>
+    <div className="fixed inset-0 ako-keyboard-aware z-50 flex items-end justify-center" role="dialog" aria-modal="true" aria-label={title}>
       <div
         className="absolute inset-0"
         style={{ background: peek ? "rgba(0,0,0,0)" : "rgba(0,0,0,0.38)", pointerEvents: peek ? "none" : "auto", transition: "background 160ms ease-out" }}

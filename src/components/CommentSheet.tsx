@@ -443,7 +443,7 @@ export function CommentSheet({
 
   return (
     <Portal>
-      <div className="fixed inset-0 z-50 flex items-end justify-center" role="dialog" aria-modal="true">
+      <div className="fixed inset-0 ako-keyboard-aware z-50 flex items-end justify-center" role="dialog" aria-modal="true">
         {/* Dimmed backdrop only — the post above the sheet stays visible
             through it, so the sheet reads as an overlay on the post
             rather than a full takeover. */}

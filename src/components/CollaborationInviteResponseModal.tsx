@@ -54,7 +54,7 @@ export function CollaborationInviteResponseModal({
 
   return (
     <Portal>
-      <div className="fixed inset-0 z-[60] flex items-center justify-center px-6" role="dialog" aria-modal="true">
+      <div className="fixed inset-0 ako-keyboard-aware z-[60] flex items-center justify-center px-6" role="dialog" aria-modal="true">
         <div className="absolute inset-0 bg-canvas/70 backdrop-blur-overlay" onClick={onClose} />
         <div className="relative w-full max-w-sm bg-surface rounded-2xl border border-border p-5 shadow-xl">
           {isLoading ? (
