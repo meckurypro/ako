@@ -21,6 +21,8 @@ import { useProjectOwnership } from "../hooks/useProjectOwnership";
 import { useRecordFreeProjectOpen } from "../hooks/useProjectAccess";
 import { useProject, useHasPurchased, isProjectFree, getEffectivePrice, usePurchaseProject } from "../hooks/useProjects";
 import { useFeedDoorway } from "../hooks/useFeedDoorway";
+import { useReaderTheme, type ReaderTheme } from "../hooks/useReaderTheme";
+import { BookRichText } from "../components/BookRichText";
 import { FeedDoorway } from "../components/FeedDoorway";
 import { useIsProjectMember } from "../hooks/useProjectMembers";
 import { useUploadProjectThumbnail } from "../hooks/useUploadProjectThumbnail";
@@ -40,7 +42,6 @@ import {
   type BookChapterKind,
 } from "../hooks/useBookBuilder";
 
-type ReaderTheme = "light" | "sepia" | "dark";
 
 const THEME_BG: Record<ReaderTheme, string> = {
   light: "#F7F4EF",
@@ -438,9 +439,8 @@ function BookReflowReader({
 
   const [view, setView] = useState<"toc" | "chapter">("toc");
   const [chapterId, setChapterId] = useState<string | null>(null);
-  const [theme, setTheme] = useState<ReaderTheme>(
-    () => (localStorage.getItem("ako-reader-theme") as ReaderTheme | null) ?? "light"
-  );
+  // Opens in the app's light/dark; picking sepia etc. lasts for this reading session (see useReaderTheme).
+  const [theme, setTheme] = useReaderTheme();
   const [fontSize, setFontSize] = useState<number>(() => Number(localStorage.getItem("ako-reader-font-size")) || 17);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [resumed, setResumed] = useState(false);
@@ -455,9 +455,6 @@ function BookReflowReader({
   // here.
   const bookDoorway = useFeedDoorway("book");
 
-  useEffect(() => {
-    localStorage.setItem("ako-reader-theme", theme);
-  }, [theme]);
   useEffect(() => {
     localStorage.setItem("ako-reader-font-size", String(fontSize));
   }, [fontSize]);
@@ -542,9 +539,11 @@ function BookReflowReader({
           <h1 className="font-semibold mb-4" style={{ color: THEME_INK[theme], fontSize: fontSize + 8 }}>
             {current.title}
           </h1>
-          <div className="whitespace-pre-wrap leading-relaxed" style={{ color: THEME_INK[theme], fontSize }}>
-            {current.content || <span style={{ color: THEME_INK_MUTED[theme] }}>Nothing here yet.</span>}
-          </div>
+          {current.content ? (
+            <BookRichText content={current.content} ink={THEME_INK[theme]} muted={THEME_INK_MUTED[theme]} fontSize={fontSize} />
+          ) : (
+            <div style={{ color: THEME_INK_MUTED[theme], fontSize }}>Nothing here yet.</div>
+          )}
 
           <div className="flex items-center justify-between mt-10 mb-6">
             <button

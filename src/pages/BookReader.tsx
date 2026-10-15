@@ -8,6 +8,7 @@ import { useProject, useHasPurchased, isProjectFree, useGetProjectFile } from ".
 import { useBookDetails, usePdfReadingProgress, useSavePdfReadingProgress } from "../hooks/useProjectTypeDetails";
 import { useIsProjectMember } from "../hooks/useProjectMembers";
 import { useAuth } from "../hooks/useAuth";
+import { useReaderTheme, type ReaderTheme } from "../hooks/useReaderTheme";
 import { useProjectOwnership } from "../hooks/useProjectOwnership";
 import { useRecordFreeProjectOpen } from "../hooks/useProjectAccess";
 import { resolveFunctionErrorMessage } from "../lib/functionErrors";
@@ -17,7 +18,6 @@ pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
   import.meta.url
 ).href;
 
-type ReaderTheme = "light" | "sepia" | "dark";
 
 // Classic PDF "night mode" trick — since pages render as raster
 // images (see the header note on why: content is a scanned/exported
@@ -77,9 +77,8 @@ export function BookReader() {
   const [error, setError] = useState<string | null>(null);
   const [chromeVisible, setChromeVisible] = useState(true);
   const [settingsOpen, setSettingsOpen] = useState(false);
-  const [theme, setTheme] = useState<ReaderTheme>(
-    () => (localStorage.getItem("ako-reader-theme") as ReaderTheme | null) ?? "light"
-  );
+  // Opens in the app's light/dark; picking sepia etc. lasts for this reading session (see useReaderTheme).
+  const [theme, setTheme] = useReaderTheme();
   const [brightness, setBrightness] = useState<number>(
     () => Number(localStorage.getItem("ako-reader-brightness")) || 100
   );
@@ -90,9 +89,6 @@ export function BookReader() {
   const touchStartX = useRef<number | null>(null);
   const saveTimer = useRef<number | null>(null);
 
-  useEffect(() => {
-    localStorage.setItem("ako-reader-theme", theme);
-  }, [theme]);
   useEffect(() => {
     localStorage.setItem("ako-reader-brightness", String(brightness));
   }, [brightness]);
