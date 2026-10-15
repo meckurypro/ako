@@ -70,6 +70,8 @@ import { PrivateProjectNotice } from "./PrivateProjectNotice";
 import { useToast } from "./Toast";
 import { useIsProjectMember } from "../hooks/useProjectMembers";
 import { resolveFunctionErrorMessage } from "../lib/functionErrors";
+import { ProjectImageCarousel } from "./ProjectImageCarousel";
+import { projectGalleryImages } from "../lib/projectImages";
 
 // File and URL keep the original single-link/download "unlock"
 // pattern inline in the action row. Media's audio/video preview now
@@ -862,6 +864,8 @@ export function ProjectCard({
         ]
       : [];
 
+  const galleryImages = isDetailView ? projectGalleryImages(project) : [];
+
   const aspectRatio =
     project.thumbnail_width && project.thumbnail_height
       ? `${project.thumbnail_width} / ${project.thumbnail_height}`
@@ -1146,11 +1150,17 @@ export function ProjectCard({
             autoLoadOnMount={!!isDetailView}
           />
         ) : project.thumbnail_url ? (
-          <img
-            src={project.thumbnail_url}
-            alt=""
-            className="w-full h-full object-cover transition-transform duration-500 ease-out group-hover:scale-[1.04]"
-          />
+          // Supporting images only ever show on the project's own page: swipe the
+          // thumbnail. Every list/grid (isDetailView false) keeps the plain thumbnail.
+          isDetailView && galleryImages.length > 1 ? (
+            <ProjectImageCarousel images={galleryImages} />
+          ) : (
+            <img
+              src={project.thumbnail_url}
+              alt=""
+              className="w-full h-full object-cover transition-transform duration-500 ease-out group-hover:scale-[1.04]"
+            />
+          )
         ) : (
           <ImageIcon size={32} className="text-ink-muted" />
         )}

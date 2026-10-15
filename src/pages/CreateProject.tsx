@@ -4,6 +4,7 @@ import { useNavigate, Link } from "react-router-dom";
 import { useSmartBack } from "../hooks/useSmartBack";
 import { ArrowLeft, ImageIcon } from "lucide-react";
 import { Avatar } from "../components/Avatar";
+import { SupportingImagesField } from "../components/SupportingImagesField";
 import {
   useCreateProject,
   PROJECT_TYPE_LABELS,
@@ -70,6 +71,7 @@ export function CreateProject() {
   const [isPrivate, setIsPrivate] = useState(false);
   const [thumbnailUrl, setThumbnailUrl] = useState<string | null>(null);
   const [thumbnailRatio, setThumbnailRatio] = useState<{ width: number; height: number } | null>(null);
+  const [supportingImageUrls, setSupportingImageUrls] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
 
   const { data: identity } = useActiveIdentity();
@@ -270,6 +272,7 @@ export function CreateProject() {
           thumbnail_url: thumbnailUrl ?? undefined,
           thumbnail_width: thumbnailRatio?.width,
           thumbnail_height: thumbnailRatio?.height,
+          supporting_image_urls: thumbnailUrl ? supportingImageUrls : undefined,
           is_private: isPrivate,
           posted_as_page_id: postingAsPage?.id,
           goal_amount_usd: parseFloat(pitchFields.goal_amount_usd),
@@ -322,6 +325,7 @@ export function CreateProject() {
         thumbnail_url: thumbnailUrl ?? undefined,
         thumbnail_width: thumbnailRatio?.width,
         thumbnail_height: thumbnailRatio?.height,
+        supporting_image_urls: thumbnailUrl ? supportingImageUrls : undefined,
         price_usd: price,
         promo_price_usd: promoPrice,
         is_private: isPrivate,
@@ -510,6 +514,12 @@ export function CreateProject() {
             accept="image/jpeg,image/png,image/webp,image/gif"
             onChange={handleThumbnailSelect}
             className="hidden"
+          />
+
+          <SupportingImagesField
+            urls={supportingImageUrls}
+            onChange={setSupportingImageUrls}
+            hasThumbnail={!!thumbnailUrl}
           />
 
           {/* Who this project is attributed to — same fixed-at-open,

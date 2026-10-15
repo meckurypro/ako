@@ -39,6 +39,7 @@ import { GigFields, EMPTY_GIG_FIELDS, type GigFieldsValue } from "../components/
 import { RoomFields, EMPTY_ROOM_FIELDS, type RoomFieldsValue } from "../components/project-types/RoomFields";
 import { PitchFields, EMPTY_PITCH_FIELDS, type PitchFieldsValue } from "../components/project-types/PitchFields";
 import { BookFields, EMPTY_BOOK_FIELDS, type BookFieldsValue } from "../components/project-types/BookFields";
+import { SupportingImagesField } from "../components/SupportingImagesField";
 
 // 'cancelled' is deliberately not offered here — it only happens
 // through the (not-yet-built) Event/Meeting cancellation flow, which
@@ -92,6 +93,7 @@ export function EditProject() {
   const [isPrivate, setIsPrivate] = useState(false);
   const [thumbnailUrl, setThumbnailUrl] = useState<string | null>(null);
   const [thumbnailRatio, setThumbnailRatio] = useState<{ width: number; height: number } | null>(null);
+  const [supportingImageUrls, setSupportingImageUrls] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [hydrated, setHydrated] = useState(false);
   const [topicsHydrated, setTopicsHydrated] = useState(false);
@@ -152,6 +154,7 @@ export function EditProject() {
       setStatus(project.status === "cancelled" ? "archived" : project.status);
       setIsPrivate(project.is_private);
       setThumbnailUrl(project.thumbnail_url);
+      setSupportingImageUrls(project.supporting_image_urls ?? []);
       if (project.thumbnail_width && project.thumbnail_height) {
         setThumbnailRatio({ width: project.thumbnail_width, height: project.thumbnail_height });
       }
@@ -395,6 +398,8 @@ export function EditProject() {
         thumbnail_url: thumbnailUrl,
         thumbnail_width: thumbnailRatio?.width ?? null,
         thumbnail_height: thumbnailRatio?.height ?? null,
+        // Supporting images hang off the thumbnail — removing it clears them too.
+        supporting_image_urls: thumbnailUrl ? supportingImageUrls : [],
         price_usd: price,
         promo_price_usd: promoPrice,
         status,
@@ -618,6 +623,12 @@ export function EditProject() {
             accept="image/jpeg,image/png,image/webp,image/gif"
             onChange={handleThumbnailSelect}
             className="hidden"
+          />
+
+          <SupportingImagesField
+            urls={supportingImageUrls}
+            onChange={setSupportingImageUrls}
+            hasThumbnail={!!thumbnailUrl}
           />
 
           <FormField id="title" label="Title" value={title} onChange={(e) => setTitle(e.target.value)} required />
