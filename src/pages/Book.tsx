@@ -1,5 +1,5 @@
 // src/pages/Book.tsx
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Navigate, useParams, useNavigate } from "react-router-dom";
 import {
   ArrowLeft,
@@ -21,13 +21,11 @@ import { useIsProjectMember } from "../hooks/useProjectMembers";
 import { useUploadProjectThumbnail } from "../hooks/useUploadProjectThumbnail";
 import { Button } from "../components/Button";
 import { EditorToolbar, editorKeyHandler } from "../components/EditorToolbar";
-import { useUndoRedo } from "../hooks/useUndoRedo";
+import { useBookDraft } from "../hooks/useBookDraft";
+import { ConfirmDialog } from "../components/ConfirmDialog";
+import { UnsavedChangesDialog } from "../components/UnsavedChangesDialog";
 import {
   useBookChapters,
-  useAddChapter,
-  useUpdateChapter,
-  useMoveChapter,
-  useDeleteChapter,
   usePublishBook,
   BOOK_SECTION_INFO,
   OPTIONAL_SECTION_ORDER,
@@ -193,68 +191,72 @@ function BookBuilder({
   publishBook: ReturnType<typeof usePublishBook>;
 }) {
   const navigate = useNavigate();
-  const addChapter = useAddChapter(projectId);
-  const updateChapter = useUpdateChapter(projectId);
-  const moveChapter = useMoveChapter(projectId);
-  const deleteChapter = useDeleteChapter(projectId);
   const uploadThumbnail = useUploadProjectThumbnail();
   const coverInputRef = useRef<HTMLInputElement>(null);
 
+  // Everything below edits a local draft; nothing is stored until Save.
+  const draft = useBookDraft(projectId, chapters);
+  const list = draft.chapters;
+
   const [editingId, setEditingId] = useState<string | null>(null);
-  const draft = useUndoRedo({ title: "", content: "" });
-  const draftTitle = draft.value.title;
-  const draftContent = draft.value.content;
   const [error, setError] = useState<string | null>(null);
   const [addingSectionPicker, setAddingSectionPicker] = useState(false);
+  const [confirmDiscard, setConfirmDiscard] = useState(false);
+  const [confirmLeave, setConfirmLeave] = useState(false);
 
-  const usedKinds = new Set(chapters.map((c) => c.kind));
+  // Warn on tab close / reload while changes are unsaved.
+  useEffect(() => {
+    if (!draft.isDirty) return;
+    const warn = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+      e.returnValue = "";
+    };
+    window.addEventListener("beforeunload", warn);
+    return () => window.removeEventListener("beforeunload", warn);
+  }, [draft.isDirty]);
+
+  function goBack() {
+    if (draft.isDirty) setConfirmLeave(true);
+    else navigate(-1);
+  }
+
+  const usedKinds = new Set(list.map((c) => c.kind));
   const availableOptionalSections = OPTIONAL_SECTION_ORDER.filter((k) => !usedKinds.has(k));
 
-  function startEdit(chapter: BookChapter) {
-    setEditingId(chapter.id);
-    draft.reset({ title: chapter.title, content: chapter.content ?? "" });
-  }
-
-  function closeEdit() {
-    if (draft.isDirty && !confirm("Discard your unsaved changes?")) return;
-    setEditingId(null);
-  }
-
-  async function saveEdit() {
-    if (!editingId) return;
+  async function handleSave() {
+    setError(null);
     try {
-      setError(null);
-      await updateChapter.mutateAsync({ chapterId: editingId, title: draftTitle.trim() || "Untitled", content: draftContent });
-      // Stay in the editor after saving so undo/redo keep working; "Close" leaves it.
-      draft.markSaved();
+      await draft.save();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Couldn't save.");
     }
   }
 
-  async function handleAddChapter() {
-    const sortOrder = chapters.length > 0 ? chapters[chapters.length - 1].sort_order + 1 : 0;
+  async function handleSaveAndLeave() {
     try {
-      const created = await addChapter.mutateAsync({
-        kind: "chapter",
-        title: `Chapter ${chapters.filter((c) => c.kind === "chapter").length + 1}`,
-        sortOrder,
-      });
-      startEdit(created);
+      await draft.save();
+      navigate(-1);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Couldn't add chapter.");
+      setConfirmLeave(false);
+      setError(err instanceof Error ? err.message : "Couldn't save.");
     }
   }
 
-  async function handleAddSection(kind: BookChapterKind) {
-    const sortOrder = chapters.length > 0 ? chapters[chapters.length - 1].sort_order + 1 : 0;
-    try {
-      const created = await addChapter.mutateAsync({ kind, title: BOOK_SECTION_INFO[kind].label, sortOrder });
-      setAddingSectionPicker(false);
-      startEdit(created);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Couldn't add section.");
-    }
+  function handleAddChapter() {
+    const created = draft.add("chapter", `Chapter ${list.filter((c) => c.kind === "chapter").length + 1}`);
+    setEditingId(created.id);
+  }
+
+  function handleAddSection(kind: BookChapterKind) {
+    const created = draft.add(kind, BOOK_SECTION_INFO[kind].label);
+    setAddingSectionPicker(false);
+    setEditingId(created.id);
+  }
+
+  function handleRemove(chapter: BookChapter) {
+    if (!confirm(`Remove "${chapter.title}"? It will be deleted when you save.`)) return;
+    if (editingId === chapter.id) setEditingId(null);
+    draft.remove(chapter.id);
   }
 
   async function handleCoverSelect(e: React.ChangeEvent<HTMLInputElement>) {
@@ -269,6 +271,10 @@ function BookBuilder({
   }
 
   async function handlePublish() {
+    if (draft.isDirty) {
+      setError("Save your changes before publishing.");
+      return;
+    }
     if (chapters.length === 0) {
       setError("Add at least one chapter before publishing.");
       return;
@@ -281,9 +287,9 @@ function BookBuilder({
   }
 
   return (
-    <div className="min-h-screen bg-canvas pb-24">
+    <div className="min-h-screen bg-canvas pb-24" onKeyDown={editorKeyHandler({ undo: draft.undo, redo: draft.redo, save: handleSave })}>
       <div className="sticky top-0 z-10 bg-canvas/95 backdrop-blur border-b border-border px-4 py-3 flex items-center justify-between">
-        <button onClick={() => navigate(-1)} className="text-ink">
+        <button onClick={goBack} className="text-ink">
           <ArrowLeft size={22} />
         </button>
         <p className="text-sm font-medium text-ink truncate max-w-[50%]">{project.title}</p>
@@ -294,6 +300,20 @@ function BookBuilder({
         ) : (
           <span className="text-xs text-ink-muted">Published</span>
         )}
+      </div>
+
+      <div className="sticky top-[53px] z-10 bg-canvas/95 backdrop-blur border-b border-border px-4 py-2 flex items-center justify-between">
+        <EditorToolbar
+          onUndo={draft.undo}
+          onRedo={draft.redo}
+          canUndo={draft.canUndo}
+          canRedo={draft.canRedo}
+          onSave={handleSave}
+          saving={draft.saving}
+          dirty={draft.isDirty}
+          onCancel={draft.isDirty ? () => setConfirmDiscard(true) : undefined}
+        />
+        {draft.isDirty && <span className="text-xs text-accent">Unsaved changes</span>}
       </div>
 
       <div className="px-4 py-4 max-w-xl mx-auto">
@@ -318,50 +338,40 @@ function BookBuilder({
 
         {/* Ordered section/chapter list */}
         <div className="flex flex-col gap-2 mb-4">
-          {chapters.map((chapter, i) => (
+          {list.map((chapter, i) => (
             <div key={chapter.id} className="border border-border rounded-xl p-3">
               {editingId === chapter.id ? (
-                <div
-                  className="flex flex-col gap-2"
-                  onKeyDown={editorKeyHandler({ undo: draft.undo, redo: draft.redo, save: saveEdit })}
-                >
-                  <EditorToolbar
-                    onUndo={draft.undo}
-                    onRedo={draft.redo}
-                    canUndo={draft.canUndo}
-                    canRedo={draft.canRedo}
-                    onSave={saveEdit}
-                    saving={updateChapter.isPending}
-                    dirty={draft.isDirty}
-                    onCancel={closeEdit}
-                  />
+                <div className="flex flex-col gap-2">
                   <input
-                    value={draftTitle}
-                    onChange={(e) => draft.set((d) => ({ ...d, title: e.target.value }))}
+                    value={chapter.title}
+                    onChange={(e) => draft.edit(chapter.id, { title: e.target.value })}
                     placeholder="Title"
                     className="px-3 py-2 rounded-lg border border-border bg-canvas text-ink text-sm font-medium"
                   />
                   <textarea
-                    value={draftContent}
-                    onChange={(e) => draft.set((d) => ({ ...d, content: e.target.value }))}
+                    value={chapter.content ?? ""}
+                    onChange={(e) => draft.edit(chapter.id, { content: e.target.value })}
                     placeholder={BOOK_SECTION_INFO[chapter.kind].hint}
                     rows={10}
                     className="px-3 py-2 rounded-lg border border-border bg-canvas text-ink text-sm resize-y"
                   />
+                  <button onClick={() => setEditingId(null)} className="self-start text-sm font-medium text-accent px-1 py-1.5">
+                    Done
+                  </button>
                 </div>
               ) : (
                 <div className="flex items-center gap-2">
                   <div className="flex flex-col shrink-0">
                     <button
-                      onClick={() => moveChapter.mutate({ chapters, chapterId: chapter.id, direction: "up" })}
+                      onClick={() => draft.move(chapter.id, "up")}
                       disabled={i === 0}
                       className="text-ink-muted disabled:opacity-20"
                     >
                       <ChevronUp size={14} />
                     </button>
                     <button
-                      onClick={() => moveChapter.mutate({ chapters, chapterId: chapter.id, direction: "down" })}
-                      disabled={i === chapters.length - 1}
+                      onClick={() => draft.move(chapter.id, "down")}
+                      disabled={i === list.length - 1}
                       className="text-ink-muted disabled:opacity-20"
                     >
                       <ChevronDown size={14} />
@@ -374,13 +384,11 @@ function BookBuilder({
                     <p className="text-sm font-medium text-ink truncate">{chapter.title}</p>
                     {!chapter.content?.trim() && <p className="text-xs text-accent">Empty — tap to write</p>}
                   </div>
-                  <button onClick={() => startEdit(chapter)} className="text-ink-muted shrink-0">
+                  <button onClick={() => setEditingId(chapter.id)} className="text-ink-muted shrink-0">
                     <Pencil size={16} />
                   </button>
                   <button
-                    onClick={() => {
-                      if (confirm(`Remove "${chapter.title}"?`)) deleteChapter.mutate(chapter.id);
-                    }}
+                    onClick={() => handleRemove(chapter)}
                     className="text-danger shrink-0"
                   >
                     <Trash2 size={16} />
@@ -393,7 +401,7 @@ function BookBuilder({
 
         <button
           onClick={handleAddChapter}
-          disabled={addChapter.isPending}
+          disabled={draft.saving}
           className="w-full flex items-center justify-center gap-1.5 py-3 rounded-xl border border-dashed border-border text-sm text-accent font-medium mb-3 disabled:opacity-50"
         >
           <Plus size={16} />
@@ -427,6 +435,27 @@ function BookBuilder({
           </div>
         )}
       </div>
+      {confirmDiscard && (
+        <ConfirmDialog
+          title="Discard all changes?"
+          description="Moves, deletions and edits made since your last save will be lost."
+          confirmLabel="Discard"
+          onConfirm={() => {
+            setConfirmDiscard(false);
+            setEditingId(null);
+            draft.discard();
+          }}
+          onCancel={() => setConfirmDiscard(false)}
+        />
+      )}
+      {confirmLeave && (
+        <UnsavedChangesDialog
+          saving={draft.saving}
+          onSave={handleSaveAndLeave}
+          onDiscard={() => navigate(-1)}
+          onStay={() => setConfirmLeave(false)}
+        />
+      )}
     </div>
   );
 }
