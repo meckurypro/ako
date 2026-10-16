@@ -71,6 +71,7 @@ import { useToast } from "./Toast";
 import { useIsProjectMember } from "../hooks/useProjectMembers";
 import { resolveFunctionErrorMessage } from "../lib/functionErrors";
 import { ProjectImageCarousel } from "./ProjectImageCarousel";
+import { MAX_THUMB_HEIGHT_VH, thumbnailLayout } from "../lib/thumbnailFit";
 import { projectGalleryImages } from "../lib/projectImages";
 import { loginPathFor, returnPathOf } from "../lib/authRedirect";
 
@@ -140,8 +141,11 @@ function MediaHeroPlayer({
   isLoadingPreview,
   onLoadPreview,
   autoLoadOnMount,
+  fitClass = "object-cover",
 }: {
   kind: "audio" | "video";
+  /** object-cover / object-contain — contain shows a clamped (very tall/wide) cover whole. */
+  fitClass?: string;
   thumbnailUrl: string | null;
   hasAccess: boolean;
   previewSrc: string | null;
@@ -243,7 +247,7 @@ function MediaHeroPlayer({
           <img
             src={thumbnailUrl}
             alt=""
-            className="w-full h-full object-cover opacity-50 transition-transform duration-500 ease-out group-hover:scale-[1.04]"
+            className={`w-full h-full ${fitClass} opacity-50 transition-transform duration-500 ease-out group-hover:scale-[1.04]`}
           />
         ) : (
           <div className="w-full h-full flex items-center justify-center">
@@ -286,7 +290,7 @@ function MediaHeroPlayer({
         <img
           src={thumbnailUrl}
           alt=""
-          className="w-full h-full object-cover transition-transform duration-500 ease-out group-hover:scale-[1.04]"
+          className={`w-full h-full ${fitClass} transition-transform duration-500 ease-out group-hover:scale-[1.04]`}
         />
       ) : (
         <div className="w-full h-full flex items-center justify-center">
@@ -896,10 +900,10 @@ export function ProjectCard({
 
   const galleryImages = isDetailView ? projectGalleryImages(project) : [];
 
-  const aspectRatio =
-    project.thumbnail_width && project.thumbnail_height
-      ? `${project.thumbnail_width} / ${project.thumbnail_height}`
-      : "16 / 9";
+  // Clamped ratio + height cap: a tall poster or wide banner must not blow the card up past the screen.
+  const thumb = thumbnailLayout(project.thumbnail_width, project.thumbnail_height);
+  const aspectRatio = thumb.aspectRatio;
+  const thumbFitClass = thumb.fit === "contain" ? "object-contain" : "object-cover";
 
   const TypeIcon = TYPE_ICON[project.project_type];
   const isMedia = project.project_type === "media";
@@ -1211,7 +1215,7 @@ export function ProjectCard({
       }`}
     >
       <div
-        style={{ aspectRatio }}
+        style={{ aspectRatio, maxHeight: `${MAX_THUMB_HEIGHT_VH * 100}vh` }}
         className="w-full bg-canvas flex items-center justify-center overflow-hidden"
       >
         {primaryMediaKind ? (
@@ -1223,17 +1227,18 @@ export function ProjectCard({
             isLoadingPreview={primaryMediaKind === "video" ? getVideoStream.isPending : getAudioStream.isPending}
             onLoadPreview={primaryMediaKind === "video" ? handlePlayVideo : handlePlayAudio}
             autoLoadOnMount={!!isDetailView}
+            fitClass={thumbFitClass}
           />
         ) : project.thumbnail_url ? (
           // Supporting images only ever show on the project's own page: swipe the
           // thumbnail. Every list/grid (isDetailView false) keeps the plain thumbnail.
           isDetailView && galleryImages.length > 1 ? (
-            <ProjectImageCarousel images={galleryImages} />
+            <ProjectImageCarousel images={galleryImages} fitClass={thumbFitClass} />
           ) : (
             <img
               src={project.thumbnail_url}
               alt=""
-              className="w-full h-full object-cover transition-transform duration-500 ease-out group-hover:scale-[1.04]"
+              className={`w-full h-full ${thumbFitClass} transition-transform duration-500 ease-out group-hover:scale-[1.04]`}
             />
           )
         ) : (

@@ -10,7 +10,7 @@
 import { useEffect, useRef, useState } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 
-export function ProjectImageCarousel({ images, alt = "" }: { images: string[]; alt?: string }) {
+export function ProjectImageCarousel({ images, alt = "", fitClass = "object-cover" }: { images: string[]; alt?: string; fitClass?: string }) {
   const scrollerRef = useRef<HTMLDivElement>(null);
   const frameRef = useRef(0);
   const [index, setIndex] = useState(0);
@@ -81,7 +81,7 @@ export function ProjectImageCarousel({ images, alt = "" }: { images: string[]; a
               draggable={false}
               loading={i === 0 ? "eager" : "lazy"}
               decoding="async"
-              className="w-full h-full object-cover select-none"
+              className={`w-full h-full ${fitClass} select-none`}
             />
           </div>
         ))}
