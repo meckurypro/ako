@@ -118,7 +118,6 @@ export function BookRichText({
 
   return (
     <div
-      data-book-body
       style={{
         color: ink,
         fontSize,
