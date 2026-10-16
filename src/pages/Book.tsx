@@ -19,6 +19,7 @@ import { useRecordFreeProjectOpen } from "../hooks/useProjectAccess";
 import { useProject, useHasPurchased, isProjectFree, getEffectivePrice, usePurchaseProject } from "../hooks/useProjects";
 import { getProjectUrl } from "../lib/projectLinks";
 import { BookReflowReader } from "../components/book/BookReflowReader";
+import { BookChapterEditor } from "../components/book/BookChapterEditor";
 import { useIsProjectMember } from "../hooks/useProjectMembers";
 import { useUploadProjectThumbnail } from "../hooks/useUploadProjectThumbnail";
 import { Button } from "../components/Button";
@@ -355,12 +356,11 @@ function BookBuilder({
                     placeholder="Title"
                     className="px-3 py-2 rounded-lg border border-border bg-canvas text-ink text-sm font-medium"
                   />
-                  <textarea
-                    value={chapter.content ?? ""}
-                    onChange={(e) => draft.edit(chapter.id, { content: e.target.value })}
-                    placeholder={BOOK_SECTION_INFO[chapter.kind].hint}
-                    rows={10}
-                    className="px-3 py-2 rounded-lg border border-border bg-canvas text-ink text-sm resize-y"
+                  <BookChapterEditor
+                    kind={chapter.kind}
+                    title={chapter.title}
+                    content={chapter.content ?? ""}
+                    onChange={(content) => draft.edit(chapter.id, { content })}
                   />
                   <button onClick={() => setEditingId(null)} className="self-start text-sm font-medium text-accent px-1 py-1.5">
                     Done
