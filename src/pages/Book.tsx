@@ -20,6 +20,8 @@ import { BookReflowReader } from "../components/book/BookReflowReader";
 import { useIsProjectMember } from "../hooks/useProjectMembers";
 import { useUploadProjectThumbnail } from "../hooks/useUploadProjectThumbnail";
 import { Button } from "../components/Button";
+import { EditorToolbar, editorKeyHandler } from "../components/EditorToolbar";
+import { useUndoRedo } from "../hooks/useUndoRedo";
 import {
   useBookChapters,
   useAddChapter,
@@ -199,8 +201,9 @@ function BookBuilder({
   const coverInputRef = useRef<HTMLInputElement>(null);
 
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [draftTitle, setDraftTitle] = useState("");
-  const [draftContent, setDraftContent] = useState("");
+  const draft = useUndoRedo({ title: "", content: "" });
+  const draftTitle = draft.value.title;
+  const draftContent = draft.value.content;
   const [error, setError] = useState<string | null>(null);
   const [addingSectionPicker, setAddingSectionPicker] = useState(false);
 
@@ -209,15 +212,21 @@ function BookBuilder({
 
   function startEdit(chapter: BookChapter) {
     setEditingId(chapter.id);
-    setDraftTitle(chapter.title);
-    setDraftContent(chapter.content ?? "");
+    draft.reset({ title: chapter.title, content: chapter.content ?? "" });
+  }
+
+  function closeEdit() {
+    if (draft.isDirty && !confirm("Discard your unsaved changes?")) return;
+    setEditingId(null);
   }
 
   async function saveEdit() {
     if (!editingId) return;
     try {
+      setError(null);
       await updateChapter.mutateAsync({ chapterId: editingId, title: draftTitle.trim() || "Untitled", content: draftContent });
-      setEditingId(null);
+      // Stay in the editor after saving so undo/redo keep working; "Close" leaves it.
+      draft.markSaved();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Couldn't save.");
     }
@@ -312,28 +321,33 @@ function BookBuilder({
           {chapters.map((chapter, i) => (
             <div key={chapter.id} className="border border-border rounded-xl p-3">
               {editingId === chapter.id ? (
-                <div className="flex flex-col gap-2">
+                <div
+                  className="flex flex-col gap-2"
+                  onKeyDown={editorKeyHandler({ undo: draft.undo, redo: draft.redo, save: saveEdit })}
+                >
+                  <EditorToolbar
+                    onUndo={draft.undo}
+                    onRedo={draft.redo}
+                    canUndo={draft.canUndo}
+                    canRedo={draft.canRedo}
+                    onSave={saveEdit}
+                    saving={updateChapter.isPending}
+                    dirty={draft.isDirty}
+                    onCancel={closeEdit}
+                  />
                   <input
                     value={draftTitle}
-                    onChange={(e) => setDraftTitle(e.target.value)}
+                    onChange={(e) => draft.set((d) => ({ ...d, title: e.target.value }))}
                     placeholder="Title"
                     className="px-3 py-2 rounded-lg border border-border bg-canvas text-ink text-sm font-medium"
                   />
                   <textarea
                     value={draftContent}
-                    onChange={(e) => setDraftContent(e.target.value)}
+                    onChange={(e) => draft.set((d) => ({ ...d, content: e.target.value }))}
                     placeholder={BOOK_SECTION_INFO[chapter.kind].hint}
                     rows={10}
                     className="px-3 py-2 rounded-lg border border-border bg-canvas text-ink text-sm resize-y"
                   />
-                  <div className="flex items-center gap-2">
-                    <Button onClick={saveEdit} loading={updateChapter.isPending} className="!w-auto !py-1.5 !px-4 text-sm">
-                      Save
-                    </Button>
-                    <button onClick={() => setEditingId(null)} className="text-sm text-ink-muted px-3 py-1.5">
-                      Cancel
-                    </button>
-                  </div>
                 </div>
               ) : (
                 <div className="flex items-center gap-2">

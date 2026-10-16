@@ -1,4 +1,6 @@
 // src/pages/Course.tsx
+import { EditorToolbar, editorKeyHandler } from "../components/EditorToolbar";
+import { useUndoRedo } from "../hooks/useUndoRedo";
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useSmartBack } from "../hooks/useSmartBack";
@@ -156,15 +158,22 @@ function LessonForm({
   onSubmit: (value: LessonFormValue) => void;
   onCancel: () => void;
 }) {
-  const [value, setValue] = useState(initial);
+  const history = useUndoRedo(initial);
+  const value = history.value;
+  const setValue = history.set;
+  const submit = () => {
+    if (!value.title.trim()) return;
+    onSubmit(value);
+    history.markSaved();
+  };
 
   return (
     <form
       onSubmit={(e) => {
         e.preventDefault();
-        if (!value.title.trim()) return;
-        onSubmit(value);
+        submit();
       }}
+      onKeyDown={editorKeyHandler({ undo: history.undo, redo: history.redo, save: submit })}
       className="mt-2 flex flex-col gap-1.5"
     >
       <input
@@ -200,13 +209,19 @@ function LessonForm({
         <Eye size={12} />
         Free preview
       </button>
-      <div className="flex items-center gap-3 mt-0.5">
-        <button type="submit" disabled={pending || !value.title.trim()} className="text-xs font-medium text-accent disabled:opacity-50">
-          {pending ? "Saving…" : submitLabel}
-        </button>
-        <button type="button" onClick={onCancel} className="text-xs text-ink-muted">
-          Cancel
-        </button>
+      <div className="mt-0.5">
+        <EditorToolbar
+          onUndo={history.undo}
+          onRedo={history.redo}
+          canUndo={history.canUndo}
+          canRedo={history.canRedo}
+          onSave={submit}
+          saving={pending}
+          dirty={history.isDirty || !initial.title}
+          canSave={!!value.title.trim()}
+          saveLabel={submitLabel}
+          onCancel={onCancel}
+        />
       </div>
     </form>
   );
