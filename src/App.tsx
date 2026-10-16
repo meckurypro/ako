@@ -7,6 +7,7 @@ import { RequireAuth } from "./components/RequireAuth";
 import { RequireFullAccess, HomeRedirect } from "./components/RequireFullAccess";
 import { ScrollToTop } from "./components/ScrollToTop";
 import { PathHistoryTracker } from "./components/PathHistoryTracker";
+import { ExternalLinkGuard } from "./components/ExternalLinkGuard";
 import { LoadingOverlay } from "./components/LoadingOverlay";
 import { usePageThemeSync } from "./hooks/usePageThemeSync";
 import { ToastProvider } from "./components/Toast";
@@ -134,6 +135,7 @@ export default function App() {
           <BrowserRouter>
             <ScrollToTop />
             <PathHistoryTracker />
+            <ExternalLinkGuard />
             <AffiliateRefCapture />
             <ErrorBoundary>
               <AppRoutes />

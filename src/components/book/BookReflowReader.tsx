@@ -52,6 +52,7 @@ import {
   estimatePages,
   locate,
   pagesLeftLabel,
+  pageBreakOffsets,
   resolveOverall,
   type PageMetrics,
 } from "../../lib/bookReaderTheme";
@@ -124,6 +125,8 @@ export function BookReflowReader({ projectId, title, chapters, userId, onBack, t
   const [resumeOffer, setResumeOffer] = useState<{ chapterId: string; fraction: number } | null>(null);
   const [fraction, setFraction] = useState(0);
   const [dims, setDims] = useState({ vw: 390, vh: 800, contentH: 0 });
+  // Gaps between blocks, from the top of the content: where a page divider can sit without cutting through text.
+  const [blockEdges, setBlockEdges] = useState<number[]>([]);
   const [scrub, setScrub] = useState<number | null>(null);
   const [jumpBack, setJumpBack] = useState<{ chapterId: string; fraction: number; label: string } | null>(null);
 
@@ -237,6 +240,11 @@ export function BookReflowReader({ projectId, title, chapters, userId, onBack, t
     [chapterPages, currentIndex, current, fraction]
   );
 
+  const pageBreaks = useMemo(
+    () => (currentIndex >= 0 ? pageBreakOffsets(blockEdges, dims.contentH, chapterPages[currentIndex] ?? 1) : []),
+    [blockEdges, dims.contentH, chapterPages, currentIndex]
+  );
+
   // ---------- opener + body ----------
   const opener = useMemo(() => {
     if (!current) return null;
@@ -249,7 +257,11 @@ export function BookReflowReader({ projectId, title, chapters, userId, onBack, t
     const scrollEl = scrollRef.current;
     const contentEl = contentRef.current;
     if (!scrollEl || !contentEl) return;
-    const measure = () => setDims({ vw: scrollEl.clientWidth, vh: scrollEl.clientHeight, contentH: contentEl.offsetHeight });
+    const measure = () => {
+      setDims({ vw: scrollEl.clientWidth, vh: scrollEl.clientHeight, contentH: contentEl.offsetHeight });
+      const kids = Array.from(contentEl.querySelector("[data-book-body]")?.children ?? []) as HTMLElement[];
+      setBlockEdges(kids.slice(0, -1).map((el, i) => (el.offsetTop + el.offsetHeight + kids[i + 1].offsetTop) / 2));
+    };
     measure();
     const ro = new ResizeObserver(measure);
     ro.observe(scrollEl);
@@ -573,7 +585,11 @@ export function BookReflowReader({ projectId, title, chapters, userId, onBack, t
           WebkitTapHighlightColor: "transparent",
         }}
       >
-        <div ref={contentRef} style={{ maxWidth: MAX_COLUMN, margin: "0 auto" }}>
+        <div ref={contentRef} style={{ maxWidth: MAX_COLUMN, margin: "0 auto", position: "relative" }}>
+          {/* Thin page dividers: purely visual, out of the layout flow. */}
+          {pageBreaks.map((y) => (
+            <div key={y} aria-hidden="true" style={{ position: "absolute", left: 0, right: 0, top: y, borderTop: `1px solid ${theme.rule}`, pointerEvents: "none" }} />
+          ))}
           <header style={{ margin: "1.2em 0 2em", textAlign: "center" }}>
             {opener.eyebrow && (
               <p style={{ fontSize: 12, letterSpacing: "0.18em", textTransform: "uppercase", color: theme.muted, margin: "0 0 0.9em", fontFamily: FONT_STACKS.sans, fontWeight: 600 }}>
