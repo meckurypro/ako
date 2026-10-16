@@ -377,6 +377,140 @@ export function ProjectDetail({ resolvedProjectId }: { resolvedProjectId?: strin
   // same idea as useMarkPostSeen for posts.
   useMarkProjectSeen(projectId!, project?.owner?.id);
 
+  // Browsing info below the title. Members see it laid out under the card;
+  // guests get it folded into the card behind a "Details" toggle.
+  const pull = isGuest ? "" : "-mt-2";
+  const detailBlocks = project ? (
+    <>
+        {/* Event/Meeting browsing info — shown to everyone, purchase
+            is what unlocks the ticket/join page, not this block. */}
+        {project.project_type === "event" && eventDetails && (
+          <div className={`flex flex-col gap-2 ${pull} mb-4`}>
+            <div className="flex flex-col gap-1.5 text-sm text-ink-muted">
+              {eventDetails.event_date && (
+                <span className="flex items-center gap-1.5">
+                  <CalendarClock size={14} /> {new Date(eventDetails.event_date).toLocaleString()}
+                </span>
+              )}
+              <span className="flex items-center gap-1.5">
+                <MapPin size={14} />
+                {eventDetails.location_type === "physical" ? eventDetails.location_value : "Online"}
+              </span>
+            </div>
+
+            {eventDetails.event_date && eventCountdownMs !== null && eventCountdownMs > 0 && (
+              <p className="text-sm font-medium text-accent">Starts in {formatCountdown(eventCountdownMs)}</p>
+            )}
+
+            <div className="flex items-center gap-4">
+              {eventDetails.event_date && (
+                <button
+                  onClick={() =>
+                    downloadIcsEvent({
+                      title: project.title,
+                      description: project.description ?? undefined,
+                      location: eventDetails.location_value || undefined,
+                      startIso: eventDetails.event_date!,
+                    })
+                  }
+                  className="flex items-center gap-1.5 text-sm text-accent font-medium"
+                >
+                  <CalendarPlus size={15} /> Add to calendar
+                </button>
+              )}
+              {eventDetails.location_type === "physical" && eventDetails.location_value && (
+                <a
+                  href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(eventDetails.location_value)}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-1.5 text-sm text-accent font-medium"
+                >
+                  <Navigation size={15} /> Directions
+                </a>
+              )}
+            </div>
+          </div>
+        )}
+        {project.project_type === "meeting" && meetingDetails && (
+          <div className={`flex items-center gap-1.5 ${pull} mb-4 text-sm text-ink-muted`}>
+            <Video size={14} /> {new Date(meetingDetails.scheduled_at).toLocaleString()}
+          </div>
+        )}
+
+        {/* Gig browsing info — tagline/delivery estimate up top,
+            proof-of-work samples as a rail below. Message/Book
+            CTAs live on the ProjectCard above, not here. */}
+        {project.project_type === "gig" && gigDetails?.tagline && (
+          <p className={`${pull} mb-2 text-sm font-medium text-ink`}>{gigDetails.tagline}</p>
+        )}
+        {project.project_type === "gig" && gigDetails?.delivery_estimate && (
+          <div className="flex items-center gap-1.5 mb-1.5 text-sm text-ink-muted">
+            <Clock size={14} /> {gigDetails.delivery_estimate}
+            {gigDetails.revisions_included !== null && gigDetails.revisions_included !== undefined && (
+              <span className="flex items-center gap-1">
+                · <RefreshCw size={12} /> {gigDetails.revisions_included} revision
+                {gigDetails.revisions_included === 1 ? "" : "s"}
+              </span>
+            )}
+          </div>
+        )}
+        {project.project_type === "gig" &&
+          !gigDetails?.delivery_estimate &&
+          gigDetails?.revisions_included !== null &&
+          gigDetails?.revisions_included !== undefined && (
+            <div className="flex items-center gap-1.5 mb-1.5 text-sm text-ink-muted">
+              <RefreshCw size={12} /> {gigDetails.revisions_included} revision
+              {gigDetails.revisions_included === 1 ? "" : "s"}
+            </div>
+          )}
+        {project.project_type === "gig" && gigDetails?.deliverables && gigDetails.deliverables.length > 0 && (
+          <ul className="mb-4 flex flex-col gap-1">
+            {gigDetails.deliverables.map((item, i) => (
+              <li key={i} className="text-sm text-ink-muted flex items-start gap-1.5">
+                <span className="text-accent mt-0.5">✓</span> {item}
+              </li>
+            ))}
+          </ul>
+        )}
+        {project.project_type === "gig" && gigSamples && gigSamples.length > 0 && (
+          <div className="mb-4">
+            <h3 className="font-display text-lg font-semibold tracking-tight text-ink mb-3">Work samples</h3>
+            <div className="flex gap-3 overflow-x-auto pb-1 -mx-4 px-4">
+              {gigSamples.map((sample) => (
+                <ProjectMiniCard key={sample.id} project={sample} />
+              ))}
+            </div>
+          </div>
+        )}
+        {project.project_type === "gig" && gigDetails?.faq && gigDetails.faq.length > 0 && (
+          <GigFaqSection faq={gigDetails.faq} />
+        )}
+        {project.project_type === "gig" && <GigReviewsSection projectId={project.id} />}
+
+        {project.project_type === "event" && <EventHighlightsSection projectId={project.id} isOwner={isOwner} />}
+
+        <ProjectFaqSection projectId={project.id} projectType={project.project_type} isOwner={isOwner} />
+
+        {project.project_type === "media" && isOwner && (
+          <PublishMusicButton projectId={project.id} />
+        )}
+
+        {project.topics.length > 0 && (
+          <div className={`flex flex-wrap gap-2 ${pull} mb-4`}>
+            {project.topics.map((topic) => (
+              <span
+                key={topic.id}
+                className="text-xs font-medium px-3 py-1 rounded-full bg-surface border border-border/60 text-ink-muted shadow-sm"
+              >
+                {topic.name}
+              </span>
+            ))}
+          </div>
+        )}
+
+    </>
+  ) : null;
+
   return (
     <div className="min-h-screen bg-canvas px-4 pt-4 pb-24">
       <div className="max-w-xl md:max-w-2xl mx-auto">
@@ -413,7 +547,13 @@ export function ProjectDetail({ resolvedProjectId }: { resolvedProjectId?: strin
           <p className="text-ink-muted">Loading…</p>
         ) : (
           <>
-            <ProjectCard project={project} isDetailView shareUrl={shareUrl} />
+            <ProjectCard
+              project={project}
+              isDetailView
+              shareUrl={shareUrl}
+              concealDetails={isGuest}
+              detailsSlot={isGuest ? detailBlocks : undefined}
+            />
 
             {/* Reverse link to the gig(s) this is proof-of-work for —
                 otherwise a visitor who lands here directly (a feed
@@ -445,131 +585,7 @@ export function ProjectDetail({ resolvedProjectId }: { resolvedProjectId?: strin
               </button>
             )}
 
-            {/* Event/Meeting browsing info — shown to everyone, purchase
-                is what unlocks the ticket/join page, not this block. */}
-            {project.project_type === "event" && eventDetails && (
-              <div className="flex flex-col gap-2 -mt-2 mb-4">
-                <div className="flex flex-col gap-1.5 text-sm text-ink-muted">
-                  {eventDetails.event_date && (
-                    <span className="flex items-center gap-1.5">
-                      <CalendarClock size={14} /> {new Date(eventDetails.event_date).toLocaleString()}
-                    </span>
-                  )}
-                  <span className="flex items-center gap-1.5">
-                    <MapPin size={14} />
-                    {eventDetails.location_type === "physical" ? eventDetails.location_value : "Online"}
-                  </span>
-                </div>
-
-                {eventDetails.event_date && eventCountdownMs !== null && eventCountdownMs > 0 && (
-                  <p className="text-sm font-medium text-accent">Starts in {formatCountdown(eventCountdownMs)}</p>
-                )}
-
-                <div className="flex items-center gap-4">
-                  {eventDetails.event_date && (
-                    <button
-                      onClick={() =>
-                        downloadIcsEvent({
-                          title: project.title,
-                          description: project.description ?? undefined,
-                          location: eventDetails.location_value || undefined,
-                          startIso: eventDetails.event_date!,
-                        })
-                      }
-                      className="flex items-center gap-1.5 text-sm text-accent font-medium"
-                    >
-                      <CalendarPlus size={15} /> Add to calendar
-                    </button>
-                  )}
-                  {eventDetails.location_type === "physical" && eventDetails.location_value && (
-                    <a
-                      href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(eventDetails.location_value)}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="flex items-center gap-1.5 text-sm text-accent font-medium"
-                    >
-                      <Navigation size={15} /> Directions
-                    </a>
-                  )}
-                </div>
-              </div>
-            )}
-            {project.project_type === "meeting" && meetingDetails && (
-              <div className="flex items-center gap-1.5 -mt-2 mb-4 text-sm text-ink-muted">
-                <Video size={14} /> {new Date(meetingDetails.scheduled_at).toLocaleString()}
-              </div>
-            )}
-
-            {/* Gig browsing info — tagline/delivery estimate up top,
-                proof-of-work samples as a rail below. Message/Book
-                CTAs live on the ProjectCard above, not here. */}
-            {project.project_type === "gig" && gigDetails?.tagline && (
-              <p className="-mt-2 mb-2 text-sm font-medium text-ink">{gigDetails.tagline}</p>
-            )}
-            {project.project_type === "gig" && gigDetails?.delivery_estimate && (
-              <div className="flex items-center gap-1.5 mb-1.5 text-sm text-ink-muted">
-                <Clock size={14} /> {gigDetails.delivery_estimate}
-                {gigDetails.revisions_included !== null && gigDetails.revisions_included !== undefined && (
-                  <span className="flex items-center gap-1">
-                    · <RefreshCw size={12} /> {gigDetails.revisions_included} revision
-                    {gigDetails.revisions_included === 1 ? "" : "s"}
-                  </span>
-                )}
-              </div>
-            )}
-            {project.project_type === "gig" &&
-              !gigDetails?.delivery_estimate &&
-              gigDetails?.revisions_included !== null &&
-              gigDetails?.revisions_included !== undefined && (
-                <div className="flex items-center gap-1.5 mb-1.5 text-sm text-ink-muted">
-                  <RefreshCw size={12} /> {gigDetails.revisions_included} revision
-                  {gigDetails.revisions_included === 1 ? "" : "s"}
-                </div>
-              )}
-            {project.project_type === "gig" && gigDetails?.deliverables && gigDetails.deliverables.length > 0 && (
-              <ul className="mb-4 flex flex-col gap-1">
-                {gigDetails.deliverables.map((item, i) => (
-                  <li key={i} className="text-sm text-ink-muted flex items-start gap-1.5">
-                    <span className="text-accent mt-0.5">✓</span> {item}
-                  </li>
-                ))}
-              </ul>
-            )}
-            {project.project_type === "gig" && gigSamples && gigSamples.length > 0 && (
-              <div className="mb-4">
-                <h3 className="font-display text-lg font-semibold tracking-tight text-ink mb-3">Work samples</h3>
-                <div className="flex gap-3 overflow-x-auto pb-1 -mx-4 px-4">
-                  {gigSamples.map((sample) => (
-                    <ProjectMiniCard key={sample.id} project={sample} />
-                  ))}
-                </div>
-              </div>
-            )}
-            {project.project_type === "gig" && gigDetails?.faq && gigDetails.faq.length > 0 && (
-              <GigFaqSection faq={gigDetails.faq} />
-            )}
-            {project.project_type === "gig" && <GigReviewsSection projectId={project.id} />}
-
-            {project.project_type === "event" && <EventHighlightsSection projectId={project.id} isOwner={isOwner} />}
-
-            <ProjectFaqSection projectId={project.id} projectType={project.project_type} isOwner={isOwner} />
-
-            {project.project_type === "media" && isOwner && (
-              <PublishMusicButton projectId={project.id} />
-            )}
-
-            {project.topics.length > 0 && (
-              <div className="flex flex-wrap gap-2 -mt-2 mb-4">
-                {project.topics.map((topic) => (
-                  <span
-                    key={topic.id}
-                    className="text-xs font-medium px-3 py-1 rounded-full bg-surface border border-border/60 text-ink-muted shadow-sm"
-                  >
-                    {topic.name}
-                  </span>
-                ))}
-              </div>
-            )}
+            {!isGuest && detailBlocks}
 
             {/* Creator byline — tapping any part of it opens the
                 creator's profile (or the page's, if this was posted in
@@ -579,46 +595,45 @@ export function ProjectDetail({ resolvedProjectId }: { resolvedProjectId?: strin
                 name and role tags — owner_id is still always the
                 creating user underneath (see posted_as_page_id in
                 useProjects.ts), this is purely a display swap. */}
-            <Link
-              to={
-                isGuest
-                  ? // Profiles are members-only: log in first, then land on the profile.
-                    loginPathFor(
-                      project.posted_as_page ? `/page/${project.posted_as_page.username}` : `/profile/${project.owner.username}`
-                    )
-                  : project.posted_as_page
+            {/* Guests don't see the creator card: profiles are members-only, so it
+                would only lead to a login wall. */}
+            {!isGuest && (
+              <Link
+                to={
+                  project.posted_as_page
                     ? `/page/${project.posted_as_page.username}`
                     : `/profile/${project.owner.username}`
-              }
-              className="flex items-center gap-3 bg-surface rounded-2xl border border-border/60 p-4 shadow-[0_1px_2px_rgba(var(--shadow-ink-rgb),0.04),0_8px_20px_-12px_rgba(var(--shadow-ink-rgb),0.14)] transition-shadow hover:shadow-[0_1px_2px_rgba(var(--shadow-ink-rgb),0.06),0_14px_28px_-14px_rgba(var(--shadow-ink-rgb),0.18)]"
-            >
-              {project.posted_as_page ? (
-                <>
-                  <Avatar src={project.posted_as_page.avatar_url} name={project.posted_as_page.name} size="lg" />
-                  <div className="min-w-0">
-                    <span className="font-medium text-ink">{project.posted_as_page.name}</span>
-                    <span className="text-xs text-ink-muted block mt-0.5">
-                      {pageModeLabel(project.posted_as_page.page_type)}
-                    </span>
-                    <span className="text-sm text-ink-muted">@{project.posted_as_page.username}</span>
-                  </div>
-                </>
-              ) : (
-                <>
-                  <Avatar src={project.owner.avatar_url} name={project.owner.display_name} size="lg" />
-                  <div className="min-w-0">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span className="font-medium text-ink">{project.owner.display_name}</span>
-                      <TierBadge tier={project.owner.tier} />
+                }
+                className="flex items-center gap-3 bg-surface rounded-2xl border border-border/60 p-4 shadow-[0_1px_2px_rgba(var(--shadow-ink-rgb),0.04),0_8px_20px_-12px_rgba(var(--shadow-ink-rgb),0.14)] transition-shadow hover:shadow-[0_1px_2px_rgba(var(--shadow-ink-rgb),0.06),0_14px_28px_-14px_rgba(var(--shadow-ink-rgb),0.18)]"
+              >
+                {project.posted_as_page ? (
+                  <>
+                    <Avatar src={project.posted_as_page.avatar_url} name={project.posted_as_page.name} size="lg" />
+                    <div className="min-w-0">
+                      <span className="font-medium text-ink">{project.posted_as_page.name}</span>
+                      <span className="text-xs text-ink-muted block mt-0.5">
+                        {pageModeLabel(project.posted_as_page.page_type)}
+                      </span>
+                      <span className="text-sm text-ink-muted">@{project.posted_as_page.username}</span>
                     </div>
-                    {project.owner.roles.length > 0 && (
-                      <RoleTags roles={project.owner.roles} className="text-xs text-ink-muted block mt-0.5" />
-                    )}
-                    <span className="text-sm text-ink-muted">@{project.owner.username}</span>
-                  </div>
-                </>
-              )}
-            </Link>
+                  </>
+                ) : (
+                  <>
+                    <Avatar src={project.owner.avatar_url} name={project.owner.display_name} size="lg" />
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="font-medium text-ink">{project.owner.display_name}</span>
+                        <TierBadge tier={project.owner.tier} />
+                      </div>
+                      {project.owner.roles.length > 0 && (
+                        <RoleTags roles={project.owner.roles} className="text-xs text-ink-muted block mt-0.5" />
+                      )}
+                      <span className="text-sm text-ink-muted">@{project.owner.username}</span>
+                    </div>
+                  </>
+                )}
+              </Link>
+            )}
 
             {!isGuest && (
               <>
@@ -631,29 +646,6 @@ export function ProjectDetail({ resolvedProjectId }: { resolvedProjectId?: strin
             )}
             <ProjectRail title="Similar contents" projects={similar?.similarContent ?? []} />
               </>
-            )}
-
-            {isGuest && (
-              <div className="mt-6 rounded-2xl border border-border/60 bg-surface p-5 text-center shadow-sm">
-                <p className="font-display text-lg font-semibold tracking-tight text-ink">Join Akọ to continue</p>
-                <p className="text-sm text-ink-muted mt-1">
-                  Log in or create a free account to open this and discover more from {project.posted_as_page ? project.posted_as_page.name : project.owner.display_name}.
-                </p>
-                <div className="flex gap-2 mt-4">
-                  <Link
-                    to={loginPathFor(returnTo)}
-                    className="flex-1 h-11 rounded-2xl border border-border/60 bg-canvas text-ink text-sm font-semibold flex items-center justify-center"
-                  >
-                    Log in
-                  </Link>
-                  <Link
-                    to={signupPathFor(returnTo)}
-                    className="flex-1 h-11 rounded-2xl bg-cta text-white text-sm font-semibold flex items-center justify-center"
-                  >
-                    Sign up
-                  </Link>
-                </div>
-              </div>
             )}
           </>
         )}

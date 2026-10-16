@@ -33,6 +33,7 @@ import {
   Loader2,
   TrendingUp,
   Gift as GiftIcon,
+  ChevronDown,
 } from "lucide-react";
 import { useAuth } from "../hooks/useAuth";
 import { useProjectOwnership } from "../hooks/useProjectOwnership";
@@ -343,6 +344,8 @@ export function ProjectCard({
   isDetailView,
   manageContent,
   shareUrl,
+  concealDetails,
+  detailsSlot,
 }: {
   project: Project;
   // Explicit owner-view flag from the caller (e.g. ProfilePage's
@@ -366,6 +369,12 @@ export function ProjectCard({
   // route below when omitted, so every other existing call site keeps
   // working exactly as before.
   shareUrl?: string;
+  // Signed-out landing mode: description and extra browsing info stay folded
+  // behind a "Details" toggle; the CTA row below it is always visible.
+  concealDetails?: boolean;
+  // Extra content (event info, FAQ, topics…) rendered inside the card with the
+  // description when details are open.
+  detailsSlot?: ReactNode;
 }) {
   const { user } = useAuth();
   const navigate = useNavigate();
@@ -416,6 +425,8 @@ export function ProjectCard({
 
   const [error, setError] = useState<string | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [detailsOpen, setDetailsOpen] = useState(false);
+  const showDetails = !concealDetails || detailsOpen;
   const [showMoreActions, setShowMoreActions] = useState(false);
   // Media never carries a price tag (see mediaDetails/isMedia below) —
   // gifting the creator(s) is the monetization path instead, the same
@@ -1356,7 +1367,19 @@ export function ProjectCard({
           <PrivateProjectNotice onMessage={() => void handleRequestAccess()} messagePending={startConversation.isPending} />
         ) : (
           <UnlockReveal unlocked={hasAccess}>
-        {project.description && (
+        {concealDetails && (
+          <button
+            type="button"
+            onClick={() => setDetailsOpen((o) => !o)}
+            aria-expanded={detailsOpen}
+            className="mt-3 w-full flex items-center justify-between rounded-2xl border border-border/60 bg-canvas px-4 py-2.5 text-sm font-medium text-ink transition-transform active:scale-[0.99]"
+          >
+            Details
+            <ChevronDown size={16} className={`text-ink-muted transition-transform ${detailsOpen ? "rotate-180" : ""}`} />
+          </button>
+        )}
+
+        {showDetails && project.description && (
           <p className="text-sm text-ink-muted mt-1 whitespace-pre-wrap break-words">
             {renderFormattedText(project.description, "d")}
           </p>
@@ -1366,7 +1389,7 @@ export function ProjectCard({
             keep-what-you-raise decision: hitting or missing
             goal_amount_usd changes nothing about what the creator can
             access from what's already been pledged. */}
-        {isPitch && pitchDetails && (
+        {showDetails && isPitch && pitchDetails && (
           <div className="mt-2.5">
             <div className="h-1.5 w-full rounded-full bg-canvas overflow-hidden">
               <div
@@ -1381,6 +1404,8 @@ export function ProjectCard({
             </p>
           </div>
         )}
+
+        {concealDetails && detailsOpen && detailsSlot && <div className="mt-4">{detailsSlot}</div>}
 
         {error && <p className="text-danger text-sm mt-2">{error}</p>}
 
