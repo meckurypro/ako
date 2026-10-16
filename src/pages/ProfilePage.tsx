@@ -126,7 +126,7 @@ function PortfolioCategoryPane({
         </div>
       )}
       {projects.map((project) => (
-        <ProjectCard key={project.id} project={project} isOwnerView={showOwnerView} />
+        <ProjectCard key={project.id} project={project} isOwnerView={showOwnerView} manageContent={showOwnerView} />
       ))}
     </>
   );
@@ -152,7 +152,7 @@ function TypeCategoryPane({
   return (
     <>
       {projects.map((project) => (
-        <ProjectCard key={project.id} project={project} isOwnerView={showOwnerView} />
+        <ProjectCard key={project.id} project={project} isOwnerView={showOwnerView} manageContent={showOwnerView} />
       ))}
     </>
   );

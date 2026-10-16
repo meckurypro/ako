@@ -94,7 +94,7 @@ import { ProjectDetail } from "./pages/ProjectDetail";
 import { ProjectBySlug } from "./pages/ProjectBySlug";
 import { Room } from "./pages/Room";
 import { Course } from "./pages/Course";
-import { Book } from "./pages/Book";
+import { Book, BookEdit } from "./pages/Book";
 import { BookReader } from "./pages/BookReader";
 import { MeetingRoom } from "./pages/MeetingRoom";
 import { TicketView } from "./pages/TicketView";
@@ -856,6 +856,15 @@ function AppRoutes() {
               element={
                 <RequireAuth>
                   <Book />
+                </RequireAuth>
+              }
+            />
+            {/* The book builder — owner only, reached from the creator's own profile → Projects. */}
+            <Route
+              path="/books/:projectId/edit"
+              element={
+                <RequireAuth>
+                  <BookEdit />
                 </RequireAuth>
               }
             />

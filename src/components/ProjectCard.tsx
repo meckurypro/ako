@@ -341,6 +341,7 @@ export function ProjectCard({
   project,
   isOwnerView,
   isDetailView,
+  manageContent,
   shareUrl,
 }: {
   project: Project;
@@ -355,6 +356,10 @@ export function ProjectCard({
   // feed lists, grids, Archive, SavedProjects etc. render many
   // ProjectCards at once and keep the old tap-to-preview buttons.
   isDetailView?: boolean;
+  // True only for the creator's own profile → Projects lists. That is the one place a creator gets the content
+  // builder (an authored book's chapters); everywhere else — the project's own page, Discover, search, a shared
+  // link — the creator sees the project exactly as a visitor does.
+  manageContent?: boolean;
   // The canonical public link for this project, when the caller
   // already has enough context (owner/page username) to build one —
   // see src/lib/projectLinks.ts. Falls back to the plain /projects/:id
@@ -930,6 +935,14 @@ export function ProjectCard({
     },
     { key: "share", label: "Share", icon: <Redo2 />, onSelect: handleShare },
   ];
+  if (canEditBookContent) {
+    menuItems.splice(1, 0, {
+      key: "edit-book-contents",
+      label: "Edit book contents",
+      icon: <BookOpen />,
+      onSelect: () => navigate(`/books/${project.id}/edit`),
+    });
+  }
   // "Push" — jumps straight to Compose with this project
   // pre-tagged, ready for the caption. Only offered for
   // a published (active), non-private project: pushing a
@@ -1017,6 +1030,8 @@ export function ProjectCard({
     disabled?: boolean;
   };
   const priceLabel = `$${effectivePrice.toFixed(2)}`;
+  // The builder is reachable only from the creator's own profile lists (manageContent) — see the prop.
+  const canEditBookContent = !!manageContent && isOwner && isBook && bookDetails?.content_source === "authored";
   const bookReadsInApp =
     isBook && bookDetails?.content_source === "upload" && !!bookDetails.allow_read_in_app;
   const bookCanDownload =
@@ -1142,9 +1157,9 @@ export function ProjectCard({
       };
     } else if (bookDetails?.content_source === "authored") {
       detailCta = {
-        label: isOwner && !project.published_at ? "Continue building" : "Read",
+        label: canEditBookContent && !project.published_at ? "Continue building" : "Read",
         icon: <BookOpen size={18} />,
-        onClick: () => navigate(`/books/${project.id}`),
+        onClick: () => navigate(canEditBookContent && !project.published_at ? `/books/${project.id}/edit` : `/books/${project.id}`),
       };
     }
   } else if (isMedia) {
@@ -1527,11 +1542,11 @@ export function ProjectCard({
             )}
             {bookDetails.content_source === "authored" && (
               <button
-                onClick={() => navigate(`/books/${project.id}`)}
+                onClick={() => navigate(canEditBookContent && !project.published_at ? `/books/${project.id}/edit` : `/books/${project.id}`)}
                 className="flex items-center gap-1.5 text-sm text-accent font-medium"
               >
                 <BookOpen size={15} />
-                {isOwner && !project.published_at ? "Continue building" : "Read"}
+                {canEditBookContent && !project.published_at ? "Continue building" : "Read"}
               </button>
             )}
           </div>

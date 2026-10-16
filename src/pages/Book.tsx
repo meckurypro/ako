@@ -1,6 +1,6 @@
 // src/pages/Book.tsx
 import { useMemo, useRef, useState } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { Navigate, useParams, useNavigate } from "react-router-dom";
 import {
   ArrowLeft,
   Plus,
@@ -52,21 +52,17 @@ export function Book() {
   useRecordFreeProjectOpen(project, { isOwner: isCreator, enabled: !privacyBlocked });
 
   const { data: chapters } = useBookChapters(projectId);
-  const publishBook = usePublishBook(projectId ?? "");
   const purchaseProject = usePurchaseProject();
 
   const ordered = useMemo(() => (chapters ?? []).slice().sort((a, b) => a.sort_order - b.sort_order), [chapters]);
 
-  if (!project) {
+  // Wait for the acting identity: until it resolves isOwner is false, which would flash the locked view at the creator.
+  if (!project || ownership.loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-canvas">
         <p className="text-ink-muted">Loading…</p>
       </div>
     );
-  }
-
-  if (isOwner) {
-    return <BookBuilder projectId={project.id} project={project} chapters={ordered} publishBook={publishBook} />;
   }
 
   if (!hasAccess) {
@@ -93,6 +89,31 @@ export function Book() {
       shareUrl={getProjectUrl(project)}
       onBack={() => navigate(-1)}
     />;
+}
+
+// ---------------------------------------------------------------
+// /books/:id is the book AS A READER SEES IT — for everyone, the creator included (a creator who opens their own
+// book's link, or finds it in Discover, reads it like any visitor). Editing lives at /books/:id/edit, reached only
+// from the creator's own profile → Projects; anyone else who lands there is sent back to the reader.
+// ---------------------------------------------------------------
+
+export function BookEdit() {
+  const { projectId } = useParams<{ projectId: string }>();
+  const { data: project } = useProject(projectId);
+  const ownership = useProjectOwnership();
+  const { data: chapters } = useBookChapters(projectId);
+  const publishBook = usePublishBook(projectId ?? "");
+  const ordered = useMemo(() => (chapters ?? []).slice().sort((a, b) => a.sort_order - b.sort_order), [chapters]);
+
+  if (!project || ownership.loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-canvas">
+        <p className="text-ink-muted">Loading…</p>
+      </div>
+    );
+  }
+  if (!ownership.isOwner(project)) return <Navigate to={`/books/${project.id}`} replace />;
+  return <BookBuilder projectId={project.id} project={project} chapters={ordered} publishBook={publishBook} />;
 }
 
 // ---------------------------------------------------------------
