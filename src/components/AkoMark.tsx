@@ -9,10 +9,10 @@ import { useTheme } from "../hooks/useTheme";
  */
 export function AkoMark({ size = 16, className = "" }: { size?: number; className?: string }) {
   const { resolvedTheme } = useTheme();
-  // Icon should contrast with the surrounding UI, not match it — a dark
-  // icon reads on light chrome, a light icon reads on dark chrome.
+  // Theme-paired artwork, same as Wordmark and AkoWatermark: the "dark" file is the
+  // brighter green tuned for dark surfaces, the "light" file the deeper green for light ones.
   const src =
-    resolvedTheme === "dark" ? "/app_icon_light_without_tagline.png" : "/app_icon_dark_without_tagline.png";
+    resolvedTheme === "dark" ? "/app_icon_dark_without_tagline.png" : "/app_icon_light_without_tagline.png";
 
   return (
     <img
