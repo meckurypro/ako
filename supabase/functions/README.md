@@ -8,6 +8,7 @@ Source of truth for the push pipeline's edge functions. Deploy with the Supabase
 | `send-message-push` | on | the native app, after a chat message insert (`notifyMessagePush`) |
 | `send-activity-push` | off (shared secret in `x-webhook-secret`) | DB triggers on `notifications` / `page_notifications` via `invoke_push_function()` |
 | `check-push-receipts` | off (shared secret) | pg_cron, every 15 min |
+| `delete-project` | on | the native app and web, when an owner deletes a project (`useDeleteProject`) |
 
 ## Android channel ids
 
@@ -31,3 +32,9 @@ sent from somewhere that never calls the function: the web client, and `page_mes
 replies). The robust fix is an AFTER INSERT trigger on `messages` / `page_messages` that posts to this
 function with the shared secret (the way `notifications` does for `send-activity-push`), with the function
 accepting that secret as an alternative to the caller's JWT.
+
+## Deleting projects
+
+`delete-project` hard-deletes a project owned by the caller. Purchases, music licence acceptances and assignment submissions
+are kept on purpose (RESTRICT foreign keys), so a project with those gets a 409 with a plain message telling the owner to
+archive it instead. Course lessons cascade with their module (`supabase/ako_course_lessons_cascade.sql`).
