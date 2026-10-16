@@ -2,7 +2,9 @@
 
 import { useRef, useState, useEffect } from "react";
 import { useNavigate, useLocation, Link } from "react-router-dom";
-import { useSmartBack } from "../hooks/useSmartBack";
+import { useSmartBack, getPreviousPath } from "../hooks/useSmartBack";
+import { useReturnAfterSave } from "../hooks/useReturnAfterSave";
+import { setJustPosted } from "../lib/justPosted";
 import { X, Image as ImageIcon, Link2, MoreHorizontal } from "lucide-react";
 import { useCreatePost, useDeleteDraftOrScheduledPost } from "../hooks/usePosts";
 import { TopicPicker, MAX_TOPICS } from "../components/TopicPicker";
@@ -31,6 +33,7 @@ export function Compose() {
   const navigate = useNavigate();
   const location = useLocation();
   const smartBack = useSmartBack();
+  const returnAfterSave = useReturnAfterSave();
   const [heading, setHeading] = useState("");
   const [headingColor, setHeadingColor] = useState<string | null>(null);
   const [content, setContent] = useState("");
@@ -205,16 +208,20 @@ export function Compose() {
         navigate("/activity/scheduled");
       } else {
         if (resumedPostIdRef.current) deleteDraftOrScheduled.mutate(resumedPostIdRef.current);
-        // justPostedId lets Feed pin this exact post at the top of the
+        // Back to the page Compose was opened from, refreshed (the
+        // create-post hook already refetched feed / profile / Page
+        // lists, so the new post is there on the first frame).
+        // justPosted lets Feed pin this exact post at the top of the
         // "For You" list the instant it lands there — see usePostById
-        // and Feed.tsx's ForYouTab. Page-mode posts skip this: they
-        // land on the page's own profile feed (plain reverse-
-        // chronological already), which doesn't need the same pinning.
-        navigate(
-          postingAsPage ? `/page/${postingAsPage.username}` : "/feed",
-          postingAsPage ? undefined : { state: { justPostedId: (createdPost as { id: string }).id } }
-        );
+        // and Feed.tsx's ForYouTab. Only set when Feed is where we're
+        // returning to, so it can't linger and pin on a later visit.
+        // Page-mode posts skip this: they land on the page's own
+        // profile feed (plain reverse-chronological already).
+        if (!postingAsPage && (getPreviousPath() ?? "/feed") === "/feed") {
+          setJustPosted((createdPost as { id: string }).id);
+        }
         toast("Posted.", { variant: "success" });
+        await returnAfterSave({ fallback: postingAsPage ? `/page/${postingAsPage.username}` : "/feed" });
       }
     } catch (err) {
       // Moderation rejections and other edge-function errors surface here —

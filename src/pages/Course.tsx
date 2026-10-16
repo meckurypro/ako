@@ -29,6 +29,7 @@ import { LessonReader } from "../components/course/LessonReader";
 import { ResumePrompt } from "../components/ResumePrompt";
 import { ProgressBar } from "../components/course/ProgressBar";
 import { useToast } from "../components/Toast";
+import { useReturnAfterSave } from "../hooks/useReturnAfterSave";
 import { buildReaderModel, readMinutes } from "../lib/lessonFormat";
 import {
   useCourseModules,
@@ -264,6 +265,7 @@ export function Course() {
   const deleteLesson = useDeleteLesson(projectId ?? "");
   const moveLesson = useMoveLesson(projectId ?? "");
   const publishCourse = usePublishCourse(projectId ?? "");
+  const returnAfterSave = useReturnAfterSave();
 
   const [newModuleTitle, setNewModuleTitle] = useState("");
   const [editingModuleId, setEditingModuleId] = useState<string | null>(null);
@@ -463,6 +465,18 @@ export function Course() {
     if (target) selectLesson(target);
   }
 
+  async function handlePublishCourse() {
+    try {
+      await publishCourse.mutateAsync();
+    } catch (err) {
+      toast(err instanceof Error ? err.message : "Couldn't publish this course.", { variant: "error" });
+      return;
+    }
+    toast("Course published.", { variant: "success" });
+    // Back to wherever the course was opened from, refreshed.
+    await returnAfterSave({ fallback: `/projects/${projectId}` });
+  }
+
   function completeAndContinue() {
     if (!selectedLesson) return;
     const goNext = () => {
@@ -540,7 +554,7 @@ export function Course() {
             </span>
             {!project.published_at && (
               <button
-                onClick={() => publishCourse.mutate()}
+                onClick={handlePublishCourse}
                 disabled={publishCourse.isPending || (modules ?? []).length === 0}
                 className="text-xs font-medium px-3 py-1.5 rounded-full bg-accent text-canvas disabled:opacity-50"
               >

@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, type FormEvent } from "react";
 import { useNavigate } from "react-router-dom";
 import { useSmartBack } from "../hooks/useSmartBack";
+import { useReturnAfterSave } from "../hooks/useReturnAfterSave";
 import {
   ArrowLeft,
   Camera,
@@ -190,6 +191,7 @@ type SectionId = "profile" | "security" | "privacy" | "appearance" | "sound" | "
 export function Settings() {
   const navigate = useNavigate();
   const smartBack = useSmartBack();
+  const returnAfterSave = useReturnAfterSave();
   const { user } = useAuth();
   const { data: isAdmin } = useIsAdmin();
 
@@ -362,6 +364,24 @@ export function Settings() {
         updateProfileRoles.mutateAsync(roleIds),
       ]);
       setProfileSaved(true);
+      toast("Profile updated.", { variant: "success" });
+
+      // Back to the page the person came from, refreshed. A changed
+      // username would leave that page's URL dead (/profile/old), so
+      // in that case land on the same page under the new name.
+      const oldUsername = profile?.username;
+      await returnAfterSave({
+        fallback: `/profile/${usernameChanged ? normalizedUsername : oldUsername}`,
+        rewritePrevious:
+          usernameChanged && oldUsername
+            ? (prev) => {
+                const oldBase = `/profile/${oldUsername}`;
+                return prev === oldBase || prev.startsWith(`${oldBase}/`)
+                  ? `/profile/${normalizedUsername}${prev.slice(oldBase.length)}`
+                  : undefined;
+              }
+            : undefined,
+      });
     } catch (err) {
       setProfileError(err instanceof Error ? err.message : "Couldn't save changes.");
     }

@@ -1,6 +1,8 @@
 // src/pages/Book.tsx
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Navigate, useParams, useNavigate } from "react-router-dom";
+import { useReturnAfterSave } from "../hooks/useReturnAfterSave";
+import { useToast } from "../components/Toast";
 import {
   ArrowLeft,
   Plus,
@@ -191,6 +193,8 @@ function BookBuilder({
   publishBook: ReturnType<typeof usePublishBook>;
 }) {
   const navigate = useNavigate();
+  const returnAfterSave = useReturnAfterSave();
+  const toast = useToast();
   const uploadThumbnail = useUploadProjectThumbnail();
   const coverInputRef = useRef<HTMLInputElement>(null);
 
@@ -281,6 +285,9 @@ function BookBuilder({
     }
     try {
       await publishBook.mutateAsync();
+      toast("Book published.", { variant: "success" });
+      // Back to wherever the builder was opened from, refreshed.
+      await returnAfterSave({ fallback: `/books/${projectId}` });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Couldn't publish.");
     }

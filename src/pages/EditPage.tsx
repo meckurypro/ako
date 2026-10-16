@@ -1,6 +1,8 @@
 // src/pages/EditPage.tsx
 import { useEffect, useRef, useState, type FormEvent } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useParams } from "react-router-dom";
+import { useReturnAfterSave } from "../hooks/useReturnAfterSave";
+import { useToast } from "../components/Toast";
 import { useSmartBack } from "../hooks/useSmartBack";
 import { ArrowLeft, Camera } from "lucide-react";
 import { useAuth } from "../hooks/useAuth";
@@ -19,7 +21,8 @@ import { MentionTextarea } from "../components/MentionTextarea";
 // editing, so the existing avatars bucket works fine for both.
 export function EditPage() {
   const { username } = useParams<{ username: string }>();
-  const navigate = useNavigate();
+  const returnAfterSave = useReturnAfterSave();
+  const toast = useToast();
   const smartBack = useSmartBack();
   const { user } = useAuth();
 
@@ -130,7 +133,8 @@ export function EditPage() {
         avatar_url: avatarUrl ?? undefined,
         cover_url: coverUrl ?? undefined,
       });
-      navigate(`/page/${page.username}`);
+      toast("Page updated.", { variant: "success" });
+      await returnAfterSave({ fallback: `/page/${page.username}` });
     } catch (err: any) {
       setError(err.message ?? "Couldn't save those changes.");
     }

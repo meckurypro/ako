@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { Link, useSearchParams, useLocation } from "react-router-dom";
+import { consumeJustPosted } from "../lib/justPosted";
 import { X } from "lucide-react";
 import { useFeedPosts, useFollowingFeed, useTopDiscussionsFeed, usePostById } from "../hooks/usePosts";
 import { usePageRankedFeed, usePageFollowingFeed } from "../hooks/usePageFeed";
@@ -265,7 +266,7 @@ export function Feed() {
   // draftMessage handling for the same reason: navigating back/forward
   // through history afterward shouldn't keep re-triggering it.
   const [justPostedId] = useState<string | null>(
-    () => (location.state as { justPostedId?: string } | null)?.justPostedId ?? null
+    () => (location.state as { justPostedId?: string } | null)?.justPostedId ?? consumeJustPosted()
   );
   // Set by ProfilePage's "Back to post" FAB (see fromFeedPost there) —
   // the post whose byline sent the visitor to that profile in the

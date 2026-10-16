@@ -1,7 +1,9 @@
 // src/pages/EditProject.tsx
 import { useEffect, useRef, useState, type FormEvent } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useParams } from "react-router-dom";
 import { useSmartBack } from "../hooks/useSmartBack";
+import { useReturnAfterSave } from "../hooks/useReturnAfterSave";
+import { useToast } from "../components/Toast";
 import { useProjectOwnership } from "../hooks/useProjectOwnership";
 import { ArrowLeft, ImageIcon } from "lucide-react";
 import {
@@ -53,8 +55,9 @@ const STATUS_OPTIONS: { value: ProjectStatus; label: string; hint: string }[] = 
 
 export function EditProject() {
   const { projectId } = useParams<{ projectId: string }>();
-  const navigate = useNavigate();
   const smartBack = useSmartBack();
+  const returnAfterSave = useReturnAfterSave();
+  const toast = useToast();
 
   const { data: project, isLoading } = useProject(projectId);
   const ownership = useProjectOwnership();
@@ -532,7 +535,12 @@ export function EditProject() {
         if (detailsError) throw detailsError;
       }
 
-      navigate(-1);
+      // Draft/archived → published is the moment worth calling out;
+      // any other save is just "saved". Either way the person goes
+      // back to the page they opened the editor from, refreshed.
+      const justPublished = project.status !== "active" && status === "active";
+      toast(justPublished ? "Project published." : "Changes saved.", { variant: "success" });
+      await returnAfterSave({ fallback: `/projects/${projectId}` });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Couldn't save changes.");
     }

@@ -32,6 +32,15 @@ function previousPath(): string | undefined {
   return pathStack[pathStack.length - 2];
 }
 
+// The page the person was on before this one, or undefined when there
+// isn't a meaningful one (fresh load, or they arrived via an auth
+// screen). Exposed so save flows can decide where to return to —
+// see useReturnAfterSave.
+export function getPreviousPath(): string | undefined {
+  const prev = previousPath();
+  return !prev || AUTH_PATHS.has(prev) ? undefined : prev;
+}
+
 // Every page's back arrow (or close/dismiss button acting as one)
 // should call this instead of `navigate(-1)` directly:
 //  - Already on the feed? There's nothing to go back to — refresh it

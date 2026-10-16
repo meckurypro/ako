@@ -1,7 +1,9 @@
 // src/pages/EditPost.tsx
 
 import { useEffect, useRef, useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useParams } from "react-router-dom";
+import { useReturnAfterSave } from "../hooks/useReturnAfterSave";
+import { useToast } from "../components/Toast";
 import { useSmartBack } from "../hooks/useSmartBack";
 import { X, Image as ImageIcon } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
@@ -37,7 +39,8 @@ function usePostForEdit(postId: string) {
 
 export function EditPost() {
   const { postId } = useParams<{ postId: string }>();
-  const navigate = useNavigate();
+  const returnAfterSave = useReturnAfterSave();
+  const toast = useToast();
   const smartBack = useSmartBack();
   const { user } = useAuth();
   const { data: post, isLoading } = usePostForEdit(postId!);
@@ -133,7 +136,10 @@ export function EditPost() {
         interest_ids: Array.from(topicIds),
         media_urls: mediaUrls,
       });
-      navigate(`/post/${postId}`);
+      toast("Post updated.", { variant: "success" });
+      // Back to where the editor was opened from (usually the post or
+      // a feed), refreshed — post detail is only the fallback.
+      await returnAfterSave({ fallback: `/post/${postId}` });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Couldn't save changes.");
     }
