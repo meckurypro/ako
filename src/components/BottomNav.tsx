@@ -57,7 +57,7 @@ function ChatPlusIcon({ size = 26 }: { size?: number }) {
         d="M2.5 3.5H18a3.5 3.5 0 0 1 3.5 3.5v8a3.5 3.5 0 0 1-3.5 3.5H6A3.5 3.5 0 0 1 2.5 15V3.5Z"
         fill="currentColor"
       />
-      <path d="M12 7.5v7M8.5 11h7" className="stroke-accent dark:stroke-ink" strokeWidth="1.9" strokeLinecap="round" />
+      <path d="M12 7.5v7M8.5 11h7" className="stroke-accent dark:stroke-accent-soft" strokeWidth="1.9" strokeLinecap="round" />
     </svg>
   );
 }
@@ -136,12 +136,12 @@ export function BottomNav() {
         <Link
           to={inboxHref}
           aria-label={unreadCount > 0 ? `Chats, ${unreadCount} unread` : "Chats"}
-          className="absolute right-4 bottom-full mb-4 w-14 h-14 rounded-[18px] bg-accent text-canvas dark:bg-ink dark:text-accent flex items-center justify-center shadow-[0_4px_14px_rgba(var(--shadow-ink-rgb),0.25)] active:scale-95 transition-transform"
+          className="absolute right-4 bottom-full mb-4 w-14 h-14 rounded-[18px] bg-accent text-canvas dark:bg-accent-soft dark:text-accent dark:border dark:border-accent/30 flex items-center justify-center shadow-[0_4px_14px_rgba(var(--shadow-ink-rgb),0.25)] active:scale-95 transition-transform"
         >
           <ChatPlusIcon />
           {unreadCount > 0 && (
-            <span className="absolute -top-1.5 -right-1.5 bg-danger text-canvas text-[10px] font-medium rounded-full min-w-4 h-4 px-1 flex items-center justify-center">
-              {unreadCount > 9 ? "9+" : unreadCount}
+            <span className="pointer-events-none absolute -top-[9px] -right-[9px] min-w-6 h-6 px-[5px] rounded-full border-[2.5px] border-canvas bg-[#D8453A] text-white text-[11px] leading-[13px] font-semibold tabular-nums flex items-center justify-center">
+              {unreadCount > 99 ? "99+" : unreadCount}
             </span>
           )}
         </Link>
