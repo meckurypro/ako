@@ -12,6 +12,10 @@ import { getProjectPath } from "../lib/projectLinks";
 // the same canonical page (pretty slug when the project has one) as
 // everywhere else — the rail cards previously hard-coded
 // /projects/:id and skipped the slug.
+//
+// The Link is `block`: an <a> is inline by default, which silently
+// ignores w-36, so inside the rail's shrink-to-fit wrapper a large
+// cover image set the card's width and one tile rendered oversized.
 export function ProjectMiniCard({
   project,
   showStatus = false,
@@ -33,7 +37,7 @@ export function ProjectMiniCard({
   return (
     <Link
       to={getProjectPath(project)}
-      className="group flex-shrink-0 w-36 bg-surface rounded-2xl overflow-hidden border border-border/60 shadow-[0_1px_2px_rgba(var(--shadow-ink-rgb),0.04),0_8px_20px_-12px_rgba(var(--shadow-ink-rgb),0.14)] transition-all duration-300 hover:shadow-[0_1px_2px_rgba(var(--shadow-ink-rgb),0.06),0_16px_32px_-14px_rgba(var(--shadow-ink-rgb),0.2)] hover:-translate-y-0.5"
+      className="group block flex-shrink-0 w-36 min-w-0 bg-surface rounded-2xl overflow-hidden border border-border/60 shadow-[0_1px_2px_rgba(var(--shadow-ink-rgb),0.04),0_8px_20px_-12px_rgba(var(--shadow-ink-rgb),0.14)] transition-all duration-300 hover:shadow-[0_1px_2px_rgba(var(--shadow-ink-rgb),0.06),0_16px_32px_-14px_rgba(var(--shadow-ink-rgb),0.2)] hover:-translate-y-0.5"
     >
       <div className="relative w-full aspect-square bg-canvas flex items-center justify-center overflow-hidden">
         {statusLabel && (
