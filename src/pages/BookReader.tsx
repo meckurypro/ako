@@ -104,7 +104,7 @@ function BookPdfPageReader() {
   const [error, setError] = useState<string | null>(null);
   const [chromeVisible, setChromeVisible] = useState(true);
   const [settingsOpen, setSettingsOpen] = useState(false);
-  // Opens in the app's light/dark; picking sepia etc. lasts for this reading session (see useReaderTheme).
+  // Opens in the app's light/dark; a pick is remembered (see useReaderTheme).
   const [theme, setTheme] = useReaderTheme();
   const [brightness, setBrightness] = useState<number>(
     () => Number(localStorage.getItem("ako-reader-brightness")) || 100

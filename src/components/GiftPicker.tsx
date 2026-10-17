@@ -62,13 +62,14 @@ export function GiftPicker({
   const sendMediaGift = useSendMediaGift();
   const giftingEnabled = useFeatureFlag("gifting_enabled");
 
-  useBackDismiss(
-    insufficientGift
-      ? () => setInsufficientGift(null)
-      : step === "confirm"
-        ? () => setStep("catalog")
-        : onClose
-  );
+  // One history entry per layer so Back peels them off in order:
+  // insufficient notice → confirm step → the picker itself. The confirm
+  // step is its own entry (enabled only while it is showing) so stepping
+  // back from it leaves the picker's entry intact — otherwise the first
+  // Back consumed the picker's only entry and the next one left the page.
+  useBackDismiss(onClose);
+  useBackDismiss(() => setStep("catalog"), step === "confirm");
+  useBackDismiss(() => setInsufficientGift(null), !!insufficientGift);
   useScrollLock();
 
   const balance = Number(wallet?.balance ?? 0);

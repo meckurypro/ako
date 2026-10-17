@@ -110,7 +110,7 @@ export function BookReflowReader({ projectId, title, chapters, userId, onBack, t
 
   const [view, setView] = useState<"toc" | "chapter">("toc");
   const [chapterId, setChapterId] = useState<string | null>(null);
-  // Opens in the app's light/dark; a pick here lasts for this reading session (see useBookReaderTheme).
+  // Opens in the app's light/dark; a pick is remembered (see useBookReaderTheme).
   const [themeId, setThemeId] = useBookReaderTheme();
   const theme = READER_THEMES[themeId];
   const [fontSize, setFontSize] = useState<number>(() => {
