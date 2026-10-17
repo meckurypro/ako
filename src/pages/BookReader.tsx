@@ -14,7 +14,7 @@ import { useRecordFreeProjectOpen } from "../hooks/useProjectAccess";
 import { ResumePrompt } from "../components/ResumePrompt";
 import { resolveFunctionErrorMessage } from "../lib/functionErrors";
 import { Book } from "./Book";
-import { useBookChapters, useExtractBookPdf } from "../hooks/useBookBuilder";
+import { useBookChapters, useExtractBookPdf, bookOcrMessage, useBookOcrJob, useStartBookOcr } from "../hooks/useBookBuilder";
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
   "pdfjs-dist/build/pdf.worker.min.mjs",
@@ -81,6 +81,21 @@ function BookPdfPageReader() {
   const privacyBlocked = !!project?.is_private && !isOwner && !isMemberQuery.data;
   const hasAccess = !privacyBlocked && (isOwner || !!hasPurchasedQuery.data || isFree);
   useRecordFreeProjectOpen(project, { isOwner: isCreator, enabled: !privacyBlocked });
+
+  // Owner only: turn a scan into reflowable text. Progress is the job row; when it finishes the book gains chapters
+  // and the route below swaps this reader for the reflow reader on its own.
+  const ocrJob = useBookOcrJob(projectId, isCreator).data ?? null;
+  const startOcr = useStartBookOcr(projectId ?? "");
+  const [ocrRefusal, setOcrRefusal] = useState<string | null>(null);
+  async function convertToText() {
+    setOcrRefusal(null);
+    try {
+      const r = await startOcr.mutateAsync(ocrJob?.status === "failed");
+      if (!r.ok) setOcrRefusal(bookOcrMessage(r.reason));
+    } catch {
+      setOcrRefusal(bookOcrMessage(null));
+    }
+  }
 
   const [pdf, setPdf] = useState<PDFDocumentProxy | null>(null);
   const [pageNum, setPageNum] = useState(1);
@@ -440,6 +455,40 @@ function BookPdfPageReader() {
               onChange={(e) => setBrightness(Number(e.target.value))}
               className="w-full accent-accent"
             />
+            {isCreator && (
+              <div className="mt-5 pt-4 border-t border-border">
+                <p className="text-xs font-medium text-ink-muted mb-1">Reflowable text</p>
+                {ocrJob?.status === "running" ? (
+                  <>
+                    <p className="text-xs text-ink-muted mb-2">
+                      Reading page {Math.min(ocrJob.next_page + 1, ocrJob.total_pages)} of {ocrJob.total_pages}. You can leave — it keeps going.
+                    </p>
+                    <div className="h-1.5 rounded-full bg-border overflow-hidden">
+                      <div
+                        className="h-full bg-accent"
+                        style={{ width: `${Math.round((ocrJob.next_page / Math.max(ocrJob.total_pages, 1)) * 100)}%` }}
+                      />
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <p className="text-xs text-ink-muted mb-2">
+                      {ocrJob?.status === "failed"
+                        ? bookOcrMessage(ocrJob.error_code)
+                        : "This book is made of page images. Convert it to text so readers can resize type, change themes, search it and read it offline. It takes a few minutes."}
+                    </p>
+                    {ocrRefusal && <p className="text-xs text-ink-muted mb-2">{ocrRefusal}</p>}
+                    <button
+                      onClick={convertToText}
+                      disabled={startOcr.isPending}
+                      className="px-4 py-2 rounded-xl bg-accent text-white text-sm font-medium disabled:opacity-50"
+                    >
+                      {ocrJob?.status === "failed" ? "Try again" : "Convert to text"}
+                    </button>
+                  </>
+                )}
+              </div>
+            )}
           </div>
         </div>
       )}
