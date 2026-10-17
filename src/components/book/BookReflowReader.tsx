@@ -714,12 +714,6 @@ export function BookReflowReader({ projectId, title, chapters, userId, onBack, t
           background: `linear-gradient(to top, ${theme.bg} 38%, ${theme.bg}00)`,
         }}
       >
-        <p
-          className="absolute inset-x-0 text-center text-[12px] tabular-nums"
-          style={{ bottom: "calc(env(safe-area-inset-bottom) + 20px)", color: theme.muted }}
-        >
-          {position.page} of {position.totalPages}
-        </p>
         <button
           onClick={() => setMenuOpen((o) => !o)}
           aria-label="Reader menu"
