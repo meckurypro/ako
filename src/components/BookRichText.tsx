@@ -178,6 +178,57 @@ export function BookRichText({
             return (
               <CodeBlock key={key} text={b.text} fontSize={fontSize} muted={muted} gap={gap} />
             );
+          case "image":
+            return (
+              <figure key={key} style={{ margin: 0, marginBottom: gap }}>
+                <img
+                  src={b.url}
+                  alt={b.alt}
+                  loading="lazy"
+                  decoding="async"
+                  referrerPolicy="no-referrer"
+                  style={{ display: "block", maxWidth: "100%", height: "auto", margin: "0 auto", borderRadius: 8 }}
+                />
+                {b.alt && (
+                  <figcaption className="text-center" style={{ color: muted, fontSize: fontSize - 3, lineHeight: 1.4, marginTop: 6 }}>
+                    {b.alt}
+                  </figcaption>
+                )}
+              </figure>
+            );
+          case "table":
+            return (
+              <div key={key} className="overflow-x-auto" style={{ marginBottom: gap }}>
+                <table style={{ borderCollapse: "collapse", minWidth: "100%", fontSize: fontSize - 1, lineHeight: 1.45 }}>
+                  <thead>
+                    <tr>
+                      {b.head.map((cell, c) => (
+                        <th
+                          key={`${key}-h${c}`}
+                          style={{ textAlign: b.align[c], fontWeight: 700, padding: "6px 10px", borderBottom: `1.5px solid ${muted}`, verticalAlign: "bottom" }}
+                        >
+                          {renderInline(cell, `${key}-h${c}`, accent)}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {b.rows.map((row, r) => (
+                      <tr key={`${key}-r${r}`}>
+                        {row.map((cell, c) => (
+                          <td
+                            key={`${key}-r${r}c${c}`}
+                            style={{ textAlign: b.align[c], padding: "6px 10px", borderBottom: `1px solid ${muted}`, verticalAlign: "top", overflowWrap: "anywhere" }}
+                          >
+                            {renderInline(cell, `${key}-r${r}c${c}`, accent)}
+                          </td>
+                        ))}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            );
           case "hr":
             return ornament ? (
               <div key={key} className="flex justify-center" style={{ margin: `${fontSize * 1.3}px 0` }}>

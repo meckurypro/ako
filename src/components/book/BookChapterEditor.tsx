@@ -3,11 +3,12 @@
 // chapter exactly as the reader will (same parser, same block renderer, same Copy button on code blocks).
 // Everything the reader can display is one button away; the text underneath stays plain Markdown.
 import { useRef, useState } from "react";
-import { Bold, Code, FileCode, Italic, Link as LinkIcon, List, ListOrdered, Minus, Quote } from "lucide-react";
+import { Bold, Code, FileCode, Image as ImageIcon, Italic, Link as LinkIcon, List, ListOrdered, Minus, Quote, Table as TableIcon } from "lucide-react";
 
 import { BookRichText } from "../BookRichText";
 import { BOOK_SECTION_INFO, type BookChapterKind } from "../../hooks/useBookBuilder";
-import { applyBookFormat, type BookFormatOp } from "../../lib/bookEditorOps";
+import { useUploadProjectThumbnail } from "../../hooks/useUploadProjectThumbnail";
+import { applyBookFormat, insertBookImage, type BookFormatOp, type EditResult } from "../../lib/bookEditorOps";
 import { parseBook } from "../../lib/bookFormat";
 import { splitChapterOpener } from "../../lib/bookReaderText";
 import { READER_THEMES } from "../../lib/bookReaderTheme";
@@ -26,6 +27,7 @@ const TOOLS: { op: BookFormatOp; label: string; text?: string; Icon?: typeof Bol
   { op: "numbered", label: "Numbered list", Icon: ListOrdered },
   { op: "quote", label: "Quote", Icon: Quote },
   { op: "codeblock", label: "Code block (readers get a Copy button)", Icon: FileCode },
+  { op: "table", label: "Table", Icon: TableIcon },
   { op: "divider", label: "Divider", Icon: Minus },
 ];
 
@@ -45,16 +47,39 @@ export function BookChapterEditor({
   const [themeId] = useBookReaderTheme();
   const theme = READER_THEMES[themeId];
 
-  function apply(op: BookFormatOp) {
+  const fileRef = useRef<HTMLInputElement>(null);
+  const upload = useUploadProjectThumbnail();
+  const [imageError, setImageError] = useState<string | null>(null);
+
+  function commit(r: EditResult) {
     const el = ref.current;
-    const s = el?.selectionStart ?? content.length;
-    const e = el?.selectionEnd ?? content.length;
-    const r = applyBookFormat(content, s, e, op);
     onChange(r.text);
     requestAnimationFrame(() => {
       el?.focus();
       el?.setSelectionRange(r.start, r.end);
     });
+  }
+
+  function apply(op: BookFormatOp) {
+    const el = ref.current;
+    commit(applyBookFormat(content, el?.selectionStart ?? content.length, el?.selectionEnd ?? content.length, op));
+  }
+
+  async function onPickImage(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    setImageError(null);
+    // Remember where the cursor was; the upload takes a moment and the text box may move on.
+    const el = ref.current;
+    const s = el?.selectionStart ?? content.length;
+    const end = el?.selectionEnd ?? content.length;
+    try {
+      const { url } = await upload.mutateAsync(file);
+      commit(insertBookImage(content, s, end, url));
+    } catch (err) {
+      setImageError(err instanceof Error ? err.message : "Couldn't upload that image.");
+    }
   }
 
   const tab = (m: "write" | "preview", label: string) => (
@@ -92,7 +117,20 @@ export function BookChapterEditor({
                 {Icon ? <Icon size={15} /> : text}
               </button>
             ))}
+            <button
+              type="button"
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={() => fileRef.current?.click()}
+              disabled={upload.isPending}
+              aria-label="Image"
+              title="Image (type a caption inside the [ ] after it is added)"
+              className="min-w-8 h-8 px-1.5 rounded-lg text-ink-muted hover:bg-surface hover:text-ink flex items-center justify-center text-xs font-semibold disabled:opacity-40"
+            >
+              {upload.isPending ? "…" : <ImageIcon size={15} />}
+            </button>
+            <input ref={fileRef} type="file" accept="image/jpeg,image/png,image/webp,image/gif" onChange={onPickImage} className="hidden" />
           </div>
+          {imageError && <p className="text-danger text-xs">{imageError}</p>}
           <textarea
             ref={ref}
             value={content}
