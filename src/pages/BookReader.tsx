@@ -34,6 +34,15 @@ const THEME_FILTER: Record<ReaderTheme, string> = {
   dark: "invert(0.92) hue-rotate(180deg) brightness(0.92) contrast(0.88)",
 };
 
+// Pages with no text layer are pictures (a flyer, a scan, a photo spread). Inverting those turns faces and artwork
+// into negatives, so in dark mode they are only dimmed, never inverted.
+const PICTORIAL_FILTER: Record<ReaderTheme, string> = {
+  light: "none",
+  sepia: "sepia(0.2) brightness(0.97)",
+  dark: "brightness(0.8) contrast(0.95)",
+};
+const PICTORIAL_MIN_CHARS = 20;
+
 const THEME_BG: Record<ReaderTheme, string> = {
   light: "#F7F4EF",
   sepia: "#EFE4CC",
@@ -89,6 +98,7 @@ function BookPdfPageReader() {
   // Where the reader stopped last time, offered once on reopening: continue there, or start from the beginning.
   const [resumeOffer, setResumeOffer] = useState<{ page: number } | null>(null);
 
+  const [pictorial, setPictorial] = useState(false);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const touchStartX = useRef<number | null>(null);
@@ -204,6 +214,14 @@ function BookPdfPageReader() {
     canvas.style.height = `${viewport.height / (window.devicePixelRatio || 1)}px`;
 
     await page.render({ canvasContext: ctx, viewport, canvas }).promise;
+
+    try {
+      const content = await page.getTextContent();
+      const chars = content.items.reduce((n, it) => n + ("str" in it ? it.str.trim().length : 0), 0);
+      setPictorial(chars < PICTORIAL_MIN_CHARS);
+    } catch {
+      setPictorial(false);
+    }
   }, [pdf, pageNum]);
 
   useEffect(() => {
@@ -331,7 +349,7 @@ function BookPdfPageReader() {
           <canvas
             ref={canvasRef}
             style={{
-              filter: `${THEME_FILTER[theme]} brightness(${brightness}%)`,
+              filter: `${(pictorial ? PICTORIAL_FILTER : THEME_FILTER)[theme]} brightness(${brightness}%)`,
               boxShadow: "0 8px 30px rgba(0,0,0,0.25)",
               borderRadius: "2px",
             }}
