@@ -56,7 +56,6 @@ import {
 } from "../../lib/bookReaderTheme";
 import { BookRichText } from "../BookRichText";
 import { FONT_STACKS } from "./fontStacks";
-import { ChapterScrollMark, MARK_TRACK_H, useChapterScrollMark } from "./ChapterScrollMark";
 import { ContentsSheet, SearchSheet, SettingsSheet, chapterLabel, type ContentsTab } from "./ReaderSheets";
 import { useBookReaderTheme } from "./useBookReaderTheme";
 
@@ -124,7 +123,6 @@ export function BookReflowReader({ projectId, title, chapters, userId, onBack, t
   const [resumeOffer, setResumeOffer] = useState<{ chapterId: string; fraction: number } | null>(null);
   const [fraction, setFraction] = useState(0);
   const [dims, setDims] = useState({ vw: 390, vh: 800, contentH: 0 });
-  const scrollMark = useChapterScrollMark();
   const [scrub, setScrub] = useState<number | null>(null);
   const [jumpBack, setJumpBack] = useState<{ chapterId: string; fraction: number; label: string } | null>(null);
 
@@ -210,12 +208,6 @@ export function BookReflowReader({ projectId, title, chapters, userId, onBack, t
 
   const currentIndex = chapters.findIndex((c) => c.id === chapterId);
   const current = currentIndex >= 0 ? chapters[currentIndex] : null;
-  // Each chapter starts with the scroll mark hidden.
-  const currentChapterId = current?.id;
-  const resetScrollMark = scrollMark.reset;
-  useEffect(() => {
-    resetScrollMark();
-  }, [currentChapterId, resetScrollMark]);
   const prev = currentIndex > 0 ? chapters[currentIndex - 1] : null;
   const next = currentIndex >= 0 && currentIndex < chapters.length - 1 ? chapters[currentIndex + 1] : null;
 
@@ -306,7 +298,6 @@ export function BookReflowReader({ projectId, title, chapters, userId, onBack, t
   function handleScroll() {
     const el = scrollRef.current;
     if (!el || !current) return;
-    scrollMark.onScroll(el);
     if (rafRef.current == null) {
       rafRef.current = requestAnimationFrame(() => {
         rafRef.current = null;
@@ -501,9 +492,6 @@ export function BookReflowReader({ projectId, title, chapters, userId, onBack, t
       className="fixed inset-0 flex select-none flex-col overflow-hidden"
       style={{ background: theme.bg, color: theme.ink, colorScheme: theme.dark ? "dark" : "light" }}
     >
-      {/* Where you are in the chapter: a faint mark on the left edge, only while scrolling */}
-      <ChapterScrollMark mark={scrollMark} color={theme.muted} top={`max(env(safe-area-inset-top), ${(dims.vh - MARK_TRACK_H) / 2}px)`} />
-
       {/* Return pill after a jump */}
       {jumpBack && !chromeVisible && (
         <button
@@ -569,14 +557,6 @@ export function BookReflowReader({ projectId, title, chapters, userId, onBack, t
       <div
         ref={scrollRef}
         onScroll={handleScroll}
-        onWheel={scrollMark.gesture}
-        onKeyDown={scrollMark.gesture}
-        onTouchStart={scrollMark.pointerDown}
-        onTouchEnd={scrollMark.pointerUp}
-        onTouchCancel={scrollMark.pointerUp}
-        onPointerDown={scrollMark.pointerDown}
-        onPointerUp={scrollMark.pointerUp}
-        onPointerCancel={scrollMark.pointerUp}
         onClick={handleTap}
         className="flex-1 select-text overflow-y-auto overscroll-contain"
         style={{
