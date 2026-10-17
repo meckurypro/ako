@@ -9,6 +9,7 @@ Source of truth for the push pipeline's edge functions. Deploy with the Supabase
 | `send-activity-push` | off (shared secret in `x-webhook-secret`) | DB triggers on `notifications` / `page_notifications` via `invoke_push_function()` |
 | `check-push-receipts` | off (shared secret) | pg_cron, every 15 min |
 | `delete-project` | on | the native app and web, when an owner deletes a project (`useDeleteProject`) |
+| `extract-book-pdf` | on | web + native: after an uploaded-PDF book is created, and on the owner's first open of a PDF book with no chapters yet (`extractBookPdf`) |
 
 ## Android channel ids
 
@@ -38,3 +39,10 @@ accepting that secret as an alternative to the caller's JWT.
 `delete-project` hard-deletes a project owned by the caller. Purchases, music licence acceptances and assignment submissions
 are kept on purpose (RESTRICT foreign keys), so a project with those gets a 409 with a plain message telling the owner to
 archive it instead. Course lessons cascade with their module (`supabase/ako_course_lessons_cascade.sql`).
+
+## Uploaded-PDF books -> chapters
+
+`extract-book-pdf` extracts an uploaded PDF's text into `book_chapters` (chapters from the PDF outline, else detected
+"Chapter N"/large headings, else 10-page runs) so it reads in the reflow reader on web and native. Scans with no text
+layer return `ok:false, reason:"no_text"`. Supabase caps edge requests at ~2 s CPU (a 400-page text PDF measured ~1.5 s),
+so very long PDFs may time out. `supabase/ako_book_pdf_chapters.sql` makes `book_chapters` honour `allow_read_in_app`.

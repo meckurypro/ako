@@ -2,6 +2,7 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { useSmartBack } from "../hooks/useSmartBack";
+import { extractBookPdf } from "../hooks/useBookBuilder";
 import { ArrowLeft, ImageIcon } from "lucide-react";
 import { Avatar } from "../components/Avatar";
 import { SupportingImagesField } from "../components/SupportingImagesField";
@@ -312,7 +313,7 @@ export function CreateProject() {
     }
 
     try {
-      await createProject.mutateAsync({
+      const created = await createProject.mutateAsync({
         title: title.trim(),
         description: description.trim() || undefined,
         project_type: projectType,
@@ -436,6 +437,11 @@ export function CreateProject() {
               }
             : undefined,
       });
+      // An uploaded PDF book: extract its text into chapters in the background (best effort — the reader retries on the
+      // owner's first open, and falls back to page images if it can't).
+      if (projectType === "book" && bookFields.content_source === "upload" && bookFields.allow_read_in_app && created?.id) {
+        void extractBookPdf(created.id).catch(() => {});
+      }
       if (postingAsPage) {
         navigate(`/page/${postingAsPage.username}?tab=projects`);
         toast(`${title.trim()} created successfully.`, { variant: "success" });

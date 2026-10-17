@@ -13,6 +13,8 @@ import { useProjectOwnership } from "../hooks/useProjectOwnership";
 import { useRecordFreeProjectOpen } from "../hooks/useProjectAccess";
 import { ResumePrompt } from "../components/ResumePrompt";
 import { resolveFunctionErrorMessage } from "../lib/functionErrors";
+import { Book } from "./Book";
+import { useBookChapters, useExtractBookPdf } from "../hooks/useBookBuilder";
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
   "pdfjs-dist/build/pdf.worker.min.mjs",
@@ -50,7 +52,7 @@ const THEME_INK: Record<ReaderTheme, string> = {
   dark: "#F9F8F5",
 };
 
-export function BookReader() {
+function BookPdfPageReader() {
   const { projectId } = useParams<{ projectId: string }>();
   const navigate = useNavigate();
   const { user } = useAuth();
@@ -425,4 +427,46 @@ export function BookReader() {
       )}
     </div>
   );
+}
+
+// /projects/:id/read for a book. An uploaded PDF reads as reflowable chapters (same reader as an authored book) once its
+// text has been extracted; the owner's first open triggers that extraction. Scans (no text layer), books whose host
+// turned off in-app reading, and anything the extractor can't handle keep the page-image reader above.
+export function BookReader() {
+  const { projectId } = useParams<{ projectId: string }>();
+  const { user } = useAuth();
+  const { data: project } = useProject(projectId);
+  const { data: bookDetails } = useBookDetails(projectId);
+  const chaptersQuery = useBookChapters(projectId);
+  const extract = useExtractBookPdf(projectId ?? "");
+  const ownership = useProjectOwnership();
+  const triedRef = useRef(false);
+
+  const isOwner = !!user && ownership.isOwner(project);
+  const canRead = !!bookDetails?.allow_read_in_app;
+  const hasChapters = (chaptersQuery.data?.length ?? 0) > 0;
+  const needsExtract =
+    isOwner && canRead && bookDetails?.content_source === "upload" && chaptersQuery.isSuccess && !hasChapters;
+
+  useEffect(() => {
+    if (!needsExtract || triedRef.current) return;
+    triedRef.current = true;
+    extract.mutate(false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [needsExtract]);
+
+  const waiting =
+    !project || !bookDetails || chaptersQuery.isLoading || ownership.loading || (needsExtract && !extract.isError && (extract.isIdle || extract.isPending));
+
+  if (waiting && bookDetails?.content_source !== "authored") {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center gap-2 bg-canvas px-6 text-center">
+        <p className="text-ink">{needsExtract ? "Preparing your book for reading…" : "Loading…"}</p>
+        {needsExtract ? <p className="text-sm text-ink-muted">This only happens once and can take a moment for long books.</p> : null}
+      </div>
+    );
+  }
+
+  if (hasChapters && canRead) return <Book />;
+  return <BookPdfPageReader />;
 }
