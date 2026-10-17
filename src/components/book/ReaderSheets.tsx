@@ -29,7 +29,7 @@ export function chapterLabel(c: BookChapter): string {
 // Frame
 // ---------------------------------------------------------------
 
-function Sheet({
+export function Sheet({
   theme,
   title,
   subtitle,

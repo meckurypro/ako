@@ -41,6 +41,7 @@ import {
   type EventHighlight,
 } from "../hooks/useEventHighlights";
 import { useGigReviews, useGigRatingSummary, useCanReviewGig, useAddGigReview } from "../hooks/useGigReviews";
+import { BookReviewsSection } from "../components/book/BookReviewsSection";
 import { Avatar } from "../components/Avatar";
 import { TierBadge } from "../components/TierBadge";
 import { RoleTags } from "../components/RoleTags";
@@ -486,6 +487,9 @@ export function ProjectDetail({ resolvedProjectId }: { resolvedProjectId?: strin
           <GigFaqSection faq={gigDetails.faq} />
         )}
         {project.project_type === "gig" && <GigReviewsSection projectId={project.id} />}
+
+        {/* Book reviews: signed-in users only (RLS enforces it too); reviewing happens in the reader. */}
+        {project.project_type === "book" && !isGuest && <BookReviewsSection projectId={project.id} />}
 
         {project.project_type === "event" && <EventHighlightsSection projectId={project.id} isOwner={isOwner} />}
 

@@ -23,6 +23,7 @@ import {
   RotateCcw,
   Search,
   Share,
+  Star,
   Type,
 } from "lucide-react";
 
@@ -39,6 +40,7 @@ import {
   type BookBookmark,
   type BookChapter,
 } from "../../hooks/useBookBuilder";
+import { useCanReviewBook, useMyBookReview } from "../../hooks/useBookReviews";
 import { parseBook } from "../../lib/bookFormat";
 import { chapterPlainText, readingMinutes, snippetAt, splitChapterOpener } from "../../lib/bookReaderText";
 import {
@@ -57,6 +59,8 @@ import {
 import { BookRichText } from "../BookRichText";
 import { FONT_STACKS } from "./fontStacks";
 import { ContentsSheet, SearchSheet, SettingsSheet, chapterLabel, type ContentsTab } from "./ReaderSheets";
+import { ReviewSheet } from "./ReviewSheet";
+import { StarPicker, StarRow } from "./Stars";
 import { useBookReaderTheme } from "./useBookReaderTheme";
 
 const SAVE_DEBOUNCE_MS = 900;
@@ -78,7 +82,7 @@ function writeStored(key: string, value: string) {
   }
 }
 
-type Sheet = null | "contents" | "search" | "settings";
+type Sheet = null | "contents" | "search" | "settings" | "review";
 
 interface BookReflowReaderProps {
   projectId: string;
@@ -97,6 +101,10 @@ export function BookReflowReader({ projectId, title, chapters, userId, onBack, t
   const { data: bookmarkData } = useBookBookmarks(projectId, userId);
   const addBookmark = useAddBookBookmark(projectId, userId);
   const deleteBookmark = useDeleteBookBookmark(projectId, userId);
+  // Reviews: the owner and anyone without access can't review, so the entry points only show for readers who can.
+  const { data: canReview } = useCanReviewBook(projectId);
+  const { review: myReview } = useMyBookReview(projectId);
+  const [reviewSeed, setReviewSeed] = useState<number | undefined>(undefined);
   const bookDoorway = useFeedDoorway("book");
   const bookmarks = useMemo(() => bookmarkData ?? [], [bookmarkData]);
 
@@ -622,6 +630,26 @@ export function BookReflowReader({ projectId, title, chapters, userId, onBack, t
             ) : (
               <>
                 <p className="text-[15px] font-semibold">You've reached the end of {title}</p>
+                {(canReview || myReview) && (
+                  <div className="flex flex-col items-center gap-2 py-1">
+                    <p className="text-[13px]" style={{ color: theme.muted }}>
+                      {myReview ? "Your rating" : "How was it? Tap to rate"}
+                    </p>
+                    {myReview ? (
+                      <button onClick={() => { setReviewSeed(undefined); setSheet("review"); }} aria-label="Edit your review">
+                        <StarRow rating={myReview.rating} size={26} on={theme.accent} off={theme.rule} />
+                      </button>
+                    ) : (
+                      <StarPicker
+                        value={0}
+                        size={30}
+                        on={theme.accent}
+                        off={theme.rule}
+                        onChange={(n) => { setReviewSeed(n); setSheet("review"); }}
+                      />
+                    )}
+                  </div>
+                )}
                 <button
                   onClick={() => setView("toc")}
                   className="mt-1 rounded-full px-5 py-2.5 text-[14px] font-semibold"
@@ -726,6 +754,9 @@ export function BookReflowReader({ projectId, title, chapters, userId, onBack, t
               { label: `Contents · ${overallPct}%`, icon: <List size={17} />, run: () => { setContentsTab("contents"); setSheet("contents"); setMenuOpen(false); } },
               { label: "Bookmarks", count: bookmarks.length, icon: <Bookmark size={17} />, run: () => { setContentsTab("bookmarks"); setSheet("contents"); setMenuOpen(false); } },
               { label: "Search Book", icon: <Search size={17} />, run: () => { setSheet("search"); setMenuOpen(false); } },
+              ...(canReview || myReview
+                ? [{ label: myReview ? "Your Review" : "Rate & Review", icon: <Star size={17} />, run: () => { setReviewSeed(undefined); setSheet("review"); setMenuOpen(false); } }]
+                : []),
               { label: "Themes & Settings", icon: <Type size={17} />, run: () => { setSheet("settings"); setMenuOpen(false); } },
             ].map((it, i) => (
               <button
@@ -788,6 +819,9 @@ export function BookReflowReader({ projectId, title, chapters, userId, onBack, t
           onDeleteBookmark={(id) => deleteBookmark.mutate(id)}
           onClose={() => setSheet(null)}
         />
+      )}
+      {sheet === "review" && (
+        <ReviewSheet theme={theme} projectId={projectId} bookTitle={title} initialRating={reviewSeed} onClose={() => { setSheet(null); setReviewSeed(undefined); }} />
       )}
       {sheet === "search" && <SearchSheet theme={theme} chapters={chapters} onOpenHit={(id, f) => goTo(id, f)} onClose={() => setSheet(null)} />}
       {sheet === "settings" && (
