@@ -1,5 +1,7 @@
 // src/components/LoadingOverlay.tsx
 import { useIsMutating } from "@tanstack/react-query";
+import { useLocation } from "react-router-dom";
+import { usePageLoading } from "../hooks/usePageLoading";
 
 // Mount once, near the root, inside QueryClientProvider. Any mutation
 // tagged `meta: { blocking: true }` (profile save, create/edit post,
@@ -41,6 +43,44 @@ export function LoadingOverlay() {
           />
         ))}
       </div>
+    </div>
+  );
+}
+
+// The spinner ring shared by both overlays.
+function LoaderRing() {
+  return (
+    <div className="relative ako-loader" aria-hidden="true">
+      {Array.from({ length: 8 }).map((_, i) => (
+        <span
+          key={i}
+          className="ako-loader-dot"
+          style={{
+            transform: `rotate(${i * 45}deg) translateY(-15px)`,
+            animationDelay: `${(i * -0.125).toFixed(3)}s`,
+          }}
+        />
+      ))}
+    </div>
+  );
+}
+
+// Mount inside <BrowserRouter>, before the routes. Covers the page with the same blurred spinner while the page
+// the user just opened is still loading its first data; gone the moment that data arrives. Touches pass through
+// (pointer-events-none) so Back / the nav bar still work if a request is slow.
+export function PageLoadingOverlay() {
+  const { pathname } = useLocation();
+  const loading = usePageLoading(pathname);
+  if (!loading) return null;
+  return (
+    <div
+      className="fixed inset-0 z-[998] flex items-center justify-center pointer-events-none"
+      role="status"
+      aria-live="polite"
+      aria-label="Loading"
+    >
+      <div className="absolute inset-0 bg-canvas/35 backdrop-blur-sm animate-ako-overlay-in" />
+      <LoaderRing />
     </div>
   );
 }
