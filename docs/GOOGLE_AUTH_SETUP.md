@@ -17,8 +17,8 @@ The native app (`Ako.native`) uses the same Supabase project and the same Google
 ## 2. Supabase dashboard
 1. Authentication → Sign In / Providers → **Google** → enable, paste Client ID + Client secret.
 2. Authentication → **URL Configuration**
-   - Site URL: `https://ako-lime.vercel.app`
-   - Redirect URLs (add all): `https://ako-lime.vercel.app/auth/callback`, `http://localhost:5173/auth/callback`
+   - Site URL: `https://myako.site`
+   - Redirect URLs (add all): `https://myako.site/auth/callback`, `http://localhost:5173/auth/callback`
      (local dev), and for the native app `ako://auth/oauth`.
 
 ## 3. Database

@@ -1,4 +1,17 @@
 {
+  "redirects": [
+    {
+      "source": "/(.*)",
+      "has": [
+        {
+          "type": "host",
+          "value": "ako-lime.vercel.app"
+        }
+      ],
+      "destination": "https://myako.site/$1",
+      "permanent": true
+    }
+  ],
   "rewrites": [
     {
       "source": "/post/:id",

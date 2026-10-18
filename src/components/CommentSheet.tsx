@@ -29,6 +29,7 @@ import { useReportReasons, useSubmitReport } from "../hooks/useReports";
 import { formatCompactCount } from "../lib/formatStats";
 import { renderFormattedText } from "../lib/formatText";
 import type { Stance } from "../types/database";
+import { APP_URL } from "../lib/appUrl";
 
 function timeAgo(dateString: string): string {
   const seconds = Math.floor((Date.now() - new Date(dateString).getTime()) / 1000);
@@ -413,7 +414,7 @@ export function CommentSheet({
   const totalCount = commentCount ?? rootList.length;
 
   async function handleShare(comment: CommentWithAuthor) {
-    const url = `${window.location.origin}/post/${postId}#comment-${comment.id}`;
+    const url = `${APP_URL}/post/${postId}#comment-${comment.id}`;
     if (navigator.share) {
       try {
         await navigator.share({ title: "A comment on Akọ", url });

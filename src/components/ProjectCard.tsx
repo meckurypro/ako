@@ -75,6 +75,7 @@ import { ProjectImageCarousel } from "./ProjectImageCarousel";
 import { MAX_THUMB_HEIGHT_VH, thumbnailLayout } from "../lib/thumbnailFit";
 import { projectGalleryImages } from "../lib/projectImages";
 import { loginPathFor, returnPathOf } from "../lib/authRedirect";
+import { APP_URL } from "../lib/appUrl";
 
 // File and URL keep the original single-link/download "unlock"
 // pattern inline in the action row. Media's audio/video preview now
@@ -606,7 +607,7 @@ export function ProjectCard({
     // Ako — never project.external_url, which points AWAY from Ako to
     // wherever the project itself links out to. Those are two
     // different things and only one of them is "sharing the project."
-    const url = shareUrl ?? `${window.location.origin}/projects/${project.id}`;
+    const url = shareUrl ?? `${APP_URL}/projects/${project.id}`;
     if (navigator.share) {
       try {
         await navigator.share({ title: project.title, url });

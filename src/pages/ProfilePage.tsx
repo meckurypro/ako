@@ -55,6 +55,7 @@ import { PostListSkeleton, ProfilePageSkeleton, ProjectMiniGridSkeleton } from "
 import { BottomNav } from "../components/BottomNav";
 import { ProfileAdSlot } from "../components/ProfileAdSlot";
 import { useIsRestricted } from "../hooks/useAccountAccess";
+import { APP_URL } from "../lib/appUrl";
 
 // Website links are saved in full (whatever the user pastes, including
 // long query strings), but only the bare domain is ever shown — the
@@ -1136,7 +1137,7 @@ export function ProfilePage() {
           name={profile.display_name}
           handle={profile.username}
           avatarUrl={profile.avatar_url}
-          url={`${window.location.origin}/profile/${profile.username}`}
+          url={`${APP_URL}/profile/${profile.username}`}
           onClose={() => setQrShareOpen(false)}
         />
       )}

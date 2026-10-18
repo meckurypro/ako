@@ -26,6 +26,9 @@ const SUPABASE_URL = process.env.VITE_SUPABASE_URL ?? process.env.SUPABASE_URL;
 const SUPABASE_ANON_KEY = process.env.VITE_SUPABASE_ANON_KEY ?? process.env.SUPABASE_ANON_KEY;
 
 const SITE_NAME = "Akọ";
+// Canonical public origin for og:url / canonical / the human redirect, so a
+// preview never advertises a *.vercel.app or preview-deployment host.
+const PUBLIC_ORIGIN = (process.env.VITE_APP_URL ?? process.env.APP_URL ?? "https://myako.site").replace(/\/+$/, "");
 const DEFAULT_TITLE = "Akọ — A Reason To Reason";
 const DEFAULT_DESCRIPTION = "Discover and share projects, books, courses, events and more on Akọ.";
 const FETCH_TIMEOUT_MS = 4000;
@@ -282,7 +285,7 @@ function cardForProfile(profile: PreviewProfile): Card {
 }
 
 function renderHtml(card: Card, origin: string, requestedPath: string): string {
-  const canonical = `${origin}${card.canonicalPath ?? requestedPath}`;
+  const canonical = `${PUBLIC_ORIGIN}${card.canonicalPath ?? requestedPath}`;
   // Raw uploads can be huge and WhatsApp drops previews over ~300 KB, so
   // project images go through the resizer; no image → small default card.
   const image = card.image

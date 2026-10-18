@@ -36,6 +36,8 @@
 // exists purely so the UI can validate as the user types without a
 // round trip.
 
+import { APP_URL } from "./appUrl";
+
 const SLUG_FORMAT = /^[a-z0-9]+(-[a-z0-9]+)*$/;
 
 // Mirrors is_reserved_project_slug() in Postgres. Not a security
@@ -96,5 +98,5 @@ export function getProjectPath(project: { id: string; slug?: string | null }): s
 }
 
 export function getProjectUrl(project: { id: string; slug?: string | null }): string {
-  return `${window.location.origin}${getProjectPath(project)}`;
+  return `${APP_URL}${getProjectPath(project)}`;
 }

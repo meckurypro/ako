@@ -15,6 +15,7 @@ import {
 } from "../hooks/useAffiliates";
 import { useFeatureFlag } from "../hooks/useFeatureFlags";
 import { formatUsd } from "../lib/money";
+import { APP_URL } from "../lib/appUrl";
 
 interface AffiliateShareSheetProps {
   projectId: string;
@@ -39,7 +40,7 @@ export function AffiliateShareSheet({ projectId, projectTitle, shareUrl, onClose
   const toast = useToast();
   const [copied, setCopied] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const baseUrl = shareUrl ?? `${window.location.origin}/projects/${projectId}`;
+  const baseUrl = shareUrl ?? `${APP_URL}/projects/${projectId}`;
 
   const { data: program } = useAffiliateProgram(projectId);
   const { data: commissionPct } = useCurrentCommissionPct(program?.id);

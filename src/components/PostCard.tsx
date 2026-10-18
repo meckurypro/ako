@@ -65,6 +65,7 @@ import {
 import { formatPostTime, formatPostDate, formatCompactCount } from "../lib/formatStats";
 import { isPlainReshare, isQuote, type PostWithAuthor, type Stance } from "../types/database";
 import { timeAgo } from "../lib/timeAgo";
+import { APP_URL } from "../lib/appUrl";
 
 const DOUBLE_TAP_WINDOW_MS = 300;
 
@@ -297,7 +298,7 @@ export function PostCard({
   }
 
   async function handleShare() {
-    const url = `${window.location.origin}/post/${post.id}`;
+    const url = `${APP_URL}/post/${post.id}`;
     if (navigator.share) {
       try {
         await navigator.share({ url });

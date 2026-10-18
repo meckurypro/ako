@@ -31,6 +31,7 @@ import { ProjectMiniGrid } from "../components/ProjectMiniCard";
 import { pageModeLabel } from "../lib/pageRoles";
 import { ConfirmDialog } from "../components/ConfirmDialog";
 import { useFeatureFlag } from "../hooks/useFeatureFlags";
+import { APP_URL } from "../lib/appUrl";
 
 function getWebsiteHref(url: string): string {
   return /^https?:\/\//i.test(url) ? url : `https://${url}`;
@@ -145,7 +146,7 @@ export function PagePage() {
 
   async function sharePage() {
     if (!page) return;
-    const url = `${window.location.origin}/page/${page.username}`;
+    const url = `${APP_URL}/page/${page.username}`;
     if (navigator.share) {
       try {
         await navigator.share({ title: page.name, url });

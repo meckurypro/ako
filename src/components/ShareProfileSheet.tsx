@@ -28,6 +28,7 @@ import { Avatar } from "./Avatar";
 import { Button } from "./Button";
 import { useToast } from "./Toast";
 import { WhatsAppGlyph, FacebookGlyph, XGlyph } from "./BrandIcons";
+import { APP_URL } from "../lib/appUrl";
 
 interface ShareProfileSheetProps {
   profile: { id: string; username: string; display_name: string; avatar_url: string | null };
@@ -84,7 +85,7 @@ export function ShareProfileSheet({
   useScrollLock();
   const toast = useToast();
 
-  const profileUrl = `${window.location.origin}/profile/${profile.username}`;
+  const profileUrl = `${APP_URL}/profile/${profile.username}`;
   const shareText = `Check out ${profile.display_name} on Akọ`;
 
   // ---- "Send to" recent chats ----

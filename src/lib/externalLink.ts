@@ -2,6 +2,8 @@
 // Decides whether a link leaves Akọ. Same-origin links, our own storage (media, files),
 // and non-web schemes (mailto:, tel:) never prompt.
 
+import { APP_URL } from "./appUrl";
+
 function supabaseHost(): string | null {
   try {
     return new URL(import.meta.env.VITE_SUPABASE_URL as string).hostname;
@@ -19,7 +21,7 @@ export function externalHost(href: string): string | null {
     return null;
   }
   if (url.protocol !== "http:" && url.protocol !== "https:") return null;
-  if (url.origin === window.location.origin) return null;
+  if (url.origin === window.location.origin || url.origin === APP_URL) return null;
   if (url.hostname === supabaseHost()) return null;
   return url.hostname.replace(/^www\./, "");
 }
