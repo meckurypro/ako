@@ -50,6 +50,7 @@ import { WalletPage } from "./pages/Wallet";
 import { FundWallet } from "./pages/FundWallet";
 import { Withdraw } from "./pages/Withdraw";
 import { DepositCallback } from "./pages/DepositCallback";
+import { DepositReturn } from "./pages/DepositReturn";
 import { MyAffiliateLinks } from "./pages/MyAffiliateLinks";
 import { AffiliateRefCapture } from "./components/AffiliateRefCapture";
 
@@ -423,6 +424,8 @@ function AppRoutes() {
                 </RequireAuth>
               }
             />
+            {/* Public bounce page: returns native-app deposits to the app via ako:// (no web login needed). */}
+            <Route path="/wallet/deposit/return" element={<DepositReturn />} />
             <Route
               path="/wallet/deposit/callback"
               element={
