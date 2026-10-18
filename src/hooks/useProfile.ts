@@ -1,4 +1,4 @@
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { queryOptions, useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "../lib/supabase";
 import { useAuth } from "./useAuth";
 import { useSound } from "./useSound";
@@ -6,8 +6,13 @@ import { useActiveIdentity } from "./usePages";
 import { PROFILE_ROLES_SELECT, toProfileRoles } from "../lib/profileRoles";
 import type { Profile, ProfileWithRoles } from "../types/database";
 
-export function useProfileByUsername(username: string) {
-  return useQuery({
+/**
+ * Shared by the page's useQuery and by intent-prefetching (ProfilePrefetch), so both hit the same cache entry.
+ * Revisiting a profile (Back, tab hop) paints from cache instantly and skips the refetch for a minute;
+ * follow/edit mutations invalidate this key, so changes still show immediately.
+ */
+export function profileByUsernameOptions(username: string) {
+  return queryOptions({
     queryKey: ["profile", username],
     queryFn: async (): Promise<ProfileWithRoles> => {
       const { data, error } = await supabase
@@ -19,11 +24,12 @@ export function useProfileByUsername(username: string) {
       const { profile_roles, ...profile } = data as any;
       return { ...profile, roles: toProfileRoles(profile_roles) };
     },
-    enabled: !!username,
-    // Revisiting a profile (Back, tab hop) paints from cache instantly and skips the refetch for a minute;
-    // follow/edit mutations invalidate this key, so changes still show immediately.
     staleTime: 60_000,
   });
+}
+
+export function useProfileByUsername(username: string) {
+  return useQuery({ ...profileByUsernameOptions(username), enabled: !!username });
 }
 
 /**

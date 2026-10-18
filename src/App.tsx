@@ -12,6 +12,7 @@ import { LoadingOverlay } from "./components/LoadingOverlay";
 import { usePageThemeSync } from "./hooks/usePageThemeSync";
 import { ToastProvider } from "./components/Toast";
 import { AppShell } from "./components/AppShell";
+import { ProfilePrefetch } from "./components/ProfilePrefetch";
 
 import { SignUp } from "./pages/auth/SignUp";
 import { Login } from "./pages/auth/Login";
@@ -136,6 +137,7 @@ export default function App() {
             <ScrollToTop />
             <PathHistoryTracker />
             <ExternalLinkGuard />
+            <ProfilePrefetch />
             <AffiliateRefCapture />
             <ErrorBoundary>
               <AppRoutes />

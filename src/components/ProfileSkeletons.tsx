@@ -4,6 +4,7 @@
 // pattern users perceive as fastest (and it never blocks Back / the nav bar).
 import { thumbBoxAspectClass } from "../lib/bookCover";
 import type { ProjectType } from "../hooks/useProjects";
+import { BottomNav } from "./BottomNav";
 
 /** Pulsing placeholder tiles shaped like ProjectMiniCard — same grid, same cover ratio, so nothing jumps on load. */
 export function ProjectMiniGridSkeleton({ count = 4, projectType }: { count?: number; projectType?: ProjectType }) {
@@ -22,13 +23,20 @@ export function ProjectMiniGridSkeleton({ count = 4, projectType }: { count?: nu
   );
 }
 
-/** Whole-profile placeholder: header block + tab bar + a grid, shown only until the profile row itself arrives. */
+/**
+ * Whole-profile placeholder, shown only until the profile row itself arrives. The app frame never disappears:
+ * the sticky toolbar bar (same height/position as the real one, its buttons fill in once we know whose profile
+ * this is) and the BottomNav stay put, and only the content area pulses — the same "frame stays, content
+ * reloads" behaviour as pull-to-refresh.
+ */
 export function ProfilePageSkeleton() {
   return (
-    <div className="min-h-screen bg-canvas pb-24" role="status" aria-busy="true" aria-label="Loading profile">
-      <div className="max-w-xl md:max-w-2xl mx-auto px-4">
-        <div className="h-14" />
-        <div className="animate-pulse">
+    <div className="min-h-screen bg-canvas pb-24">
+      <div className="sticky top-0 z-chrome bg-canvas shadow-[0_2px_8px_-4px_rgba(var(--shadow-ink-rgb),0.10)]">
+        <div className="max-w-xl md:max-w-2xl mx-auto px-4 h-14" />
+      </div>
+      <div className="max-w-xl md:max-w-2xl mx-auto px-4" role="status" aria-busy="true" aria-label="Loading profile">
+        <div className="animate-pulse pt-4">
           <div className="flex items-center gap-4">
             <div className="w-20 h-20 rounded-full bg-surface shrink-0" />
             <div className="flex-1 space-y-2.5">
@@ -47,9 +55,10 @@ export function ProfilePageSkeleton() {
           <div className="mt-6 h-10 w-full rounded bg-surface" />
         </div>
         <div className="mt-4">
-          <ProjectMiniGridSkeleton />
+          <PostListSkeleton count={2} />
         </div>
       </div>
+      <BottomNav />
     </div>
   );
 }

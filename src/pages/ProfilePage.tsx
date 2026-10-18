@@ -571,8 +571,9 @@ export function ProfilePage() {
   if (isLoading) return <ProfilePageSkeleton />;
   if (!profile) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-canvas">
+      <div className="min-h-screen flex items-center justify-center bg-canvas pb-24">
         <p className="text-ink-muted">Profile not found.</p>
+        <BottomNav />
       </div>
     );
   }
