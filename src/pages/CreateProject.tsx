@@ -593,8 +593,8 @@ export function CreateProject() {
           <p className="text-xs text-ink-muted mb-4">
             {PROJECT_TYPE_HINTS[projectType]}
             {postingAsPage
-              ? " Event, Room, and Course are page-only — that's why some types you might expect aren't listed here."
-              : " Gig, Meeting, Media, and File are personal-only — switch to a page to create an Event, Room, or Course."}
+              ? " Event and Room are page-only — that's why some types you might expect aren't listed here."
+              : " Gig, Meeting, Media, and File are personal-only — switch to a page to create an Event or Room."}
           </p>
 
           {eligibility && !eligibility.eligible && (
