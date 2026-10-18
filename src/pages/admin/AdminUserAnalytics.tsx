@@ -1,7 +1,9 @@
 // src/pages/admin/AdminUserAnalytics.tsx
 import { useState } from "react";
+import { Link } from "react-router-dom";
 import { ArrowLeft } from "lucide-react";
 import { useSmartBack } from "../../hooks/useSmartBack";
+import type { UserListFilter } from "../../hooks/useAdminUserList";
 import {
   useUserStats,
   usePostGrowth,
@@ -158,18 +160,32 @@ function Delta({ current, previous, label }: { current: number; previous: number
 function StatCard({
   label,
   value,
+  filter,
   children,
 }: {
   label: string;
   value: number;
+  /** When set, the card is a link to the paginated list of the users behind it. */
+  filter?: UserListFilter;
   children?: React.ReactNode;
 }) {
-  return (
-    <div className="bg-surface rounded-xl p-4 border border-border">
+  const body = (
+    <>
       <p className="text-xs text-ink-muted mb-1">{label}</p>
       <p className="font-display text-2xl text-ink">{value.toLocaleString()}</p>
       {children}
-    </div>
+    </>
+  );
+  const base = "bg-surface rounded-xl p-4 border border-border";
+  if (!filter) return <div className={base}>{body}</div>;
+  return (
+    <Link
+      to={`/admin/analytics/users?filter=${filter}&page=1`}
+      aria-label={`${label}: ${value}. View users`}
+      className={`${base} block active:bg-canvas transition-colors`}
+    >
+      {body}
+    </Link>
   );
 }
 
@@ -198,25 +214,25 @@ function UsersSection() {
       {stats && (
         <>
           <div className="grid grid-cols-2 gap-3 mb-3">
-            <StatCard label="Total users" value={stats.total}>
+            <StatCard label="Total users" filter="all" value={stats.total}>
               <p className="text-[11px] mt-1 text-ink-muted">
                 {stats.first_signup ? `Since ${formatShortDate(stats.first_signup)}` : "No sign-ups yet"}
                 {stats.deleted > 0 ? ` · ${stats.deleted} deleted` : ""}
               </p>
             </StatCard>
-            <StatCard label="New today" value={stats.new.today}>
+            <StatCard label="New today" filter="today" value={stats.new.today}>
               <Delta current={stats.new.today} previous={stats.new.yesterday} label="yesterday" />
             </StatCard>
-            <StatCard label="New this week" value={stats.new.this_week}>
+            <StatCard label="New this week" filter="this_week" value={stats.new.this_week}>
               <Delta current={stats.new.this_week} previous={stats.new.last_week} label="last week" />
             </StatCard>
-            <StatCard label="New this month" value={stats.new.this_month}>
+            <StatCard label="New this month" filter="this_month" value={stats.new.this_month}>
               <Delta current={stats.new.this_month} previous={stats.new.last_month} label="last month" />
             </StatCard>
-            <StatCard label="New (last 7 days)" value={stats.new.last_7}>
+            <StatCard label="New (last 7 days)" filter="last_7" value={stats.new.last_7}>
               <Delta current={stats.new.last_7} previous={stats.new.prev_7} label="previous 7 days" />
             </StatCard>
-            <StatCard label="New (last 30 days)" value={stats.new.last_30}>
+            <StatCard label="New (last 30 days)" filter="last_30" value={stats.new.last_30}>
               <Delta current={stats.new.last_30} previous={stats.new.prev_30} label="previous 30 days" />
             </StatCard>
           </div>
@@ -256,9 +272,9 @@ function UsersSection() {
           </div>
 
           <div className="grid grid-cols-3 gap-3 mb-3">
-            <StatCard label="Active (24h)" value={stats.active.day} />
-            <StatCard label="Active (7d)" value={stats.active.week} />
-            <StatCard label="Active (30d)" value={stats.active.month} />
+            <StatCard label="Active (24h)" filter="active_day" value={stats.active.day} />
+            <StatCard label="Active (7d)" filter="active_week" value={stats.active.week} />
+            <StatCard label="Active (30d)" filter="active_month" value={stats.active.month} />
           </div>
           <p className="text-[11px] text-ink-muted mb-3">
             Active = signed-in users last seen within that window.

@@ -69,6 +69,7 @@ import { AdminLogin } from "./pages/admin/AdminLogin";
 import { AdminHome } from "./pages/admin/AdminHome";
 import { AdminCategories } from "./pages/admin/AdminCategories";
 import { AdminUserAnalytics } from "./pages/admin/AdminUserAnalytics";
+import { AdminUserList } from "./pages/admin/AdminUserList";
 import { AdminGiftTypes } from "./pages/admin/AdminGiftTypes";
 import { AdminExchangeRates } from "./pages/admin/AdminExchangeRates";
 import { AdminPayouts } from "./pages/admin/AdminPayouts";
@@ -562,6 +563,16 @@ function AppRoutes() {
                 <RequireAuth>
                   <RequireAdmin>
                     <AdminUserAnalytics />
+                  </RequireAdmin>
+                </RequireAuth>
+              }
+            />
+            <Route
+              path="/admin/analytics/users"
+              element={
+                <RequireAuth>
+                  <RequireAdmin>
+                    <AdminUserList />
                   </RequireAdmin>
                 </RequireAuth>
               }
