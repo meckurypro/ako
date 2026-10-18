@@ -4,6 +4,7 @@
 // see FundWallet.tsx.
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "../lib/supabase";
+import { resolveFunctionErrorMessage } from "../lib/functionErrors";
 import { useAuth } from "./useAuth";
 
 interface InitiateDepositResult {
@@ -29,7 +30,7 @@ export function useInitiateDeposit() {
       const { data, error } = await supabase.functions.invoke("initiate-deposit", {
         body: { amount_usd },
       });
-      if (error) throw error;
+      if (error) throw new Error(await resolveFunctionErrorMessage(error, "Couldn't start payment."));
       if (data?.error) throw new Error(data.error);
       return data;
     },
@@ -53,13 +54,14 @@ export function useVerifyDeposit() {
       const { data, error } = await supabase.functions.invoke("verify-deposit", {
         body: { reference },
       });
-      if (error) throw error;
+      if (error) throw new Error(await resolveFunctionErrorMessage(error, "Couldn't verify this payment."));
       if (data?.error) throw new Error(data.error);
       return data;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["wallet"] });
       queryClient.invalidateQueries({ queryKey: ["wallet-transactions"] });
+      queryClient.invalidateQueries({ queryKey: ["deposits"] });
     },
   });
 }

@@ -1,6 +1,7 @@
 // src/hooks/useGifting.ts
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "../lib/supabase";
+import { resolveFunctionErrorMessage } from "../lib/functionErrors";
 import { useSound } from "./useSound";
 import { useAuth } from "./useAuth";
 
@@ -22,7 +23,7 @@ export function useSendGift() {
         body: input,
       });
 
-      if (error) throw error;
+      if (error) throw new Error(await resolveFunctionErrorMessage(error, "Couldn't send gift."));
       if (data?.error) throw new Error(data.error);
 
       return data.gift;

@@ -1039,13 +1039,14 @@ export function usePurchaseProject() {
       const { data, error } = await supabase.functions.invoke("purchase-project", {
         body: { project_id: projectId },
       });
-      if (error) throw error;
+      if (error) throw new Error(await resolveFunctionErrorMessage(error, "Purchase failed."));
       if (data?.error) throw new Error(data.error);
       return data.purchase;
     },
     onSuccess: (_data, projectId) => {
       queryClient.invalidateQueries({ queryKey: ["has-purchased", projectId] });
       queryClient.invalidateQueries({ queryKey: ["wallet"] });
+      queryClient.invalidateQueries({ queryKey: ["wallet-transactions"] });
       play("unlock-success");
     },
   });
