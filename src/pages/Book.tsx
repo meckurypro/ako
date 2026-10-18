@@ -19,6 +19,7 @@ import { useRecordFreeProjectOpen } from "../hooks/useProjectAccess";
 import { useProject, useHasPurchased, isProjectFree, getEffectivePrice, usePurchaseProject, useUpdateProject } from "../hooks/useProjects";
 import { BOOK_COVER_HINT } from "../lib/bookCover";
 import { getProjectUrl } from "../lib/projectLinks";
+import { BookReaderSkeleton } from "../components/book/BookReaderSkeleton";
 import { BookReflowReader } from "../components/book/BookReflowReader";
 import { BookChapterEditor } from "../components/book/BookChapterEditor";
 import { useIsProjectMember } from "../hooks/useProjectMembers";
@@ -55,18 +56,17 @@ export function Book() {
   const hasAccess = !privacyBlocked && (isOwner || isFree || !!hasPurchasedQuery.data);
   useRecordFreeProjectOpen(project, { isOwner: isCreator, enabled: !privacyBlocked });
 
-  const { data: chapters } = useBookChapters(projectId);
+  const chaptersQuery = useBookChapters(projectId);
+  const chapters = chaptersQuery.data;
   const purchaseProject = usePurchaseProject();
 
   const ordered = useMemo(() => (chapters ?? []).slice().sort((a, b) => a.sort_order - b.sort_order), [chapters]);
 
   // Wait for the acting identity: until it resolves isOwner is false, which would flash the locked view at the creator.
-  if (!project || ownership.loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-canvas">
-        <p className="text-ink-muted">Loading…</p>
-      </div>
-    );
+  // A buyer's access resolves after the project does; without this a paid book flashes its locked view first.
+  const accessPending = !isOwner && !isFree && hasPurchasedQuery.isLoading;
+  if (!project || ownership.loading || accessPending) {
+    return <BookReaderSkeleton title={project?.title} thumbnailUrl={project?.thumbnail_url} onBack={() => navigate(-1)} />;
   }
 
   if (!hasAccess) {
@@ -82,6 +82,11 @@ export function Book() {
         onBack={() => navigate(-1)}
       />
     );
+  }
+
+  // Don't open the reader on an empty chapter list ("0 sections · about 0 min read"): wait for the text.
+  if (chaptersQuery.isLoading) {
+    return <BookReaderSkeleton title={project.title} thumbnailUrl={project.thumbnail_url} onBack={() => navigate(-1)} />;
   }
 
   return <BookReflowReader

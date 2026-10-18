@@ -30,6 +30,7 @@ import {
 import { ProjectMiniCard } from "../components/ProjectMiniCard";
 import { useMarkProjectSeen } from "../hooks/useMarkProjectSeen";
 import { useAuth } from "../hooks/useAuth";
+import { usePrefetchBookChapters } from "../hooks/useBookBuilder";
 import { useProjectOwnership } from "../hooks/useProjectOwnership";
 import { useRecordFreeProjectOpen } from "../hooks/useProjectAccess";
 import { useCountdown, formatCountdown } from "../hooks/useCountdown";
@@ -337,6 +338,7 @@ export function ProjectDetail({ resolvedProjectId }: { resolvedProjectId?: strin
   const isGuest = !authLoading && !user;
   const returnTo = returnPathOf(location);
   const { data: project, isLoading } = useProjectDetail(projectId);
+  usePrefetchBookChapters(project?.id, !!user && project?.project_type === "book");
   const { data: similar } = useSimilarProjects(user ? project : undefined);
   const { data: eventDetails } = useEventDetails(project?.project_type === "event" ? projectId : undefined);
   const { data: meetingDetails } = useMeetingDetails(project?.project_type === "meeting" ? projectId : undefined);
