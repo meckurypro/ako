@@ -8,6 +8,12 @@ import { ArrowLeft, ImageIcon } from "lucide-react";
 import { Avatar } from "../components/Avatar";
 import { SupportingImagesField } from "../components/SupportingImagesField";
 import {
+  isTypeAllowedForKind,
+  useBypassesCreatorRules,
+  useCreatorRules,
+  useMyCreatorKind,
+} from "../hooks/useCreatorKinds";
+import {
   useCreateProject,
   PROJECT_TYPE_LABELS,
   PROJECT_TYPE_HINTS,
@@ -94,12 +100,18 @@ export function CreateProject() {
   const { data: myStats } = useMyEligibilityStats();
   const { data: isExempt } = useMyProjectTypeExemption();
 
+  // Admin account-kind matrix: restricted / unrestricted / page type.
+  const creatorKind = useMyCreatorKind();
+  const { data: creatorRules } = useCreatorRules();
+  const bypassesCreatorRules = useBypassesCreatorRules();
+
   const allowedTypes = getVisibleProjectTypes(
     postingAsPage ? "page" : "personal",
     typeSettings,
     accessRules,
     myStats,
-    isExempt
+    isExempt,
+    (type) => bypassesCreatorRules || isTypeAllowedForKind(creatorRules, type, creatorKind)
   );
 
   const eligibility = getProjectTypeEligibility(projectType, accessRules, myStats, isExempt);
@@ -115,7 +127,7 @@ export function CreateProject() {
       setProjectType(allowedTypes[0]);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [postingAsPage?.id, typeSettings, accessRules, myStats, isExempt]);
+  }, [postingAsPage?.id, typeSettings, accessRules, myStats, isExempt, creatorRules, creatorKind]);
 
   // Type-specific state — only the block matching projectType is
   // read/validated/sent; switching types keeps the others' state
@@ -262,6 +274,11 @@ export function CreateProject() {
     // so this is UX, not the real security boundary.
     if (eligibility && !eligibility.eligible) {
       setError(eligibility.reasons[0]);
+      return;
+    }
+
+    if (allowedTypes.length > 0 && !allowedTypes.includes(projectType)) {
+      setError("This kind of account can't create that project type.");
       return;
     }
 
@@ -572,6 +589,13 @@ export function CreateProject() {
 
           {/* Project type drives everything below it — this is the
               one field that changes what the rest of the form shows. */}
+          {allowedTypes.length === 0 && (
+            <div className="mb-4 px-4 py-3 rounded-xl bg-surface border border-border">
+              <p className="text-sm text-ink-muted">
+                There are no project types available to this account right now.
+              </p>
+            </div>
+          )}
           <div className="mb-1.5">
             <label htmlFor="project_type" className="block text-sm font-medium text-ink-muted mb-1.5">
               Project type

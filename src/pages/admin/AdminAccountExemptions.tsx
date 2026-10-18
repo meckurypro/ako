@@ -27,8 +27,8 @@ export function AdminAccountExemptions() {
         </div>
 
         <p className="text-xs text-ink-muted mb-4">
-          Exempting an account lets it create any project type without meeting the follower, account-age,
-          or engagement rules set under Project types. A type that's switched off entirely still stays off
+          Exempting an account lets it create any project type without meeting the account-kind, follower,
+          account-age, or engagement rules set under Project types. A type that's switched off entirely still stays off
           for exempted accounts.
         </p>
 

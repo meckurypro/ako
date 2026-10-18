@@ -5,6 +5,7 @@ import { AuthProvider } from "./hooks/useAuth";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import { RequireAuth } from "./components/RequireAuth";
 import { RequireFullAccess, HomeRedirect } from "./components/RequireFullAccess";
+import { RequireProjectCreation } from "./components/RequireProjectCreation";
 import { ScrollToTop } from "./components/ScrollToTop";
 import { PathHistoryTracker } from "./components/PathHistoryTracker";
 import { ExternalLinkGuard } from "./components/ExternalLinkGuard";
@@ -798,9 +799,9 @@ function AppRoutes() {
               path="/projects/new"
               element={
                 <RequireAuth>
-                  <RequireFullAccess>
+                  <RequireProjectCreation>
                     <CreateProject />
-                  </RequireFullAccess>
+                  </RequireProjectCreation>
                 </RequireAuth>
               }
             />

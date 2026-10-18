@@ -5,6 +5,7 @@ import { Avatar } from "./Avatar";
 import { useUnreadCount } from "../hooks/useNotifications";
 import { useMyProfile } from "../hooks/useProfile";
 import { useIsRestricted } from "../hooks/useAccountAccess";
+import { useCanCreateAnyProject } from "../hooks/useCreatorKinds";
 
 interface TopHeaderProps {
   // Feed passes "create" — a "+" that opens /create (see
@@ -28,11 +29,22 @@ export function TopHeader({ leftAction = "avatar" }: TopHeaderProps) {
   const { data: me } = useMyProfile();
   const location = useLocation();
   const restricted = useIsRestricted();
+  const restrictedCanCreate = useCanCreateAnyProject();
 
   return (
     <header className="px-4 pt-5 pb-2 flex items-center justify-between">
-      {leftAction === "create" && restricted ? (
+      {leftAction === "create" && restricted && !restrictedCanCreate ? (
         <span className="w-9 h-9 -ml-1.5" aria-hidden />
+      ) : leftAction === "create" && restricted ? (
+        // Restricted accounts can't post, so "+" goes straight to the
+        // project form (an admin has allowed them at least one type).
+        <Link
+          to="/projects/new"
+          aria-label="Create project"
+          className="flex items-center justify-center w-9 h-9 -ml-1.5 rounded-full text-ink-muted"
+        >
+          <Plus size={24} strokeWidth={2} />
+        </Link>
       ) : leftAction === "create" ? (
         <Link
           to="/create"

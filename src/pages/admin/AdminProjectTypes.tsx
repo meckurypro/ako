@@ -9,8 +9,16 @@ import {
   useToggleHideWhenIneligible,
   useAdminAccessRules,
   useUpdateAccessRule,
+  useSetCreatorRule,
   type ProjectTypeAccessRule,
 } from "../../hooks/useAdmin";
+import {
+  CREATOR_KINDS,
+  CREATOR_KIND_HINTS,
+  CREATOR_KIND_LABELS,
+  isTypeAllowedForKind,
+  useCreatorRules,
+} from "../../hooks/useCreatorKinds";
 import { PROJECT_TYPE_LABELS, PROJECT_TYPE_OPTIONS, type ProjectType } from "../../hooks/useProjects";
 
 // Local editable copy of one rule's three numbers, keyed by the
@@ -121,6 +129,42 @@ function RuleFields({
   );
 }
 
+// Who may create this type, by account kind. Each toggle is saved on tap.
+function CreatorKindFields({ projectType }: { projectType: ProjectType }) {
+  const { data: creatorRules } = useCreatorRules();
+  const setRule = useSetCreatorRule();
+
+  return (
+    <div className="bg-canvas rounded-lg p-3 space-y-3">
+      <div>
+        <p className="text-sm font-medium text-ink">Who can create this</p>
+        <p className="text-xs text-ink-muted mt-0.5">
+          Choose which kinds of account may create a {PROJECT_TYPE_LABELS[projectType]}. Admins and
+          exempted accounts are never limited by this.
+        </p>
+      </div>
+      {CREATOR_KINDS.map((kind) => (
+        <div key={kind} className="flex items-center justify-between gap-3">
+          <div className="min-w-0">
+            <p className="text-sm text-ink">{CREATOR_KIND_LABELS[kind]}</p>
+            <p className="text-xs text-ink-muted">{CREATOR_KIND_HINTS[kind]}</p>
+          </div>
+          <ToggleSwitch
+            checked={isTypeAllowedForKind(creatorRules, projectType, kind)}
+            disabled={!creatorRules || setRule.isPending}
+            onChange={(allowed) =>
+              setRule.mutate({ project_type: projectType, creator_kind: kind, allowed })
+            }
+          />
+        </div>
+      ))}
+      {setRule.isError && (
+        <p className="text-xs text-danger">Couldn't save that change. Try again.</p>
+      )}
+    </div>
+  );
+}
+
 export function AdminProjectTypes() {
   const smartBack = useSmartBack();
   const { data: settings, isLoading: settingsLoading } = useAdminProjectTypeSettings();
@@ -142,8 +186,9 @@ export function AdminProjectTypes() {
         </div>
 
         <p className="text-xs text-ink-muted mb-4">
-          Turn a project type off to hide it from every host's type picker app-wide. Expand a type to set
-          the achievements a user needs before they can create one, even while it's on. These rules only
+          Turn a project type off to hide it from every host's type picker app-wide. Expand a type to choose
+          which kinds of account (restricted, unrestricted, or each page type) may create it, and the
+          achievements a user needs before they can, even while it's on. These rules only
           ever affect who can create a project of that type — anyone can still view, buy, or use one that
           already exists. Need to clear a specific account regardless of these rules? Use{" "}
           <Link to="/admin/account-exemptions" className="text-accent">Account exemptions</Link>.
@@ -203,6 +248,8 @@ export function AdminProjectTypes() {
                           }
                         />
                       </div>
+
+                      <CreatorKindFields projectType={type} />
 
                       <RuleFields projectType={type} rule={rule} />
                     </div>

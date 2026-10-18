@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "../lib/supabase";
+import type { CreatorKind } from "./useCreatorKinds";
 import { useAuth } from "./useAuth";
 import type { ProjectType } from "./useProjects";
 
@@ -486,6 +487,38 @@ export function useUpdateAccessRule() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["admin-access-rules"] });
       queryClient.invalidateQueries({ queryKey: ["project-type-access-rules"] });
+    },
+  });
+}
+
+// ------------------------------------------------------------
+// Account-kind matrix — which kind of account (restricted,
+// unrestricted, organization/brand/product page) may create a given
+// project type. Upsert so a type with no row yet for a kind still
+// saves; a missing row is treated as "allowed" everywhere.
+// ------------------------------------------------------------
+export function useSetCreatorRule() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({
+      project_type,
+      creator_kind,
+      allowed,
+    }: {
+      project_type: ProjectType;
+      creator_kind: CreatorKind;
+      allowed: boolean;
+    }) => {
+      const { error } = await supabase
+        .from("project_type_creator_rules")
+        .upsert(
+          { project_type, creator_kind, allowed, updated_at: new Date().toISOString() },
+          { onConflict: "project_type,creator_kind" }
+        );
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["project-type-creator-rules"] });
     },
   });
 }

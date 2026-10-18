@@ -20,6 +20,7 @@ import { useActiveIdentity } from "../hooks/usePages";
 import { useUnreadCount } from "../hooks/useNotifications";
 import { useIsAdmin } from "../hooks/useAdmin";
 import { useIsRestricted } from "../hooks/useAccountAccess";
+import { useCanCreateAnyProject } from "../hooks/useCreatorKinds";
 import { useMediaQuery } from "../hooks/useMediaQuery";
 
 type IconProps = { size?: number; strokeWidth?: number; fill?: string; className?: string };
@@ -129,6 +130,7 @@ export function Sidebar({ collapsed, onToggleCollapsed }: SidebarProps) {
   const notifUnread = useUnreadCount();
   const { data: isAdmin } = useIsAdmin();
   const restricted = useIsRestricted();
+  const restrictedCanCreate = useCanCreateAnyProject();
   const location = useLocation();
 
   // `collapsed` is the pinned preference (persisted — see AppShell),
@@ -249,11 +251,11 @@ export function Sidebar({ collapsed, onToggleCollapsed }: SidebarProps) {
       </nav>
 
       {/* Create — primary action, not buried in a submenu */}
-      {!restricted && (
+      {(!restricted || restrictedCanCreate) && (
         <div className="px-3 pt-3">
           <Link
-            to="/create"
-            state={{ background: location }}
+            to={restricted ? "/projects/new" : "/create"}
+            state={restricted ? undefined : { background: location }}
             className={`flex items-center gap-3 rounded-full bg-accent text-canvas font-semibold px-3 py-2.5 transition-opacity hover:opacity-90 ${
               !showLabels ? "justify-center" : ""
             }`}
