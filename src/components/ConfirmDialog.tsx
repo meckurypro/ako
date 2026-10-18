@@ -9,6 +9,8 @@ interface ConfirmDialogProps {
   cancelLabel?: string;
   /** Red confirm button + warning icon. Defaults true — this component only exists for things worth pausing on. */
   danger?: boolean;
+  /** Follow the app theme (light/dark) instead of the fixed dark-glass panel. */
+  themed?: boolean;
   onConfirm: () => void;
   onCancel: () => void;
 }
@@ -37,11 +39,12 @@ export function ConfirmDialog({
   confirmLabel,
   cancelLabel = "Cancel",
   danger = true,
+  themed = false,
   onConfirm,
   onCancel,
 }: ConfirmDialogProps) {
   return (
-    <Modal onClose={onCancel} role="alertdialog" ariaLabel={title}>
+    <Modal onClose={onCancel} role="alertdialog" ariaLabel={title} themed={themed}>
       <div className="flex items-start gap-4">
         {danger && (
           <span className="flex-shrink-0 w-10 h-10 rounded-full bg-overlay-danger-soft text-overlay-danger flex items-center justify-center">

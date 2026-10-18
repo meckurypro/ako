@@ -34,6 +34,9 @@ interface ModalProps {
    *  behind the modal's own backdrop. ArchivedPostModal passes
    *  "z-40" here for exactly this reason. */
   zIndexClass?: string;
+  /** Follow the app's light/dark theme (light panel + dark text, or dark panel + light text) instead of the
+   *  fixed dark-glass overlay look. Used by the external-link prompt. */
+  themed?: boolean;
 }
 
 /**
@@ -84,6 +87,7 @@ export function Modal({
   maxWidthClass = "max-w-sm",
   bare = false,
   zIndexClass = "z-[60]",
+  themed = false,
 }: ModalProps) {
   useBackDismiss(onClose);
   useScrollLock();
@@ -104,7 +108,7 @@ export function Modal({
           className={
             bare
               ? `relative w-full ${maxWidthClass} max-h-[85vh] overflow-y-auto`
-              : `relative w-full ${maxWidthClass} max-h-[85vh] overflow-y-auto ako-overlay-panel text-overlay-ink rounded-[28px] p-6`
+              : `relative w-full ${maxWidthClass} max-h-[85vh] overflow-y-auto ${themed ? "ako-themed-panel" : "ako-overlay-panel"} text-overlay-ink rounded-[28px] p-6`
           }
         >
           {children}
