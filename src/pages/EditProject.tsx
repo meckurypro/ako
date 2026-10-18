@@ -738,7 +738,7 @@ export function EditProject() {
           )}
           {project.project_type === "book" && (
             <>
-              <BookFields value={bookFields} onChange={setBookFields} onError={setError} />
+              <BookFields value={bookFields} onChange={setBookFields} onError={setError} existingSource={existingBookDetails?.content_source} />
               {bookFields.content_source === "authored" && (
                 <p className="text-xs text-ink-muted mb-4 -mt-2">
                   Manage chapters from the book builder.

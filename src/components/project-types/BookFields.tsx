@@ -1,8 +1,9 @@
 // src/components/project-types/BookFields.tsx
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { FileUp, Info } from "lucide-react";
 import { FormField } from "../FormField";
 import { useUploadProjectFile } from "../../hooks/useUploadProjectFile";
+import { useFeatureFlag } from "../../hooks/useFeatureFlags";
 
 export type BookContentSource = "link" | "upload" | "authored";
 
@@ -36,6 +37,8 @@ interface BookFieldsProps {
   value: BookFieldsValue;
   onChange: (value: BookFieldsValue) => void;
   onError: (message: string) => void;
+  /** Edit screen: the book's saved source. Stays selectable even if its flag is now off. */
+  existingSource?: BookContentSource;
 }
 
 const SOURCE_OPTIONS: { value: BookContentSource; label: string; hint: string }[] = [
@@ -44,8 +47,29 @@ const SOURCE_OPTIONS: { value: BookContentSource; label: string; hint: string }[
   { value: "authored", label: "Write in Akọ", hint: "Build it chapter by chapter, right here, like a Course." },
 ];
 
-export function BookFields({ value, onChange, onError }: BookFieldsProps) {
+export function BookFields({ value, onChange, onError, existingSource }: BookFieldsProps) {
   const uploadFile = useUploadProjectFile();
+  const pdfUploadEnabled = useFeatureFlag("book_pdf_upload_enabled");
+  const linkEnabled = useFeatureFlag("book_link_enabled");
+
+  // Admin feature flags can hide "Upload PDF" / "Link". A book that
+  // already uses a hidden source keeps showing it (existingSource) so
+  // editing it doesn't strand it; everything else just loses the option.
+  const visibleOptions = SOURCE_OPTIONS.filter((opt) => {
+    if (opt.value === existingSource) return true;
+    if (opt.value === "upload") return pdfUploadEnabled;
+    if (opt.value === "link") return linkEnabled;
+    return true;
+  });
+
+  // If the current selection isn't offered (e.g. the default "upload"
+  // while that flag is off), fall back to the first one that is.
+  useEffect(() => {
+    if (!visibleOptions.some((o) => o.value === value.content_source)) {
+      onChange({ ...value, content_source: visibleOptions[0].value });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pdfUploadEnabled, linkEnabled, existingSource, value.content_source]);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [, setTick] = useState(0); // forces disabled/label state to re-render during upload
 
@@ -97,7 +121,7 @@ export function BookFields({ value, onChange, onError }: BookFieldsProps) {
       <div className="mb-4">
         <label className="block text-sm font-medium text-ink-muted mb-1.5">How are you adding it?</label>
         <div className="flex flex-col gap-2">
-          {SOURCE_OPTIONS.map((opt) => (
+          {visibleOptions.map((opt) => (
             <label
               key={opt.value}
               className={`flex items-start gap-3 px-4 py-3 rounded-xl border cursor-pointer ${
