@@ -168,15 +168,24 @@ function cardFor(project: PreviewProject): Card {
 
 function renderHtml(card: Card, origin: string, requestedPath: string): string {
   const canonical = `${origin}${card.canonicalPath ?? requestedPath}`;
-  const image = card.image ?? `${origin}/app_icon_light.png`;
+  // Raw uploads can be huge and WhatsApp drops previews over ~300 KB, so
+  // project images go through the resizer; no image → small default card.
+  const image = card.image
+    ? `${origin}/api/og-image?src=${encodeURIComponent(card.image)}`
+    : `${origin}/og_default.png`;
   const t = escapeHtml(card.title);
   const d = escapeHtml(card.description);
   const u = escapeHtml(canonical);
   const i = escapeHtml(image);
-  const dims =
-    card.image && card.imageWidth && card.imageHeight
-      ? `<meta property="og:image:width" content="${card.imageWidth}" />\n    <meta property="og:image:height" content="${card.imageHeight}" />`
-      : "";
+  // Resized output (max 1200px) keeps the original aspect ratio; the default is 1200x630.
+  const scale =
+    card.image && card.imageWidth && card.imageHeight ? Math.min(1, 1200 / Math.max(card.imageWidth, card.imageHeight)) : 1;
+  const dims = card.image
+    ? card.imageWidth && card.imageHeight
+      ? `<meta property="og:image:width" content="${Math.round(card.imageWidth * scale)}" />\n    <meta property="og:image:height" content="${Math.round(card.imageHeight * scale)}" />`
+      : ""
+    : `<meta property="og:image:width" content="1200" />\n    <meta property="og:image:height" content="630" />`;
+  const wide = !card.image || !card.imageWidth || !card.imageHeight || card.imageWidth / card.imageHeight >= 1.3;
 
   return `<!doctype html>
 <html lang="en">
@@ -192,7 +201,7 @@ function renderHtml(card: Card, origin: string, requestedPath: string): string {
     <meta property="og:url" content="${u}" />
     <meta property="og:image" content="${i}" />
     ${dims}
-    <meta name="twitter:card" content="${card.image ? "summary_large_image" : "summary"}" />
+    <meta name="twitter:card" content="${wide ? "summary_large_image" : "summary"}" />
     <meta name="twitter:title" content="${t}" />
     <meta name="twitter:description" content="${d}" />
     <meta name="twitter:image" content="${i}" />
