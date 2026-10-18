@@ -9,6 +9,7 @@ import { AuthPattern } from "../../components/AuthPattern";
 import { FormField } from "../../components/FormField";
 import { PasswordField } from "../../components/PasswordField";
 import { Button } from "../../components/Button";
+import { GoogleAuthButton } from "../../components/GoogleAuthButton";
 import { safeReturnPath, signupPathFor } from "../../lib/authRedirect";
 
 export function Login() {
@@ -175,6 +176,11 @@ export function Login() {
             </Link>
           )}
         </form>
+
+        {/* Add-account mode swaps the active session; the Google redirect
+            can't carry the "previous account" snapshot that needs, so it's
+            email/password only there. */}
+        {!addMode && <GoogleAuthButton returnTo={returnTo} />}
 
         <p className="text-center text-sm text-ink-muted mt-6">
           New to Akọ?{" "}

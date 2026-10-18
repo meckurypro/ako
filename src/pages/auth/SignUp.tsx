@@ -8,6 +8,7 @@ import { AuthPattern } from "../../components/AuthPattern";
 import { FormField } from "../../components/FormField";
 import { PasswordField } from "../../components/PasswordField";
 import { Button } from "../../components/Button";
+import { GoogleAuthButton } from "../../components/GoogleAuthButton";
 import { loginPathFor, rememberReturnTo, safeReturnPath } from "../../lib/authRedirect";
 
 type UsernameStatus = "idle" | "checking" | "available" | "taken" | "error";
@@ -269,6 +270,9 @@ export function SignUp() {
             Create account
           </Button>
         </form>
+
+        {/* Add-account mode: see the note in Login.tsx. */}
+        {!addMode && <GoogleAuthButton returnTo={returnTo} />}
 
         <p className="text-center text-sm text-ink-muted mt-6">
           Already have an account?{" "}

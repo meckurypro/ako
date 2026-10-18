@@ -7,6 +7,7 @@ import { saveAccount, takePendingAddAccount } from "../../lib/accountSessions";
 import { Wordmark } from "../../components/Wordmark";
 import { Button } from "../../components/Button";
 import { AuthPattern } from "../../components/AuthPattern";
+import { takeReturnTo } from "../../lib/authRedirect";
 
 // Lands here from the link in the signup-confirmation or password-reset
 // email. We don't route straight to a protected page (e.g.
@@ -14,6 +15,10 @@ import { AuthPattern } from "../../components/AuthPattern";
 // the URL asynchronously — a protected route's session check can run
 // before that finishes and bounce the user to /login. Instead we wait
 // for the specific auth event, then navigate ourselves.
+//
+// Google sign-in (lib/googleAuth.ts) lands here too: the OAuth redirect
+// carries the session the same way, so it completes through the exact
+// same SIGNED_IN path.
 export function AuthCallback() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -22,11 +27,13 @@ export function AuthCallback() {
   useEffect(() => {
     let settled = false;
 
-    // Supabase returns errors (expired/invalid link, already-used link)
-    // as hash params rather than throwing, e.g. #error=access_denied&
-    // error_description=...
+    // Supabase returns errors (expired/invalid link, already-used link,
+    // a cancelled or failed Google sign-in) as URL params rather than
+    // throwing — in the hash for email links (#error=access_denied&…),
+    // in the query string for OAuth (?error=…&error_description=…).
     const hashParams = new URLSearchParams(window.location.hash.replace(/^#/, ""));
-    if (hashParams.get("error")) {
+    const queryParams = new URLSearchParams(window.location.search);
+    if (hashParams.get("error") || queryParams.get("error")) {
       setStatus("error");
       return;
     }
@@ -73,14 +80,30 @@ export function AuthCallback() {
         }
 
         queryClient.clear();
-        // New signups always start onboarding at Welcome. A returning
-        // user completing a password-reset link (not signup) who
-        // somehow lands here mid-onboarding still resolves correctly —
-        // RequireAuth's own onboarding check will bounce /feed back to
-        // whichever step is actually appropriate, so sending everyone
-        // to Welcome here is safe rather than trying to branch on
-        // "is this a signup or a reset" ourselves.
-        navigate("/onboarding/welcome", { replace: true });
+
+        // Where to go next depends on whether this person has finished
+        // onboarding, which an email confirmation (always a brand-new
+        // account) and a Google sign-in (new OR returning) disagree on:
+        //   • not finished → onboarding Welcome. The remembered return
+        //     path is left in place for BuildingAko to pick up at the end.
+        //   • finished     → straight to where they were headed (or /feed).
+        //     Sending a returning Google user to Welcome would only
+        //     bounce them via OnboardingStepGuard and drop that path.
+        // If the lookup fails we fall back to Welcome — RequireAuth and
+        // OnboardingStepGuard sort out whichever step is actually right.
+        void (async () => {
+          const { data: profileRow } = await supabase
+            .from("profiles")
+            .select("onboarding_completed")
+            .eq("id", session.user.id)
+            .single();
+
+          if (profileRow?.onboarding_completed) {
+            navigate(takeReturnTo() ?? "/feed", { replace: true });
+          } else {
+            navigate("/onboarding/welcome", { replace: true });
+          }
+        })();
       }
     });
 
@@ -110,9 +133,10 @@ export function AuthCallback() {
 
         {status === "error" && (
           <>
-            <h2 className="font-display text-2xl text-ink mb-2">Link expired</h2>
+            <h2 className="font-display text-2xl text-ink mb-2">Couldn't sign you in</h2>
             <p className="text-ink-muted mb-8 text-sm">
-              This link is invalid or has already been used. Request a new one below.
+              This link is invalid or has already been used, or Google sign-in didn't
+              complete. Go back and try again.
             </p>
             <Button onClick={() => navigate("/login")}>Back to log in</Button>
           </>
