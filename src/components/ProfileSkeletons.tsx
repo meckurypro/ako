@@ -53,3 +53,27 @@ export function ProfilePageSkeleton() {
     </div>
   );
 }
+
+/** Placeholder rows shaped like PostCard (avatar + name line, text lines, media block). */
+export function PostListSkeleton({ count = 3 }: { count?: number }) {
+  return (
+    <div className="space-y-6" role="status" aria-busy="true" aria-label="Loading posts">
+      {Array.from({ length: count }).map((_, i) => (
+        <div key={i} className="animate-pulse" aria-hidden="true">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-full bg-surface shrink-0" />
+            <div className="flex-1 space-y-2">
+              <div className="h-3.5 w-1/3 rounded bg-surface" />
+              <div className="h-3 w-1/4 rounded bg-surface" />
+            </div>
+          </div>
+          <div className="mt-3 space-y-2">
+            <div className="h-3.5 w-full rounded bg-surface" />
+            <div className="h-3.5 w-3/4 rounded bg-surface" />
+          </div>
+          {i === 0 && <div className="mt-3 aspect-[4/3] w-full rounded-2xl bg-surface" />}
+        </div>
+      ))}
+    </div>
+  );
+}

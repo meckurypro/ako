@@ -51,7 +51,7 @@ import { RoleTags } from "../components/RoleTags";
 import { PostCard } from "../components/PostCard";
 import { ProjectCard } from "../components/ProjectCard";
 import { ProjectMiniCard, ProjectMiniGrid } from "../components/ProjectMiniCard";
-import { ProfilePageSkeleton, ProjectMiniGridSkeleton } from "../components/ProfileSkeletons";
+import { PostListSkeleton, ProfilePageSkeleton, ProjectMiniGridSkeleton } from "../components/ProfileSkeletons";
 import { BottomNav } from "../components/BottomNav";
 import { ProfileAdSlot } from "../components/ProfileAdSlot";
 import { useIsRestricted } from "../hooks/useAccountAccess";
@@ -342,13 +342,16 @@ export function ProfilePage() {
   // Passing "" makes each hook's own `enabled: !!userId` guard skip the
   // request entirely — a locked-out visitor's client never asks the
   // server for this profile's posts/projects in the first place.
-  const { data: projects } = useUserProjects(isPrivateLocked ? "" : profile?.id ?? "", projectsOwnerView);
+  const { data: projects, isLoading: projectsLoading } = useUserProjects(isPrivateLocked ? "" : profile?.id ?? "", projectsOwnerView);
   // Restricted (consumer-only) accounts see projects only — never posts. Everyone else
   // gets the Posts tab; an empty id keeps the query from firing at all.
-  const { data: posts } = useUserPostsWithArchived(isPrivateLocked || restricted ? "" : profile?.id ?? "", false);
-  const { data: portfolioCategories } = usePortfolioCategories(isPrivateLocked ? undefined : profile?.id);
+  const { data: posts, isLoading: postsLoading, isError: postsError } = useUserPostsWithArchived(isPrivateLocked || restricted ? "" : profile?.id ?? "", false);
+  const { data: portfolioCategories, isLoading: portfolioLoading } = usePortfolioCategories(isPrivateLocked ? undefined : profile?.id);
   const { data: categorizedProjectIds } = useCategorizedProjectIds(isPrivateLocked ? undefined : profile?.id);
-  const { data: typeCategories } = useTypePortfolioCategories(isPrivateLocked ? undefined : profile?.id);
+  const { data: typeCategories, isLoading: typeCategoriesLoading } = useTypePortfolioCategories(isPrivateLocked ? undefined : profile?.id);
+  // True until the queries that decide which tabs exist (and what the Projects tab holds) have answered —
+  // an empty-state message before then would claim "nothing here" about data that simply hasn't arrived.
+  const tabsLoading = projectsLoading || portfolioLoading || typeCategoriesLoading;
   const { data: collaboratorMedia } = useCollaboratorMediaProjects(isPrivateLocked ? undefined : profile?.id);
 
   // Archived projects have their own home on the merged Archive page
@@ -968,6 +971,8 @@ export function ProfilePage() {
                 Follow {firstName || "this account"} to see their {restricted ? "projects" : "posts and projects"}.
               </p>
             </div>
+          ) : tabDefs.length === 0 && tabsLoading ? (
+            <ProjectMiniGridSkeleton />
           ) : tabDefs.length === 0 ? (
             <p className="text-ink-muted text-center py-10 text-sm">
               {projectsOwnerView ? "No projects yet — publish your first one." : "No projects yet."}
@@ -985,10 +990,14 @@ export function ProfilePage() {
                 if (tab.id === "posts") {
                   return (
                     <div key="posts">
-                      {posts && posts.length > 0 ? (
+                      {postsLoading ? (
+                        <PostListSkeleton />
+                      ) : posts && posts.length > 0 ? (
                         posts.map((post: any) => (
                           <PostCard key={post.id} post={post} isOwnerView={showOwnerView} />
                         ))
+                      ) : postsError ? (
+                        <p className="text-ink-muted text-center py-10 text-sm">Couldn't load posts. Pull down or reopen the page to retry.</p>
                       ) : (
                         <p className="text-ink-muted text-center py-10 text-sm">No posts yet.</p>
                       )}
@@ -1026,6 +1035,8 @@ export function ProfilePage() {
                         // card opens the project's own canonical page
                         // (slug-aware) on tap, same as everywhere else.
                         <ProjectMiniGrid projects={fallbackProjects} />
+                      ) : projectsLoading ? (
+                        <ProjectMiniGridSkeleton />
                       ) : (
                         <p className="text-ink-muted text-center py-10 text-sm">
                           {projectsOwnerView ? "No projects yet — publish your first one." : "No projects yet."}
