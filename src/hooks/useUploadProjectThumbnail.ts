@@ -1,6 +1,7 @@
 import { useMutation } from "@tanstack/react-query";
 import { supabase } from "../lib/supabase";
 import { useAuth } from "./useAuth";
+import { BOOK_COVER_ERROR, isBookCoverRatio } from "../lib/bookCover";
 
 const MAX_FILE_SIZE = 50 * 1024 * 1024; // matches the post-media bucket limit
 const ALLOWED_TYPES = ["image/jpeg", "image/png", "image/webp", "image/gif"];
@@ -50,8 +51,11 @@ export function useUploadProjectThumbnail() {
   const { user } = useAuth();
 
   return useMutation({
-    mutationFn: async (file: File): Promise<UploadedThumbnail> => {
+    // Pass a bare File for any normal thumbnail, or { file, bookCover: true } to enforce the 2:3 book-cover ratio.
+    mutationFn: async (input: File | { file: File; bookCover?: boolean }): Promise<UploadedThumbnail> => {
       if (!user) throw new Error("Not signed in");
+      const file = input instanceof File ? input : input.file;
+      const bookCover = input instanceof File ? false : !!input.bookCover;
 
       if (!ALLOWED_TYPES.includes(file.type)) {
         throw new Error("Please choose a JPEG, PNG, WebP, or GIF image.");
@@ -63,6 +67,7 @@ export function useUploadProjectThumbnail() {
       // Read dimensions from the file itself — independent of upload,
       // so this works the same regardless of where it's stored.
       const { width, height } = await readImageDimensions(file);
+      if (bookCover && !isBookCoverRatio(width, height)) throw new Error(BOOK_COVER_ERROR);
 
       const ext = file.name.split(".").pop();
       const path = `${user.id}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;

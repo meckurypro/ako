@@ -1,4 +1,5 @@
 // src/components/TagProjectPicker.tsx
+import { isBookType } from "../lib/bookCover";
 import { ImageIcon, X } from "lucide-react";
 import { Portal } from "./Portal";
 import { useBackDismiss } from "../hooks/useBackDismiss";
@@ -63,7 +64,7 @@ export function TagProjectPicker({
                 onClick={() => onSelect(project.id, project.title)}
                 className="w-full flex items-center gap-2.5 px-4 py-2.5 text-left hover:bg-canvas transition-colors"
               >
-                <div className="w-10 h-10 rounded-lg overflow-hidden bg-canvas border border-border flex-shrink-0 flex items-center justify-center">
+                <div className={`w-10 ${isBookType(project.project_type) ? "h-[60px]" : "h-10"} rounded-lg overflow-hidden bg-canvas border border-border flex-shrink-0 flex items-center justify-center`}>
                   {project.thumbnail_url ? (
                     <img src={project.thumbnail_url} alt="" className="w-full h-full object-cover" />
                   ) : (

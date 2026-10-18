@@ -131,7 +131,7 @@ export function CollaborationInviteResponseModal({
                       <img
                         src={previewContent.thumbnail_url}
                         alt=""
-                        className="w-12 h-12 rounded-lg object-cover flex-shrink-0 border border-border"
+                        className={`w-12 ${previewContent.project_type === "book" ? "h-[72px]" : "h-12"} rounded-lg object-cover flex-shrink-0 border border-border`}
                       />
                     ) : (
                       <div className="w-12 h-12 rounded-lg flex-shrink-0 bg-surface border border-border" />

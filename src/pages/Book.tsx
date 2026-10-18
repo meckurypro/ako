@@ -16,7 +16,8 @@ import {
 import { useAuth } from "../hooks/useAuth";
 import { useProjectOwnership } from "../hooks/useProjectOwnership";
 import { useRecordFreeProjectOpen } from "../hooks/useProjectAccess";
-import { useProject, useHasPurchased, isProjectFree, getEffectivePrice, usePurchaseProject } from "../hooks/useProjects";
+import { useProject, useHasPurchased, isProjectFree, getEffectivePrice, usePurchaseProject, useUpdateProject } from "../hooks/useProjects";
+import { BOOK_COVER_HINT } from "../lib/bookCover";
 import { getProjectUrl } from "../lib/projectLinks";
 import { BookReflowReader } from "../components/book/BookReflowReader";
 import { BookChapterEditor } from "../components/book/BookChapterEditor";
@@ -197,6 +198,7 @@ function BookBuilder({
   const returnAfterSave = useReturnAfterSave();
   const toast = useToast();
   const uploadThumbnail = useUploadProjectThumbnail();
+  const updateProject = useUpdateProject();
   const coverInputRef = useRef<HTMLInputElement>(null);
 
   // Everything below edits a local draft; nothing is stored until Save.
@@ -269,7 +271,10 @@ function BookBuilder({
     e.target.value = "";
     if (!file) return;
     try {
-      await uploadThumbnail.mutateAsync(file);
+      // 2:3 only — the hook rejects anything else before uploading.
+      const { url, width, height } = await uploadThumbnail.mutateAsync({ file, bookCover: true });
+      await updateProject.mutateAsync({ id: projectId, thumbnail_url: url, thumbnail_width: width, thumbnail_height: height });
+      setError(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Cover upload failed.");
     }
@@ -328,8 +333,8 @@ function BookBuilder({
         {/* Cover */}
         <button
           onClick={() => coverInputRef.current?.click()}
-          disabled={uploadThumbnail.isPending}
-          className="w-28 aspect-[2/3] rounded-lg bg-surface border border-border flex items-center justify-center overflow-hidden mb-6 disabled:opacity-50"
+          disabled={uploadThumbnail.isPending || updateProject.isPending}
+          className="w-28 aspect-[2/3] rounded-lg bg-surface border border-border flex items-center justify-center overflow-hidden mb-1 disabled:opacity-50"
         >
           {project.thumbnail_url ? (
             <img src={project.thumbnail_url} alt="" className="w-full h-full object-cover" />
@@ -340,7 +345,8 @@ function BookBuilder({
             </div>
           )}
         </button>
-        <input ref={coverInputRef} type="file" accept="image/*" onChange={handleCoverSelect} className="hidden" />
+        <p className="text-xs text-ink-muted mb-6 max-w-[16rem]">{BOOK_COVER_HINT}</p>
+        <input ref={coverInputRef} type="file" accept="image/jpeg,image/png,image/webp" onChange={handleCoverSelect} className="hidden" />
 
         {error && <p className="text-danger text-sm mb-4">{error}</p>}
 

@@ -21,7 +21,7 @@ function HistoryRow({ item }: { item: HistoryItem }) {
 
   return (
     <Link to={to} className="flex items-center gap-3 py-3 border-b border-border">
-      <div className="w-11 h-11 rounded-lg bg-surface flex items-center justify-center overflow-hidden shrink-0">
+      <div className={`w-11 ${!isPost && item.project?.project_type === "book" ? "h-[66px]" : "h-11"} rounded-lg bg-surface flex items-center justify-center overflow-hidden shrink-0`}>
         {thumbnail ? (
           <img src={thumbnail} alt="" className="w-full h-full object-cover" />
         ) : isPost ? (

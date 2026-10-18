@@ -1,4 +1,5 @@
 // src/components/ProjectMiniCard.tsx
+import { thumbBoxAspectClass } from "../lib/bookCover";
 import { Link } from "react-router-dom";
 import { ImageIcon } from "lucide-react";
 import { PROJECT_TYPE_LABELS, type Project } from "../hooks/useProjects";
@@ -39,7 +40,7 @@ export function ProjectMiniCard({
       to={getProjectPath(project)}
       className="group block flex-shrink-0 w-36 min-w-0 bg-surface rounded-2xl overflow-hidden border border-border/60 shadow-[0_1px_2px_rgba(var(--shadow-ink-rgb),0.04),0_8px_20px_-12px_rgba(var(--shadow-ink-rgb),0.14)] transition-all duration-300 hover:shadow-[0_1px_2px_rgba(var(--shadow-ink-rgb),0.06),0_16px_32px_-14px_rgba(var(--shadow-ink-rgb),0.2)] hover:-translate-y-0.5"
     >
-      <div className="relative w-full aspect-square bg-canvas flex items-center justify-center overflow-hidden">
+      <div className={`relative w-full ${thumbBoxAspectClass(project.project_type, "aspect-square")} bg-canvas flex items-center justify-center overflow-hidden`}>
         {statusLabel && (
           <span className="absolute top-2 left-2 z-10 rounded-full bg-ink/75 text-canvas text-[11px] font-medium px-2 py-0.5">
             {statusLabel}

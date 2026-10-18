@@ -917,7 +917,7 @@ export function ProjectCard({
   const galleryImages = isDetailView ? projectGalleryImages(project) : [];
 
   // Clamped ratio + height cap: a tall poster or wide banner must not blow the card up past the screen.
-  const thumb = thumbnailLayout(project.thumbnail_width, project.thumbnail_height);
+  const thumb = thumbnailLayout(project.thumbnail_width, project.thumbnail_height, project.project_type);
   const aspectRatio = thumb.aspectRatio;
   const thumbFitClass = thumb.fit === "contain" ? "object-contain" : "object-cover";
 
@@ -1241,7 +1241,12 @@ export function ProjectCard({
       }`}
     >
       <div
-        style={{ aspectRatio, maxHeight: `${MAX_THUMB_HEIGHT_VH * 100}vh` }}
+        // Books are exactly 2:3 — no height cap, or the box would stop being 2:3 and crop the cover.
+        style={
+          project.project_type === "book"
+            ? { aspectRatio }
+            : { aspectRatio, maxHeight: `${MAX_THUMB_HEIGHT_VH * 100}vh` }
+        }
         className="w-full bg-canvas flex items-center justify-center overflow-hidden"
       >
         {primaryMediaKind ? (

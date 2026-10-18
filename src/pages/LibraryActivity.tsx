@@ -1,4 +1,5 @@
 // src/pages/LibraryActivity.tsx
+import { isBookType } from "../lib/bookCover";
 import { Link } from "react-router-dom";
 import { ImageIcon, LibraryBig, BookText, GraduationCap, Music, FileText, Link as LinkIcon } from "lucide-react";
 import { useTabState } from "../hooks/useTabState";
@@ -41,7 +42,7 @@ function LibraryRow({ item }: { item: LibraryItem }) {
       to={libraryItemRoute(item)}
       className="flex items-center gap-3 p-3 rounded-xl border border-border bg-surface"
     >
-      <div className="w-12 h-12 rounded-lg bg-canvas flex items-center justify-center overflow-hidden shrink-0">
+      <div className={`w-12 ${isBookType(item.projectType) ? "h-[72px]" : "h-12"} rounded-lg bg-canvas flex items-center justify-center overflow-hidden shrink-0`}>
         {item.thumbnailUrl ? (
           <img src={item.thumbnailUrl} alt="" className="w-full h-full object-cover" />
         ) : (

@@ -49,7 +49,7 @@ export function AffiliateLinkRow({ relationship }: { relationship: AffiliateRela
       <div className="flex items-center gap-3 mb-3">
         <Link
           to={`/projects/${relationship.project_id}`}
-          className="w-12 h-12 rounded-xl bg-canvas overflow-hidden flex items-center justify-center shrink-0"
+          className={`w-12 ${relationship.project.project_type === "book" ? "h-[72px]" : "h-12"} rounded-xl bg-canvas overflow-hidden flex items-center justify-center shrink-0`}
         >
           {relationship.project.thumbnail_url ? (
             <img src={relationship.project.thumbnail_url} alt="" className="w-full h-full object-cover" />

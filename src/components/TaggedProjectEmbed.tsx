@@ -1,4 +1,5 @@
 // src/components/TaggedProjectEmbed.tsx
+import { isBookType } from "../lib/bookCover";
 import { Link } from "react-router-dom";
 import { ImageIcon } from "lucide-react";
 import { type ProjectType } from "../hooks/useProjects";
@@ -68,7 +69,7 @@ export function TaggedProjectEmbed({ project }: { project: TaggedProjectSummary 
       onClick={(e) => e.stopPropagation()}
       className="mt-3 flex items-center gap-2.5 rounded-xl border border-white/10 bg-surface/60 backdrop-blur-sm px-2.5 py-2 shadow-[inset_0_1px_0_rgba(255,255,255,0.35),0_1px_2px_rgba(var(--shadow-ink-rgb),0.06)] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.06),0_1px_2px_rgba(var(--shadow-ink-rgb),0.24)] hover:bg-surface/80 transition-colors"
     >
-      <div className="w-11 h-11 rounded-lg overflow-hidden bg-surface/80 border border-border/50 flex-shrink-0 flex items-center justify-center">
+      <div className={`w-11 ${isBookType(project.project_type) ? "h-[66px]" : "h-11"} rounded-lg overflow-hidden bg-surface/80 border border-border/50 flex-shrink-0 flex items-center justify-center`}>
         {project.thumbnail_url ? (
           <img src={project.thumbnail_url} alt="" className="w-full h-full object-cover" />
         ) : (

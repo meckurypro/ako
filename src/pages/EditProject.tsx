@@ -1,4 +1,5 @@
 // src/pages/EditProject.tsx
+import { BOOK_COVER_HINT, BOOK_COVER_RATIO, isBookCoverRatio, BOOK_COVER_ERROR } from "../lib/bookCover";
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { useParams } from "react-router-dom";
 import { useSmartBack } from "../hooks/useSmartBack";
@@ -288,7 +289,7 @@ export function EditProject() {
     e.target.value = "";
     if (!file) return;
     try {
-      const { url, width, height } = await uploadThumbnail.mutateAsync(file);
+      const { url, width, height } = await uploadThumbnail.mutateAsync({ file, bookCover: project?.project_type === "book" });
       setThumbnailUrl(url);
       setThumbnailRatio({ width, height });
     } catch (err) {
@@ -298,6 +299,14 @@ export function EditProject() {
 
   function validateTypeSpecific(): string | null {
     if (!project) return null;
+    if (
+      project.project_type === "book" &&
+      thumbnailUrl &&
+      thumbnailRatio &&
+      !isBookCoverRatio(thumbnailRatio.width, thumbnailRatio.height)
+    ) {
+      return BOOK_COVER_ERROR;
+    }
     if (project.project_type === "file" && !fileFields.file_path) {
       return "Upload a file to continue.";
     }
@@ -612,19 +621,31 @@ export function EditProject() {
             type="button"
             onClick={() => thumbnailInputRef.current?.click()}
             style={{
-              aspectRatio: thumbnailRatio ? `${thumbnailRatio.width} / ${thumbnailRatio.height}` : "16 / 9",
+              aspectRatio:
+                project?.project_type === "book"
+                  ? BOOK_COVER_RATIO
+                  : thumbnailRatio
+                    ? `${thumbnailRatio.width} / ${thumbnailRatio.height}`
+                    : "16 / 9",
             }}
-            className="w-full bg-surface border border-border rounded-xl flex items-center justify-center mb-4 overflow-hidden"
+            className={`bg-surface border border-border rounded-xl flex items-center justify-center overflow-hidden ${
+              project?.project_type === "book" ? "w-48 mx-auto mb-2" : "w-full mb-4"
+            }`}
           >
             {thumbnailUrl ? (
               <img src={thumbnailUrl} alt="" className="w-full h-full object-cover" />
             ) : (
               <div className="text-ink-muted flex flex-col items-center gap-1">
                 <ImageIcon size={24} />
-                <span className="text-sm">{uploadThumbnail.isPending ? "Uploading…" : "Add thumbnail"}</span>
+                <span className="text-sm">
+                  {uploadThumbnail.isPending ? "Uploading…" : project?.project_type === "book" ? "Add cover (2:3)" : "Add thumbnail"}
+                </span>
               </div>
             )}
           </button>
+          {project?.project_type === "book" && (
+            <p className="text-xs text-ink-muted text-center mb-4">{BOOK_COVER_HINT}</p>
+          )}
           <input
             ref={thumbnailInputRef}
             type="file"
