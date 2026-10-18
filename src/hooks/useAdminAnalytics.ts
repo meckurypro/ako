@@ -51,63 +51,51 @@ function last30DayKeys(): string[] {
   return keys;
 }
 
-export interface DailySignups {
-  date: string; // YYYY-MM-DD, Lagos-local
+export interface UserStatsPoint {
+  date: string; // YYYY-MM-DD — the day, the Monday of the week, or the 1st of the month (Lagos-local)
   count: number;
 }
 
-export interface UserGrowth {
-  totalUsers: number;
-  newLast30Days: number;
-  dailySignups: DailySignups[];
+export interface UserStats {
+  total: number;
+  deleted: number;
+  first_signup: string | null;
+  verified: number;
+  status: { pending: number; approved: number; declined: number; suspended: number };
+  new: {
+    today: number;
+    yesterday: number;
+    this_week: number;
+    last_week: number;
+    last_7: number;
+    prev_7: number;
+    last_30: number;
+    prev_30: number;
+    this_month: number;
+    last_month: number;
+  };
+  // Signed-in activity from profiles.last_seen_at.
+  active: { day: number; week: number; month: number };
+  daily: UserStatsPoint[]; // last 30 days
+  weekly: UserStatsPoint[]; // last 12 weeks
+  monthly: UserStatsPoint[]; // last 12 months
 }
 
 /**
- * Total (non-deleted) users, plus a zero-filled daily signup count
- * for each of the last 30 days. Two lightweight queries against the
- * existing `profiles` table — same RLS admins already rely on for
- * useAdminSearchAccounts, no new table or edge function needed.
+ * Everything the Users section shows, from one admin-only RPC
+ * (admin_user_stats, see supabase/ako_admin_user_stats.sql). Computed in
+ * Postgres so it's exact at any size — the previous client-side version
+ * pulled raw rows and was silently capped at 1,000.
  */
-export function useUserGrowth() {
+export function useUserStats() {
   return useQuery({
-    queryKey: ["admin-user-growth"],
-    queryFn: async (): Promise<UserGrowth> => {
-      const { count: totalUsers, error: totalError } = await supabase
-        .from("profiles")
-        .select("*", { count: "exact", head: true })
-        .eq("is_deleted", false);
-      if (totalError) throw totalError;
-
-      const dayKeys = last30DayKeys();
-      // Fetch from a little before the window starts (UTC vs Lagos
-      // offset) to be safe, then bucket precisely in JS below.
-      const windowStart = new Date(Date.now() - (DAYS + 1) * 86_400_000).toISOString();
-
-      const { data: recentProfiles, error: recentError } = await supabase
-        .from("profiles")
-        .select("created_at")
-        .eq("is_deleted", false)
-        .gte("created_at", windowStart);
-      if (recentError) throw recentError;
-
-      const counts = new Map<string, number>(dayKeys.map((k) => [k, 0]));
-      let newLast30Days = 0;
-
-      for (const profile of recentProfiles ?? []) {
-        const key = lagosDateKey(new Date(profile.created_at));
-        if (counts.has(key)) {
-          counts.set(key, (counts.get(key) ?? 0) + 1);
-          newLast30Days++;
-        }
-      }
-
-      return {
-        totalUsers: totalUsers ?? 0,
-        newLast30Days,
-        dailySignups: dayKeys.map((date) => ({ date, count: counts.get(date) ?? 0 })),
-      };
+    queryKey: ["admin-user-stats"],
+    queryFn: async (): Promise<UserStats> => {
+      const { data, error } = await supabase.rpc("admin_user_stats");
+      if (error) throw error;
+      return data as UserStats;
     },
-    staleTime: 5 * 60 * 1000,
+    staleTime: 60 * 1000,
   });
 }
 
