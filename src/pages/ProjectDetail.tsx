@@ -380,15 +380,14 @@ export function ProjectDetail({ resolvedProjectId }: { resolvedProjectId?: strin
   // same idea as useMarkPostSeen for posts.
   useMarkProjectSeen(projectId!, project?.owner?.id);
 
-  // Browsing info below the title. Members see it laid out under the card;
-  // guests get it folded into the card behind a "Details" toggle.
-  const pull = isGuest ? "" : "-mt-2";
+  // Browsing info below the title. Everyone — guests and signed-in members alike — gets it folded into the card
+  // behind a "Details" toggle that starts closed, so the page opens on the title, cover and actions.
   const detailBlocks = project ? (
     <>
         {/* Event/Meeting browsing info — shown to everyone, purchase
             is what unlocks the ticket/join page, not this block. */}
         {project.project_type === "event" && eventDetails && (
-          <div className={`flex flex-col gap-2 ${pull} mb-4`}>
+          <div className={`flex flex-col gap-2 mb-4`}>
             <div className="flex flex-col gap-1.5 text-sm text-ink-muted">
               {eventDetails.event_date && (
                 <span className="flex items-center gap-1.5">
@@ -435,7 +434,7 @@ export function ProjectDetail({ resolvedProjectId }: { resolvedProjectId?: strin
           </div>
         )}
         {project.project_type === "meeting" && meetingDetails && (
-          <div className={`flex items-center gap-1.5 ${pull} mb-4 text-sm text-ink-muted`}>
+          <div className={`flex items-center gap-1.5 mb-4 text-sm text-ink-muted`}>
             <Video size={14} /> {new Date(meetingDetails.scheduled_at).toLocaleString()}
           </div>
         )}
@@ -444,7 +443,7 @@ export function ProjectDetail({ resolvedProjectId }: { resolvedProjectId?: strin
             proof-of-work samples as a rail below. Message/Book
             CTAs live on the ProjectCard above, not here. */}
         {project.project_type === "gig" && gigDetails?.tagline && (
-          <p className={`${pull} mb-2 text-sm font-medium text-ink`}>{gigDetails.tagline}</p>
+          <p className={`mb-2 text-sm font-medium text-ink`}>{gigDetails.tagline}</p>
         )}
         {project.project_type === "gig" && gigDetails?.delivery_estimate && (
           <div className="flex items-center gap-1.5 mb-1.5 text-sm text-ink-muted">
@@ -497,12 +496,8 @@ export function ProjectDetail({ resolvedProjectId }: { resolvedProjectId?: strin
 
         <ProjectFaqSection projectId={project.id} projectType={project.project_type} isOwner={isOwner} />
 
-        {project.project_type === "media" && isOwner && (
-          <PublishMusicButton projectId={project.id} />
-        )}
-
         {project.topics.length > 0 && (
-          <div className={`flex flex-wrap gap-2 ${pull} mb-4`}>
+          <div className={`flex flex-wrap gap-2 mb-4`}>
             {project.topics.map((topic) => (
               <span
                 key={topic.id}
@@ -557,8 +552,8 @@ export function ProjectDetail({ resolvedProjectId }: { resolvedProjectId?: strin
               project={project}
               isDetailView
               shareUrl={shareUrl}
-              concealDetails={isGuest}
-              detailsSlot={isGuest ? detailBlocks : undefined}
+              concealDetails
+              detailsSlot={detailBlocks}
             />
 
             {/* Reverse link to the gig(s) this is proof-of-work for —
@@ -591,7 +586,8 @@ export function ProjectDetail({ resolvedProjectId }: { resolvedProjectId?: strin
               </button>
             )}
 
-            {!isGuest && detailBlocks}
+            {/* The owner's publish action is a main action, not browsing info: it stays out of the folded details. */}
+            {project.project_type === "media" && isOwner && <PublishMusicButton projectId={project.id} />}
 
             {/* Creator byline — tapping any part of it opens the
                 creator's profile (or the page's, if this was posted in
