@@ -51,6 +51,7 @@ import { RoleTags } from "../components/RoleTags";
 import { PostCard } from "../components/PostCard";
 import { ProjectCard } from "../components/ProjectCard";
 import { ProjectMiniCard, ProjectMiniGrid } from "../components/ProjectMiniCard";
+import { ProfilePageSkeleton, ProjectMiniGridSkeleton } from "../components/ProfileSkeletons";
 import { BottomNav } from "../components/BottomNav";
 import { ProfileAdSlot } from "../components/ProfileAdSlot";
 import { useIsRestricted } from "../hooks/useAccountAccess";
@@ -106,7 +107,7 @@ function PortfolioCategoryPane({
   // visitor can reach "Message to inquire" / pricing / the full
   // sample set from the gig's own page, not only piece by piece.
   const { data: gigs } = usePortfolioCategoryGigs(accountId, category);
-  if (isLoading) return null;
+  if (isLoading) return <ProjectMiniGridSkeleton />;
   if (!projects || projects.length === 0) {
     // Shouldn't normally be reachable — the tab itself only appears
     // when the aggregate query found eligible work — but cache
@@ -145,10 +146,14 @@ function TypeCategoryPane({
   showOwnerView: boolean;
 }) {
   const { data: projects, isLoading } = useTypeCategoryProjects(accountId, projectType);
-  if (isLoading) return null;
+  // Skeleton tiles (not a blank pane, not a page-wide overlay) while just this tab's data loads.
+  if (isLoading) return <ProjectMiniGridSkeleton projectType={projectType} />;
   if (!projects || projects.length === 0) {
     return <p className="text-ink-muted text-center py-10 text-sm">Nothing here yet.</p>;
   }
+  // Books: compact 2-up cover grid (same tiles as Discover/search). Tapping a card opens the book's own
+  // slug page, where the full details, buy/download and owner controls live.
+  if (projectType === "book") return <ProjectMiniGrid projects={projects} />;
   return (
     <>
       {projects.map((project) => (
@@ -560,10 +565,11 @@ export function ProfilePage() {
     setActiveTab(tab);
   }
 
-  if (isLoading || !profile) {
+  if (isLoading) return <ProfilePageSkeleton />;
+  if (!profile) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-canvas">
-        <p className="text-ink-muted">Loading…</p>
+        <p className="text-ink-muted">Profile not found.</p>
       </div>
     );
   }

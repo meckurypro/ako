@@ -20,6 +20,9 @@ export function useProfileByUsername(username: string) {
       return { ...profile, roles: toProfileRoles(profile_roles) };
     },
     enabled: !!username,
+    // Revisiting a profile (Back, tab hop) paints from cache instantly and skips the refetch for a minute;
+    // follow/edit mutations invalidate this key, so changes still show immediately.
+    staleTime: 60_000,
   });
 }
 

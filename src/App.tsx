@@ -8,7 +8,7 @@ import { RequireFullAccess, HomeRedirect } from "./components/RequireFullAccess"
 import { ScrollToTop } from "./components/ScrollToTop";
 import { PathHistoryTracker } from "./components/PathHistoryTracker";
 import { ExternalLinkGuard } from "./components/ExternalLinkGuard";
-import { LoadingOverlay, PageLoadingOverlay } from "./components/LoadingOverlay";
+import { LoadingOverlay } from "./components/LoadingOverlay";
 import { usePageThemeSync } from "./hooks/usePageThemeSync";
 import { ToastProvider } from "./components/Toast";
 import { AppShell } from "./components/AppShell";
@@ -134,7 +134,6 @@ export default function App() {
         <AuthProvider>
           <BrowserRouter>
             <ScrollToTop />
-            <PageLoadingOverlay />
             <PathHistoryTracker />
             <ExternalLinkGuard />
             <AffiliateRefCapture />
