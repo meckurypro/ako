@@ -6,14 +6,16 @@
 // here instead of at the raw file. Any failure redirects to the small default
 // card so a preview never ends up without an image.
 //
-// Only public post-media bucket URLs of our own Supabase project are accepted,
+// Only public post-media / avatars bucket URLs of our own Supabase project are accepted,
 // so this can't be used as an open proxy.
 
 import type { IncomingMessage, ServerResponse } from "node:http";
 import sharp from "sharp";
 
 const SUPABASE_URL = process.env.VITE_SUPABASE_URL ?? process.env.SUPABASE_URL;
-const ALLOWED_PREFIX = SUPABASE_URL ? `${SUPABASE_URL}/storage/v1/object/public/post-media/` : null;
+const ALLOWED_PREFIXES = SUPABASE_URL
+  ? ["post-media", "avatars"].map((bucket) => `${SUPABASE_URL}/storage/v1/object/public/${bucket}/`)
+  : [];
 const MAX_SOURCE_BYTES = 50 * 1024 * 1024;
 const TARGET_BYTES = 250 * 1024;
 const FETCH_TIMEOUT_MS = 6000;
@@ -35,7 +37,7 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
   const src = new URL(req.url ?? "/", origin).searchParams.get("src") ?? "";
 
   try {
-    if (!ALLOWED_PREFIX || !src.startsWith(ALLOWED_PREFIX)) return fallback(res, origin);
+    if (!ALLOWED_PREFIXES.some((prefix) => src.startsWith(prefix))) return fallback(res, origin);
 
     const upstream = await fetch(src, { signal: AbortSignal.timeout(FETCH_TIMEOUT_MS) });
     if (!upstream.ok) return fallback(res, origin);

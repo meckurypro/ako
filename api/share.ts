@@ -6,6 +6,14 @@
 // (WhatsApp, Facebook, X/Twitter, Slack, Telegram, LinkedIn, Discord, iMessage,
 // search engines…) here instead. Humans never hit this: they get the SPA.
 //
+// Posts (/post/:id) and profiles (/profile/:username) are unfurled the same
+// way, but behind the strictest rules: the lookup runs with the anon key, so
+// RLS stays the authority on what a signed-out visitor can read, and the code
+// then additionally requires public + published + not deleted/archived, an
+// approved non-private author (or page), and falls back to the generic card on
+// any doubt. Followers-only posts, drafts, private accounts and anything the
+// anon role can't read never contribute a single character to a preview.
+//
 // Data minimisation: only a public, active, non-private project contributes
 // its title / short description / thumbnail. Everything else (private,
 // draft, missing, lookup failure) gets the generic Akọ card, so a preview can
@@ -126,6 +134,61 @@ async function lookupProject(slug: string | null, id: string | null): Promise<Pr
   return null;
 }
 
+const USERNAME = /^[a-z0-9_]{1,40}$/;
+const IMAGE_EXT = /\.(jpe?g|png|webp|gif|avif)(\?.*)?$/i;
+
+interface PreviewAuthor {
+  username: string;
+  display_name: string;
+  avatar_url: string | null;
+  is_private: boolean;
+  is_deleted: boolean;
+  account_status: string;
+}
+
+interface PreviewPost {
+  id: string;
+  heading: string | null;
+  content: string | null;
+  media_urls: string[] | null;
+  visibility: string;
+  status: string | null;
+  is_deleted: boolean;
+  is_archived: boolean;
+  reshared_post_id: string | null;
+  author: PreviewAuthor | null;
+  posted_as_page: { name: string; username: string; avatar_url: string | null } | null;
+}
+
+interface PreviewProfile {
+  username: string;
+  display_name: string;
+  bio: string | null;
+  avatar_url: string | null;
+  is_private: boolean;
+  is_deleted: boolean;
+  account_status: string;
+}
+
+async function lookupPost(id: string): Promise<PreviewPost | null> {
+  const select =
+    "id,heading,content,media_urls,visibility,status,is_deleted,is_archived,reshared_post_id," +
+    "author:profiles!posts_author_id_fkey(username,display_name,avatar_url,is_private,is_deleted,account_status)," +
+    "posted_as_page:pages(name,username,avatar_url)";
+  const rows = (await supabaseFetch(`posts?id=eq.${id}&select=${select}&limit=1`, {
+    method: "GET",
+  })) as PreviewPost[];
+  return rows?.[0] ?? null;
+}
+
+async function lookupProfile(username: string): Promise<PreviewProfile | null> {
+  const select = "username,display_name,bio,avatar_url,is_private,is_deleted,account_status";
+  const rows = (await supabaseFetch(`profiles?username=eq.${username}&select=${select}&limit=1`, {
+    method: "GET",
+  })) as PreviewProfile[];
+  return rows?.[0] ?? null;
+}
+
 interface Card {
   title: string;
   description: string;
@@ -133,6 +196,8 @@ interface Card {
   imageWidth: number | null;
   imageHeight: number | null;
   canonicalPath: string | null;
+  // Avatars: square, so use the compact (summary) card rather than a large banner.
+  squareImage?: boolean;
 }
 
 function genericCard(): Card {
@@ -166,6 +231,56 @@ function cardFor(project: PreviewProject): Card {
   };
 }
 
+function authorIsPublic(author: PreviewAuthor | null): author is PreviewAuthor {
+  return !!author && !author.is_private && !author.is_deleted && author.account_status === "approved";
+}
+
+function cardForPost(post: PreviewPost): Card {
+  const published = post.status == null || post.status === "published";
+  const isPublic =
+    post.visibility === "public" && published && !post.is_deleted && !post.is_archived && authorIsPublic(post.author);
+  if (!isPublic || !post.author) return genericCard();
+
+  // A post published as a page is credited to the page, never the person behind it.
+  const byline = post.posted_as_page ? post.posted_as_page.name : post.author.display_name;
+  const avatar = post.posted_as_page ? post.posted_as_page.avatar_url : post.author.avatar_url;
+  const heading = plainText(post.heading, 80);
+  const body = plainText(post.content, 200);
+  const isReshare = !!post.reshared_post_id && !body;
+
+  const firstImage = (post.media_urls ?? []).map(httpsOnly).find((u): u is string => !!u && IMAGE_EXT.test(u)) ?? null;
+  const image = firstImage ?? httpsOnly(avatar);
+
+  return {
+    title: heading
+      ? `${heading} — ${plainText(byline, 60)} · ${SITE_NAME}`
+      : `${plainText(byline, 60)} on ${SITE_NAME}`,
+    description: isReshare ? `${plainText(byline, 60)} reshared a post on ${SITE_NAME}.` : body || `View this post on ${SITE_NAME}.`,
+    image,
+    // Dimensions of post media aren't stored; only the avatar fallback is known to be square.
+    imageWidth: null,
+    imageHeight: null,
+    squareImage: !firstImage && !!image,
+    canonicalPath: `/post/${post.id}`,
+  };
+}
+
+function cardForProfile(profile: PreviewProfile): Card {
+  if (profile.is_private || profile.is_deleted || profile.account_status !== "approved") return genericCard();
+  const name = plainText(profile.display_name, 60) || `@${profile.username}`;
+  const bio = plainText(profile.bio, 200);
+  const image = httpsOnly(profile.avatar_url);
+  return {
+    title: `${name} (@${profile.username}) · ${SITE_NAME}`,
+    description: bio || `See ${name}'s profile on ${SITE_NAME}.`,
+    image,
+    imageWidth: null,
+    imageHeight: null,
+    squareImage: !!image,
+    canonicalPath: `/profile/${profile.username}`,
+  };
+}
+
 function renderHtml(card: Card, origin: string, requestedPath: string): string {
   const canonical = `${origin}${card.canonicalPath ?? requestedPath}`;
   // Raw uploads can be huge and WhatsApp drops previews over ~300 KB, so
@@ -185,7 +300,7 @@ function renderHtml(card: Card, origin: string, requestedPath: string): string {
       ? `<meta property="og:image:width" content="${Math.round(card.imageWidth * scale)}" />\n    <meta property="og:image:height" content="${Math.round(card.imageHeight * scale)}" />`
       : ""
     : `<meta property="og:image:width" content="1200" />\n    <meta property="og:image:height" content="630" />`;
-  const wide = !card.image || !card.imageWidth || !card.imageHeight || card.imageWidth / card.imageHeight >= 1.3;
+  const wide = !card.squareImage && (!card.image || !card.imageWidth || !card.imageHeight || card.imageWidth / card.imageHeight >= 1.3);
 
   return `<!doctype html>
 <html lang="en">
@@ -225,18 +340,46 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
   const query = new URL(req.url ?? "/", origin).searchParams;
   const rawSlug = (query.get("slug") ?? "").toLowerCase();
   const rawId = query.get("id");
+  const rawPost = query.get("post");
+  const rawProfile = (query.get("profile") ?? "").toLowerCase();
   // Only well-formed values are looked up or echoed back into the page.
   const slug = SLUG.test(rawSlug) ? rawSlug : null;
   const id = rawId && UUID.test(rawId) ? rawId : null;
-  const requestedPath = slug ? `/${slug}` : id ? `/projects/${id}` : "/";
+  const postId = rawPost && UUID.test(rawPost) ? rawPost : null;
+  const username = USERNAME.test(rawProfile) ? rawProfile : null;
+  const requestedPath = postId
+    ? `/post/${postId}`
+    : username
+      ? `/profile/${username}`
+      : slug
+        ? `/${slug}`
+        : id
+          ? `/projects/${id}`
+          : "/";
 
   let card = genericCard();
-  let cacheSeconds = 60;
+  // Projects are public by design; posts and profiles can disappear or go
+  // private at any time, so their edge copies are kept short-lived.
+  let cacheControl = "public, s-maxage=60, stale-while-revalidate=86400";
   try {
-    const project = await lookupProject(slug, id);
-    if (project) {
-      card = cardFor(project);
-      cacheSeconds = 300;
+    if (postId) {
+      const post = await lookupPost(postId);
+      if (post) {
+        card = cardForPost(post);
+        cacheControl = "public, s-maxage=120, stale-while-revalidate=600";
+      }
+    } else if (username) {
+      const profile = await lookupProfile(username);
+      if (profile) {
+        card = cardForProfile(profile);
+        cacheControl = "public, s-maxage=120, stale-while-revalidate=600";
+      }
+    } else {
+      const project = await lookupProject(slug, id);
+      if (project) {
+        card = cardFor(project);
+        cacheControl = "public, s-maxage=300, stale-while-revalidate=86400";
+      }
     }
   } catch (err) {
     // Degrade to the generic card rather than failing the unfurl.
@@ -245,7 +388,6 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
 
   res.statusCode = 200;
   res.setHeader("Content-Type", "text/html; charset=utf-8");
-  // Edge-cache briefly; stale copies are fine for previews.
-  res.setHeader("Cache-Control", `public, s-maxage=${cacheSeconds}, stale-while-revalidate=86400`);
+  res.setHeader("Cache-Control", cacheControl);
   res.end(renderHtml(card, origin, requestedPath));
 }
