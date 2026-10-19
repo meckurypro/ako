@@ -67,17 +67,19 @@ export function TaggedProjectEmbed({ project }: { project: TaggedProjectSummary 
     <Link
       to={getProjectPath(project)}
       onClick={(e) => e.stopPropagation()}
-      className="mt-3 flex items-center gap-2.5 rounded-xl border border-white/10 bg-surface/60 backdrop-blur-sm px-2.5 py-2 shadow-[inset_0_1px_0_rgba(255,255,255,0.35),0_1px_2px_rgba(var(--shadow-ink-rgb),0.06)] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.06),0_1px_2px_rgba(var(--shadow-ink-rgb),0.24)] hover:bg-surface/80 transition-colors"
+      className="mt-3 flex min-h-[72px] items-center gap-3 rounded-xl border border-white/10 bg-surface/60 backdrop-blur-sm px-3 py-2.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.35),0_1px_2px_rgba(var(--shadow-ink-rgb),0.06)] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.06),0_1px_2px_rgba(var(--shadow-ink-rgb),0.24)] hover:bg-surface/80 transition-colors"
     >
-      <div className={`w-11 ${isBookType(project.project_type) ? "h-[66px]" : "h-11"} rounded-lg overflow-hidden bg-surface/80 border border-border/50 flex-shrink-0 flex items-center justify-center`}>
+      <div className={`w-14 ${isBookType(project.project_type) ? "h-[84px]" : "h-14"} rounded-lg overflow-hidden bg-surface/80 border border-border/50 flex-shrink-0 flex items-center justify-center`}>
         {project.thumbnail_url ? (
           <img src={project.thumbnail_url} alt="" className="w-full h-full object-cover" />
         ) : (
           <ImageIcon size={16} className="text-ink-muted" />
         )}
       </div>
-      <div className="min-w-0 flex-1">
-        <p className="text-sm font-medium text-ink truncate">{project.title}</p>
+      {/* Title fills the rest of the card: bold, centred both ways, wraps to
+          two lines max (clamped) so long titles stay balanced. */}
+      <div className="min-w-0 flex-1 flex items-center justify-center self-stretch">
+        <p className="text-base font-bold leading-[21px] text-ink text-center line-clamp-2 break-words">{project.title}</p>
       </div>
     </Link>
   );
