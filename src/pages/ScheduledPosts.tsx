@@ -1,9 +1,11 @@
 // src/pages/ScheduledPosts.tsx
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useSmartBack } from "../hooks/useSmartBack";
 import { ArrowLeft, FileEdit, Send, X } from "lucide-react";
 import { useMyScheduledPosts, useDeleteDraftOrScheduledPost } from "../hooks/usePosts";
 import { useToast } from "../components/Toast";
+import { clearJustSaved, peekJustSaved } from "../lib/justSaved";
 
 function timeUntil(iso: string): string {
   const diffMs = new Date(iso).getTime() - Date.now();
@@ -36,6 +38,19 @@ export function ScheduledPosts() {
   const cancelScheduled = useDeleteDraftOrScheduledPost();
   const toast = useToast();
 
+  // The row Compose just added: scroll to it and flag it for a few seconds so the person sees it landed.
+  const [highlightId, setHighlightId] = useState<string | null>(() => peekJustSaved("scheduled"));
+  useEffect(() => {
+    clearJustSaved();
+    if (!highlightId) return;
+    const t = setTimeout(() => setHighlightId(null), 8000);
+    return () => clearTimeout(t);
+  }, [highlightId]);
+  useEffect(() => {
+    if (!highlightId || !scheduled?.some((p) => p.id === highlightId)) return;
+    document.getElementById(`scheduled-${highlightId}`)?.scrollIntoView({ block: "center", behavior: "smooth" });
+  }, [highlightId, scheduled]);
+
   function handleCancel(id: string) {
     cancelScheduled.mutate(id, {
       onSuccess: () => toast("Scheduled post cancelled."),
@@ -66,11 +81,20 @@ export function ScheduledPosts() {
         ) : (
           <div className="space-y-3 py-3">
             {scheduled.map((post) => (
-              <div key={post.id} className="rounded-2xl border border-accent/30 bg-accent-soft/40 p-4">
+              <div
+                key={post.id}
+                id={`scheduled-${post.id}`}
+                className={`rounded-2xl border bg-accent-soft/40 p-4 ${post.id === highlightId ? "border-accent" : "border-accent/30"}`}
+              >
                 <div className="flex items-center justify-between mb-2">
                   <span className="flex items-center gap-1.5 text-xs font-medium text-accent">
                     <Send size={12} />
                     Publishes {post.scheduled_for ? timeUntil(post.scheduled_for) : ""}
+                    {post.id === highlightId && (
+                      <span className="ml-1 rounded-full bg-accent px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-canvas">
+                        Just scheduled
+                      </span>
+                    )}
                   </span>
                   <button
                     onClick={() => handleCancel(post.id)}

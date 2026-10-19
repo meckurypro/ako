@@ -17,6 +17,12 @@ interface ReturnOptions {
    * the old entry, or undefined to keep ordinary back navigation.
    */
   rewritePrevious?: (previousPath: string) => string | undefined;
+  /**
+   * Always land here, whatever page opened the editor (replacing the editor in history so Back never returns
+   * to it). For saves whose result lives in a known place - a new post belongs on the Feed, not on the
+   * Notifications page whose "+" button happened to open Compose.
+   */
+  landOn?: string;
 }
 
 /**
@@ -41,10 +47,15 @@ export function useReturnAfterSave() {
   const queryClient = useQueryClient();
 
   return useCallback(
-    async ({ fallback = "/feed", rewritePrevious }: ReturnOptions = {}) => {
+    async ({ fallback = "/feed", rewritePrevious, landOn }: ReturnOptions = {}) => {
       // refetchType "none": mark stale only. Refetching here would
       // hit every query still mounted on the editor for no reason.
       await queryClient.invalidateQueries({ refetchType: "none" });
+
+      if (landOn) {
+        navigate(landOn, { replace: true });
+        return;
+      }
 
       const previous = getPreviousPath();
       if (!previous) {

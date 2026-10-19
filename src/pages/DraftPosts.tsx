@@ -1,9 +1,11 @@
 // src/pages/DraftPosts.tsx
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useSmartBack } from "../hooks/useSmartBack";
 import { ArrowLeft, FileEdit, Trash2 } from "lucide-react";
 import { useMyDraftPosts, useDeleteDraftOrScheduledPost } from "../hooks/usePosts";
 import { useToast } from "../components/Toast";
+import { clearJustSaved, peekJustSaved } from "../lib/justSaved";
 
 /**
  * Drafts don't render as PostCard — a draft was deliberately never
@@ -21,6 +23,15 @@ export function DraftPosts() {
   const { data: drafts, isLoading } = useMyDraftPosts();
   const deleteDraft = useDeleteDraftOrScheduledPost();
   const toast = useToast();
+
+  // The draft Compose just saved sits at the top; flag it briefly so the person sees it landed.
+  const [highlightId, setHighlightId] = useState<string | null>(() => peekJustSaved("draft"));
+  useEffect(() => {
+    clearJustSaved();
+    if (!highlightId) return;
+    const t = setTimeout(() => setHighlightId(null), 8000);
+    return () => clearTimeout(t);
+  }, [highlightId]);
 
   function handleDiscard(id: string) {
     deleteDraft.mutate(id, {
@@ -54,12 +65,17 @@ export function DraftPosts() {
             {drafts.map((draft) => (
               <div
                 key={draft.id}
-                className="rounded-2xl border border-dashed border-border bg-surface p-4"
+                className={`rounded-2xl border border-dashed bg-surface p-4 ${draft.id === highlightId ? "border-accent" : "border-border"}`}
               >
                 <div className="flex items-center gap-2 mb-2">
                   <span className="text-[11px] font-medium uppercase tracking-wide text-ink-muted bg-canvas px-2 py-0.5 rounded-full border border-border">
                     Draft
                   </span>
+                  {draft.id === highlightId && (
+                    <span className="rounded-full bg-accent px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-canvas">
+                      Just saved
+                    </span>
+                  )}
                   {draft.category_id && (
                     <span className="text-[11px] text-ink-muted">
                       {new Date(draft.created_at).toLocaleDateString()}

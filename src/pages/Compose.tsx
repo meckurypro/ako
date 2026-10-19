@@ -2,9 +2,12 @@
 
 import { useRef, useState, useEffect } from "react";
 import { useNavigate, useLocation, Link } from "react-router-dom";
-import { useSmartBack, getPreviousPath } from "../hooks/useSmartBack";
+import { useSmartBack } from "../hooks/useSmartBack";
 import { useReturnAfterSave } from "../hooks/useReturnAfterSave";
 import { setJustPosted } from "../lib/justPosted";
+import { setJustSaved } from "../lib/justSaved";
+import { formatScheduleShort } from "../lib/schedulePresets";
+import { SchedulePostModal } from "../components/SchedulePostModal";
 import { X, Image as ImageIcon, Link2, MoreHorizontal } from "lucide-react";
 import { useCreatePost, useDeleteDraftOrScheduledPost } from "../hooks/usePosts";
 import { TopicPicker, MAX_TOPICS } from "../components/TopicPicker";
@@ -18,7 +21,6 @@ import { MentionTextarea } from "../components/MentionTextarea";
 import { HeadingColorPicker } from "../components/HeadingColorPicker";
 import { TagProjectPicker } from "../components/TagProjectPicker";
 import { DropdownMenu, type DropdownMenuItem } from "../components/DropdownMenu";
-import { Modal } from "../components/Modal";
 import { useToast } from "../components/Toast";
 import { CONTENT_LIMIT, contentCounterClass } from "../lib/textLimits";
 import { AddMusicSheet } from "../components/music/AddMusicSheet";
@@ -79,7 +81,6 @@ export function Compose() {
   const moreButtonRef = useRef<HTMLButtonElement>(null);
   const [moreMenuOpen, setMoreMenuOpen] = useState(false);
   const [scheduleModalOpen, setScheduleModalOpen] = useState(false);
-  const [scheduleValue, setScheduleValue] = useState("");
   const toast = useToast();
 
   // Resuming a draft or a scheduled post (see DraftPosts.tsx and
@@ -198,30 +199,33 @@ export function Compose() {
         ...(status !== "published" ? { status, scheduled_for: scheduledFor } : {}),
       });
 
+      if (resumedPostIdRef.current) deleteDraftOrScheduled.mutate(resumedPostIdRef.current);
+
+      // Every outcome lands the person where the post now lives, so they see it straight away - never back on
+      // this editor, and never on whichever page happened to open it (e.g. Notifications' "+" button). The
+      // editor is replaced in history so Back doesn't return to a stale form.
+      const createdId = (createdPost as { id: string }).id;
       if (status === "draft") {
+        setJustSaved("draft", createdId);
         toast("Saved to your drafts.", { variant: "success" });
-        if (resumedPostIdRef.current) deleteDraftOrScheduled.mutate(resumedPostIdRef.current);
-        navigate("/activity/drafts");
+        navigate("/activity/drafts", { replace: true });
       } else if (status === "scheduled") {
-        toast("Scheduled — it'll post automatically.", { variant: "success" });
-        if (resumedPostIdRef.current) deleteDraftOrScheduled.mutate(resumedPostIdRef.current);
-        navigate("/activity/scheduled");
-      } else {
-        if (resumedPostIdRef.current) deleteDraftOrScheduled.mutate(resumedPostIdRef.current);
-        // Back to the page Compose was opened from, refreshed (the
-        // create-post hook already refetched feed / profile / Page
-        // lists, so the new post is there on the first frame).
-        // justPosted lets Feed pin this exact post at the top of the
-        // "For You" list the instant it lands there — see usePostById
-        // and Feed.tsx's ForYouTab. Only set when Feed is where we're
-        // returning to, so it can't linger and pin on a later visit.
-        // Page-mode posts skip this: they land on the page's own
-        // profile feed (plain reverse-chronological already).
-        if (!postingAsPage && (getPreviousPath() ?? "/feed") === "/feed") {
-          setJustPosted((createdPost as { id: string }).id);
-        }
+        setJustSaved("scheduled", createdId);
+        toast(
+          scheduledFor ? `Scheduled for ${formatScheduleShort(new Date(scheduledFor))}.` : "Scheduled - it'll post automatically.",
+          { variant: "success" }
+        );
+        navigate("/activity/scheduled", { replace: true });
+      } else if (postingAsPage) {
+        // A Page's posts live on the Page's own profile (already newest-first).
         toast("Posted.", { variant: "success" });
-        await returnAfterSave({ fallback: postingAsPage ? `/page/${postingAsPage.username}` : "/feed" });
+        await returnAfterSave({ landOn: `/page/${postingAsPage.username}` });
+      } else {
+        // Personal posts live on the Feed. The create-post hook already refetched feed / profile lists, and
+        // justPosted lets Feed pin this exact post at the top of "For You" the instant it lands there.
+        setJustPosted(createdId);
+        toast("Posted.", { variant: "success" });
+        await returnAfterSave({ landOn: "/feed" });
       }
     } catch (err) {
       // Moderation rejections and other edge-function errors surface here —
@@ -243,11 +247,9 @@ export function Compose() {
     void submitPost("draft");
   }
 
-  function handleConfirmSchedule() {
-    if (!scheduleValue) return;
-    const iso = new Date(scheduleValue).toISOString();
+  function handleConfirmSchedule(when: Date) {
     setScheduleModalOpen(false);
-    void submitPost("scheduled", iso);
+    void submitPost("scheduled", when.toISOString());
   }
 
   const moreMenuItems: DropdownMenuItem[] = [
@@ -513,35 +515,7 @@ export function Compose() {
       )}
 
       {scheduleModalOpen && (
-        <Modal onClose={() => setScheduleModalOpen(false)} ariaLabel="Schedule post">
-          <h2 className="font-display text-lg text-ink mb-1">Schedule this post</h2>
-          <p className="text-sm text-ink-muted mb-4">
-            It'll post automatically at the time you pick — you can find it under Activity →
-            Scheduled until then.
-          </p>
-          <input
-            type="datetime-local"
-            value={scheduleValue}
-            min={new Date(Date.now() + 5 * 60 * 1000).toISOString().slice(0, 16)}
-            onChange={(e) => setScheduleValue(e.target.value)}
-            className="w-full bg-surface rounded-xl px-4 py-3 text-sm text-ink border border-border"
-          />
-          <div className="flex items-center gap-2 mt-5">
-            <button
-              onClick={() => setScheduleModalOpen(false)}
-              className="flex-1 py-2.5 rounded-full border border-border text-sm font-medium text-ink"
-            >
-              Cancel
-            </button>
-            <button
-              onClick={handleConfirmSchedule}
-              disabled={!scheduleValue}
-              className="flex-1 py-2.5 rounded-full bg-accent text-canvas text-sm font-medium disabled:opacity-50"
-            >
-              Schedule
-            </button>
-          </div>
-        </Modal>
+        <SchedulePostModal onClose={() => setScheduleModalOpen(false)} onConfirm={handleConfirmSchedule} />
       )}
     </div>
   );
