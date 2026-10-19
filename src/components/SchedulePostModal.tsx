@@ -34,36 +34,36 @@ export function SchedulePostModal({ onClose, onConfirm }: SchedulePostModalProps
     setValue(next);
   }
 
-  const fieldClass = "w-full bg-surface rounded-xl px-3 py-2 text-sm text-ink border border-border";
+  const fieldClass = "w-full bg-overlay-surface-raised rounded-xl px-3 py-2 text-sm text-overlay-ink border border-overlay-border";
 
   return (
-    <Modal onClose={onClose} ariaLabel="Schedule post">
-      <h2 className="font-display text-lg text-ink mb-4">Schedule post</h2>
+    <Modal onClose={onClose} ariaLabel="Schedule post" themed>
+      <h2 className="font-display text-lg text-overlay-ink mb-4">Schedule post</h2>
 
       <div className="grid grid-cols-2 gap-2">
         <label className="block">
-          <span className="block text-[11px] text-ink-muted mb-1">Date</span>
+          <span className="block text-[11px] text-overlay-ink-muted mb-1">Date</span>
           <input type="date" value={toDateInput(value)} min={toDateInput(new Date())} onChange={(e) => onDateChange(e.target.value)} className={fieldClass} />
         </label>
         <label className="block">
-          <span className="block text-[11px] text-ink-muted mb-1">Time</span>
+          <span className="block text-[11px] text-overlay-ink-muted mb-1">Time</span>
           <input type="time" value={toTimeInput(value)} onChange={(e) => onTimeChange(e.target.value)} className={fieldClass} />
         </label>
       </div>
 
-      <p aria-live="polite" className={`mt-3 text-sm ${valid ? "text-ink-muted" : "text-danger"}`}>
+      <p aria-live="polite" className={`mt-3 text-sm ${valid ? "text-overlay-ink-muted" : "text-overlay-danger"}`}>
         {valid ? `Posts ${formatScheduleShort(value)}` : `Choose a time at least ${Math.round(MIN_SCHEDULE_LEAD_MS / 60000)} minutes from now.`}
       </p>
 
       <div className="flex items-center gap-2 mt-5">
-        <button type="button" onClick={onClose} className="flex-1 py-2.5 rounded-full border border-border text-sm font-medium text-ink">
+        <button type="button" onClick={onClose} className="flex-1 py-2.5 rounded-full bg-overlay-surface-raised text-sm font-medium text-overlay-ink">
           Cancel
         </button>
         <button
           type="button"
           onClick={() => isFarEnough(value) && onConfirm(value)}
           disabled={!valid}
-          className="flex-1 py-2.5 rounded-full bg-accent text-canvas text-sm font-medium disabled:opacity-50"
+          className="flex-1 py-2.5 rounded-full bg-overlay-accent text-overlay-surface text-sm font-medium disabled:opacity-50"
         >
           Schedule
         </button>

@@ -4,11 +4,14 @@
 // feed: Events, Meetings, Rooms and Affiliates. Replaces the old
 // "Events & meetings" and "Affiliates" rows in the Activity hub, and the
 // Messages tab (messages now live behind the floating chat button).
+import { useState } from "react";
 import { Link } from "react-router-dom";
-import { CalendarClock, ImageIcon, TrendingUp, Users } from "lucide-react";
+import { CalendarClock, ImageIcon, TrendingUp, Users, X } from "lucide-react";
 import { useActivity, type ActivityItem } from "../hooks/useActivity";
 import { useMyAffiliateRelationships } from "../hooks/useAffiliates";
 import { useTabState } from "../hooks/useTabState";
+import { useRemoveFromLibrary } from "../hooks/useLibraryRemovals";
+import { ConfirmDialog } from "../components/ConfirmDialog";
 import { AffiliateLinkRow } from "./MyAffiliateLinks";
 import { BottomNav } from "../components/BottomNav";
 
@@ -49,10 +52,13 @@ const EMPTY_COPY: Record<ConnectTab, string> = {
 };
 
 function ActivityRow({ item }: { item: ActivityItem }) {
+  const remove = useRemoveFromLibrary();
+  const [confirming, setConfirming] = useState(false);
   return (
+    <div className="relative">
     <Link
       to={ROUTE_FOR[item.kind](item)}
-      className="flex items-center gap-3 p-3 rounded-xl border border-border bg-surface"
+      className="flex items-center gap-3 p-3 pr-11 rounded-xl border border-border bg-surface"
     >
       <div className="w-12 h-12 rounded-lg bg-canvas flex items-center justify-center overflow-hidden shrink-0">
         {item.thumbnailUrl ? (
@@ -69,6 +75,29 @@ function ActivityRow({ item }: { item: ActivityItem }) {
         </p>
       </div>
     </Link>
+    <button
+      type="button"
+      onClick={() => setConfirming(true)}
+      aria-label={`Remove ${item.projectTitle} from Connect`}
+      className="absolute top-1/2 -translate-y-1/2 right-2 p-2 rounded-full text-ink-muted hover:text-ink"
+    >
+      <X size={16} />
+    </button>
+    {confirming && (
+      <ConfirmDialog
+        themed
+        danger={false}
+        title="Remove from Connect?"
+        description="This only takes it off this list. Your access doesn't change."
+        confirmLabel="Remove"
+        onCancel={() => setConfirming(false)}
+        onConfirm={() => {
+          setConfirming(false);
+          remove.mutate(item.projectId);
+        }}
+      />
+    )}
+    </div>
   );
 }
 

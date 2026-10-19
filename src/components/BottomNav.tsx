@@ -48,16 +48,17 @@ const fullNavItems = [feedItem, discoverItem, libraryItem, connectItem] as const
 const restrictedNavItems = [discoverItem, libraryItem, connectItem] as const;
 
 // Solid chat bubble with a "+" knocked out of it — the same glyph the
-// reference design uses for its floating new-chat button. Square top-left
-// corner is the bubble's "tail"; the rest of the outline is rounded.
+// reference design uses for its floating new-chat button. The long
+// pointed tail at the bottom-left is what makes it read as a speech bubble
+// rather than a bare "+" (people were mistaking it for add-post/project).
 function ChatPlusIcon({ size = 26 }: { size?: number }) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" aria-hidden>
       <path
-        d="M2.5 3.5H18a3.5 3.5 0 0 1 3.5 3.5v8a3.5 3.5 0 0 1-3.5 3.5H6A3.5 3.5 0 0 1 2.5 15V3.5Z"
+        d="M6.5 2.5H17.5A4 4 0 0 1 21.5 6.5V12.5A4 4 0 0 1 17.5 16.5H11L3.5 22L2.5 13V6.5A4 4 0 0 1 6.5 2.5Z"
         fill="currentColor"
       />
-      <path d="M12 7.5v7M8.5 11h7" className="stroke-accent dark:stroke-ink" strokeWidth="1.9" strokeLinecap="round" />
+      <path d="M12 6.2v6.6M8.7 9.5h6.6" className="stroke-accent dark:stroke-ink" strokeWidth="1.8" strokeLinecap="round" />
     </svg>
   );
 }
@@ -138,7 +139,7 @@ export function BottomNav() {
           aria-label={unreadCount > 0 ? `Chats, ${unreadCount} unread` : "Chats"}
           className="absolute right-4 bottom-full mb-4 w-14 h-14 rounded-[18px] bg-accent text-canvas dark:bg-ink dark:text-accent flex items-center justify-center shadow-[0_4px_14px_rgba(var(--shadow-ink-rgb),0.25)] active:scale-95 transition-transform"
         >
-          <ChatPlusIcon />
+          <ChatPlusIcon size={30} />
           {unreadCount > 0 && (
             <span className="pointer-events-none absolute -top-[9px] -right-[9px] min-w-6 h-6 px-[5px] rounded-full border-[2.5px] border-canvas bg-[#D8453A] text-white text-[11px] leading-[13px] font-semibold tabular-nums flex items-center justify-center">
               {unreadCount > 99 ? "99+" : unreadCount}

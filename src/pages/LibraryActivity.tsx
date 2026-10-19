@@ -1,9 +1,12 @@
 // src/pages/LibraryActivity.tsx
+import { useState } from "react";
 import { isBookType } from "../lib/bookCover";
 import { Link } from "react-router-dom";
-import { ImageIcon, LibraryBig, BookText, GraduationCap, Music, FileText, Link as LinkIcon } from "lucide-react";
+import { X, ImageIcon, LibraryBig, BookText, GraduationCap, Music, FileText, Link as LinkIcon } from "lucide-react";
 import { useTabState } from "../hooks/useTabState";
 import { useLibrary, libraryItemRoute, type LibraryItem, type LibraryItemType } from "../hooks/useLibrary";
+import { useRemoveFromLibrary } from "../hooks/useLibraryRemovals";
+import { ConfirmDialog } from "../components/ConfirmDialog";
 import { BottomNav } from "../components/BottomNav";
 
 // One tab per kind of thing you own — same tabbed shape as Connect.
@@ -37,10 +40,13 @@ const LABEL_FOR: Record<LibraryItemType, string> = {
 function LibraryRow({ item }: { item: LibraryItem }) {
   const Icon = ICON_FOR[item.projectType];
   const unavailable = item.status === "archived";
+  const remove = useRemoveFromLibrary();
+  const [confirming, setConfirming] = useState(false);
   return (
+    <div className="relative">
     <Link
       to={libraryItemRoute(item)}
-      className="flex items-center gap-3 p-3 rounded-xl border border-border bg-surface"
+      className="flex items-center gap-3 p-3 pr-11 rounded-xl border border-border bg-surface"
     >
       <div className={`w-12 ${isBookType(item.projectType) ? "h-[72px]" : "h-12"} rounded-lg bg-canvas flex items-center justify-center overflow-hidden shrink-0`}>
         {item.thumbnailUrl ? (
@@ -59,6 +65,29 @@ function LibraryRow({ item }: { item: LibraryItem }) {
         </p>
       </div>
     </Link>
+    <button
+      type="button"
+      onClick={() => setConfirming(true)}
+      aria-label={`Remove ${item.title} from Library`}
+      className="absolute top-1/2 -translate-y-1/2 right-2 p-2 rounded-full text-ink-muted hover:text-ink"
+    >
+      <X size={16} />
+    </button>
+    {confirming && (
+      <ConfirmDialog
+        themed
+        danger={false}
+        title="Remove from Library?"
+        description="This only takes it off this list. Your access doesn't change."
+        confirmLabel="Remove"
+        onCancel={() => setConfirming(false)}
+        onConfirm={() => {
+          setConfirming(false);
+          remove.mutate(item.projectId);
+        }}
+      />
+    )}
+    </div>
   );
 }
 
