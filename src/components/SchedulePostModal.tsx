@@ -34,18 +34,18 @@ export function SchedulePostModal({ onClose, onConfirm }: SchedulePostModalProps
     setValue(next);
   }
 
-  const fieldClass = "w-full bg-overlay-surface-raised rounded-xl px-3 py-2 text-sm text-overlay-ink border border-overlay-border";
+  const fieldClass = "w-full min-w-0 bg-overlay-surface-raised rounded-xl px-3 py-2 text-sm text-overlay-ink border border-overlay-border";
 
   return (
     <Modal onClose={onClose} ariaLabel="Schedule post" themed>
       <h2 className="font-display text-lg text-overlay-ink mb-4">Schedule post</h2>
 
-      <div className="grid grid-cols-2 gap-2">
-        <label className="block">
+      <div className="grid grid-cols-2 gap-4">
+        <label className="block min-w-0">
           <span className="block text-[11px] text-overlay-ink-muted mb-1">Date</span>
           <input type="date" value={toDateInput(value)} min={toDateInput(new Date())} onChange={(e) => onDateChange(e.target.value)} className={fieldClass} />
         </label>
-        <label className="block">
+        <label className="block min-w-0">
           <span className="block text-[11px] text-overlay-ink-muted mb-1">Time</span>
           <input type="time" value={toTimeInput(value)} onChange={(e) => onTimeChange(e.target.value)} className={fieldClass} />
         </label>
