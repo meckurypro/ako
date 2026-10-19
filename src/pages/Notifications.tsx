@@ -25,6 +25,7 @@ import {
   Banknote,
   Briefcase,
   Music2,
+  Lock,
 } from "lucide-react";
 import { useNotifications, useMarkNotificationRead, useMarkAllRead } from "../hooks/useNotifications";
 import {
@@ -40,6 +41,7 @@ import { PageInviteResponseModal } from "../components/PageInviteResponseModal";
 import { CollaborationInviteResponseModal } from "../components/CollaborationInviteResponseModal";
 import { MusicCreditResponseModal } from "../components/MusicCreditResponseModal";
 import type { NotificationWithActor } from "../hooks/useNotifications";
+import { timeAgo } from "../lib/timeAgo";
 
 const TYPE_CONFIG: Record<string, { icon: typeof Heart; verb: string }> = {
   // like/dislike/share can target a post OR a project (see
@@ -78,6 +80,9 @@ const TYPE_CONFIG: Record<string, { icon: typeof Heart; verb: string }> = {
   page_role_declined: { icon: UserX, verb: "declined your team invite" },
   post_tagged: { icon: Tag, verb: "tagged you in a post" },
   project_tagged: { icon: Tag, verb: "tagged you in a project" },
+  // Owner added you to a private project's access list (project_members). target_type "project",
+  // preview_text = project title, so it routes via the generic project case like project_tagged.
+  project_access_granted: { icon: Lock, verb: "gave you access to a private project" },
   collaboration_invite: { icon: Users, verb: "invited you to collaborate" },
   collaboration_accepted: { icon: UserCheck, verb: "accepted your collaboration invite" },
   collaboration_declined: { icon: UserX, verb: "declined your collaboration invite" },
@@ -100,16 +105,6 @@ const TYPE_CONFIG: Record<string, { icon: typeof Heart; verb: string }> = {
   // plain link" case as collaboration_invite below.
   music_credit_request: { icon: Music2, verb: "credited you on their song" },
 };
-
-function timeAgo(dateString: string): string {
-  const seconds = Math.floor((Date.now() - new Date(dateString).getTime()) / 1000);
-  if (seconds < 60) return "just now";
-  const minutes = Math.floor(seconds / 60);
-  if (minutes < 60) return `${minutes}m`;
-  const hours = Math.floor(minutes / 60);
-  if (hours < 24) return `${hours}h`;
-  return `${Math.floor(hours / 24)}d`;
-}
 
 // Where a tap on a notification should land. page_role_invite/
 // page_role_accepted are handled entirely inside NotificationRow below
@@ -210,8 +205,10 @@ function verbFor(n: NotificationWithActor, config: { verb: string }): string {
 function NotificationRowContent({ n, config }: { n: NotificationWithActor; config: { icon: typeof Heart; verb: string } }) {
   const Icon = config.icon;
   const showActor = !!n.actor && !NO_ACTOR_TYPES.has(n.type);
+  const unread = !n.read_at;
   return (
     <>
+      {unread && <span aria-hidden className="absolute inset-y-0 left-0 w-[3px] bg-accent" />}
       {showActor ? (
         // Its own Link, separate from the row's — tapping the photo goes
         // straight to the actor's profile; tapping anywhere else in the
@@ -233,7 +230,9 @@ function NotificationRowContent({ n, config }: { n: NotificationWithActor; confi
 
       <div className="min-w-0 flex-1">
         <p className="text-sm text-ink">
-          {showActor && <span className="font-medium">{n.actor!.display_name}</span>}
+          {showActor && (
+            <span className={unread ? "font-semibold" : "font-medium"}>{n.actor!.display_name}</span>
+          )}
           {n.type === "admin_message" && (
             <span className="inline-flex items-center gap-1 font-medium">
               <AkoMark size={44} />
@@ -247,13 +246,22 @@ function NotificationRowContent({ n, config }: { n: NotificationWithActor; confi
         <p className="text-xs text-ink-muted mt-0.5">{timeAgo(n.created_at)}</p>
       </div>
 
-      {!n.read_at && <div className="w-2 h-2 rounded-full bg-accent flex-shrink-0 mt-2" />}
+      {unread && <div className="w-2 h-2 rounded-full bg-accent flex-shrink-0 mt-2" />}
     </>
   );
 }
 
+// Rows are full-bleed to the edges of the list column and carry their own
+// horizontal padding, so an unread tint always runs edge to edge. (The old
+// "-mx-4 px-4" trick bled out of a padded parent, which fell short of the
+// edge on wide screens and mismatched the border width of read rows.)
+// Unread is signalled three ways so it never depends on colour alone: the
+// tint, a 3px accent bar on the leading edge (see NotificationRowContent),
+// and the dot + semibold name.
 const ROW_CLASS = (unread: boolean) =>
-  `flex items-start gap-3 py-3.5 border-b border-border w-full text-left ${unread ? "bg-highlight -mx-4 px-4" : ""}`;
+  `relative flex items-start gap-3 px-4 py-3.5 border-b border-border w-full text-left cursor-pointer transition-colors focus-visible:outline-none focus-visible:bg-accent-soft ${
+    unread ? "bg-highlight/50 hover:bg-highlight/70" : "hover:bg-accent-soft/60"
+  }`;
 
 // Row wrapper for every notification type — a clickable div (not a Link
 // or button) so the avatar above can be its own real, un-nested Link:
@@ -437,9 +445,9 @@ export function Notifications() {
         )}
       </header>
 
-      <div className="max-w-xl md:max-w-2xl mx-auto px-4 pt-2">
+      <div className="max-w-xl md:max-w-2xl mx-auto md:border-x md:border-border">
         {isLoading ? (
-          <p className="text-ink-muted text-center py-10">Loading…</p>
+          <p className="text-ink-muted text-center py-10 px-4">Loading…</p>
         ) : !notifications || notifications.length === 0 ? (
           <p className="text-ink-muted text-center py-10 text-sm">Nothing yet.</p>
         ) : (
