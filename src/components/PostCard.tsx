@@ -616,15 +616,15 @@ export function PostCard({
       {/* Restore/Delete for archived content — pulled out of the
           long-press "more" sheet into their own always-usable icons,
           since the tray below is frozen (see isArchivedFrozen) and
-          that sheet is unreachable while it's archived. Top-right,
-          above everything else on the card, matching the "Close"
-          pill's positioning convention in ArchivedPostModal. */}
+          that sheet is unreachable while it's archived. Their own
+          right-aligned row above the header, in normal flow, so they
+          can never overlap the author name or the post content. */}
       {isArchivedFrozen && (
-        <div className="absolute top-3 right-3 z-10 flex items-center gap-2">
+        <div className="mb-3 flex items-center justify-end gap-2">
           <button
             onClick={handleToggleArchive}
             aria-label="Restore"
-            className="flex items-center gap-1.5 text-xs font-medium text-canvas bg-ink/70 rounded-full px-3 py-1.5"
+            className="flex items-center gap-1.5 text-xs font-medium text-canvas bg-ink/70 rounded-full px-3.5 py-2"
           >
             <RotateCcw size={14} />
             Restore
@@ -632,7 +632,7 @@ export function PostCard({
           <button
             onClick={handleDelete}
             aria-label="Delete"
-            className="flex items-center gap-1.5 text-xs font-medium text-canvas bg-danger/85 rounded-full px-3 py-1.5"
+            className="flex items-center gap-1.5 text-xs font-medium text-canvas bg-danger/85 rounded-full px-3.5 py-2"
           >
             <Trash2 size={14} />
             Delete
@@ -648,11 +648,11 @@ export function PostCard({
           reshare is ALSO archived) to avoid stacking two Delete
           buttons. */}
       {reshareContentGone && isOwner && !isArchivedFrozen && (
-        <div className="absolute top-3 right-3 z-10">
+        <div className="mb-3 flex items-center justify-end">
           <button
             onClick={handleDelete}
             aria-label="Delete"
-            className="flex items-center gap-1.5 text-xs font-medium text-canvas bg-danger/85 rounded-full px-3 py-1.5"
+            className="flex items-center gap-1.5 text-xs font-medium text-canvas bg-danger/85 rounded-full px-3.5 py-2"
           >
             <Trash2 size={14} />
             Delete
