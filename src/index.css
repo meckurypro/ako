@@ -517,6 +517,22 @@ body {
   animation: ako-overlay-in 180ms ease-out;
 }
 
+/*
+  Gentle mount-in for the Discover search states (recents, suggestions,
+  results) so switching between them reads as one continuous surface rather
+  than a hard swap. Short and low-travel — orientation, not decoration.
+*/
+@keyframes ako-fade-up {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: none; }
+}
+.animate-ako-fade-up {
+  animation: ako-fade-up 220ms ease-out both;
+}
+@media (prefers-reduced-motion: reduce) {
+  .animate-ako-fade-up { animation: none; }
+}
+
 .ako-loader {
   width: 34px;
   height: 34px;
