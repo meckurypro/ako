@@ -1,4 +1,5 @@
 // src/components/RepostEmbed.tsx
+import { formatHeading } from "../lib/headingCase";
 import { Link } from "react-router-dom";
 import { Avatar } from "./Avatar";
 import { SlideCarousel } from "./PostMedia";
@@ -56,7 +57,7 @@ export function RepostEmbed({ source }: { source: RepostSource | null | undefine
       </div>
 
       {source.heading && (
-        <p className="font-display font-semibold text-sm text-ink mt-1.5">{source.heading}</p>
+        <p className="font-display font-semibold text-sm text-ink mt-1.5">{formatHeading(source.heading)}</p>
       )}
       {preview && <p className="text-sm text-ink mt-1 whitespace-pre-wrap break-words">{preview}</p>}
 

@@ -1,4 +1,5 @@
 import { renderFormattedText } from "../lib/formatText";
+import { formatHeading } from "../lib/headingCase";
 import { getHeadingColorDef } from "../lib/headingColors";
 
 interface PostContentProps {
@@ -41,7 +42,7 @@ export function PostContent({ heading, headingColor, content }: PostContentProps
   const hasBody = content.trim() !== "";
 
   if (heading && !hasBody) {
-    return <div>{renderParagraphs(heading)}</div>;
+    return <div>{renderParagraphs(formatHeading(heading))}</div>;
   }
 
   // A picked color (see Compose.tsx's palette button, src/lib/
@@ -60,7 +61,7 @@ export function PostContent({ heading, headingColor, content }: PostContentProps
           className="font-simple text-[26px] font-semibold leading-[30px] text-post-header mb-3"
           style={headingStyle}
         >
-          {renderFormattedText(heading, "h")}
+          {renderFormattedText(formatHeading(heading), "h")}
         </h3>
       )}
       {hasBody && renderParagraphs(content)}
