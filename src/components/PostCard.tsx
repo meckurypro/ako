@@ -250,7 +250,7 @@ export function PostCard({
   const hasReshared = !!hasResharedQuery.data;
 
   const viewRef = useRecordPostView<HTMLElement>(post.id, active);
-  const viewCountQuery = usePostViewCount(post.id, showStats);
+  const viewCountQuery = usePostViewCount(post.id, showStats || active);
   const viewCount = viewCountQuery.data ?? 0;
 
   function handleContentTap() {
@@ -748,6 +748,14 @@ export function PostCard({
                 {timeAgo(post.created_at)}
                 {post.edited_at && " · edited"}
               </span>
+              {viewCount > 0 && (
+                <>
+                  <span aria-hidden="true">·</span>
+                  <span>
+                    {formatCompactCount(viewCount)} {viewCount === 1 ? "view" : "views"}
+                  </span>
+                </>
+              )}
               {post.visibility === "public" && <Globe size={11} />}
             </p>
           </div>

@@ -19,6 +19,7 @@ import {
   useCommentAncestors,
   type CommentWithAuthor,
 } from "../hooks/useComments";
+import { usePostViewCount } from "../hooks/usePosts";
 import {
   useMyCommentReactions,
   useToggleCommentReaction,
@@ -412,6 +413,7 @@ export function CommentSheet({
   const toggleReaction = useToggleCommentReaction(postId, knownIds.length);
 
   const totalCount = commentCount ?? rootList.length;
+  const viewCount = usePostViewCount(postId).data ?? 0;
 
   async function handleShare(comment: CommentWithAuthor) {
     const url = `${APP_URL}/post/${postId}#comment-${comment.id}`;
@@ -460,6 +462,11 @@ export function CommentSheet({
               Comments
               {totalCount > 0 && (
                 <span className="text-ink-muted font-normal ml-1.5 text-sm">{formatCompactCount(totalCount)}</span>
+              )}
+              {viewCount > 0 && (
+                <span className="text-ink-muted font-normal ml-1.5 text-sm">
+                  · {formatCompactCount(viewCount)} {viewCount === 1 ? "view" : "views"}
+                </span>
               )}
             </h2>
             <button onClick={onClose} className="p-1 text-ink-muted" aria-label="Close">
