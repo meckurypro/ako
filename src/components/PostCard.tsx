@@ -53,6 +53,7 @@ import { useMyReaction, useReactionOverlay, useToggleReaction } from "../hooks/u
 import { recordProfileVisitFromPost } from "../hooks/useProfileVisits";
 import { useEngagementOrder, type SecondaryActionKey } from "../hooks/useEngagementOrder";
 import { useCollaborators } from "../hooks/useCollaboration";
+import { useRecordPostView } from "../hooks/useRecordPostView";
 import {
   useDeletePost,
   useSetPostArchived,
@@ -248,6 +249,7 @@ export function PostCard({
   const hasResharedQuery = useHasReshared(reshareTarget.id, !isOwner && active);
   const hasReshared = !!hasResharedQuery.data;
 
+  const viewRef = useRecordPostView<HTMLElement>(post.id, active);
   const viewCountQuery = usePostViewCount(post.id, showStats);
   const viewCount = viewCountQuery.data ?? 0;
 
@@ -610,6 +612,7 @@ export function PostCard({
 
   return (
     <article
+      ref={viewRef}
       data-owner-view={isOwner}
       className="bg-surface dark:bg-[#121114] rounded-2xl p-4 mb-4 relative shadow-[0_0_0_1px_rgba(var(--shadow-ink-rgb),0.07),0_10px_24px_-6px_rgba(var(--shadow-ink-rgb),0.16)]"
     >
