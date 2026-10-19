@@ -35,7 +35,6 @@ import { PostContent } from "./PostContent";
 import { AkoWatermark } from "./AkoWatermark";
 import { MusicAttribution } from "./music/MusicAttribution";
 import { StanceComposer, STANCE_COLORS } from "./StanceComposer";
-import { CommentSheet } from "./CommentSheet";
 import { ReshareSheet } from "./ReshareSheet";
 import { GiftPicker } from "./GiftPicker";
 import { RepostEmbed } from "./RepostEmbed";
@@ -101,18 +100,13 @@ export function PostCard({
   // else a PostCard is genuinely on screen the moment it mounts, so the
   // default is true and every other call site is unaffected.
   active?: boolean;
-  // Only PostDetail passes this — called instead of opening PostCard's
-  // own internal comment sheet when showStats is true, since in that
-  // context PostDetail owns the CommentSheet itself (normally already
-  // open). Lets PostDetail's "view original, comments not forced open"
-  // mode (reached via RepostBadge) still open comments on demand when
-  // the visitor taps the comment count.
+  // Only PostDetail passes this — on the post's own page the replies already sit right below the card, so
+  // tapping the comment count there just brings them into view instead of navigating anywhere.
   onRequestOpenComments?: () => void;
 }) {
   const { user } = useAuth();
   const navigate = useNavigate();
   const [activeStance, setActiveStance] = useState<Stance | null>(null);
-  const [showComments, setShowComments] = useState(false);
   const [showReshareSheet, setShowReshareSheet] = useState(false);
   const [showGiftPicker, setShowGiftPicker] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
@@ -281,22 +275,14 @@ export function PostCard({
     navigate(`/post/${post.id}`);
   }
 
-  // Opens the immersive comment overlay in place — from the Feed, a
-  // profile grid, anywhere a PostCard renders — instead of navigating
-  // away to the full post page. On PostDetail itself (showStats, the
-  // "expanded" view) the page already keeps this same sheet open on
-  // its own, so tapping the count there is a no-op rather than
-  // stacking a second identical sheet on top of it.
+  // Comments are the post's own page now, not an overlay: from a feed or a profile grid the count takes you
+  // into the post (which also counts as a view), and on the post's page it scrolls down to the replies.
   function handleCommentTap() {
     if (showStats) {
-      // PostDetail owns the comment sheet in this mode — it's usually
-      // already open (see onClose), but when it isn't (the "view
-      // original" mode reached via RepostBadge) this is how the tap
-      // gets there instead of doing nothing.
       onRequestOpenComments?.();
       return;
     }
-    setShowComments(true);
+    navigate(`/post/${post.id}`);
   }
 
   async function handleShare() {
@@ -381,7 +367,7 @@ export function PostCard({
 
   // ─── Secondary action definitions (all 7, passed to scrollable tray) ──────
   // Stance icons carry STANCE_COLORS.iconClass so they stay in sync with
-  // StanceComposer tabs and CommentSheet pills.
+  // StanceComposer tabs.
 
   const secondaryDefs: Record<SecondaryActionKey, ActionDef> = {
     support: {
@@ -892,15 +878,6 @@ export function PostCard({
           stance={activeStance}
           stances={isOwner ? ["support"] : undefined}
           onClose={() => setActiveStance(null)}
-        />
-      )}
-
-      {showComments && (
-        <CommentSheet
-          postId={post.id}
-          commentCount={post.comment_count}
-          isOwner={isOwner}
-          onClose={() => setShowComments(false)}
         />
       )}
 

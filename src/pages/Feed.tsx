@@ -57,8 +57,7 @@ function LoadMoreButton({ onClick }: { onClick: () => void }) {
 // profile they've now tapped "Back to post" to return from (see
 // ProfilePage's fromFeedPost / "Back to post" FAB, which navigates
 // here with location.state.scrollToPostId). Same scroll-into-view +
-// timed flash pattern as CommentSheet's highlightId — see CommentRow
-// in CommentSheet.tsx.
+// timed flash pattern comments used to use for a deep-linked reply.
 //
 // Only wired into "For You" below — the tab a fresh /feed load always
 // lands on — not Following/Top Discussions, since there's no reliable

@@ -31,6 +31,7 @@ import { Feed } from "./pages/Feed";
 import { Compose } from "./pages/Compose";
 import { EditPost } from "./pages/EditPost";
 import { PostDetail } from "./pages/PostDetail";
+import { CommentDetail } from "./pages/CommentDetail";
 import { PromoteComposer } from "./pages/PromoteComposer";
 import { HashtagFeed } from "./pages/HashtagFeed";
 import { Discover } from "./pages/Discover";
@@ -281,6 +282,14 @@ function AppRoutes() {
               element={
                 <RequireAuth>
                   <PostDetail />
+                </RequireAuth>
+              }
+            />
+            <Route
+              path="/post/:postId/comment/:commentId"
+              element={
+                <RequireAuth>
+                  <CommentDetail />
                 </RequireAuth>
               }
             />

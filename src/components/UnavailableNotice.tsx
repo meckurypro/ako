@@ -14,7 +14,7 @@ export function UnavailableNotice({
   kind,
   reason,
 }: {
-  kind: "post" | "project";
+  kind: "post" | "project" | "comment";
   reason?: string | null;
 }) {
   return (

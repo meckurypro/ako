@@ -127,8 +127,8 @@ const TYPE_CONFIG: Record<string, { icon: typeof Heart; verb: string }> = {
 //   - comment-level engagement (a reply on your post, or on your
 //     comment) has target_id === the COMMENT id, which isn't a route on
 //     its own — useNotifications() resolves comment_post_id for these,
-//     so we route to the parent post with a `#comment-{id}` anchor that
-//     PostDetail/CommentSheet scroll to and briefly highlight.
+//     so we open that comment on its own page (/post/{postId}/comment/{id}),
+//     with the conversation above it for context.
 // Rooms, courses, books, and meetings each have a dedicated page
 // distinct from the generic project detail page — see project_type
 // on NotificationWithActor. Anything else (media/file/url/event/gig/
@@ -170,7 +170,7 @@ function notificationLink(n: NotificationWithActor): string {
   if (n.target_type === "comment" && n.target_id) {
     // comment_post_id can be null if it couldn't be resolved (e.g. the
     // comment was since deleted) — nothing sensible to link to then.
-    return n.comment_post_id ? `/post/${n.comment_post_id}#comment-${n.target_id}` : "#";
+    return n.comment_post_id ? `/post/${n.comment_post_id}/comment/${n.target_id}` : "#";
   }
   if (n.target_type === "conversation" && n.target_id) return `/messages/${n.target_id}`;
   if (n.target_type === "profile" && n.actor) return `/profile/${n.actor.username}`;

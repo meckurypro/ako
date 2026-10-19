@@ -37,6 +37,12 @@
   --color-border: #E9E4D8;        /* hairline borders, nudged for brighter surface */
   --color-danger: #A64B3F;        /* warm brick-red for destructive/dislike states, not pure red */
   --color-pushback: #B8862E;      /* muted warm gold/ochre — Pushback stance only (was raw amber-*) */
+  /* Conversation stance cues (comments/replies). Their own tokens on purpose: --color-accent flips to orange in
+     page mode, but "supports" must always read green, "disagrees" red, "pushes back" gold. Kept soft — they
+     tint a 2px rail and a tiny label, never a fill. */
+  --color-stance-support: #4E8A62;
+  --color-stance-disagree: #B4574A;
+  --color-stance-pushback: #B8862E;
   --color-online-glow: #FF6A00;    /* neon orange — "recently online" presence dot only. Used to double as the read-tick color too (misleadingly named --color-tick-read); ticks now use their own --color-tick-blue below, WhatsApp-accurate instead of this loud orange. */
   --color-tick-blue: #53BDEB;      /* WhatsApp's own read-receipt blue — double-tick color once a message has been read. Sent/delivered ticks stay the neutral unread color in MessageStatusTicks; only this final state goes blue, matching WhatsApp exactly. */
   --color-presence-online: #39FF6A; /* neon green — online-now presence dot */
@@ -296,6 +302,9 @@
   --color-border: #232220;
   --color-danger: #C97C6B;
   --color-pushback: #D9A857;
+  --color-stance-support: #5DBB89;
+  --color-stance-disagree: #D68A7B;
+  --color-stance-pushback: #D9A857;
   --color-highlight: #1E4B31;    /* dark-mode counterpart — noticeably more saturated/green than --color-accent-soft's #17281F so unread rows still pop against near-black canvas */
   --color-post-header: #7CB3FF;  /* dark-mode counterpart to light mode's #1E4C9A — that navy is far too dark to read against near-black canvas, so this swaps to a light sky-blue instead; ~8.6-9:1 against dark canvas/surface, and kept visibly distinct from both --color-tick-blue (#53BDEB) and dark --color-accent (#4CAE7C) so it doesn't get mistaken for either. */
 
