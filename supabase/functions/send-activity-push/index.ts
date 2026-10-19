@@ -37,6 +37,7 @@ const COPY: Record<string, Copy> = {
   share: { body: "shared your post" },
   post_tagged: { body: "tagged you in a post" },
   project_tagged: { body: "Your project was tagged in a post", systemTitle: true },
+  project_access_granted: { body: "gave you access to a private project" },
   collaboration_invite: { body: "invited you to collaborate" },
   collaboration_accepted: { body: "accepted your collaboration invite" },
   page_role_invite: { body: "invited you to a page role" },
