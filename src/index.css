@@ -161,6 +161,16 @@
   --overlay-surface-rgb: 28, 28, 30; /* == --color-overlay-surface, for rgba() transparency below */
 
   /*
+    Verified badge — always blue (not the green/peach accent). Deeper, saturated blue on light canvases;
+    see .dark below for the brighter dark-mode pair. Used only by components/VerifiedBadge.tsx.
+  */
+  --verified-from: #2E9BFF;
+  --verified-to: #0A5BEA;
+  --verified-glow: 10, 91, 234;           /* rgb triplet for the drop shadow */
+  --verified-soft: rgba(10, 91, 234, 0.10); /* "Verified" pill background */
+  --verified-text: #0A55D6;               /* "Verified" pill text */
+
+  /*
     Selectable heading colors — Compose.tsx's color-picker button next
     to the heading input (src/lib/headingColors.ts is the source of
     truth for which key maps to which pair; these are just the CSS
@@ -269,6 +279,12 @@
   read as brighter than the surface they're outlining.
 */
 .dark {
+  /* Verified badge, dark mode: brighter blue so it pops on near-black; light pill text for contrast. */
+  --verified-from: #45A5FF;
+  --verified-to: #2272F6;
+  --verified-glow: 69, 165, 255;
+  --verified-soft: rgba(69, 165, 255, 0.16);
+  --verified-text: #7CC0FF;
   --color-canvas: #0C0C0B;
   --color-surface: #131311;
   --color-ink: #F9F8F5;
