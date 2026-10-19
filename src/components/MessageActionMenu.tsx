@@ -2,6 +2,7 @@
 import { useLayoutEffect, useRef, useState } from "react";
 import { Copy, Trash2, Redo2, MoreHorizontal, Star, Pin, Plus, X, Reply, Forward, EyeOff, CheckSquare } from "lucide-react";
 import { useBackDismiss } from "../hooks/useBackDismiss";
+import { useDismissKeyboardOnMount } from "../hooks/useDismissKeyboard";
 import { useScrollLock } from "../hooks/useScrollLock";
 import { DropdownMenu, type DropdownMenuItem } from "./DropdownMenu";
 import { MessagePreviewLine } from "./MessagePreviewLine";
@@ -92,6 +93,7 @@ export function MessageActionMenu({
   onTapMessage,
 }: MessageActionMenuProps) {
   useBackDismiss(onClose);
+  useDismissKeyboardOnMount();
   const [moreOpen, setMoreOpen] = useState(false);
   const moreButtonRef = useRef<HTMLButtonElement>(null);
   const pillRef = useRef<HTMLDivElement>(null);

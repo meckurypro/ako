@@ -1,6 +1,7 @@
 // src/components/DeleteMessageSheet.tsx
 import { Trash2 } from "lucide-react";
 import { useBackDismiss } from "../hooks/useBackDismiss";
+import { useDismissKeyboardOnMount } from "../hooks/useDismissKeyboard";
 import { useScrollLock } from "../hooks/useScrollLock";
 import type { DeleteScope } from "../hooks/useMessaging";
 
@@ -28,6 +29,7 @@ interface DeleteMessageSheetProps {
  */
 export function DeleteMessageSheet({ count, allowEveryone, onDelete, onClose }: DeleteMessageSheetProps) {
   useBackDismiss(onClose);
+  useDismissKeyboardOnMount();
   useScrollLock();
   const plural = count > 1 ? `${count} messages` : "this message";
 

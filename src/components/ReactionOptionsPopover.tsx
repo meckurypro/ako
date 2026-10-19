@@ -2,6 +2,7 @@
 import { useLayoutEffect, useRef, useState } from "react";
 import { Trash2 } from "lucide-react";
 import { useBackDismiss } from "../hooks/useBackDismiss";
+import { useDismissKeyboardOnMount } from "../hooks/useDismissKeyboard";
 import { Portal } from "./Portal";
 
 export interface ReactionPopoverTarget {
@@ -46,6 +47,7 @@ export function ReactionOptionsPopover({
   onClose,
 }: ReactionOptionsPopoverProps) {
   useBackDismiss(onClose);
+  useDismissKeyboardOnMount();
   const cardRef = useRef<HTMLDivElement>(null);
   // Measured after mount so this can be centered on the badge precisely
   // and clamped to the viewport — a fixed guessed width is what made

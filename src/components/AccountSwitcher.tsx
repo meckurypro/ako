@@ -1,5 +1,6 @@
 // src/components/AccountSwitcher.tsx
 import { useEffect, useRef, useState } from "react";
+import { useDismissKeyboardOnMount } from "../hooks/useDismissKeyboard";
 import { useNavigate } from "react-router-dom";
 import { Check, Plus } from "lucide-react";
 import { Avatar } from "./Avatar";
@@ -15,6 +16,7 @@ import { useSavedAccounts, useSwitchAccount } from "../hooks/useAccountSwitcher"
 // renders "You" plus an "Add account" row unconditionally below, so
 // there's nothing left for the caller to gate on.
 export function AccountSwitcher({ onClose }: { onClose: () => void }) {
+  useDismissKeyboardOnMount();
   const navigate = useNavigate();
   const { user } = useAuth();
   const { data: me } = useMyProfile();

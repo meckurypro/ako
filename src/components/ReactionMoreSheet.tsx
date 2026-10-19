@@ -1,5 +1,6 @@
 // src/components/ReactionMoreSheet.tsx
 import { useBackDismiss, runAfterDismiss } from "../hooks/useBackDismiss";
+import { useDismissKeyboardOnMount } from "../hooks/useDismissKeyboard";
 import { useScrollLock } from "../hooks/useScrollLock";
 import { Portal } from "./Portal";
 import type { EngagementAction } from "./ReactionTray";
@@ -20,6 +21,7 @@ interface ReactionMoreSheetProps {
  */
 export function ReactionMoreSheet({ actions, onClose }: ReactionMoreSheetProps) {
   useBackDismiss(onClose);
+  useDismissKeyboardOnMount();
   useScrollLock();
 
   return (

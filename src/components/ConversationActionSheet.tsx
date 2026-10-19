@@ -1,6 +1,7 @@
 // src/components/ConversationActionSheet.tsx
 import { Pin, PinOff, Archive, Trash2, CheckSquare } from "lucide-react";
 import { useBackDismiss } from "../hooks/useBackDismiss";
+import { useDismissKeyboardOnMount } from "../hooks/useDismissKeyboard";
 import { useScrollLock } from "../hooks/useScrollLock";
 
 interface ConversationActionSheetProps {
@@ -32,6 +33,7 @@ export function ConversationActionSheet({
   onClose,
 }: ConversationActionSheetProps) {
   useBackDismiss(onClose);
+  useDismissKeyboardOnMount();
   useScrollLock();
 
   return (

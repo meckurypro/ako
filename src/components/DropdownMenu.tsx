@@ -1,6 +1,7 @@
 // src/components/DropdownMenu.tsx
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode, type RefObject } from "react";
 import { useBackDismiss, runAfterDismiss } from "../hooks/useBackDismiss";
+import { useDismissKeyboardOnMount } from "../hooks/useDismissKeyboard";
 import { useScrollLock } from "../hooks/useScrollLock";
 import { Portal } from "./Portal";
 
@@ -61,6 +62,7 @@ const VIEWPORT_MARGIN = 8;
  */
 export function DropdownMenu({ anchorRef, items, onClose, widthClass = "w-56" }: DropdownMenuProps) {
   useBackDismiss(onClose);
+  useDismissKeyboardOnMount();
   useScrollLock();
   const panelRef = useRef<HTMLDivElement>(null);
   const [style, setStyle] = useState<React.CSSProperties | null>(null);

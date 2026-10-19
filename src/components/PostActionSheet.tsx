@@ -1,6 +1,7 @@
 // src/components/PostActionSheet.tsx
 import { Pencil, Archive, RotateCcw, Trash2 } from "lucide-react";
 import { useBackDismiss } from "../hooks/useBackDismiss";
+import { useDismissKeyboardOnMount } from "../hooks/useDismissKeyboard";
 import { useScrollLock } from "../hooks/useScrollLock";
 import { Portal } from "./Portal";
 
@@ -26,6 +27,7 @@ export function PostActionSheet({
   onClose,
 }: PostActionSheetProps) {
   useBackDismiss(onClose);
+  useDismissKeyboardOnMount();
   useScrollLock();
 
   return (
