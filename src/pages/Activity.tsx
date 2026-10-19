@@ -1,7 +1,7 @@
 // src/pages/Activity.tsx
 import { useNavigate } from "react-router-dom";
 import { useSmartBack } from "../hooks/useSmartBack";
-import { ArrowLeft, Bookmark, Heart, History, ChevronRight, FileEdit, Send } from "lucide-react";
+import { ArrowLeft, Bookmark, Heart, History, ChevronRight, FileEdit, Send, Tag } from "lucide-react";
 import { BottomNav } from "../components/BottomNav";
 import { useMyDraftPosts, useMyScheduledPosts } from "../hooks/usePosts";
 
@@ -33,6 +33,12 @@ const ROWS = [
     label: "Scheduled",
     description: "Posts queued to publish automatically",
     countHook: "scheduled",
+  },
+  {
+    to: "/activity/offers",
+    icon: Tag,
+    label: "Offers",
+    description: "Bundle your paid projects at a special price",
   },
   {
     to: "/activity/history",

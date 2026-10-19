@@ -19,6 +19,8 @@ import { useRecordFreeProjectOpen } from "../hooks/useProjectAccess";
 import { useProject, useHasPurchased, isProjectFree, getEffectivePrice, usePurchaseProject, useUpdateProject } from "../hooks/useProjects";
 import { BOOK_COVER_HINT } from "../lib/bookCover";
 import { getProjectUrl } from "../lib/projectLinks";
+import { OfferNudgeSheet } from "../components/OfferNudgeSheet";
+import { useOfferNudge } from "../hooks/useOffers";
 import { BookReaderSkeleton } from "../components/book/BookReaderSkeleton";
 import { BookReflowReader } from "../components/book/BookReflowReader";
 import { BookChapterEditor } from "../components/book/BookChapterEditor";
@@ -59,6 +61,9 @@ export function Book() {
   const chaptersQuery = useBookChapters(projectId);
   const chapters = chaptersQuery.data;
   const purchaseProject = usePurchaseProject();
+  // If this book is part of one of the creator's offers, Buy suggests the bundle first.
+  const offerNudge = useOfferNudge(projectId ?? "");
+  const toast = useToast();
 
   const ordered = useMemo(() => (chapters ?? []).slice().sort((a, b) => a.sort_order - b.sort_order), [chapters]);
 
@@ -71,16 +76,33 @@ export function Book() {
 
   if (!hasAccess) {
     return (
-      <BookLockedView
-        title={project.title}
-        thumbnailUrl={project.thumbnail_url}
-        price={getEffectivePrice(project)}
-        onBuy={async () => {
-          await purchaseProject.mutateAsync(project.id);
-        }}
-        buying={purchaseProject.isPending}
-        onBack={() => navigate(-1)}
-      />
+      <>
+        <BookLockedView
+          title={project.title}
+          thumbnailUrl={project.thumbnail_url}
+          price={getEffectivePrice(project)}
+          onBuy={async () => {
+            if (await offerNudge.offerBeforeBuy()) return;
+            await purchaseProject.mutateAsync(project.id);
+          }}
+          buying={purchaseProject.isPending || offerNudge.checking}
+          onBack={() => navigate(-1)}
+        />
+        {offerNudge.offers && (
+          <OfferNudgeSheet
+            projectId={project.id}
+            projectTitle={project.title}
+            singlePrice={getEffectivePrice(project)}
+            offers={offerNudge.offers}
+            onBuySingle={() => {
+              purchaseProject
+                .mutateAsync(project.id)
+                .catch((err) => toast(err instanceof Error ? err.message : "Couldn't complete purchase.", { variant: "error" }));
+            }}
+            onClose={offerNudge.close}
+          />
+        )}
+      </>
     );
   }
 

@@ -41,6 +41,8 @@ import { useAffiliateProgram } from "../hooks/useAffiliates";
 import { AffiliateShareSheet } from "./AffiliateShareSheet";
 import { ConfirmDialog } from "./ConfirmDialog";
 import { UnlockReveal } from "./UnlockReveal";
+import { OfferNudgeSheet } from "./OfferNudgeSheet";
+import { OFFER_ELIGIBLE_TYPES, useOfferNudge } from "../hooks/useOffers";
 import { renderFormattedText } from "../lib/formatText";
 import {
   useHasPurchased,
@@ -399,6 +401,10 @@ export function ProjectCard({
 
   const hasPurchasedQuery = useHasPurchased(project.id);
   const purchaseProject = usePurchaseProject();
+  // Offers: when this project is part of one of the creator's bundles, tapping Buy
+  // first suggests the bundle (see OfferNudgeSheet). Looked up on tap, not on render.
+  const offerNudge = useOfferNudge(project.id);
+  const buyBusy = purchaseProject.isPending || offerNudge.checking;
   const bookGig = useBookGig();
   const getFileDownload = useGetProjectFile();
   const getAudioStream = useGetProjectFile();
@@ -514,7 +520,8 @@ export function ProjectCard({
     setSupportSheetOpen(true);
   }
 
-  async function handleBuy() {
+  // The plain single-project purchase.
+  async function buyThisOnly() {
     if (!user) {
       goToLogin();
       return;
@@ -525,6 +532,19 @@ export function ProjectCard({
     } catch (err) {
       setError(err instanceof Error ? err.message : "Purchase failed.");
     }
+  }
+
+  // Buy tap: if one of the creator's offers contains this project, suggest it first
+  // (the sheet itself offers "just this one"); otherwise buy straight away.
+  async function handleBuy() {
+    if (!user) {
+      goToLogin();
+      return;
+    }
+    setError(null);
+    const suggestable = !isFree && OFFER_ELIGIBLE_TYPES.includes(project.project_type);
+    if (suggestable && (await offerNudge.offerBeforeBuy())) return;
+    await buyThisOnly();
   }
 
   // Room membership is an ongoing engagement state (like Like/Save),
@@ -1133,7 +1153,7 @@ export function ProjectCard({
               ? `Get access for ${priceLabel}`
               : `Buy for ${priceLabel}`,
         onClick: handleBuy,
-        disabled: purchaseProject.isPending,
+        disabled: buyBusy,
       };
     }
   } else if (project.project_type === "file") {
@@ -1741,7 +1761,7 @@ export function ProjectCard({
             !isBookDraftUnpublished && (
             <button
               onClick={project.project_type === "gig" ? handleBookGig : handleBuy}
-              disabled={project.project_type === "gig" ? bookGig.isPending : purchaseProject.isPending}
+              disabled={project.project_type === "gig" ? bookGig.isPending : buyBusy}
               className="ml-auto bg-accent text-canvas px-4 py-1.5 rounded-full text-sm font-semibold shadow-[0_4px_14px_-4px_rgba(var(--shadow-ink-rgb),0.35)] transition-transform active:scale-[0.97] disabled:opacity-50 disabled:active:scale-100"
             >
               {project.project_type === "gig"
@@ -1876,6 +1896,17 @@ export function ProjectCard({
           projectTitle={project.title}
           onClose={() => setSupportSheetOpen(false)}
           onSupported={handleSupported}
+        />
+      )}
+
+      {offerNudge.offers && (
+        <OfferNudgeSheet
+          projectId={project.id}
+          projectTitle={project.title}
+          singlePrice={effectivePrice}
+          offers={offerNudge.offers}
+          onBuySingle={() => void buyThisOnly()}
+          onClose={offerNudge.close}
         />
       )}
 

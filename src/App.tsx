@@ -114,6 +114,7 @@ import { LikedHub } from "./pages/LikedHub";
 import { Connect } from "./pages/Connect";
 import { LibraryActivity } from "./pages/LibraryActivity";
 import { MyGigs } from "./pages/MyGigs";
+import { Offers } from "./pages/Offers";
 import { HistoryActivity } from "./pages/HistoryActivity";
 import { registerOfflineMutations } from "./lib/offlineMutations";
 
@@ -908,6 +909,16 @@ function AppRoutes() {
               element={
                 <RequireAuth>
                   <Activity />
+                </RequireAuth>
+              }
+            />
+            <Route
+              path="/activity/offers"
+              element={
+                <RequireAuth>
+                  <RequireProjectCreation>
+                    <Offers />
+                  </RequireProjectCreation>
                 </RequireAuth>
               }
             />
