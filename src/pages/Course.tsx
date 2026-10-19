@@ -17,6 +17,7 @@ import {
   Eye,
   PlayCircle,
   FileText,
+  PenLine,
 } from "lucide-react";
 import { useAuth } from "../hooks/useAuth";
 import { useProjectOwnership } from "../hooks/useProjectOwnership";
@@ -28,6 +29,9 @@ import { CourseHero } from "../components/course/CourseHero";
 import { LessonReader } from "../components/course/LessonReader";
 import { ResumePrompt } from "../components/ResumePrompt";
 import { ProgressBar } from "../components/course/ProgressBar";
+import { ForewordPreviewBar } from "../components/ForewordPreviewBar";
+import { ForewordsSheet } from "../components/ForewordsSheet";
+import { useForewordPreview, useProjectForewords } from "../hooks/useForewords";
 import { useToast } from "../components/Toast";
 import { useReturnAfterSave } from "../hooks/useReturnAfterSave";
 import { buildReaderModel, readMinutes } from "../lib/lessonFormat";
@@ -248,13 +252,21 @@ export function Course() {
   const isCreator = !!user && project?.owner_id === user.id;
   const isFree = !!project && isProjectFree(project);
   const hasPurchasedQuery = useHasPurchased(projectId ?? "");
-  const hasAccess = isOwner || isFree || !!hasPurchasedQuery.data;
-  useRecordFreeProjectOpen(project, { isOwner: isCreator });
+  // Someone invited to write a foreword may go through the whole course first, draft or paid (the database grants the
+  // rows while their invite is open, and after they've written). A preview isn't enrollment: no Library entry, no
+  // progress tracking.
+  const foreword = useForewordPreview(projectId);
+  const isPreviewer = foreword.canPreview && !isCreator;
+  const hasAccess = isOwner || isFree || !!hasPurchasedQuery.data || isPreviewer;
+  useRecordFreeProjectOpen(project, { isOwner: isCreator, enabled: !isPreviewer });
+  const [showForewords, setShowForewords] = useState(false);
+  const forewordsQuery = useProjectForewords(projectId, isOwner);
+  const forewordsToReview = (forewordsQuery.data ?? []).filter((f) => f.status === "submitted").length;
 
   const { data: modules } = useCourseModules(projectId);
   const progressQuery = useCourseProgress(projectId, user?.id);
   const completedIds = useMemo(() => progressQuery.data ?? new Set<string>(), [progressQuery.data]);
-  const setLessonComplete = useSetLessonComplete(projectId ?? "", user?.id);
+  const setLessonComplete = useSetLessonComplete(projectId ?? "", user?.id, !isPreviewer);
 
   const addModule = useAddModule(projectId ?? "");
   const updateModuleTitle = useUpdateModuleTitle(projectId ?? "");
@@ -316,7 +328,7 @@ export function Course() {
   const [resumeOffer, setResumeOffer] = useState<ResumeAt | null>(null);
   const [resumeAt, setResumeAt] = useState<ResumeAt | null>(null);
   const offerChecked = useRef(false);
-  const tracking = !!user && hasAccess && !isOwner;
+  const tracking = !!user && hasAccess && !isOwner && !isPreviewer;
 
   // Offer to pick up where they stopped. Runs once, after access, progress and the saved position have all loaded.
   useEffect(() => {
@@ -517,11 +529,26 @@ export function Course() {
     );
   }
 
+  // The locked Foreword module sits in front of the course but isn't one of its numbered modules.
+  const moduleNumberOf = (moduleId: string): number | null => {
+    let n = 0;
+    for (const m of modules ?? []) {
+      if (m.is_foreword_managed) {
+        if (m.id === moduleId) return null;
+        continue;
+      }
+      n += 1;
+      if (m.id === moduleId) return n;
+    }
+    return null;
+  };
   const lessonNumberOf = (lesson: CourseLesson) => {
     const mods = modules ?? [];
-    const mi = mods.findIndex((m) => m.id === lesson.module_id);
-    const li = mi >= 0 ? mods[mi].lessons.findIndex((l) => l.id === lesson.id) : 0;
-    return `${mi + 1}.${li + 1}`;
+    const n = moduleNumberOf(lesson.module_id);
+    if (n === null) return "";
+    const mod = mods.find((m) => m.id === lesson.module_id);
+    const li = mod ? mod.lessons.findIndex((l) => l.id === lesson.id) : 0;
+    return `${n}.${li + 1}`;
   };
 
   if (!project) {
@@ -564,6 +591,21 @@ export function Course() {
           </div>
         )}
 
+        {isOwner && isCreator && (
+          <button
+            onClick={() => setShowForewords(true)}
+            className="w-full flex items-center justify-center gap-1.5 mb-4 py-2.5 rounded-xl border border-border text-sm text-ink font-medium"
+          >
+            <PenLine size={15} />
+            Forewords
+            {forewordsToReview > 0 && (
+              <span className="ml-1 min-w-5 h-5 px-1.5 rounded-full bg-accent text-canvas text-[11px] flex items-center justify-center">
+                {forewordsToReview}
+              </span>
+            )}
+          </button>
+        )}
+
         {hasAccess && totalLessons > 0 && (
           <div className={view === "lesson" ? "hidden lg:block" : ""}>
             <CourseHero
@@ -571,7 +613,7 @@ export function Course() {
               done={completedCount}
               total={totalLessons}
               minutesLeft={model.minutesLeft}
-              nextTitle={model.next ? `${lessonNumberOf(model.next)}  ${model.next.title}` : null}
+              nextTitle={model.next ? [lessonNumberOf(model.next), model.next.title].filter(Boolean).join("  ") : null}
               onContinue={resume}
             />
             {allComplete && courseDoorway.visible && (
@@ -640,7 +682,9 @@ export function Course() {
                         <ChevronUp size={14} className="text-ink-muted flex-shrink-0" />
                       )}
                       <span className="min-w-0 flex-1">
-                        <span className="block text-[10.5px] font-bold uppercase tracking-[0.09em] text-ink-muted">Module {moduleIdx + 1}</span>
+                        <span className="block text-[10.5px] font-bold uppercase tracking-[0.09em] text-ink-muted">
+                          {m.is_foreword_managed ? "Foreword" : `Module ${moduleNumberOf(m.id)}`}
+                        </span>
                         <span className="block text-[15px] font-semibold leading-5 text-ink">{m.title}</span>
                       </span>
                       {hasAccess && prog?.complete ? (
@@ -663,18 +707,26 @@ export function Course() {
                       <button onClick={() => moveModule.mutate({ modules: modules ?? [], moduleId: m.id, direction: "down" })} disabled={moduleIdx === (modules ?? []).length - 1} className="text-ink-muted disabled:opacity-30">
                         <ChevronDown size={14} />
                       </button>
-                      <button
-                        onClick={() => {
-                          setEditingModuleId(m.id);
-                          setEditingModuleTitle(m.title);
-                        }}
-                        className="text-ink-muted"
-                      >
-                        <Pencil size={14} />
-                      </button>
-                      <button onClick={() => deleteModule.mutate(m.id)} className="text-danger">
-                        <Trash2 size={14} />
-                      </button>
+                      {m.is_foreword_managed ? (
+                        <button onClick={() => setShowForewords(true)} className="text-xs font-medium text-accent">
+                          Manage
+                        </button>
+                      ) : (
+                        <>
+                          <button
+                            onClick={() => {
+                              setEditingModuleId(m.id);
+                              setEditingModuleTitle(m.title);
+                            }}
+                            className="text-ink-muted"
+                          >
+                            <Pencil size={14} />
+                          </button>
+                          <button onClick={() => deleteModule.mutate(m.id)} className="text-danger">
+                            <Trash2 size={14} />
+                          </button>
+                        </>
+                      )}
                     </div>
                   )}
                 </div>
@@ -746,14 +798,14 @@ export function Course() {
                                   <FileText size={13} className="text-ink-muted flex-shrink-0" />
                                 )}
                                 <span className={`text-sm truncate ${locked ? "text-ink-muted" : "text-ink"}`}>
-                                  {moduleIdx + 1}.{lessonIdx + 1}&nbsp;&nbsp;{l.title}
+                                  {m.is_foreword_managed ? "" : `${moduleNumberOf(m.id)}.${lessonIdx + 1}\u00A0\u00A0`}{l.title}
                                 </span>
                                 <span className="text-[11px] text-ink-muted flex-shrink-0">{l.media_url ? "video" : `${readMinutes(l.content)} min`}</span>
                                 {!hasAccess && l.is_free_preview && (
                                   <span className="text-[11px] text-accent font-medium flex-shrink-0">Preview</span>
                                 )}
                               </button>
-                              {isOwner && (
+                              {isOwner && !m.is_foreword_managed && (
                                 <div className="flex items-center gap-1.5 flex-shrink-0">
                                   <button onClick={() => moveLesson.mutate({ lessons: m.lessons, lessonId: l.id, direction: "up" })} disabled={lessonIdx === 0} className="text-ink-muted disabled:opacity-30">
                                     <ChevronUp size={13} />
@@ -778,7 +830,7 @@ export function Course() {
                   </div>
                 )}
 
-                {isOwner && !collapsed && (
+                {isOwner && !collapsed && !m.is_foreword_managed && (
                   <>
                     {lessonDraftFor === m.id ? (
                       <LessonForm
@@ -838,7 +890,7 @@ export function Course() {
             {selectedLesson && canOpen(selectedLesson) ? (
               <LessonReader
                 lesson={selectedLesson}
-                moduleNumber={(modules ?? []).findIndex((m) => m.id === selectedLesson.module_id) + 1}
+                moduleNumber={moduleNumberOf(selectedLesson.module_id)}
                 lessonNumber={lessonNumberOf(selectedLesson)}
                 position={selectedIndex + 1}
                 total={totalLessons}
@@ -885,13 +937,17 @@ export function Course() {
           return (
             <ResumePrompt
               kind="course"
-              where={`lesson ${lessonNumberOf(lesson)}, “${lesson.title}”`}
+              where={lessonNumberOf(lesson) ? `lesson ${lessonNumberOf(lesson)}, “${lesson.title}”` : `“${lesson.title}”`}
               percent={totalLessons > 0 ? ((idx + (resumeOffer.scrollFraction ?? 0)) / totalLessons) * 100 : null}
               onContinue={continueFromResume}
               onStartOver={startCourseOver}
             />
           );
         })()}
+      {showForewords && projectId && (
+        <ForewordsSheet projectId={projectId} projectType="course" onClose={() => setShowForewords(false)} />
+      )}
+      {projectId && <ForewordPreviewBar projectId={projectId} isOwner={isOwner} />}
     </div>
   );
 }

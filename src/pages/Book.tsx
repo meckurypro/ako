@@ -12,6 +12,7 @@ import {
   ChevronDown,
   ImageIcon,
   Lock,
+  PenLine,
 } from "lucide-react";
 import { useAuth } from "../hooks/useAuth";
 import { useProjectOwnership } from "../hooks/useProjectOwnership";
@@ -29,6 +30,9 @@ import { useUploadProjectThumbnail } from "../hooks/useUploadProjectThumbnail";
 import { Button } from "../components/Button";
 import { EditorToolbar, editorKeyHandler } from "../components/EditorToolbar";
 import { useBookDraft } from "../hooks/useBookDraft";
+import { useForewordPreview, useProjectForewords } from "../hooks/useForewords";
+import { ForewordPreviewBar } from "../components/ForewordPreviewBar";
+import { ForewordsSheet } from "../components/ForewordsSheet";
 import { ConfirmDialog } from "../components/ConfirmDialog";
 import { UnsavedChangesDialog } from "../components/UnsavedChangesDialog";
 import {
@@ -54,9 +58,14 @@ export function Book() {
   const isFree = !!project && isProjectFree(project);
   const hasPurchasedQuery = useHasPurchased(projectId ?? "");
   const isMemberQuery = useIsProjectMember(projectId ?? "", project?.is_private ?? false);
-  const privacyBlocked = !!project?.is_private && !isOwner && !isMemberQuery.data;
-  const hasAccess = !privacyBlocked && (isOwner || isFree || !!hasPurchasedQuery.data);
-  useRecordFreeProjectOpen(project, { isOwner: isCreator, enabled: !privacyBlocked });
+  // Someone invited to write a foreword may read the book first — a draft, a private or a paid one — while the invite
+  // is open (and after they've written). The database grants the rows; this only decides which screen to show.
+  const foreword = useForewordPreview(projectId);
+  const isPreviewer = foreword.canPreview && !isCreator;
+  const privacyBlocked = !!project?.is_private && !isOwner && !isMemberQuery.data && !isPreviewer;
+  const hasAccess = !privacyBlocked && (isOwner || isFree || !!hasPurchasedQuery.data || isPreviewer);
+  // A preview isn't a reader opening the book, so it stays out of their Library and the access count.
+  useRecordFreeProjectOpen(project, { isOwner: isCreator, enabled: !privacyBlocked && !isPreviewer });
 
   const chaptersQuery = useBookChapters(projectId);
   const chapters = chaptersQuery.data;
@@ -69,7 +78,7 @@ export function Book() {
 
   // Wait for the acting identity: until it resolves isOwner is false, which would flash the locked view at the creator.
   // A buyer's access resolves after the project does; without this a paid book flashes its locked view first.
-  const accessPending = !isOwner && !isFree && hasPurchasedQuery.isLoading;
+  const accessPending = !isOwner && !isFree && (hasPurchasedQuery.isLoading || foreword.isLoading);
   if (!project || ownership.loading || accessPending) {
     return <BookReaderSkeleton title={project?.title} thumbnailUrl={project?.thumbnail_url} onBack={() => navigate(-1)} />;
   }
@@ -111,15 +120,20 @@ export function Book() {
     return <BookReaderSkeleton title={project.title} thumbnailUrl={project.thumbnail_url} onBack={() => navigate(-1)} />;
   }
 
-  return <BookReflowReader
-      projectId={project.id}
-      title={project.title}
-      chapters={ordered}
-      userId={user?.id}
-      thumbnailUrl={project.thumbnail_url}
-      shareUrl={getProjectUrl(project)}
-      onBack={() => navigate(-1)}
-    />;
+  return (
+    <>
+      <BookReflowReader
+        projectId={project.id}
+        title={project.title}
+        chapters={ordered}
+        userId={user?.id}
+        thumbnailUrl={project.thumbnail_url}
+        shareUrl={getProjectUrl(project)}
+        onBack={() => navigate(-1)}
+      />
+      <ForewordPreviewBar projectId={project.id} isOwner={isOwner} />
+    </>
+  );
 }
 
 // ---------------------------------------------------------------
@@ -237,6 +251,10 @@ function BookBuilder({
   const [addingSectionPicker, setAddingSectionPicker] = useState(false);
   const [confirmDiscard, setConfirmDiscard] = useState(false);
   const [confirmLeave, setConfirmLeave] = useState(false);
+  const [showForewords, setShowForewords] = useState(false);
+  // Forewords waiting on the creator's decision — surfaced on the button so they aren't missed.
+  const forewordsQuery = useProjectForewords(projectId);
+  const forewordsToReview = (forewordsQuery.data ?? []).filter((f) => f.status === "submitted").length;
 
   // Warn on tab close / reload while changes are unsaved.
   useEffect(() => {
@@ -255,7 +273,8 @@ function BookBuilder({
   }
 
   const usedKinds = new Set(list.map((c) => c.kind));
-  const availableOptionalSections = OPTIONAL_SECTION_ORDER.filter((k) => !usedKinds.has(k));
+  // "Foreword" isn't a section the creator writes: it's invited (see the Forewords button) and built by the database.
+  const availableOptionalSections = OPTIONAL_SECTION_ORDER.filter((k) => k !== "foreword" && !usedKinds.has(k));
 
   async function handleSave() {
     setError(null);
@@ -288,6 +307,7 @@ function BookBuilder({
   }
 
   function handleRemove(chapter: BookChapter) {
+    if (chapter.is_foreword_managed) return;
     if (!confirm(`Remove "${chapter.title}"? It will be deleted when you save.`)) return;
     if (editingId === chapter.id) setEditingId(null);
     draft.remove(chapter.id);
@@ -422,17 +442,31 @@ function BookBuilder({
                       {chapter.kind === "chapter" ? `Chapter` : BOOK_SECTION_INFO[chapter.kind].label}
                     </p>
                     <p className="text-sm font-medium text-ink truncate">{chapter.title}</p>
-                    {!chapter.content?.trim() && <p className="text-xs text-accent">Empty — tap to write</p>}
+                    {chapter.is_foreword_managed ? (
+                      <p className="flex items-center gap-1 text-xs text-ink-muted">
+                        <Lock size={11} /> Written by the people you invited
+                      </p>
+                    ) : (
+                      !chapter.content?.trim() && <p className="text-xs text-accent">Empty — tap to write</p>
+                    )}
                   </div>
-                  <button onClick={() => setEditingId(chapter.id)} className="text-ink-muted shrink-0">
-                    <Pencil size={16} />
-                  </button>
-                  <button
-                    onClick={() => handleRemove(chapter)}
-                    className="text-danger shrink-0"
-                  >
-                    <Trash2 size={16} />
-                  </button>
+                  {chapter.is_foreword_managed ? (
+                    <button onClick={() => setShowForewords(true)} className="text-xs font-medium text-accent shrink-0 px-1">
+                      Manage
+                    </button>
+                  ) : (
+                    <>
+                      <button onClick={() => setEditingId(chapter.id)} className="text-ink-muted shrink-0">
+                        <Pencil size={16} />
+                      </button>
+                      <button
+                        onClick={() => handleRemove(chapter)}
+                        className="text-danger shrink-0"
+                      >
+                        <Trash2 size={16} />
+                      </button>
+                    </>
+                  )}
                 </div>
               )}
             </div>
@@ -448,6 +482,19 @@ function BookBuilder({
           Add chapter
         </button>
 
+        <button
+          onClick={() => setShowForewords(true)}
+          className="w-full flex items-center justify-center gap-1.5 py-3 rounded-xl border border-border text-sm text-ink font-medium mb-3"
+        >
+          <PenLine size={16} />
+          Forewords
+          {forewordsToReview > 0 && (
+            <span className="ml-1 min-w-5 h-5 px-1.5 rounded-full bg-accent text-canvas text-[11px] flex items-center justify-center">
+              {forewordsToReview}
+            </span>
+          )}
+        </button>
+
         {/* Optional front/back-matter toggles — "turn on" one by
             adding it here, "turn off" by deleting it above. */}
         {availableOptionalSections.length > 0 && (
@@ -457,7 +504,7 @@ function BookBuilder({
               className="w-full flex items-center justify-center gap-1.5 py-2.5 rounded-xl text-sm text-ink-muted font-medium"
             >
               <Plus size={14} />
-              Add a section (foreword, epilogue, etc.)
+              Add a section (epilogue, afterword, etc.)
             </button>
             {addingSectionPicker && (
               <div className="flex flex-wrap gap-2 mt-2">
@@ -475,6 +522,7 @@ function BookBuilder({
           </div>
         )}
       </div>
+      {showForewords && <ForewordsSheet projectId={projectId} projectType="book" onClose={() => setShowForewords(false)} />}
       {confirmDiscard && (
         <ConfirmDialog
           title="Discard all changes?"

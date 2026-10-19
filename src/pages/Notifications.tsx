@@ -26,6 +26,7 @@ import {
   Briefcase,
   Music2,
   Lock,
+  PenLine,
 } from "lucide-react";
 import { useNotifications, useMarkNotificationRead, useMarkAllRead } from "../hooks/useNotifications";
 import {
@@ -40,6 +41,7 @@ import { BottomNav } from "../components/BottomNav";
 import { PageInviteResponseModal } from "../components/PageInviteResponseModal";
 import { CollaborationInviteResponseModal } from "../components/CollaborationInviteResponseModal";
 import { MusicCreditResponseModal } from "../components/MusicCreditResponseModal";
+import { ForewordInviteModal } from "../components/ForewordInviteModal";
 import type { NotificationWithActor } from "../hooks/useNotifications";
 import { timeAgo } from "../lib/timeAgo";
 
@@ -104,6 +106,12 @@ const TYPE_CONFIG: Record<string, { icon: typeof Heart; verb: string }> = {
   // respond_to_music_credit(). Same "needs accept/decline, not a
   // plain link" case as collaboration_invite below.
   music_credit_request: { icon: Music2, verb: "credited you on their song" },
+  // Forewords: a creator asks someone to preview their book/course and write a few opening words. The invite needs an
+  // answer (see ForewordInviteModal); the other three are plain "what happened" notices that open the project.
+  foreword_invite: { icon: PenLine, verb: "asked you to write a foreword" },
+  foreword_submitted: { icon: PenLine, verb: "wrote a foreword for your project" },
+  foreword_approved: { icon: UserCheck, verb: "added your foreword to their project" },
+  foreword_declined: { icon: UserX, verb: "declined to write a foreword" },
 };
 
 // Where a tap on a notification should land. page_role_invite/
@@ -134,6 +142,10 @@ const PROJECT_TYPE_ROUTE: Record<string, (id: string) => string> = {
 
 function notificationLink(n: NotificationWithActor): string {
   if (n.type === "follow_request") return "/requests";
+  // Creator-side foreword notices land on the project with the Forewords panel open, where the decision is made.
+  if ((n.type === "foreword_submitted" || n.type === "foreword_declined") && n.target_id) {
+    return `/projects/${n.target_id}?forewords=1`;
+  }
   // `?view=post` — a like/dislike/support/reshare/etc. notification is
   // about the POST, not its comments, so this lands on the post itself
   // (own content, own engagement tray) instead of PostDetail forcing
@@ -326,12 +338,14 @@ function NotificationRow({
   onOpenInvite,
   onOpenCollaborationInvite,
   onOpenMusicCreditRequest,
+  onOpenForewordInvite,
 }: {
   n: NotificationWithActor;
   onRead: () => void;
   onOpenInvite: (pageId: string) => void;
   onOpenCollaborationInvite: (target: "post" | "project", targetId: string) => void;
   onOpenMusicCreditRequest: (catalogueId: string) => void;
+  onOpenForewordInvite: (projectId: string) => void;
 }) {
   const config = TYPE_CONFIG[n.type] ?? TYPE_CONFIG.system;
   const navigate = useNavigate();
@@ -365,6 +379,21 @@ function NotificationRow({
         onActivate={() => {
           onRead();
           onOpenCollaborationInvite(target, n.target_id!);
+        }}
+      >
+        <NotificationRowContent n={n} config={config} />
+      </RowShell>
+    );
+  }
+
+  // A foreword invite needs a real answer (read, decline or write), so it opens ForewordInviteModal.
+  if (n.type === "foreword_invite" && n.target_id) {
+    return (
+      <RowShell
+        unread={!n.read_at}
+        onActivate={() => {
+          onRead();
+          onOpenForewordInvite(n.target_id!);
         }}
       >
         <NotificationRowContent n={n} config={config} />
@@ -426,6 +455,7 @@ export function Notifications() {
     { target: "post" | "project"; targetId: string } | null
   >(null);
   const [openMusicCreditCatalogueId, setOpenMusicCreditCatalogueId] = useState<string | null>(null);
+  const [openForewordProjectId, setOpenForewordProjectId] = useState<string | null>(null);
 
   const hasUnread = notifications?.some((n) => !n.read_at);
 
@@ -459,6 +489,7 @@ export function Notifications() {
               onOpenInvite={setOpenInvitePageId}
               onOpenCollaborationInvite={(target, targetId) => setOpenCollaborationInvite({ target, targetId })}
               onOpenMusicCreditRequest={setOpenMusicCreditCatalogueId}
+              onOpenForewordInvite={setOpenForewordProjectId}
             />
           ))
         )}
@@ -484,6 +515,10 @@ export function Notifications() {
           catalogueId={openMusicCreditCatalogueId}
           onClose={() => setOpenMusicCreditCatalogueId(null)}
         />
+      )}
+
+      {openForewordProjectId && (
+        <ForewordInviteModal projectId={openForewordProjectId} onClose={() => setOpenForewordProjectId(null)} />
       )}
 
       <BottomNav />

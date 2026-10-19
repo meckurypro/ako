@@ -12,6 +12,8 @@ import { useReaderTheme, type ReaderTheme } from "../hooks/useReaderTheme";
 import { useProjectOwnership } from "../hooks/useProjectOwnership";
 import { useRecordFreeProjectOpen } from "../hooks/useProjectAccess";
 import { ResumePrompt } from "../components/ResumePrompt";
+import { ForewordPreviewBar } from "../components/ForewordPreviewBar";
+import { useForewordPreview } from "../hooks/useForewords";
 import { resolveFunctionErrorMessage } from "../lib/functionErrors";
 import { Book } from "./Book";
 import { useBookChapters, useExtractBookPdf, bookOcrMessage, useBookOcrJob, useStartBookOcr } from "../hooks/useBookBuilder";
@@ -81,6 +83,10 @@ function BookPdfPageReader() {
   const privacyBlocked = !!project?.is_private && !isOwner && !isMemberQuery.data;
   const hasAccess = !privacyBlocked && (isOwner || !!hasPurchasedQuery.data || isFree);
   useRecordFreeProjectOpen(project, { isOwner: isCreator, enabled: !privacyBlocked });
+  // Someone invited to write a foreword can read authored/extracted-text books (see Book.tsx), but a page-image PDF is
+  // served through a signed link that only buyers and owners get — so for them this reader explains rather than fails.
+  const foreword = useForewordPreview(projectId);
+  const isForewordPreviewer = foreword.canPreview && !isCreator;
 
   // Owner only: turn a scan into reflowable text. Progress is the job row; when it finishes the book gains chapters
   // and the route below swaps this reader for the reflow reader on its own.
@@ -304,6 +310,21 @@ function BookPdfPageReader() {
     return (
       <div className="min-h-screen flex items-center justify-center bg-canvas">
         <p className="text-ink-muted">Loading…</p>
+      </div>
+    );
+  }
+
+  if (!hasAccess && isForewordPreviewer && projectId) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center gap-3 bg-canvas px-6 text-center">
+        <p className="text-ink">This book is a scanned PDF, so it can't be previewed in the app.</p>
+        <p className="text-sm text-ink-muted max-w-xs">
+          You can still write your foreword — the project page has the book's description.
+        </p>
+        <button onClick={() => navigate(`/projects/${projectId}`)} className="text-accent text-sm font-medium">
+          Go to project page
+        </button>
+        <ForewordPreviewBar projectId={projectId} />
       </div>
     );
   }

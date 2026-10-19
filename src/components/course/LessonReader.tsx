@@ -10,7 +10,8 @@ import { ProgressBar } from "./ProgressBar";
 
 interface LessonReaderProps {
   lesson: CourseLesson;
-  moduleNumber: number;
+  /** null for the locked Foreword module, which isn't numbered like the course's own modules. */
+  moduleNumber: number | null;
   lessonNumber: string;
   position: number;
   total: number;
@@ -63,7 +64,7 @@ export function LessonReader(props: LessonReaderProps) {
       </div>
 
       <p className="mb-2 text-[11px] font-bold uppercase tracking-[0.1em] text-accent">
-        Module {props.moduleNumber} · Lesson {props.lessonNumber}
+        {props.moduleNumber === null ? "Foreword" : `Module ${props.moduleNumber} · Lesson ${props.lessonNumber}`}
       </p>
       <div className="mb-3 flex items-start gap-3">
         {emoji ? <div className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-2xl bg-accent-soft text-[22px]">{emoji}</div> : null}

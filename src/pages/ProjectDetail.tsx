@@ -1,6 +1,6 @@
 // src/pages/ProjectDetail.tsx
 import { useRef, useState } from "react";
-import { useParams, Link, useLocation } from "react-router-dom";
+import { useParams, Link, useLocation, useSearchParams } from "react-router-dom";
 import { useSmartBack } from "../hooks/useSmartBack";
 import {
   ArrowLeft,
@@ -56,6 +56,9 @@ import { ProjectFaqSection } from "../components/ProjectFaqSection";
 import { getProjectUrl } from "../lib/projectLinks";
 import { loginPathFor, returnPathOf, signupPathFor } from "../lib/authRedirect";
 import { Wordmark } from "../components/Wordmark";
+import { ForewordsSheet } from "../components/ForewordsSheet";
+import { ForewordInviteModal } from "../components/ForewordInviteModal";
+import { isForewordSupportedType, isInviteOpen, useMyForeword, useProjectForewords } from "../hooks/useForewords";
 
 function ProjectRail({ title, projects }: { title: string; projects: Project[] }) {
   if (projects.length === 0) return null;
@@ -365,6 +368,18 @@ export function ProjectDetail({ resolvedProjectId }: { resolvedProjectId?: strin
     project && project.project_type !== "pitch" ? project.id : undefined
   );
   const [shareSheetOpen, setShareSheetOpen] = useState(false);
+  // Forewords: the creator's panel (also opened by ?forewords=1 from a notification) and the invitee's modal.
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [forewordsOpen, setForewordsOpen] = useState(searchParams.get("forewords") === "1");
+  const [forewordModalOpen, setForewordModalOpen] = useState(false);
+  const forewordsEnabled = !!project && isForewordSupportedType(project.project_type);
+  const canManageForewords = forewordsEnabled && isCreator;
+  const forewordsList = useProjectForewords(project?.id, canManageForewords);
+  const forewordsToReview = (forewordsList.data ?? []).filter((f) => f.status === "submitted").length;
+  const myForeword = useMyForeword(forewordsEnabled && !isCreator ? project?.id : undefined);
+  const myForewordRow = myForeword.data;
+  const showForewordInvitee =
+    !!myForewordRow && (isInviteOpen(myForewordRow) || myForewordRow.status === "submitted" || myForewordRow.status === "approved");
   // See matching comment in ProjectCard — a free project can never be
   // affiliated, even if a program row is still marked enabled from
   // when the project used to carry a price.
@@ -589,6 +604,32 @@ export function ProjectDetail({ resolvedProjectId }: { resolvedProjectId?: strin
             {/* The owner's publish action is a main action, not browsing info: it stays out of the folded details. */}
             {project.project_type === "media" && isOwner && <PublishMusicButton projectId={project.id} />}
 
+            {canManageForewords && (
+              <button
+                onClick={() => setForewordsOpen(true)}
+                className="w-full flex items-center justify-center gap-2 bg-surface border border-border text-ink py-3 rounded-2xl font-semibold text-sm mb-4"
+              >
+                Forewords
+                {forewordsToReview > 0 && (
+                  <span className="min-w-5 h-5 px-1.5 rounded-full bg-accent text-canvas text-[11px] flex items-center justify-center">
+                    {forewordsToReview}
+                  </span>
+                )}
+              </button>
+            )}
+            {showForewordInvitee && myForewordRow && (
+              <button
+                onClick={() => setForewordModalOpen(true)}
+                className="w-full text-left bg-accent-soft text-accent py-3 px-4 rounded-2xl font-medium text-sm mb-4"
+              >
+                {isInviteOpen(myForewordRow)
+                  ? "You've been asked to write a foreword — tap to respond"
+                  : myForewordRow.status === "submitted"
+                    ? "Your foreword is awaiting the creator's review"
+                    : "Your foreword is published — tap to edit"}
+              </button>
+            )}
+
             {/* Creator byline — tapping any part of it opens the
                 creator's profile (or the page's, if this was posted in
                 page mode), per the "fanlink" behavior. A page-posted
@@ -652,6 +693,22 @@ export function ProjectDetail({ resolvedProjectId }: { resolvedProjectId?: strin
           </>
         )}
       </div>
+
+      {forewordsOpen && project && (project.project_type === "book" || project.project_type === "course") && canManageForewords && (
+        <ForewordsSheet
+          projectId={project.id}
+          projectType={project.project_type}
+          onClose={() => {
+            setForewordsOpen(false);
+            if (searchParams.has("forewords")) {
+              const next = new URLSearchParams(searchParams);
+              next.delete("forewords");
+              setSearchParams(next, { replace: true });
+            }
+          }}
+        />
+      )}
+      {forewordModalOpen && project && <ForewordInviteModal projectId={project.id} onClose={() => setForewordModalOpen(false)} />}
 
       {shareSheetOpen && project && (
         <AffiliateShareSheet
