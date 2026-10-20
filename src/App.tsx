@@ -14,6 +14,7 @@ import { usePageThemeSync } from "./hooks/usePageThemeSync";
 import { ToastProvider } from "./components/Toast";
 import { AppShell } from "./components/AppShell";
 import { ProfilePrefetch } from "./components/ProfilePrefetch";
+import { usePostRealtime } from "./hooks/usePostRealtime";
 
 import { SignUp } from "./pages/auth/SignUp";
 import { Login } from "./pages/auth/Login";
@@ -119,6 +120,12 @@ import { Offers } from "./pages/Offers";
 import { HistoryActivity } from "./pages/HistoryActivity";
 import { registerOfflineMutations } from "./lib/offlineMutations";
 
+/** Live post edits (see usePostRealtime) — needs the signed-in user, so it lives inside AuthProvider. */
+function PostRealtime() {
+  usePostRealtime();
+  return null;
+}
+
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
@@ -143,6 +150,7 @@ export default function App() {
             <PathHistoryTracker />
             <ExternalLinkGuard />
             <ProfilePrefetch />
+            <PostRealtime />
             <AffiliateRefCapture />
             <ErrorBoundary>
               <AppRoutes />
