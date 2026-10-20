@@ -83,7 +83,7 @@ export function Pages() {
         <AccountModeSwitcher />
 
         <p className="text-xs text-ink-muted mt-4 px-1">
-          While you're acting as a page, your posts, name, and photo show its instead of
+          While you're acting as a page, your posts, name, and photo show as the page's instead of
           yours — everyone managing it shares the same page.
           {(pagesFeature?.pages_creation_enabled ?? true) && !restricted && (
             <>

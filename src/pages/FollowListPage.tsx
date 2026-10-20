@@ -2,8 +2,9 @@ import { useParams, Link } from "react-router-dom";
 import { useSmartBack } from "../hooks/useSmartBack";
 import { ArrowLeft, Lock } from "lucide-react";
 import { useAuth } from "../hooks/useAuth";
-import { useProfileByUsername, useFollowers, useFollowing } from "../hooks/useProfile";
+import { useProfileByUsername, useFollowers, useFollowing, useFollowingPages } from "../hooks/useProfile";
 import { Avatar } from "../components/Avatar";
+import { PageRow } from "../components/PageRow";
 
 export function FollowListPage({ type }: { type: "followers" | "following" }) {
   const { username } = useParams<{ username: string }>();
@@ -21,9 +22,15 @@ export function FollowListPage({ type }: { type: "followers" | "following" }) {
   const followersQuery = useFollowers(!isHidden ? profile?.id ?? "" : "");
   const followingQuery = useFollowing(!isHidden ? profile?.id ?? "" : "");
 
+  // Pages someone follows live in page_follows; list them after the people.
+  const pagesQuery = useFollowingPages(!isHidden && type === "following" ? profile?.id ?? "" : "");
+  const pages = type === "following" ? pagesQuery.data ?? [] : [];
+
   const list = type === "followers" ? followersQuery.data : followingQuery.data;
   const isLoading =
-    profileLoading || (!isHidden && (type === "followers" ? followersQuery.isLoading : followingQuery.isLoading));
+    profileLoading ||
+    (!isHidden &&
+      (type === "followers" ? followersQuery.isLoading : followingQuery.isLoading || pagesQuery.isLoading));
 
   return (
     <div className="min-h-screen bg-canvas px-4 pt-4 pb-10">
@@ -44,12 +51,13 @@ export function FollowListPage({ type }: { type: "followers" | "following" }) {
               @{profile!.username} has chosen to hide their {type} list.
             </p>
           </div>
-        ) : !list || list.length === 0 ? (
+        ) : (!list || list.length === 0) && pages.length === 0 ? (
           <p className="text-ink-muted text-center py-10 text-sm">
             {type === "followers" ? "No followers yet." : "Not following anyone yet."}
           </p>
         ) : (
-          list.map((person) => (
+          <>
+          {(list ?? []).map((person) => (
             <Link
               key={person.id}
               to={`/profile/${person.username}`}
@@ -61,7 +69,20 @@ export function FollowListPage({ type }: { type: "followers" | "following" }) {
                 <p className="text-sm text-ink-muted truncate">@{person.username}</p>
               </div>
             </Link>
-          ))
+          ))}
+          {pages.length > 0 && (
+            <>
+              {(list ?? []).length > 0 && (
+                <h3 className="text-xs font-medium text-ink-muted uppercase tracking-wide mt-5 mb-1 px-1">Pages</h3>
+              )}
+              {pages.map((page) => (
+                <div key={page.id} className="border-b border-border">
+                  <PageRow page={page} />
+                </div>
+              ))}
+            </>
+          )}
+          </>
         )}
       </div>
     </div>
