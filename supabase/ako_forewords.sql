@@ -395,6 +395,10 @@ create policy "foreword invitees preview course lessons" on public.course_lesson
 );
 
 -- ---------------------------------------------------------------- function privileges
+-- The preview helper is called from the projects / book / course SELECT policies, which apply to guests too. A role
+-- without EXECUTE gets 'permission denied' the moment a row reaches this policy, so anon needs it (it returns false
+-- when nobody is signed in).
+grant execute on function public.can_preview_project_for_foreword(uuid) to anon, authenticated;
 revoke execute on function public.invite_project_foreword(uuid, uuid, text) from public, anon;
 revoke execute on function public.decline_project_foreword(uuid) from public, anon;
 revoke execute on function public.submit_project_foreword(uuid, text, text, text) from public, anon;
