@@ -422,7 +422,7 @@ export function ProjectCard({
   const { data: pitchDetails } = usePitchDetails(isPitch ? project.id : undefined);
   const { data: pitchRaised } = usePitchRaised(isPitch ? project.id : undefined);
   const isBook = project.project_type === "book";
-  const { data: bookDetails } = useBookDetails(isBook ? project.id : undefined);
+  const { data: bookDetails, isLoading: bookDetailsLoading } = useBookDetails(isBook ? project.id : undefined);
   const getBookDownload = useGetProjectFile();
   // Same "built as a draft, can't be bought until published" shape as
   // Course, but only for an authored book — a link/upload Book is
@@ -710,8 +710,8 @@ export function ProjectCard({
       goToLogin();
       return;
     }
-    logFreeAccessIfNeeded("stream");
     navigate(`/projects/${project.id}/read`);
+    logFreeAccessIfNeeded("stream");
   }
 
   // URL projects skip the edge function entirely (the link itself is
@@ -1222,6 +1222,23 @@ export function ProjectCard({
             : TYPE_ROUTE[project.project_type]!(project.id)
         ),
     };
+  }
+
+  // Hold the CTA slot steady until the data that decides WHICH button
+  // this is has landed. Before this, a buyer's own book showed "Buy for
+  // $X" (has-purchased still loading) or no button at all (book details
+  // still loading) and then swapped to "Read" under their finger — the
+  // tap hit the wrong/absent button and only the second tap worked.
+  const ctaAccessPending = !!user && !isOwner && !isFree && hasPurchasedQuery.isLoading;
+  const ctaBookPending = isBook && bookDetailsLoading;
+  if (
+    isDetailView &&
+    !isPitch &&
+    project.project_type !== "gig" &&
+    !isRoom &&
+    (ctaAccessPending || ctaBookPending)
+  ) {
+    detailCta = { label: "Loading…", disabled: true };
   }
 
   // "···" menu. Owners get the full management menu (Edit, Share, Push,
@@ -1807,7 +1824,7 @@ export function ProjectCard({
               {detailCta &&
                 (() => {
                   const ctaClass =
-                    "h-12 w-full rounded-2xl bg-cta text-white text-base font-semibold flex items-center justify-center gap-2 shadow-[0_4px_14px_-4px_rgba(var(--shadow-ink-rgb),0.35)] transition-transform active:scale-[0.98] disabled:opacity-50 disabled:active:scale-100";
+                    "h-12 w-full rounded-2xl bg-cta text-white text-base font-semibold flex items-center justify-center gap-2 touch-manipulation select-none shadow-[0_4px_14px_-4px_rgba(var(--shadow-ink-rgb),0.35)] transition-transform active:scale-[0.98] disabled:opacity-50 disabled:active:scale-100";
                   return detailCta.href ? (
                     <a
                       href={detailCta.href}
@@ -1820,7 +1837,7 @@ export function ProjectCard({
                       {detailCta.label}
                     </a>
                   ) : (
-                    <button onClick={detailCta.onClick} disabled={detailCta.disabled} className={ctaClass}>
+                    <button type="button" onClick={detailCta.onClick} disabled={detailCta.disabled} className={ctaClass}>
                       {detailCta.icon}
                       {detailCta.label}
                     </button>
@@ -1830,7 +1847,7 @@ export function ProjectCard({
                 ref={menuButtonRef}
                 onClick={() => setMenuOpen((o) => !o)}
                 aria-label="More options"
-                className="h-12 min-w-12 rounded-2xl border border-accent/25 bg-white text-accent flex items-center justify-center transition-transform active:scale-[0.96] dark:bg-canvas dark:border-border dark:text-ink"
+                className="h-12 min-w-12 touch-manipulation rounded-2xl border border-accent/25 bg-white text-accent flex items-center justify-center transition-transform active:scale-[0.96] dark:bg-canvas dark:border-border dark:text-ink"
               >
                 <MoreHorizontal size={22} />
               </button>

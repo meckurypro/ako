@@ -142,7 +142,17 @@ export function usePrefetchBookChapters(projectId: string | undefined, enabled: 
   const queryClient = useQueryClient();
   useEffect(() => {
     if (!enabled || !projectId) return;
-    void queryClient.prefetchQuery(bookChaptersOptions(projectId));
+    // Defer past the first taps: pulling the whole book's text (fetch +
+    // parse + cache) while the page is still settling competes with the
+    // main thread right when someone reaches for the Read button.
+    const run = () => void queryClient.prefetchQuery(bookChaptersOptions(projectId));
+    const w = window as Window & { requestIdleCallback?: (cb: () => void, o?: { timeout: number }) => number; cancelIdleCallback?: (id: number) => void };
+    if (w.requestIdleCallback) {
+      const id = w.requestIdleCallback(run, { timeout: 2500 });
+      return () => w.cancelIdleCallback?.(id);
+    }
+    const t = window.setTimeout(run, 1200);
+    return () => window.clearTimeout(t);
   }, [enabled, projectId, queryClient]);
 }
 
