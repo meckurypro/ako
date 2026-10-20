@@ -40,6 +40,7 @@ import { useRecordProfileVisit } from "../hooks/useProfileVisits";
 import { Avatar } from "../components/Avatar";
 import { AccountSwitcher } from "../components/AccountSwitcher";
 import { VerifiedBadge } from "../components/VerifiedBadge";
+import { BadgeStreakNote } from "../components/BadgeStreakNote";
 import { MediaViewer } from "../components/MediaViewer";
 import { ShareProfileSheet } from "../components/ShareProfileSheet";
 import { ConfirmDialog } from "../components/ConfirmDialog";
@@ -862,8 +863,11 @@ export function ProfilePage() {
               <TierBadge tier={profile.tier} />
             </div>
 
-            {profile.is_verified && (
+            {profile.badge_visible && (
               <VerifiedBadge size={15} label className="mt-1" />
+            )}
+            {showOwnerView && profile.badge_streak != null && (
+              <BadgeStreakNote visible={!!profile.badge_visible} streak={profile.badge_streak} />
             )}
 
             {profile.roles.length > 0 && (

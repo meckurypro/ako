@@ -1,5 +1,6 @@
 // src/components/comments/CommentEngagement.tsx
 import { createContext, useCallback, useContext, useMemo, useRef, useState, type ReactNode } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../../hooks/useAuth";
 import { useLiveThread } from "../../hooks/useLiveCounts";
 import {
@@ -15,6 +16,9 @@ import { StanceComposer } from "../StanceComposer";
 import { useToast } from "../Toast";
 import { APP_URL } from "../../lib/appUrl";
 import { CommentReportSheet } from "./CommentReportSheet";
+import { CommentEditSheet } from "./CommentEditSheet";
+import { ConfirmDialog } from "../ConfirmDialog";
+import { useDeleteComment } from "../../hooks/useComments";
 
 interface CommentEngagementCtx {
   postId: string;
@@ -28,6 +32,9 @@ interface CommentEngagementCtx {
   share: (comment: CommentWithAuthor) => void;
   report: (comment: CommentWithAuthor) => void;
   gift: (comment: CommentWithAuthor) => void;
+  /** Author-only: edit (until anyone engages) and delete (always). */
+  edit: (comment: CommentWithAuthor) => void;
+  remove: (comment: CommentWithAuthor) => void;
   reply: (comment: CommentWithAuthor, stance?: Stance) => void;
 }
 
@@ -53,6 +60,9 @@ export function CommentEngagementProvider({ postId, children }: { postId: string
   // Everyone's reactions and replies in this conversation arrive live (counts roll, new replies appear).
   useLiveThread(postId);
   const toast = useToast();
+  const navigate = useNavigate();
+  const location = useLocation();
+  const deleteComment = useDeleteComment(postId);
 
   const knownRef = useRef<Set<string>>(new Set());
   const [knownIds, setKnownIds] = useState<string[]>([]);
@@ -73,6 +83,24 @@ export function CommentEngagementProvider({ postId, children }: { postId: string
   const [replyTarget, setReplyTarget] = useState<{ comment: CommentWithAuthor; stance: Stance } | null>(null);
   const [reportTarget, setReportTarget] = useState<CommentWithAuthor | null>(null);
   const [giftTarget, setGiftTarget] = useState<CommentWithAuthor | null>(null);
+  const [editTarget, setEditTarget] = useState<CommentWithAuthor | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<CommentWithAuthor | null>(null);
+
+  async function handleConfirmDelete() {
+    const target = deleteTarget;
+    if (!target) return;
+    setDeleteTarget(null);
+    try {
+      await deleteComment.mutateAsync({ id: target.id, parent_comment_id: target.parent_comment_id, stance: target.stance });
+      toast("Comment deleted.", { variant: "success" });
+      // Deleting the comment you're standing on: step back to its post.
+      if (location.pathname.endsWith(`/comment/${target.id}`)) {
+        navigate(`/post/${postId}`, { replace: true });
+      }
+    } catch {
+      toast("Couldn't delete this comment. Try again.", { variant: "error" });
+    }
+  }
 
   const share = useCallback(
     async (comment: CommentWithAuthor) => {
@@ -102,6 +130,8 @@ export function CommentEngagementProvider({ postId, children }: { postId: string
       share: (c) => void share(c),
       report: setReportTarget,
       gift: setGiftTarget,
+      edit: setEditTarget,
+      remove: setDeleteTarget,
       reply: (comment, stance = "support") => setReplyTarget({ comment, stance }),
     }),
     [postId, user?.id, reactions, deltas, toggle.mutate, register, share]
@@ -120,6 +150,16 @@ export function CommentEngagementProvider({ postId, children }: { postId: string
         />
       )}
       {reportTarget && <CommentReportSheet comment={reportTarget} onClose={() => setReportTarget(null)} />}
+      {editTarget && <CommentEditSheet comment={editTarget} onClose={() => setEditTarget(null)} />}
+      {deleteTarget && (
+        <ConfirmDialog
+          title="Delete this comment?"
+          description="It'll be removed from the conversation. This can't be undone."
+          confirmLabel="Delete"
+          onConfirm={() => void handleConfirmDelete()}
+          onCancel={() => setDeleteTarget(null)}
+        />
+      )}
       {giftTarget && (
         <GiftPicker
           recipientId={giftTarget.author.id}

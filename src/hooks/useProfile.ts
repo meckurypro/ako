@@ -17,7 +17,7 @@ export function profileByUsernameOptions(username: string) {
     queryFn: async (): Promise<ProfileWithRoles> => {
       const { data, error } = await supabase
         .from("profiles")
-        .select(`*, ${PROFILE_ROLES_SELECT}`)
+        .select(`*, badge_visible, badge_streak, ${PROFILE_ROLES_SELECT}`)
         .eq("username", username)
         .single();
       if (error) throw error;
@@ -62,7 +62,7 @@ export function useUserPosts(userId: string) {
       const { data, error } = await supabase
         .from("posts")
         .select(
-          `*, author:profiles!posts_author_id_fkey(id, username, display_name, avatar_url, tier, is_private, is_verified, ${PROFILE_ROLES_SELECT})`
+          `*, author:profiles!posts_author_id_fkey(id, username, display_name, avatar_url, tier, is_private, is_verified, badge_visible, ${PROFILE_ROLES_SELECT})`
         )
         .eq("author_id", userId)
         .is("posted_as_page_id", null)

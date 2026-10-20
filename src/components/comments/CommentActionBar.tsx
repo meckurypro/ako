@@ -1,13 +1,13 @@
 // src/components/comments/CommentActionBar.tsx
 import { useRef, useState, type MouseEvent } from "react";
-import { Flag, Gift as GiftIcon, MessageCircle, MoreHorizontal, Share2, ThumbsDown } from "lucide-react";
+import { Flag, Gift as GiftIcon, MessageCircle, MoreHorizontal, Pencil, Share2, ThumbsDown, Trash2 } from "lucide-react";
 import { LikeHeart } from "../LikeHeart";
 import { DropdownMenu, type DropdownMenuItem } from "../DropdownMenu";
 import { AnimatedCount } from "../AnimatedCount";
-import type { CommentWithAuthor } from "../../hooks/useComments";
+import { canEditComment, type CommentWithAuthor } from "../../hooks/useComments";
 import { useCommentEngagement } from "./CommentEngagement";
 
-/** "…" menu for one comment: share, and — for other people's comments — gift and report. */
+/** "…" menu for one comment: share; for your own — edit (until anyone engages) and delete; for others' — gift and report. */
 export function CommentMoreMenu({ comment, iconSize = 16 }: { comment: CommentWithAuthor; iconSize?: number }) {
   const eng = useCommentEngagement();
   const [open, setOpen] = useState(false);
@@ -17,7 +17,13 @@ export function CommentMoreMenu({ comment, iconSize = 16 }: { comment: CommentWi
   const items: DropdownMenuItem[] = [
     { key: "share", label: "Share", icon: <Share2 />, onSelect: () => eng.share(comment) },
     ...(isMine
-      ? []
+      ? [
+          // Editable only until anyone engages; deletable any time.
+          ...(canEditComment(comment)
+            ? [{ key: "edit", label: "Edit", icon: <Pencil />, onSelect: () => eng.edit(comment) }]
+            : []),
+          { key: "delete", label: "Delete", icon: <Trash2 />, variant: "danger" as const, onSelect: () => eng.remove(comment) },
+        ]
       : [
           { key: "gift", label: "Send a gift", icon: <GiftIcon />, onSelect: () => eng.gift(comment) },
           { key: "report", label: "Report", icon: <Flag />, variant: "danger" as const, onSelect: () => eng.report(comment) },

@@ -164,7 +164,7 @@ export function EditPost() {
   if (!canEditPost(post)) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-canvas px-4 text-center gap-2">
-        <p className="text-ink">The 15-minute edit window for this post has passed.</p>
+        <p className="text-ink">The 7-day edit window for this post has passed.</p>
         <button onClick={smartBack} className="text-accent text-sm font-medium">
           Go back
         </button>

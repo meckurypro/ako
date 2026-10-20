@@ -50,6 +50,7 @@ export function CommentRow({ comment, tinted = true }: { comment: CommentWithAut
             {comment.author.display_name}
           </Link>
           <span className="text-xs text-ink-muted flex-shrink-0">· {timeAgoCompact(comment.created_at)}</span>
+          {comment.edited_at && <span className="text-xs text-ink-muted flex-shrink-0">· edited</span>}
           {tone && <span className={`text-[11px] font-medium flex-shrink-0 ${tone.text}`}>· {tone.label}</span>}
           <div className="ml-auto pl-2 flex-shrink-0">
             <CommentMoreMenu comment={comment} />

@@ -111,7 +111,7 @@ function useConversationHeader(conversationId: string) {
       const { data, error } = await supabase
         .from("conversation_participants")
         .select(
-          "profile:profiles!conversation_participants_user_id_fkey(id, username, display_name, avatar_url, last_seen_at, is_verified)"
+          "profile:profiles!conversation_participants_user_id_fkey(id, username, display_name, avatar_url, last_seen_at, badge_visible)"
         )
         .eq("conversation_id", conversationId)
         .neq("user_id", user!.id)
@@ -128,7 +128,7 @@ function useConversationHeader(conversationId: string) {
               display_name: string;
               avatar_url: string | null;
               last_seen_at: string | null;
-              is_verified: boolean;
+              badge_visible: boolean;
             }
           | undefined,
       };
@@ -1125,7 +1125,7 @@ export function MessageThread() {
                 <div className="flex-1 min-w-0">
                   <p className="font-medium text-ink truncate flex items-center gap-1.5">
                     <span className="truncate">{otherParticipant.display_name}</span>
-                    {otherParticipant.is_verified && <VerifiedBadge size={14} />}
+                    {otherParticipant.badge_visible && <VerifiedBadge size={14} />}
                   </p>
                   <p className="flex items-center gap-2 text-xs text-ink-muted">
                     <PresenceDot lastSeenAt={otherParticipant.last_seen_at} size={12} />
