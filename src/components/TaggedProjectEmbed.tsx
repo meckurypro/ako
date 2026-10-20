@@ -48,6 +48,9 @@ export interface TaggedProjectSummary {
  * offset shadow (the "3d" cue), so it reads as one raised layer of
  * the same post rather than a different-colored card.
  *
+ * Thumbnail: oversized and perspective-tilted (a card resting on the strip), while the strip itself is just
+ * tall enough for the title plus padding.
+ *
  * Price is intentionally never rendered here (see item 5) — the tag
  * is meant to surface the project, not its price; price only shows
  * once the viewer opens the project itself.
@@ -63,23 +66,42 @@ export function TaggedProjectEmbed({ project }: { project: TaggedProjectSummary 
     );
   }
 
+  // The strip is only as tall as the title needs; the thumbnail is deliberately oversized, overflows it above
+  // and below, and is tilted in perspective like a physical card resting on the post. The link's own height
+  // reserves the overflow so nothing above or below is overlapped.
+  const book = isBookType(project.project_type);
+  const thumbW = book ? 84 : 96;
+  const thumbH = book ? 120 : 96;
+
   return (
     <Link
       to={getProjectPath(project)}
       onClick={(e) => e.stopPropagation()}
-      className="mt-3 flex min-h-[72px] items-center gap-3 rounded-xl border border-white/10 bg-surface/60 backdrop-blur-sm px-3 py-2.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.35),0_1px_2px_rgba(var(--shadow-ink-rgb),0.06)] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.06),0_1px_2px_rgba(var(--shadow-ink-rgb),0.24)] hover:bg-surface/80 transition-colors"
+      className="group relative mt-3 flex items-center"
+      style={{ height: thumbH + 8 }}
     >
-      <div className={`w-14 ${isBookType(project.project_type) ? "h-[84px]" : "h-14"} rounded-lg overflow-hidden bg-surface/80 border border-border/50 flex-shrink-0 flex items-center justify-center`}>
+      <div
+        className="flex w-full min-h-[60px] items-center justify-center rounded-xl border border-white/10 bg-surface/60 backdrop-blur-sm py-2 pr-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.35),0_1px_2px_rgba(var(--shadow-ink-rgb),0.06)] dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.06),0_1px_2px_rgba(var(--shadow-ink-rgb),0.24)] group-hover:bg-surface/80 transition-colors"
+        style={{ paddingLeft: thumbW + 24 }}
+      >
+        {/* Bold, centred, two lines max. */}
+        <p className="text-base font-bold leading-[21px] text-ink text-center line-clamp-2 break-words">{project.title}</p>
+      </div>
+
+      <div
+        className="absolute left-3 top-1/2 overflow-hidden rounded-lg border border-white/25 bg-surface flex items-center justify-center pointer-events-none"
+        style={{
+          width: thumbW,
+          height: thumbH,
+          transform: "translateY(-50%) perspective(600px) rotateY(16deg) rotateX(4deg) rotate(-6deg)",
+          boxShadow: "0 12px 18px -8px rgba(var(--shadow-ink-rgb),0.5), 0 2px 5px rgba(var(--shadow-ink-rgb),0.28)",
+        }}
+      >
         {project.thumbnail_url ? (
           <img src={project.thumbnail_url} alt="" className="w-full h-full object-cover" />
         ) : (
-          <ImageIcon size={16} className="text-ink-muted" />
+          <ImageIcon size={22} className="text-ink-muted" />
         )}
-      </div>
-      {/* Title fills the rest of the card: bold, centred both ways, wraps to
-          two lines max (clamped) so long titles stay balanced. */}
-      <div className="min-w-0 flex-1 flex items-center justify-center self-stretch">
-        <p className="text-base font-bold leading-[21px] text-ink text-center line-clamp-2 break-words">{project.title}</p>
       </div>
     </Link>
   );
