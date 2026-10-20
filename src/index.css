@@ -847,3 +847,21 @@ html[data-kb-open] .ako-keyboard-aware > * {
 @media (prefers-reduced-motion: reduce) {
   .ako-count-anim { animation: none !important; }
 }
+
+/* Settings.tsx "Get the Akọ app" CTA — a slow light sweep so the card catches the eye without being
+   noisy. Skipped entirely for people who prefer reduced motion. */
+.ako-download-cta-shine {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(110deg, transparent 35%, rgba(255, 255, 255, 0.22) 50%, transparent 65%);
+  transform: translateX(-100%);
+  animation: ako-download-cta-shine 4s ease-in-out infinite;
+}
+@keyframes ako-download-cta-shine {
+  0%, 55% { transform: translateX(-100%); }
+  100% { transform: translateX(100%); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ako-download-cta-shine { display: none; }
+}

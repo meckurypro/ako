@@ -35,3 +35,36 @@ export function XGlyph() {
     </div>
   );
 }
+
+// Simplified Google Play / App Store marks for the "Get the app" modal — same approach as the glyphs
+// above: recognisable shorthand, not reproductions of the official badges. Sized by prop (no circle
+// background) so they can sit inside a larger tile.
+export function PlayStoreGlyph({ size = 28 }: { size?: number }) {
+  return (
+    <svg viewBox="0 0 24 24" width={size} height={size} aria-hidden="true">
+      <path d="M3.6 2.4 13.2 12 3.6 21.6c-.4-.2-.6-.6-.6-1.1V3.5c0-.5.2-.9.6-1.1z" fill="#00A0FF" />
+      <path d="m16.4 8.8-3.2 3.2 3.2 3.2 3.7-2.1c1-.6 1-1.6 0-2.2l-3.7-2.1z" fill="#FFC107" />
+      <path d="M3.6 2.4c.3-.2.8-.2 1.3.1l11.5 6.3L13.2 12 3.6 2.4z" fill="#00E676" />
+      <path d="M3.6 21.6 13.2 12l3.2 3.2L4.9 21.5c-.5.3-1 .3-1.3.1z" fill="#FF3D57" />
+    </svg>
+  );
+}
+
+export function AppStoreGlyph({ size = 28 }: { size?: number }) {
+  return (
+    <svg viewBox="0 0 24 24" width={size} height={size} aria-hidden="true">
+      <defs>
+        <linearGradient id="ako-appstore-grad" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stopColor="#2AC7FB" />
+          <stop offset="1" stopColor="#1763F0" />
+        </linearGradient>
+      </defs>
+      <rect x="1" y="1" width="22" height="22" rx="5.5" fill="url(#ako-appstore-grad)" />
+      <g stroke="white" strokeWidth="1.9" strokeLinecap="round" fill="none">
+        <path d="m12 5.4-4.6 8.6" />
+        <path d="m12 5.4 4.6 8.6" />
+        <path d="M7.2 17.6h9.6" />
+      </g>
+    </svg>
+  );
+}

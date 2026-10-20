@@ -94,6 +94,7 @@ import { AdminEmailTemplateEditor } from "./pages/admin/AdminEmailTemplateEditor
 import { AdminEmailCampaigns } from "./pages/admin/AdminEmailCampaigns";
 import { AdminEmailCampaignEditor } from "./pages/admin/AdminEmailCampaignEditor";
 import { AdminSendNotification } from "./pages/admin/AdminSendNotification";
+import { AdminAppDownload } from "./pages/admin/AdminAppDownload";
 
 import { CreateProject } from "./pages/CreateProject";
 import { EditProject } from "./pages/EditProject";
@@ -821,6 +822,16 @@ function AppRoutes() {
                 <RequireAuth>
                   <RequireAdmin>
                     <AdminSendNotification />
+                  </RequireAdmin>
+                </RequireAuth>
+              }
+            />
+            <Route
+              path="/admin/app-download"
+              element={
+                <RequireAuth>
+                  <RequireAdmin>
+                    <AdminAppDownload />
                   </RequireAdmin>
                 </RequireAuth>
               }

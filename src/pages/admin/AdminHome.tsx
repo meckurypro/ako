@@ -1,6 +1,6 @@
 // src/pages/admin/AdminHome.tsx
 import { Link } from "react-router-dom";
-import { Tag, Gift, Flag, ShieldAlert, Mail, Send, MailPlus, Bell, ToggleLeft, ToggleRight, ShieldCheck, UserCheck, Sparkles, Landmark, Wallet, Users, Building2, Megaphone, HandCoins, ClipboardCheck, BadgeCheck } from "lucide-react";
+import { Tag, Gift, Flag, ShieldAlert, Mail, Send, MailPlus, Bell, ToggleLeft, ToggleRight, ShieldCheck, UserCheck, Sparkles, Landmark, Wallet, Users, Building2, Megaphone, HandCoins, ClipboardCheck, BadgeCheck, Smartphone } from "lucide-react";
 import { usePendingReports } from "../../hooks/useAdmin";
 import { usePendingPromotions } from "../../hooks/usePromotions";
 import { usePendingAccountCount } from "../../hooks/useAdminAccountReviewCount";
@@ -17,6 +17,7 @@ const SECTIONS = [
   { to: "/admin/moderation", icon: ShieldCheck, label: "Content moderation" },
   { to: "/admin/page-settings", icon: Building2, label: "Page settings" },
   { to: "/admin/verified-users", icon: BadgeCheck, label: "Verified users" },
+  { to: "/admin/app-download", icon: Smartphone, label: "Mobile app download" },
 ];
 
 const INSIGHTS_SECTIONS = [

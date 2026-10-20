@@ -26,6 +26,8 @@ import {
   LogOut,
   Eye,
   ShieldCheck,
+  Smartphone,
+  Download,
 } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "../lib/supabase";
@@ -57,6 +59,7 @@ import { Avatar } from "../components/Avatar";
 import { SettingsSection } from "../components/SettingsSection";
 import { MentionTextarea } from "../components/MentionTextarea";
 import { useToast } from "../components/Toast";
+import { DownloadAppModal } from "../components/DownloadAppModal";
 
 // Own-profile lookup by id, since this page doesn't have :username in the URL
 function useOwnProfile() {
@@ -202,6 +205,9 @@ export function Settings() {
   function toggleSection(id: SectionId) {
     setOpenSection((current) => (current === id ? null : id));
   }
+
+  // "Get the Akọ app" CTA -> modal (not a page) with the Google Play / App Store choices.
+  const [showDownloadApp, setShowDownloadApp] = useState(false);
 
   // ---- Profile ----
   const { data: profile, isLoading: profileLoading } = useOwnProfile();
@@ -474,6 +480,30 @@ export function Settings() {
         </div>
 
         <div className="flex flex-col gap-3">
+          {/* Get the app — deliberately the first thing on the page, above the (mostly collapsed)
+              sections, and the only filled/animated element here so it isn't overlooked. Opens a
+              modal, not a page. */}
+          <button
+            type="button"
+            onClick={() => setShowDownloadApp(true)}
+            className="relative w-full overflow-hidden rounded-2xl bg-gradient-to-br from-accent to-accent-hover p-4 text-left text-canvas shadow-lg ring-1 ring-accent/30 transition-transform active:scale-[0.99]"
+          >
+            <span className="ako-download-cta-shine" aria-hidden="true" />
+            <span className="relative flex items-center gap-3.5">
+              <span className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-xl bg-canvas/15">
+                <Smartphone size={24} />
+              </span>
+              <span className="min-w-0 flex-1">
+                <span className="block text-[15px] font-semibold leading-tight">Get the Akọ app</span>
+                <span className="mt-0.5 block text-xs opacity-85">Take Akọ with you on Android and iPhone</span>
+              </span>
+              <span className="inline-flex flex-shrink-0 items-center gap-1.5 rounded-full bg-canvas px-3.5 py-2 text-xs font-semibold text-accent">
+                <Download size={14} />
+                Download
+              </span>
+            </span>
+          </button>
+
           {/* Profile — the section people open most often, so it's the one
               expanded by default; everything else starts collapsed. */}
           <SettingsSection
@@ -931,6 +961,8 @@ export function Settings() {
           {loggingOut ? "Logging out…" : "Log out"}
         </button>
       </div>
+
+      {showDownloadApp && <DownloadAppModal onClose={() => setShowDownloadApp(false)} />}
     </div>
   );
 }
