@@ -113,7 +113,17 @@ export const MentionTextarea = forwardRef<HTMLTextAreaElement, MentionTextareaPr
         // 230px ≈ header + format toolbar + action bar + breathing room.
         style={autoGrow ? { maxHeight: "calc(100dvh - 230px)", overflowY: "auto" } : undefined}
         // Bring the editor to the top of the visible area when it gets focus, so the keyboard never hides it.
-        onFocus={autoGrow ? (e) => setTimeout(() => e.target.scrollIntoView({ block: "center", behavior: "smooth" }), 250) : undefined}
+        onFocus={
+          autoGrow
+            ? (e) => {
+                const el = e.target;
+                // Never yank the page around while the user is selecting text.
+                setTimeout(() => {
+                  if (el.selectionStart === el.selectionEnd) el.scrollIntoView({ block: "center", behavior: "smooth" });
+                }, 250);
+              }
+            : undefined
+        }
       />
 
       {mentionQuery !== null && suggestions.length > 0 && (
