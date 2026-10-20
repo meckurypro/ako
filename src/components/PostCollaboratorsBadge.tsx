@@ -18,9 +18,12 @@ import { Avatar } from "./Avatar";
 export function PostCollaboratorsBadge({
   target,
   targetId,
+  side = "right",
 }: {
   target: CollaborationTarget;
   targetId: string;
+  /** Which bottom corner of the avatar it sits on — "left" when another mark (Verified) takes the right. */
+  side?: "left" | "right";
 }) {
   const { data: collaborators } = useCollaborators(target, targetId);
   const accepted = (collaborators ?? []).filter((c) => c.status === "accepted");
@@ -58,7 +61,7 @@ export function PostCollaboratorsBadge({
           setOpen((o) => !o);
         }}
         aria-label={`Posted with ${accepted.length} ${accepted.length === 1 ? "collaborator" : "collaborators"}`}
-        className="absolute -bottom-1 -right-1 w-5 h-5 rounded-full bg-accent text-canvas border-2 border-surface flex items-center justify-center"
+        className={`absolute -bottom-1 ${side === "left" ? "-left-1" : "-right-1"} w-5 h-5 rounded-full bg-accent text-canvas border-2 border-surface flex items-center justify-center`}
       >
         <Users size={11} strokeWidth={2.5} />
       </button>

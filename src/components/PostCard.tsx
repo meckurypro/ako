@@ -206,6 +206,7 @@ export function PostCard({
   const identityHref = postedAsPage ? `/page/${postedAsPage.username}` : `/profile/${post.author.username}`;
   const identityName = postedAsPage ? postedAsPage.name : post.author.display_name;
   const identityAvatar = postedAsPage ? postedAsPage.avatar_url : post.author.avatar_url;
+  const identityVerified = !!(postedAsPage ? postedAsPage.is_verified : post.author.is_verified);
 
   const isBookmarkedQuery = useIsBookmarked(post.id, active);
   const toggleBookmark = useToggleBookmark(post.id);
@@ -666,7 +667,14 @@ export function PostCard({
             }}
           >
             <Avatar src={identityAvatar} name={identityName} size="md" />
-            <PostCollaboratorsBadge target="post" targetId={post.id} />
+            {/* Verified mark rides the avatar's lower-right circumference (centre on the rim), so it sits
+                half outside the photo instead of covering it. The collaborators badge yields to the left. */}
+            {identityVerified && (
+              <span className="absolute -bottom-[3px] -right-[3px] pointer-events-none">
+                <VerifiedBadge size={16} />
+              </span>
+            )}
+            <PostCollaboratorsBadge target="post" targetId={post.id} side={identityVerified ? "left" : "right"} />
           </Link>
 
           <div className="flex-1 min-w-0 space-y-0.5">
@@ -689,14 +697,7 @@ export function PostCard({
                 >
                   {identityName}
                 </Link>
-                {postedAsPage ? (
-                  postedAsPage.is_verified && <VerifiedBadge className="shrink-0" />
-                ) : (
-                  <>
-                    {post.author.is_verified && <VerifiedBadge className="shrink-0" />}
-                    <TierBadge tier={post.author.tier} />
-                  </>
-                )}
+                {!postedAsPage && <TierBadge tier={post.author.tier} />}
               </div>
               {!isArchivedFrozen && (
                 <div className="shrink-0 pl-2">
