@@ -2,6 +2,8 @@ import { useEffect, useRef, useState } from "react";
 import { Link, useSearchParams, useLocation } from "react-router-dom";
 import { consumeJustPosted } from "../lib/justPosted";
 import { X } from "lucide-react";
+import { useAccumulatedPages } from "../hooks/useAccumulatedPages";
+import { useAuth } from "../hooks/useAuth";
 import { useFeedPosts, useFollowingFeed, useTopDiscussionsFeed, usePostById } from "../hooks/usePosts";
 import { usePageRankedFeed, usePageFollowingFeed } from "../hooks/usePageFeed";
 import { useActiveIdentity } from "../hooks/usePages";
@@ -24,22 +26,6 @@ const TABS = [
 
 type TabKey = (typeof TABS)[number]["key"];
 const TAB_KEYS = TABS.map((t) => t.key);
-
-function useAccumulatedPages<T>(pageData: T[] | undefined, page: number, resetKey: unknown) {
-  const [all, setAll] = useState<T[]>([]);
-
-  useEffect(() => {
-    setAll([]);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [resetKey]);
-
-  useEffect(() => {
-    if (!pageData) return;
-    setAll((prev) => (page === 0 ? pageData : [...prev, ...pageData]));
-  }, [pageData, page]);
-
-  return all;
-}
 
 function EmptyState({ message }: { message: string }) {
   return <p className="text-ink-muted text-center py-16 text-sm">{message}</p>;
@@ -101,6 +87,7 @@ function ForYouTab({
   active: boolean;
 }) {
   const [page, setPage] = useState(0);
+  const { user } = useAuth();
   const { data: identity } = useActiveIdentity();
   const activePageId = identity?.mode === "page" ? identity.page.id : undefined;
   const isPageMode = !!activePageId && !interestId;
@@ -111,7 +98,11 @@ function ForYouTab({
   const personal = useFeedPosts(interestId, page);
   const pageFeed = usePageRankedFeed(isPageMode ? activePageId : undefined, page);
   const { data: pagePosts, isLoading, isFetching, error } = isPageMode ? pageFeed : personal;
-  const posts = useAccumulatedPages(pagePosts, page, interestId ?? (isPageMode ? activePageId : "personal"));
+  const { posts } = useAccumulatedPages(
+    pagePosts,
+    page,
+    isPageMode ? ["page-feed-posts", "ranked", activePageId] : interestId ? ["feed-posts", "topic", interestId] : ["feed-posts", "ranked", user?.id]
+  );
 
   useEffect(() => setPage(0), [interestId, isPageMode]);
 
@@ -205,6 +196,7 @@ function ForYouTab({
 
 function FollowingTab({ active }: { active: boolean }) {
   const [page, setPage] = useState(0);
+  const { user } = useAuth();
   const { data: identity } = useActiveIdentity();
   const activePageId = identity?.mode === "page" ? identity.page.id : undefined;
   const isPageMode = !!activePageId;
@@ -212,7 +204,11 @@ function FollowingTab({ active }: { active: boolean }) {
   const personal = useFollowingFeed(page);
   const pageFeed = usePageFollowingFeed(isPageMode ? activePageId : undefined, page);
   const { data: pagePosts, isLoading, error } = isPageMode ? pageFeed : personal;
-  const posts = useAccumulatedPages(pagePosts, page, isPageMode ? activePageId : "personal");
+  const { posts } = useAccumulatedPages(
+    pagePosts,
+    page,
+    isPageMode ? ["page-feed-posts", "following", activePageId] : ["feed-posts", "following", user?.id]
+  );
 
   useEffect(() => setPage(0), [isPageMode]);
 
@@ -235,7 +231,8 @@ function FollowingTab({ active }: { active: boolean }) {
 function TopDiscussionsTab({ active }: { active: boolean }) {
   const [page, setPage] = useState(0);
   const { data: pagePosts, isLoading, error } = useTopDiscussionsFeed(page);
-  const posts = useAccumulatedPages(pagePosts, page, "top");
+  const { user } = useAuth();
+  const { posts } = useAccumulatedPages(pagePosts, page, ["feed-posts", "top", user?.id]);
 
   if (isLoading && page === 0) return <p className="text-ink-muted text-center py-10">Loading…</p>;
   if (error) return <p className="text-danger text-center py-10">Couldn't load this feed. Try again.</p>;

@@ -56,6 +56,10 @@ const VISIBLE_SLOTS = 5;
 // elsewhere in the app.
 const LONG_PRESS_MS = 450;
 
+// Fixed icon box (every tray icon is 24px) and the gap before the count — see ActionButton.
+const ICON_BOX = 24;
+const COUNT_GAP = 6;
+
 // How far (px) the pointer can drift after landing before a hold stops
 // counting as a hold and starts counting as a swipe — see
 // handlePointerMove below. 10px is roughly what most touch UIs treat
@@ -135,13 +139,25 @@ function ActionButton({
       disabled={disabled}
       aria-label={action.label}
       aria-disabled={disabled}
-      className={`flex flex-row items-center justify-center gap-2 py-1.5 flex-shrink-0 text-ink select-none ${
+      className={`relative flex flex-row items-center justify-center py-1.5 flex-shrink-0 text-ink select-none ${
         disabled ? "opacity-40" : ""
       }`}
       style={{ width: `${widthPercent}%`, touchAction: "manipulation", WebkitTouchCallout: "none" }}
     >
-      {action.icon}
-      {action.count !== null && <AnimatedCount value={action.count} className="text-sm font-semibold leading-none" />}
+      {/* The icon owns a fixed box in the middle of its slot and the count hangs off that box's right edge, out of
+          the layout flow. The count takes no part in centring, so the icon sits in exactly the same place whether
+          the count is hidden (0), one digit or "1.2K" — it never shifts when the number appears, grows or goes. */}
+      <span className="inline-flex items-center justify-center flex-shrink-0" style={{ width: ICON_BOX, height: ICON_BOX }}>
+        {action.icon}
+      </span>
+      {action.count !== null && (
+        <span
+          className="pointer-events-none absolute inset-y-0 flex items-center"
+          style={{ left: `calc(50% + ${ICON_BOX / 2 + COUNT_GAP}px)` }}
+        >
+          <AnimatedCount value={action.count} className="text-sm font-semibold leading-none" />
+        </span>
+      )}
     </button>
   );
 }
