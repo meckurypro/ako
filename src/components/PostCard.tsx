@@ -49,6 +49,7 @@ import { useAuth } from "../hooks/useAuth";
 import { useActiveIdentity } from "../hooks/usePages";
 import { useIsBookmarked, useToggleBookmark } from "../hooks/useBookmarks";
 import { useMyReaction, useReactionOverlay, useToggleReaction } from "../hooks/useReactions";
+import { useLivePost } from "../hooks/useLiveCounts";
 import { recordProfileVisitFromPost } from "../hooks/useProfileVisits";
 import { useEngagementOrder, type SecondaryActionKey } from "../hooks/useEngagementOrder";
 import { useCollaborators } from "../hooks/useCollaboration";
@@ -245,6 +246,8 @@ export function PostCard({
   const hasReshared = !!hasResharedQuery.data;
 
   const viewRef = useRecordPostView<HTMLElement>(post.id, active);
+  // Likes, comments, shares… follow other people's activity live while this card is on screen.
+  useLivePost(post.id, active);
   const viewCountQuery = usePostViewCount(post.id, showStats || active);
   const viewCount = viewCountQuery.data ?? 0;
 
@@ -375,21 +378,21 @@ export function PostCard({
       key: "support",
       label: "Support",
       icon: <Handshake size={24} className="text-ink" />,
-      count: post.support_count > 0 ? post.support_count : null,
+      count: post.support_count,
       onAction: () => handleStance("support"),
     },
     disagree: {
       key: "disagree",
       label: "Disagree",
       icon: <Frown size={24} className={STANCE_COLORS.disagree.iconClass} />,
-      count: post.disagree_count > 0 ? post.disagree_count : null,
+      count: post.disagree_count,
       onAction: () => handleStance("disagree"),
     },
     pushback: {
       key: "pushback",
       label: "Pushback",
       icon: <Hand size={24} className={STANCE_COLORS.pushback.iconClass} />,
-      count: post.pushback_count > 0 ? post.pushback_count : null,
+      count: post.pushback_count,
       onAction: () => handleStance("pushback"),
     },
     dislike: {
@@ -401,21 +404,21 @@ export function PostCard({
           fill={isDisliked ? "currentColor" : "none"}
         />
       ),
-      count: dislikeCount > 0 ? dislikeCount : null,
+      count: dislikeCount,
       onAction: () => toggleDislike.mutate(isDisliked),
     },
     gift: {
       key: "gift",
       label: "Gift",
       icon: <GiftIcon size={24} className="text-ink" />,
-      count: post.gift_count > 0 ? post.gift_count : null,
+      count: post.gift_count,
       onAction: handleGift,
     },
     reshare: {
       key: "reshare",
       label: "Reshare",
       icon: <Repeat2 size={24} className="text-ink" />,
-      count: post.share_count > 0 ? post.share_count : null,
+      count: post.share_count,
       onAction: handleReshareTap,
     },
     save: {
@@ -479,7 +482,7 @@ export function PostCard({
       icon: (
         <LikeHeart active={isLiked} size={24} className="text-danger" />
       ),
-      count: likeCount > 0 ? likeCount : null,
+      count: likeCount,
       // No in-flight guard needed (and none wanted — it made taps feel dead on slow networks): the tap enqueues an
       // idempotent intent computed from what the user SEES. Two taps in one frame read the same stale value and
       // enqueue the same intent twice (harmless); a genuine second tap after a re-render flips it back, in order.
@@ -867,7 +870,7 @@ export function PostCard({
         middleActions={middleActions}
         rightActions={rightActions}
         onOpenMore={trayFrozen ? undefined : () => setShowMoreActions(true)}
-        belowLeftLabel={{ text: `Comments: ${post.comment_count}`, onClick: handleCommentTap }}
+        belowLeftLabel={{ text: "Comments:", count: post.comment_count, onClick: handleCommentTap }}
         disabled={trayFrozen}
       />
 

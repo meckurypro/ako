@@ -1,7 +1,7 @@
 // src/components/comments/StanceFilter.tsx
 import type { StanceFilter as Filter } from "../../hooks/useComments";
 import type { Stance } from "../../types/database";
-import { formatCompactCount } from "../../lib/formatStats";
+import { AnimatedCount } from "../AnimatedCount";
 import { STANCE_ORDER, STANCE_TONE } from "./stance";
 
 export type StanceCounts = Record<Stance, number>;
@@ -34,7 +34,7 @@ export function StanceFilterBar({
         className={`${tab} ${value === "all" ? "text-ink font-medium border-ink" : "text-ink-muted border-transparent hover:text-ink"}`}
       >
         All
-        <span className="ml-1 text-xs text-ink-muted">{formatCompactCount(total)}</span>
+        <AnimatedCount value={total} showZero className="ml-1 text-xs text-ink-muted" />
       </button>
       {present.map((s) => {
         const tone = STANCE_TONE[s];
@@ -48,7 +48,7 @@ export function StanceFilterBar({
             className={`${tab} ${active ? `${tone.text} font-medium ${tone.underline}` : "text-ink-muted border-transparent hover:text-ink"}`}
           >
             {tone.noun}
-            <span className="ml-1 text-xs opacity-70">{formatCompactCount(counts[s])}</span>
+            <AnimatedCount value={counts[s]} showZero className="ml-1 text-xs opacity-70" />
           </button>
         );
       })}

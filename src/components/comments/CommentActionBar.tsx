@@ -3,7 +3,7 @@ import { useRef, useState, type MouseEvent } from "react";
 import { Flag, Gift as GiftIcon, MessageCircle, MoreHorizontal, Share2, ThumbsDown } from "lucide-react";
 import { LikeHeart } from "../LikeHeart";
 import { DropdownMenu, type DropdownMenuItem } from "../DropdownMenu";
-import { formatCompactCount } from "../../lib/formatStats";
+import { AnimatedCount } from "../AnimatedCount";
 import type { CommentWithAuthor } from "../../hooks/useComments";
 import { useCommentEngagement } from "./CommentEngagement";
 
@@ -68,7 +68,7 @@ export function CommentActionBar({ comment, size = "sm" }: { comment: CommentWit
     <div className={wrapperClass} onClick={stop}>
       <button onClick={() => eng.reply(comment)} className={`${btn} text-ink-muted hover:text-ink`} aria-label="Reply">
         <MessageCircle size={icon} />
-        {comment.reply_count > 0 && <span className={countClass}>{formatCompactCount(comment.reply_count)}</span>}
+        <AnimatedCount value={comment.reply_count} className={countClass} />
       </button>
 
       <button
@@ -78,7 +78,7 @@ export function CommentActionBar({ comment, size = "sm" }: { comment: CommentWit
         aria-pressed={liked}
       >
         <LikeHeart active={liked} size={icon} />
-        {likeCount > 0 && <span className={countClass}>{formatCompactCount(likeCount)}</span>}
+        <AnimatedCount value={likeCount} className={countClass} />
       </button>
 
       <button
@@ -88,7 +88,7 @@ export function CommentActionBar({ comment, size = "sm" }: { comment: CommentWit
         aria-pressed={disliked}
       >
         <ThumbsDown size={icon} fill={disliked ? "currentColor" : "none"} />
-        {dislikeCount > 0 && <span className={countClass}>{formatCompactCount(dislikeCount)}</span>}
+        <AnimatedCount value={dislikeCount} className={countClass} />
       </button>
 
       {size === "lg" && (

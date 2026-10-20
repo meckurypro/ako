@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { Avatar } from "../Avatar";
 import { renderFormattedText } from "../../lib/formatText";
 import { formatCompactCount, formatPostDate, formatPostTime } from "../../lib/formatStats";
+import { AnimatedCount } from "../AnimatedCount";
 import type { CommentWithAuthor } from "../../hooks/useComments";
 import { useCommentViewCount } from "../../hooks/useCommentViews";
 import { useCommentEngagement } from "./CommentEngagement";
@@ -11,7 +12,7 @@ import { CommentActionBar, CommentMoreMenu } from "./CommentActionBar";
 function Stat({ value, singular, plural }: { value: number; singular: string; plural: string }) {
   return (
     <span className="whitespace-nowrap">
-      <span className="font-semibold text-ink">{formatCompactCount(value)}</span>{" "}
+      <AnimatedCount value={value} showZero className="font-semibold text-ink" />{" "}
       <span className="text-ink-muted">{value === 1 ? singular : plural}</span>
     </span>
   );

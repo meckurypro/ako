@@ -1,6 +1,7 @@
 // src/components/comments/CommentEngagement.tsx
 import { createContext, useCallback, useContext, useMemo, useRef, useState, type ReactNode } from "react";
 import { useAuth } from "../../hooks/useAuth";
+import { useLiveThread } from "../../hooks/useLiveCounts";
 import {
   useMyCommentReactions,
   useToggleCommentReaction,
@@ -49,6 +50,8 @@ export function commentUrl(postId: string, commentId: string): string {
  */
 export function CommentEngagementProvider({ postId, children }: { postId: string; children: ReactNode }) {
   const { user } = useAuth();
+  // Everyone's reactions and replies in this conversation arrive live (counts roll, new replies appear).
+  useLiveThread(postId);
   const toast = useToast();
 
   const knownRef = useRef<Set<string>>(new Set());

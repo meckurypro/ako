@@ -1,4 +1,5 @@
 // src/components/ReactionTray.tsx
+import { AnimatedCount } from "./AnimatedCount";
 import { useRef, type ReactNode, type MouseEvent, type PointerEvent } from "react";
 
 export interface EngagementAction {
@@ -25,7 +26,7 @@ interface ReactionTrayProps {
   /** Small text row rendered directly under the left fixed group — used
    *  for the "Comments: N" label. Sits in the same column as Like, so it
    *  shares that slot's width. */
-  belowLeftLabel?: { text: string; onClick: (e: MouseEvent) => void };
+  belowLeftLabel?: { text: string; /** Rolling number shown after the text (e.g. the comment count). */ count?: number; onClick: (e: MouseEvent) => void };
   /** Long-pressing any of the visible icons calls this, if provided —
    *  PostCard/ProjectCard open a sheet listing every action in
    *  response. Long-press does nothing if omitted. */
@@ -140,9 +141,7 @@ function ActionButton({
       style={{ width: `${widthPercent}%`, touchAction: "manipulation", WebkitTouchCallout: "none" }}
     >
       {action.icon}
-      {action.count !== null && (
-        <span className="text-sm font-semibold leading-none">{action.count}</span>
-      )}
+      {action.count !== null && <AnimatedCount value={action.count} className="text-sm font-semibold leading-none" />}
     </button>
   );
 }
@@ -186,6 +185,12 @@ export function ReactionTray({
             className="text-xs font-medium leading-none text-ink-muted mt-2 whitespace-nowrap"
           >
             {belowLeftLabel.text}
+            {belowLeftLabel.count !== undefined && (
+              <>
+                {" "}
+                <AnimatedCount value={belowLeftLabel.count} showZero />
+              </>
+            )}
           </button>
         )}
       </div>

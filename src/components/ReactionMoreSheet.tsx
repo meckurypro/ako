@@ -57,7 +57,7 @@ export function ReactionMoreSheet({ actions, onClose }: ReactionMoreSheetProps) 
                 {action.icon}
                 <span className="text-[11px] text-ink-muted leading-tight text-center select-none">
                   {action.label}
-                  {action.count !== null ? ` (${action.count})` : ""}
+                  {action.count ? ` (${action.count})` : ""}
                 </span>
               </button>
             ))}
