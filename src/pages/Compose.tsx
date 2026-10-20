@@ -326,6 +326,7 @@ export function Compose() {
           onChange={setContent}
           maxLength={contentLimit}
           rows={8}
+          autoGrow
           placeholder="Add details… use @ to mention someone."
           className="w-full text-base text-ink bg-transparent resize-none focus:outline-none placeholder:text-ink-muted/60"
           showFormatToolbar

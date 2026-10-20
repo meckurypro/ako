@@ -1,5 +1,5 @@
 // src/components/MentionTextarea.tsx
-import { forwardRef, useRef, type Ref } from "react";
+import { forwardRef, useLayoutEffect, useRef, type Ref } from "react";
 import { useState } from "react";
 import { Building2 } from "lucide-react";
 import { Avatar } from "./Avatar";
@@ -18,6 +18,11 @@ interface MentionTextareaProps {
   // Opt-in since not every MentionTextarea usage wants the bold/italic/
   // strikethrough/underline toolbar rendered above it.
   showFormatToolbar?: boolean;
+  /**
+   * Grow with the text up to the visible height (viewport minus toolbar/action bar), then scroll inside the
+   * box. Keeps long text readable and the caret on screen above the keyboard; a tap places the caret anywhere.
+   */
+  autoGrow?: boolean;
 }
 
 // Matches an "@" that starts a mention right up to the cursor —
@@ -42,10 +47,18 @@ function mergeRefs<T>(...refs: Array<Ref<T> | undefined>) {
 }
 
 export const MentionTextarea = forwardRef<HTMLTextAreaElement, MentionTextareaProps>(function MentionTextarea(
-  { value, onChange, placeholder, rows = 8, maxLength, className, autoFocus, id, showFormatToolbar },
+  { value, onChange, placeholder, rows = 8, maxLength, className, autoFocus, id, showFormatToolbar, autoGrow },
   forwardedRef
 ) {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  // Size to content (capped by CSS maxHeight below). Reset to auto first so it can also shrink on delete.
+  useLayoutEffect(() => {
+    const el = textareaRef.current;
+    if (!autoGrow || !el) return;
+    el.style.height = "auto";
+    el.style.height = `${el.scrollHeight}px`;
+  }, [value, autoGrow]);
   const [mentionQuery, setMentionQuery] = useState<string | null>(null);
   const suggestionsQuery = useMentionSuggestions(mentionQuery ?? "");
   const suggestions = mentionQuery !== null ? suggestionsQuery.data ?? [] : [];
@@ -96,6 +109,11 @@ export const MentionTextarea = forwardRef<HTMLTextAreaElement, MentionTextareaPr
         autoFocus={autoFocus}
         placeholder={placeholder}
         className={className}
+        // 100dvh shrinks with the keyboard (interactive-widget=resizes-content), so the cap is "what's left above it":
+        // 230px ≈ header + format toolbar + action bar + breathing room.
+        style={autoGrow ? { maxHeight: "calc(100dvh - 230px)", overflowY: "auto" } : undefined}
+        // Bring the editor to the top of the visible area when it gets focus, so the keyboard never hides it.
+        onFocus={autoGrow ? (e) => setTimeout(() => e.target.scrollIntoView({ block: "center", behavior: "smooth" }), 250) : undefined}
       />
 
       {mentionQuery !== null && suggestions.length > 0 && (
