@@ -730,20 +730,22 @@ export function PostCard({
                 The reshare tag and Follow badge used to compete for space
                 in this row; they now sit on the header/body divider
                 below instead — see the overlay just after this column. */}
-            <p className="text-xs leading-[18px] text-ink-muted flex items-center gap-1">
-              <span>
+            {/* Never wraps: flex items can shrink to their longest word, which split "just now" onto two rows on
+                narrow phones. Each piece stays on one line; the row clips instead of stacking. */}
+            <p className="text-xs leading-[18px] text-ink-muted flex items-center gap-1 whitespace-nowrap overflow-hidden">
+              <span className="shrink-0">
                 {timeAgo(post.created_at)}
                 {post.edited_at && " · edited"}
               </span>
               {viewCount > 0 && (
                 <>
-                  <span aria-hidden="true">·</span>
-                  <span>
+                  <span aria-hidden="true" className="shrink-0">·</span>
+                  <span className="shrink-0">
                     {formatCompactCount(viewCount)} {viewCount === 1 ? "view" : "views"}
                   </span>
                 </>
               )}
-              {post.visibility === "public" && <Globe size={11} />}
+              {post.visibility === "public" && <Globe size={11} className="shrink-0" />}
             </p>
           </div>
         </div>
