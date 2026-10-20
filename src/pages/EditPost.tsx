@@ -15,7 +15,8 @@ import { useUploadPostMedia, isVideoUrl } from "../hooks/useUploadPostMedia";
 import { useAuth } from "../hooks/useAuth";
 import { MentionTextarea } from "../components/MentionTextarea";
 import { HeadingColorPicker } from "../components/HeadingColorPicker";
-import { CONTENT_LIMIT, contentCounterClass } from "../lib/textLimits";
+import { contentCounterClass, postContentLimit } from "../lib/textLimits";
+import { useMyProfile } from "../hooks/useProfile";
 import type { PostWithAuthor } from "../types/database";
 
 const HEADING_LIMIT = 50;
@@ -43,6 +44,8 @@ export function EditPost() {
   const toast = useToast();
   const smartBack = useSmartBack();
   const { user } = useAuth();
+  const { data: me } = useMyProfile();
+  const contentLimit = postContentLimit(me?.is_verified);
   const { data: post, isLoading } = usePostForEdit(postId!);
   const updatePost = useUpdatePost();
   // Same "accepted only" rule as PostCard/PostCollaboratorsBadge —
@@ -205,7 +208,7 @@ export function EditPost() {
         <MentionTextarea
           value={content}
           onChange={setContent}
-          maxLength={CONTENT_LIMIT}
+          maxLength={contentLimit}
           rows={8}
           className="w-full text-base text-ink bg-transparent resize-none focus:outline-none placeholder:text-ink-muted/60"
           showFormatToolbar
@@ -249,9 +252,9 @@ export function EditPost() {
             {uploadMedia.isPending ? "Uploading…" : mediaUrls.length > 0 ? "Add another slide" : "Add photos"}
           </button>
           <span
-            className={`text-xs ${contentCounterClass(content.length)}`}
+            className={`text-xs ${contentCounterClass(content.length, contentLimit)}`}
           >
-            {content.length}/{CONTENT_LIMIT}
+            {content.length}/{contentLimit}
           </span>
         </div>
 

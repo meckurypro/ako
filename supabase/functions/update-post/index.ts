@@ -49,7 +49,11 @@ const ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY")!;
 const EDIT_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
 const EDIT_WINDOW_MESSAGE = "This post can no longer be edited (7-day window has passed)";
 const HEADING_LIMIT = 50;
-const CONTENT_LIMIT = 1000;
+// Tiered: 450 for everyone, 1,200 for profiles.is_verified (the permanent admin-assigned status, NOT
+// badge_visible). Keep in sync with create-post, src/lib/textLimits.ts and the posts_content_check
+// DB constraint (the absolute ceiling, 1,200).
+const STANDARD_CONTENT_LIMIT = 450;
+const VERIFIED_CONTENT_LIMIT = 1200;
 
 // Keep in sync with src/lib/headingColors.ts and the
 // posts_heading_color_check DB constraint.
@@ -115,8 +119,20 @@ serve(async (req) => {
     if (heading.length > HEADING_LIMIT) {
       return jsonResponse({ error: `Heading exceeds ${HEADING_LIMIT} character limit` }, 400);
     }
-    if (content.length > CONTENT_LIMIT) {
-      return jsonResponse({ error: `Content exceeds ${CONTENT_LIMIT} character limit` }, 400);
+
+    // Fail CLOSED — if the profile lookup errors, don't guess a limit.
+    const { data: authorProfile, error: profileError } = await admin
+      .from("profiles")
+      .select("is_verified")
+      .eq("id", user.id)
+      .single();
+    if (profileError || !authorProfile) {
+      console.error("update-post profile lookup error:", profileError);
+      return jsonResponse({ error: "Couldn't verify account details. Please try again." }, 503);
+    }
+    const contentLimit = authorProfile.is_verified ? VERIFIED_CONTENT_LIMIT : STANDARD_CONTENT_LIMIT;
+    if (content.length > contentLimit) {
+      return jsonResponse({ error: `Content exceeds ${contentLimit} character limit` }, 400);
     }
     if (headingColor !== null && !HEADING_COLORS.includes(headingColor)) {
       return jsonResponse({ error: "Invalid heading_color" }, 400);

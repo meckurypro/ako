@@ -22,7 +22,7 @@ import { HeadingColorPicker } from "../components/HeadingColorPicker";
 import { TagProjectPicker } from "../components/TagProjectPicker";
 import { DropdownMenu, type DropdownMenuItem } from "../components/DropdownMenu";
 import { useToast } from "../components/Toast";
-import { CONTENT_LIMIT, contentCounterClass } from "../lib/textLimits";
+import { CONTENT_LIMIT, contentCounterClass, postContentLimit } from "../lib/textLimits";
 import { AddMusicSheet } from "../components/music/AddMusicSheet";
 import { Music as MusicIcon } from "lucide-react";
 import type { MusicSearchResult } from "../types/music";
@@ -132,6 +132,8 @@ export function Compose() {
   // was active when Compose opened (switching mid-draft would be
   // confusing, so we don't watch for that here).
   const postingAsPage = identity?.mode === "page" ? identity.page : null;
+  // Verified personal accounts get the longer cap; page posts keep the standard one.
+  const contentLimit = postingAsPage ? CONTENT_LIMIT : postContentLimit(me?.is_verified);
   const pagePerms = useActivePagePermissions();
 
   // A post can be heading-only or details-only — either is enough to post.
@@ -322,7 +324,7 @@ export function Compose() {
         <MentionTextarea
           value={content}
           onChange={setContent}
-          maxLength={CONTENT_LIMIT}
+          maxLength={contentLimit}
           rows={8}
           placeholder="Add details… use @ to mention someone."
           className="w-full text-base text-ink bg-transparent resize-none focus:outline-none placeholder:text-ink-muted/60"
@@ -407,9 +409,9 @@ export function Compose() {
             {uploadMedia.isPending ? "Uploading…" : mediaUrls.length > 0 ? "Add another slide" : "Add photos"}
           </button>
           <span
-            className={`text-xs ${contentCounterClass(content.length)}`}
+            className={`text-xs ${contentCounterClass(content.length, contentLimit)}`}
           >
-            {content.length}/{CONTENT_LIMIT}
+            {content.length}/{contentLimit}
           </span>
         </div>
 
