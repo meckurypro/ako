@@ -192,6 +192,48 @@ async function lookupProfile(username: string): Promise<PreviewProfile | null> {
   return rows?.[0] ?? null;
 }
 
+// Post media dimensions aren't stored, and WhatsApp tends to drop an og:image on the first scrape when no
+// og:image:width/height is declared (it doesn't wait for the image to download). So read just the image header
+// — the first 128 KB — to learn the real size. Only our own public storage buckets are ever fetched (author-
+// supplied media_urls must not turn this into an open fetcher), and any failure just means "dimensions unknown".
+const PROBE_BYTES = 128 * 1024;
+const PROBE_TIMEOUT_MS = 2500;
+const PROBE_PREFIXES = SUPABASE_URL
+  ? ["post-media", "avatars"].map((bucket) => `${SUPABASE_URL}/storage/v1/object/public/${bucket}/`)
+  : [];
+
+async function probeImageSize(url: string): Promise<{ width: number; height: number } | null> {
+  try {
+    if (!PROBE_PREFIXES.some((prefix) => url.startsWith(prefix))) return null;
+    const res = await fetch(url, {
+      headers: { Range: `bytes=0-${PROBE_BYTES - 1}` },
+      signal: AbortSignal.timeout(PROBE_TIMEOUT_MS),
+    });
+    if (!res.ok || !res.body) return null;
+
+    // A server that ignores Range would send the whole file — stop reading once we have enough.
+    const chunks: Uint8Array[] = [];
+    let received = 0;
+    const reader = res.body.getReader();
+    while (received < PROBE_BYTES) {
+      const { done, value } = await reader.read();
+      if (done || !value) break;
+      chunks.push(value);
+      received += value.length;
+    }
+    await reader.cancel().catch(() => undefined);
+
+    const { default: sharp } = await import("sharp");
+    const meta = await sharp(Buffer.concat(chunks).subarray(0, PROBE_BYTES)).metadata();
+    if (!meta.width || !meta.height) return null;
+    // EXIF orientations 5–8 are rotated 90°, and og-image applies .rotate().
+    const rotated = (meta.orientation ?? 1) >= 5;
+    return rotated ? { width: meta.height, height: meta.width } : { width: meta.width, height: meta.height };
+  } catch {
+    return null;
+  }
+}
+
 interface Card {
   title: string;
   description: string;
@@ -369,6 +411,13 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
       const post = await lookupPost(postId);
       if (post) {
         card = cardForPost(post);
+        if (card.image && !card.squareImage) {
+          const size = await probeImageSize(card.image);
+          if (size) {
+            card.imageWidth = size.width;
+            card.imageHeight = size.height;
+          }
+        }
         cacheControl = "public, s-maxage=120, stale-while-revalidate=600";
       }
     } else if (username) {

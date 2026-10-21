@@ -10,6 +10,8 @@ import { PostCard } from "../components/PostCard";
 import { StanceComposer } from "../components/StanceComposer";
 import { BottomNav } from "../components/BottomNav";
 import { UnavailableNotice } from "../components/UnavailableNotice";
+import { RestrictedPostNotice } from "../components/RestrictedPostNotice";
+import { useIsRestricted } from "../hooks/useAccountAccess";
 import { CommentEngagementProvider } from "../components/comments/CommentEngagement";
 import { CommentReplies } from "../components/comments/CommentReplies";
 import { ReplyBar } from "../components/comments/ReplyBar";
@@ -32,11 +34,14 @@ export function PostDetail() {
   const location = useLocation();
   const smartBack = useSmartBack();
   const { user } = useAuth();
-  const { data: post, isLoading: postLoading } = usePost(postId);
+  // Restricted (consumer-only) accounts can't use posts yet. A shared post link must not tell them the post
+  // "doesn't exist" — it does — so we skip the fetch entirely and explain, with a way to Discover.
+  const restricted = useIsRestricted();
+  const { data: post, isLoading: postLoading } = usePost(restricted ? undefined : postId);
   const repliesRef = useRef<HTMLDivElement>(null);
   const [composeStance, setComposeStance] = useState<Stance | null>(null);
 
-  useMarkPostSeen(postId!, post?.author?.id);
+  useMarkPostSeen(postId!, restricted ? undefined : post?.author?.id);
 
   const legacyCommentId = legacyCommentIdFromHash(location.hash);
   if (legacyCommentId) return <Navigate to={`/post/${postId}/comment/${legacyCommentId}`} replace />;
@@ -59,7 +64,9 @@ export function PostDetail() {
           <ArrowLeft size={22} />
         </button>
 
-        {postLoading ? (
+        {restricted ? (
+          <RestrictedPostNotice />
+        ) : postLoading ? (
           <p className="text-ink-muted">Loading…</p>
         ) : !post ? (
           <UnavailableNotice kind="post" />

@@ -9,6 +9,8 @@ import { usePost } from "../hooks/usePostDetail";
 import { useMarkPostSeen } from "../hooks/useMarkPostSeen";
 import { BottomNav } from "../components/BottomNav";
 import { UnavailableNotice } from "../components/UnavailableNotice";
+import { RestrictedPostNotice } from "../components/RestrictedPostNotice";
+import { useIsRestricted } from "../hooks/useAccountAccess";
 import { CommentEngagementProvider, useCommentEngagement } from "../components/comments/CommentEngagement";
 import { CommentFocal } from "../components/comments/CommentFocal";
 import { CommentReplies } from "../components/comments/CommentReplies";
@@ -81,14 +83,16 @@ export function CommentDetail() {
   const { postId, commentId } = useParams<{ postId: string; commentId: string }>();
   const smartBack = useSmartBack();
   const navigationType = useNavigationType();
-  const { data: comment, isLoading: commentLoading } = useComment(commentId);
-  const { data: chain, isLoading: chainLoading } = useCommentChain(commentId);
-  const { data: post, isLoading: postLoading } = usePost(postId);
+  // Restricted accounts can't use posts yet: skip every fetch and explain instead of implying the link is dead.
+  const restricted = useIsRestricted();
+  const { data: comment, isLoading: commentLoading } = useComment(restricted ? undefined : commentId);
+  const { data: chain, isLoading: chainLoading } = useCommentChain(restricted ? undefined : commentId);
+  const { data: post, isLoading: postLoading } = usePost(restricted ? undefined : postId);
   const focalRef = useRef<HTMLDivElement>(null);
 
   useRecordCommentView(comment?.id, comment?.author.id);
   // Opening a comment is also being in that post's conversation — keep the post's "seen" bookkeeping honest.
-  useMarkPostSeen(postId!, post?.author?.id);
+  useMarkPostSeen(postId!, restricted ? undefined : post?.author?.id);
 
   const ready = !!comment && !!chain && !postLoading;
 
@@ -113,7 +117,9 @@ export function CommentDetail() {
           <h1 className="font-display text-base text-ink">Comment</h1>
         </header>
 
-        {commentLoading || chainLoading ? (
+        {restricted ? (
+          <RestrictedPostNotice />
+        ) : commentLoading || chainLoading ? (
           <p className="text-ink-muted py-6">Loading…</p>
         ) : !comment || comment.is_deleted ? (
           <div>
