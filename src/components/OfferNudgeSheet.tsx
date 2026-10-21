@@ -1,4 +1,6 @@
 // src/components/OfferNudgeSheet.tsx
+import { isFileType } from "../lib/fileProject";
+import { FileFolderIcon } from "./FileFolderArt";
 import { useState } from "react";
 import { X, Image as ImageIcon } from "lucide-react";
 import { useBackDismiss } from "../hooks/useBackDismiss";
@@ -121,7 +123,9 @@ function OfferCard({
         {offer.items.map((item) => (
           <li key={item.id} className="flex items-center gap-3">
             <span className="w-9 h-9 rounded-lg bg-canvas overflow-hidden flex items-center justify-center shrink-0">
-              {item.thumbnail_url ? (
+              {isFileType(item.project_type) ? (
+                <FileFolderIcon size={36} className="w-full h-full" />
+              ) : item.thumbnail_url ? (
                 <img src={item.thumbnail_url} alt="" className="w-full h-full object-cover" />
               ) : (
                 <ImageIcon size={14} className="text-ink-muted" />

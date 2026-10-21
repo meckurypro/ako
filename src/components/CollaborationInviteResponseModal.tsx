@@ -1,4 +1,6 @@
 // src/components/CollaborationInviteResponseModal.tsx
+import { isFileType } from "../lib/fileProject";
+import { FileFolderIcon } from "./FileFolderArt";
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Avatar } from "./Avatar";
@@ -127,7 +129,9 @@ export function CollaborationInviteResponseModal({
               ) : (
                 <div className="mt-3 rounded-xl border border-border bg-canvas px-3.5 py-3">
                   <div className="flex items-center gap-3">
-                    {previewContent.thumbnail_url ? (
+                    {isFileType(previewContent.project_type) ? (
+                      <FileFolderIcon size={48} className="w-12 h-12 rounded-lg flex-shrink-0 border border-border" />
+                    ) : previewContent.thumbnail_url ? (
                       <img
                         src={previewContent.thumbnail_url}
                         alt=""

@@ -2,6 +2,7 @@
 import { useRef, useState } from "react";
 import { FileUp } from "lucide-react";
 import { useUploadProjectFile } from "../../hooks/useUploadProjectFile";
+import { MAX_PROJECT_FILE_BYTES, MAX_PROJECT_FILE_LABEL } from "../../lib/fileProject";
 
 export interface FileFieldsValue {
   file_path: string | null;
@@ -23,7 +24,7 @@ interface FileFieldsProps {
 // redirect/marketing link. Unlike Media's per-channel link-or-upload
 // choice, there's no toggle here at all: this is upload-only, always.
 export function FileFields({ value, onChange, onError }: FileFieldsProps) {
-  const uploadFile = useUploadProjectFile();
+  const uploadFile = useUploadProjectFile({ maxBytes: MAX_PROJECT_FILE_BYTES });
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [, setTick] = useState(0); // forces the disabled/label state to re-render during upload
 
@@ -51,7 +52,7 @@ export function FileFields({ value, onChange, onError }: FileFieldsProps) {
       >
         <FileUp size={16} />
         {uploadFile.isPending
-          ? "Uploading…"
+          ? `Uploading… ${uploadFile.progress}%`
           : value.file_name
             ? value.file_name
             : // Editing an existing File project: file_path is already set
@@ -65,7 +66,7 @@ export function FileFields({ value, onChange, onError }: FileFieldsProps) {
       </button>
       <input ref={fileInputRef} type="file" onChange={handleFileSelect} className="hidden" />
       <p className="text-xs text-ink-muted mt-1">
-        Hosted here — no external link is stored. Visitors with access download it with one tap.
+        Up to {MAX_PROJECT_FILE_LABEL}. Hosted here — no external link is stored. Visitors with access download it with one tap.
       </p>
     </div>
   );

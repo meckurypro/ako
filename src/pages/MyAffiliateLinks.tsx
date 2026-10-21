@@ -1,4 +1,6 @@
 // src/pages/MyAffiliateLinks.tsx
+import { isFileType } from "../lib/fileProject";
+import { FileFolderIcon } from "../components/FileFolderArt";
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import { useSmartBack } from "../hooks/useSmartBack";
@@ -52,7 +54,9 @@ export function AffiliateLinkRow({ relationship }: { relationship: AffiliateRela
           to={`/projects/${relationship.project_id}`}
           className={`w-12 ${relationship.project.project_type === "book" ? "h-[72px]" : "h-12"} rounded-xl bg-canvas overflow-hidden flex items-center justify-center shrink-0`}
         >
-          {relationship.project.thumbnail_url ? (
+          {isFileType(relationship.project.project_type) ? (
+            <FileFolderIcon size={48} className="w-full h-full" />
+          ) : relationship.project.thumbnail_url ? (
             <img src={relationship.project.thumbnail_url} alt="" className="w-full h-full object-cover" />
           ) : (
             <ImageIcon size={18} className="text-ink-muted" />

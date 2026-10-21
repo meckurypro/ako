@@ -1,4 +1,6 @@
 // src/pages/Offers.tsx
+import { isFileType } from "../lib/fileProject";
+import { FileFolderIcon } from "../components/FileFolderArt";
 import { useMemo, useState } from "react";
 import { ArrowLeft, Check, Image as ImageIcon, Pencil, Plus, Tag, Trash2, X } from "lucide-react";
 import { useSmartBack } from "../hooks/useSmartBack";
@@ -106,7 +108,9 @@ function OfferRow({ offer, onEdit, onDelete }: { offer: Offer; onEdit: () => voi
         {offer.items.map((item) => (
           <li key={item.id} className="flex items-center gap-3">
             <span className="w-9 h-9 rounded-lg bg-canvas overflow-hidden flex items-center justify-center shrink-0">
-              {item.thumbnail_url ? (
+              {isFileType(item.project_type) ? (
+                <FileFolderIcon size={36} className="w-full h-full" />
+              ) : item.thumbnail_url ? (
                 <img src={item.thumbnail_url} alt="" className="w-full h-full object-cover" />
               ) : (
                 <ImageIcon size={14} className="text-ink-muted" />
@@ -257,7 +261,9 @@ function OfferEditorSheet({ offer, onClose }: { offer: Offer | null; onClose: ()
                         className={`w-full flex items-center gap-3 p-2 rounded-xl border text-left ${on ? "border-accent/50 bg-accent-soft/40" : "border-border bg-canvas"}`}
                       >
                         <span className="w-10 h-10 rounded-lg bg-canvas overflow-hidden flex items-center justify-center shrink-0">
-                          {r.thumbnail_url ? (
+                          {isFileType(r.type) ? (
+                            <FileFolderIcon size={40} className="w-full h-full" />
+                          ) : r.thumbnail_url ? (
                             <img src={r.thumbnail_url} alt="" className="w-full h-full object-cover" />
                           ) : (
                             <ImageIcon size={14} className="text-ink-muted" />

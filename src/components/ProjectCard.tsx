@@ -75,6 +75,8 @@ import { useIsProjectMember } from "../hooks/useProjectMembers";
 import { resolveFunctionErrorMessage } from "../lib/functionErrors";
 import { ProjectImageCarousel } from "./ProjectImageCarousel";
 import { MAX_THUMB_HEIGHT_VH, thumbnailLayout } from "../lib/thumbnailFit";
+import { FileFolderHero } from "./FileFolderArt";
+import { useDownloadProjectFile, DownloadCancelledError } from "../hooks/useDownloadProjectFile";
 import { projectGalleryImages } from "../lib/projectImages";
 import { loginPathFor, returnPathOf } from "../lib/authRedirect";
 import { APP_URL } from "../lib/appUrl";
@@ -406,7 +408,7 @@ export function ProjectCard({
   const offerNudge = useOfferNudge(project.id);
   const buyBusy = purchaseProject.isPending || offerNudge.checking;
   const bookGig = useBookGig();
-  const getFileDownload = useGetProjectFile();
+  const downloadProjectFile = useDownloadProjectFile();
   const getAudioStream = useGetProjectFile();
   const getVideoStream = useGetProjectFile();
   const getImageStream = useGetProjectFile();
@@ -656,27 +658,14 @@ export function ProjectCard({
       return;
     }
     setError(null);
-    // Open the tab synchronously, inside the click's own user-activation
-    // window. Safari (and most mobile browsers) silently block
-    // window.open() once it happens after an awaited network call — by
-    // then it's no longer considered user-initiated — so waiting for the
-    // signed URL before opening anything would make downloads randomly
-    // fail with no error at all. Open a blank tab now, point it at the
-    // real URL once we have it.
-    const tab = window.open("", "_blank");
     try {
-      const url = await getFileDownload.mutateAsync({ projectId: project.id, kind: "file" });
-      if (tab) {
-        tab.location.href = url;
-      } else {
-        // The blank-tab open itself got blocked — fall back to
-        // navigating the current tab so the download still goes through.
-        window.location.href = url;
-      }
+      // Streams the file in-app so the download only counts (and the creator is only notified) once every byte
+      // has arrived — see useDownloadProjectFile.
+      await downloadProjectFile.mutateAsync({ projectId: project.id, title: project.title, filePath: project.file_path });
       logFreeAccessIfNeeded("download");
     } catch (err) {
-      tab?.close();
-      setError(await resolveFunctionErrorMessage(err, "Couldn't access file."));
+      if (err instanceof DownloadCancelledError) return;
+      setError(await resolveFunctionErrorMessage(err, "Couldn't download the file."));
     }
   }
 
@@ -1158,10 +1147,10 @@ export function ProjectCard({
     }
   } else if (project.project_type === "file") {
     detailCta = {
-      label: getFileDownload.isPending ? "Preparing…" : "Download",
+      label: downloadProjectFile.isPending ? (downloadProjectFile.progress != null ? `Downloading ${downloadProjectFile.progress}%` : "Preparing…") : "Download",
       icon: <Download size={18} />,
       onClick: handleOpenFile,
-      disabled: getFileDownload.isPending,
+      disabled: downloadProjectFile.isPending,
     };
   } else if (project.project_type === "url") {
     detailCta = {
@@ -1298,6 +1287,9 @@ export function ProjectCard({
             autoLoadOnMount={!!isDetailView}
             fitClass={thumbFitClass}
           />
+        ) : project.project_type === "file" ? (
+          // File projects never use a thumbnail: the folder stands in, with the download count under it.
+          <FileFolderHero downloadCount={project.download_count ?? 0} />
         ) : project.thumbnail_url ? (
           // Supporting images only ever show on the project's own page: swipe the
           // thumbnail. Every list/grid (isDetailView false) keeps the plain thumbnail.
@@ -1633,11 +1625,15 @@ export function ProjectCard({
             (hasAccess ? (
               <button
                 onClick={handleOpenFile}
-                disabled={getFileDownload.isPending}
+                disabled={downloadProjectFile.isPending}
                 className="flex items-center gap-1.5 text-sm text-accent font-medium disabled:opacity-50"
               >
                 <Download size={15} />
-                {getFileDownload.isPending ? "Preparing…" : "Download"}
+                {downloadProjectFile.isPending
+                  ? downloadProjectFile.progress != null
+                    ? `Downloading ${downloadProjectFile.progress}%`
+                    : "Preparing…"
+                  : "Download"}
               </button>
             ) : (
               <span className="flex items-center gap-1.5 text-sm text-ink-muted">

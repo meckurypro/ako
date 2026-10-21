@@ -1,4 +1,5 @@
 // src/pages/CreateProject.tsx
+import { FileFolderHero } from "../components/FileFolderArt";
 import { BOOK_COVER_HINT, BOOK_COVER_RATIO, isBookCoverRatio, BOOK_COVER_ERROR } from "../lib/bookCover";
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { useNavigate, Link } from "react-router-dom";
@@ -344,10 +345,10 @@ export function CreateProject() {
         // entirely in media_details below.
         external_url: projectType === "url" ? urlFields.url.trim() : undefined,
         file_path: projectType === "file" ? fileFields.file_path ?? undefined : undefined,
-        thumbnail_url: thumbnailUrl ?? undefined,
-        thumbnail_width: thumbnailRatio?.width,
-        thumbnail_height: thumbnailRatio?.height,
-        supporting_image_urls: thumbnailUrl ? supportingImageUrls : undefined,
+        thumbnail_url: projectType === "file" ? undefined : thumbnailUrl ?? undefined,
+        thumbnail_width: projectType === "file" ? undefined : thumbnailRatio?.width,
+        thumbnail_height: projectType === "file" ? undefined : thumbnailRatio?.height,
+        supporting_image_urls: projectType !== "file" && thumbnailUrl ? supportingImageUrls : undefined,
         price_usd: price,
         promo_price_usd: promoPrice,
         is_private: isPrivate,
@@ -511,6 +512,13 @@ export function CreateProject() {
         <h2 className="font-display text-2xl text-ink mb-6">New project</h2>
 
         <form onSubmit={handleSubmit}>
+          {projectType === "file" ? (
+            <div className="w-full mb-4 rounded-xl border border-border bg-surface overflow-hidden">
+              <FileFolderHero />
+              <p className="text-xs text-ink-muted text-center px-4 pb-3">Files use a folder icon — no thumbnail needed.</p>
+            </div>
+          ) : (
+            <>
           {/* Thumbnail — aspect ratio matches whatever was actually
               uploaded, not a hardcoded 16:9. Falls back to 16:9 only
               as the empty-state placeholder before anything is chosen. */}
@@ -554,6 +562,9 @@ export function CreateProject() {
             onChange={setSupportingImageUrls}
             hasThumbnail={!!thumbnailUrl}
           />
+
+            </>
+          )}
 
           {/* Who this project is attributed to — same fixed-at-open,
               switch-mode-first pattern as Compose.tsx. Also the reason

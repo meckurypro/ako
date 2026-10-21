@@ -1,4 +1,6 @@
 // src/pages/HistoryActivity.tsx
+import { isFileType } from "../lib/fileProject";
+import { FileFolderIcon } from "../components/FileFolderArt";
 import { Link } from "react-router-dom";
 import { useSmartBack } from "../hooks/useSmartBack";
 import { ArrowLeft, ImageIcon, History as HistoryIcon, FileText } from "lucide-react";
@@ -14,7 +16,8 @@ function HistoryRow({ item }: { item: HistoryItem }) {
   const title = isPost
     ? item.post.heading || item.post.content?.slice(0, 80) || "Post"
     : item.project.title;
-  const thumbnail = isPost ? null : item.project.thumbnail_url;
+  const isFile = !isPost && isFileType(item.project.project_type);
+  const thumbnail = isPost || isFile ? null : item.project.thumbnail_url;
   const subtitle = isPost
     ? `Post by ${item.post.author?.display_name ?? "someone"}`
     : "Project";
@@ -22,7 +25,9 @@ function HistoryRow({ item }: { item: HistoryItem }) {
   return (
     <Link to={to} className="flex items-center gap-3 py-3 border-b border-border">
       <div className={`w-11 ${!isPost && item.project?.project_type === "book" ? "h-[66px]" : "h-11"} rounded-lg bg-surface flex items-center justify-center overflow-hidden shrink-0`}>
-        {thumbnail ? (
+        {isFile ? (
+          <FileFolderIcon size={44} className="w-full h-full" />
+        ) : thumbnail ? (
           <img src={thumbnail} alt="" className="w-full h-full object-cover" />
         ) : isPost ? (
           <FileText size={16} className="text-ink-muted" />

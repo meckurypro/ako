@@ -1,4 +1,5 @@
 // src/pages/EditProject.tsx
+import { FileFolderHero } from "../components/FileFolderArt";
 import { BOOK_COVER_HINT, BOOK_COVER_RATIO, isBookCoverRatio, BOOK_COVER_ERROR } from "../lib/bookCover";
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { useParams } from "react-router-dom";
@@ -407,11 +408,12 @@ export function EditProject() {
         project_type: project.project_type, // fixed — see note near the type display below
         external_url: project.project_type === "url" ? urlFields.url.trim() || null : project.external_url,
         file_path: project.project_type === "file" ? fileFields.file_path : project.file_path,
-        thumbnail_url: thumbnailUrl,
-        thumbnail_width: thumbnailRatio?.width ?? null,
-        thumbnail_height: thumbnailRatio?.height ?? null,
+        // File projects never carry a thumbnail (the folder icon stands in) — editing one clears any old one.
+        thumbnail_url: project.project_type === "file" ? null : thumbnailUrl,
+        thumbnail_width: project.project_type === "file" ? null : thumbnailRatio?.width ?? null,
+        thumbnail_height: project.project_type === "file" ? null : thumbnailRatio?.height ?? null,
         // Supporting images hang off the thumbnail — removing it clears them too.
-        supporting_image_urls: thumbnailUrl ? supportingImageUrls : [],
+        supporting_image_urls: project.project_type !== "file" && thumbnailUrl ? supportingImageUrls : [],
         price_usd: price,
         promo_price_usd: promoPrice,
         status,
@@ -617,6 +619,13 @@ export function EditProject() {
             </div>
           </div>
 
+          {project?.project_type === "file" ? (
+            <div className="w-full mb-4 rounded-xl border border-border bg-surface overflow-hidden">
+              <FileFolderHero />
+              <p className="text-xs text-ink-muted text-center px-4 pb-3">Files use a folder icon — no thumbnail needed.</p>
+            </div>
+          ) : (
+            <>
           <button
             type="button"
             onClick={() => thumbnailInputRef.current?.click()}
@@ -659,6 +668,9 @@ export function EditProject() {
             onChange={setSupportingImageUrls}
             hasThumbnail={!!thumbnailUrl}
           />
+
+            </>
+          )}
 
           <FormField id="title" label="Title" value={title} onChange={(e) => setTitle(e.target.value)} required />
 

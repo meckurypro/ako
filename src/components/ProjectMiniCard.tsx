@@ -4,6 +4,8 @@ import { Link } from "react-router-dom";
 import { ImageIcon } from "lucide-react";
 import { PROJECT_TYPE_LABELS, type Project } from "../hooks/useProjects";
 import { getProjectPath } from "../lib/projectLinks";
+import { isFileType } from "../lib/fileProject";
+import { FileFolderIcon } from "./FileFolderArt";
 
 // Compact, non-interactive project tile — for rails ("Similar
 // projects", "Work samples") and, now, the profile's catch-all
@@ -49,7 +51,9 @@ export function ProjectMiniCard({
             {statusLabel}
           </span>
         )}
-        {project.thumbnail_url ? (
+        {isFileType(project.project_type) ? (
+          <FileFolderIcon size={200} className="w-full h-full" />
+        ) : project.thumbnail_url ? (
           <img
             src={project.thumbnail_url}
             alt=""

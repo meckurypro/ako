@@ -4,6 +4,8 @@ import { Link } from "react-router-dom";
 import { ImageIcon } from "lucide-react";
 import { type ProjectType } from "../hooks/useProjects";
 import { getProjectPath } from "../lib/projectLinks";
+import { isFileType } from "../lib/fileProject";
+import { FileFolderIcon } from "./FileFolderArt";
 
 export interface TaggedProjectSummary {
   id: string;
@@ -97,7 +99,9 @@ export function TaggedProjectEmbed({ project }: { project: TaggedProjectSummary 
           boxShadow: "0 12px 18px -8px rgba(var(--shadow-ink-rgb),0.5), 0 2px 5px rgba(var(--shadow-ink-rgb),0.28)",
         }}
       >
-        {project.thumbnail_url ? (
+        {isFileType(project.project_type) ? (
+          <FileFolderIcon size={thumbW} className="w-full h-full" />
+        ) : project.thumbnail_url ? (
           <img src={project.thumbnail_url} alt="" className="w-full h-full object-cover" />
         ) : (
           <ImageIcon size={22} className="text-ink-muted" />
