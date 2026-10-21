@@ -27,9 +27,26 @@ import { AddMusicSheet } from "../components/music/AddMusicSheet";
 import { Music as MusicIcon } from "lucide-react";
 import type { MusicSearchResult } from "../types/music";
 import { useFeatureFlag } from "../hooks/useFeatureFlags";
+import { useLeaveGuard } from "../hooks/useLeaveGuard";
+import { SaveProgressDialog } from "../components/SaveProgressDialog";
 
 const HEADING_LIMIT = 50;
 const MAX_MEDIA_FILES = 4;
+
+// Everything the person can put into the form, as one comparable string. Used to tell "they've changed something
+// since this screen opened (or since the draft they resumed was loaded)" from "nothing to lose" when they try to
+// leave — see useLeaveGuard.
+function postSignature(f: {
+  heading: string;
+  headingColor: string | null;
+  content: string;
+  mediaUrls: string[];
+  topicIds: string[];
+  taggedProjectId: string | null;
+  musicCatalogueId: string | null;
+}): string {
+  return JSON.stringify([f.heading, f.headingColor, f.content, f.mediaUrls, [...f.topicIds].sort(), f.taggedProjectId, f.musicCatalogueId]);
+}
 
 export function Compose() {
   const navigate = useNavigate();
@@ -100,6 +117,21 @@ export function Compose() {
   const resumedPostIdRef = useRef(resumingPostId);
   const resumingKind = locationState?.scheduledId ? "scheduled post" : "draft";
 
+  // The form as it stood when it was opened — including a project/song handed in by whoever opened it, which isn't
+  // the person's own progress. A resumed draft re-baselines once it has loaded (below). Leaving with the form
+  // different from this is what triggers the "save your progress?" prompt.
+  const baselineRef = useRef<string | null>(null);
+  const signature = postSignature({
+    heading,
+    headingColor,
+    content,
+    mediaUrls,
+    topicIds: Array.from(topicIds),
+    taggedProjectId: taggedProject?.id ?? null,
+    musicCatalogueId,
+  });
+  if (baselineRef.current === null) baselineRef.current = signature;
+
   useEffect(() => {
     if (!resumingPostId) return;
     (async () => {
@@ -122,6 +154,16 @@ export function Compose() {
       if (resumedTopics?.length) setTopicIds(new Set(resumedTopics.map((row) => row.interest_id)));
       const resumedProject = (data as any).tagged_project;
       if (resumedProject) setTaggedProject({ id: resumedProject.id, title: resumedProject.title });
+      // What was just loaded is the starting point, not unsaved progress.
+      baselineRef.current = postSignature({
+        heading: data.heading ?? "",
+        headingColor: data.heading_color ?? null,
+        content: data.content ?? "",
+        mediaUrls: data.media_urls ?? [],
+        topicIds: (resumedTopics ?? []).map((row) => row.interest_id),
+        taggedProjectId: resumedProject ? resumedProject.id : incomingTaggedProject?.id ?? null,
+        musicCatalogueId: incomingMusic,
+      });
     })();
     // Only ever needs to run once, on mount — this is a one-time
     // prefill, not a live sync with the original row.
@@ -138,6 +180,10 @@ export function Compose() {
 
   // A post can be heading-only or details-only — either is enough to post.
   const canPost = heading.trim().length > 0 || content.trim().length > 0;
+
+  // Leaving with unsaved progress asks first (save as a draft / discard). Hooks stay above the early return below.
+  const leaveGuard = useLeaveGuard(signature !== baselineRef.current);
+  const [leaveSaving, setLeaveSaving] = useState(false);
 
   function toggleTopic(interestId: string) {
     setTopicIds((prev) => {
@@ -180,28 +226,36 @@ export function Compose() {
     setMediaUrls((prev) => prev.filter((u) => u !== url));
   }
 
+  // What create-post is sent for any outcome — post now, draft, or scheduled.
+  function postInput(status: "published" | "draft" | "scheduled", scheduledFor?: string) {
+    return {
+      heading: heading.trim() || undefined,
+      heading_color: headingColor,
+      content,
+      interest_ids: Array.from(topicIds),
+      media_urls: mediaUrls,
+      posted_as_page_id: postingAsPage?.id,
+      tagged_project_id: taggedProject?.id,
+      music_catalogue_id: musicCatalogueId ?? undefined,
+      // Omitted entirely for the normal "Post now" path so a create-post
+      // deployment that predates the drafts/scheduling migration (see
+      // supabase-fixes/) keeps working exactly as it always did —
+      // only a draft/scheduled save sends anything new.
+      ...(status !== "published" ? { status, scheduled_for: scheduledFor } : {}),
+    };
+  }
+
   async function submitPost(status: "published" | "draft" | "scheduled", scheduledFor?: string) {
     if (!canPost) return;
     setError(null);
 
     try {
-      const createdPost = await createPost.mutateAsync({
-        heading: heading.trim() || undefined,
-        heading_color: headingColor,
-        content,
-        interest_ids: Array.from(topicIds),
-        media_urls: mediaUrls,
-        posted_as_page_id: postingAsPage?.id,
-        tagged_project_id: taggedProject?.id,
-        music_catalogue_id: musicCatalogueId ?? undefined,
-        // Omitted entirely for the normal "Post now" path so a create-post
-        // deployment that predates the drafts/scheduling migration (see
-        // supabase-fixes/) keeps working exactly as it always did —
-        // only a draft/scheduled save sends anything new.
-        ...(status !== "published" ? { status, scheduled_for: scheduledFor } : {}),
-      });
+      const createdPost = await createPost.mutateAsync(postInput(status, scheduledFor));
 
       if (resumedPostIdRef.current) deleteDraftOrScheduled.mutate(resumedPostIdRef.current);
+
+      // Saved or published — the redirect below is the person finishing, not walking away from unsaved work.
+      leaveGuard.allowLeaving();
 
       // Every outcome lands the person where the post now lives, so they see it straight away - never back on
       // this editor, and never on whichever page happened to open it (e.g. Notifications' "+" button). The
@@ -238,6 +292,28 @@ export function Compose() {
       const message = err instanceof Error ? err.message : "Couldn't post this.";
       setError(message);
       toast(message, { variant: "error" });
+    }
+  }
+
+  // "Save draft" from the leave prompt: same draft the "Save as draft" menu item makes, but the person carries on
+  // to wherever they were headed instead of landing on the drafts list. If the save is rejected (moderation, no
+  // connection) they stay on the form with everything intact, and the reason is shown.
+  async function handleLeaveSave() {
+    if (!canPost || leaveSaving) return;
+    setLeaveSaving(true);
+    setError(null);
+    try {
+      await createPost.mutateAsync(postInput("draft"));
+      if (resumedPostIdRef.current) deleteDraftOrScheduled.mutate(resumedPostIdRef.current);
+      toast("Saved to your drafts.", { variant: "success" });
+      leaveGuard.proceed();
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Couldn't save this draft.";
+      setError(message);
+      toast(message, { variant: "error" });
+      leaveGuard.stay();
+    } finally {
+      setLeaveSaving(false);
     }
   }
 
@@ -517,6 +593,21 @@ export function Compose() {
         />
       )}
 
+      {leaveGuard.isBlocked && (
+        <SaveProgressDialog
+          description={
+            resumingPostId
+              ? `Save your changes as a draft to finish later, or discard them. The ${resumingKind} you opened stays as it was if you discard.`
+              : "Save this post as a draft to finish later, or discard it."
+          }
+          saveDisabled={!canPost}
+          saveHint="Add a heading or some details to save it as a draft."
+          saving={leaveSaving}
+          onSave={() => void handleLeaveSave()}
+          onDiscard={leaveGuard.proceed}
+          onKeepEditing={leaveGuard.stay}
+        />
+      )}
       {scheduleModalOpen && (
         <SchedulePostModal onClose={() => setScheduleModalOpen(false)} onConfirm={handleConfirmSchedule} />
       )}

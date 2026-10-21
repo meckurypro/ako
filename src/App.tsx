@@ -1,5 +1,5 @@
 // src/App.tsx
-import { BrowserRouter, Routes, Route, Navigate, useLocation, type Location } from "react-router-dom";
+import { createBrowserRouter, RouterProvider, Routes, Route, Navigate, useLocation, type Location } from "react-router-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { AuthProvider } from "./hooks/useAuth";
 import { ErrorBoundary } from "./components/ErrorBoundary";
@@ -142,23 +142,35 @@ const queryClient = new QueryClient({
 // updates instantly and the write is retried / resumed on reconnect. Their mutationFn lives in these defaults.
 registerOfflineMutations(queryClient);
 
+// A *data* router (not <BrowserRouter>) so screens can hold a navigation with useBlocker — Compose and Create
+// project use that to ask "save your progress?" before letting someone walk away (see useLeaveGuard). The whole
+// app is one splat route whose element is what used to sit inside <BrowserRouter>, so nothing about how routes,
+// providers or guards nest has changed; the route table itself is still <AppRoutes /> below.
+function RouterRoot() {
+  return (
+    <>
+      <ScrollToTop />
+      <PathHistoryTracker />
+      <ExternalLinkGuard />
+      <ProfilePrefetch />
+      <PostRealtime />
+      <AffiliateRefCapture />
+      <ErrorBoundary>
+        <AppRoutes />
+      </ErrorBoundary>
+    </>
+  );
+}
+
+const router = createBrowserRouter([{ path: "*", element: <RouterRoot /> }]);
+
 export default function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <LoadingOverlay />
       <ToastProvider>
         <AuthProvider>
-          <BrowserRouter>
-            <ScrollToTop />
-            <PathHistoryTracker />
-            <ExternalLinkGuard />
-            <ProfilePrefetch />
-            <PostRealtime />
-            <AffiliateRefCapture />
-            <ErrorBoundary>
-              <AppRoutes />
-            </ErrorBoundary>
-          </BrowserRouter>
+          <RouterProvider router={router} />
         </AuthProvider>
       </ToastProvider>
     </QueryClientProvider>
@@ -167,7 +179,7 @@ export default function App() {
 
 /**
  * Split out from App() so it can call useLocation() (needs to be
- * inside <BrowserRouter>) to implement React Router's "modal route"
+ * inside the router) to implement React Router's "modal route"
  * pattern: /create is meant to render as a sheet over whatever page
  * it was opened from (Feed, ProfilePage, ...), not as its own blank
  * screen. TopHeader/ProfilePage's "+" link now passes

@@ -37,6 +37,11 @@ interface ModalProps {
   /** Follow the app's light/dark theme (light panel + dark text, or dark panel + light text) instead of the
    *  fixed dark-glass overlay look. Used by the external-link prompt. */
   themed?: boolean;
+  /** Close on the browser/hardware back button (default). Turn off for a dialog that is shown *because* a
+   *  navigation was just blocked (see SaveProgressDialog): useBackDismiss pushes a history entry on mount and
+   *  calls history.back() when the dialog unmounts, which — after the blocked navigation is allowed to proceed —
+   *  would pop the destination page right back off. */
+  backDismiss?: boolean;
 }
 
 /**
@@ -88,8 +93,9 @@ export function Modal({
   bare = false,
   zIndexClass = "z-[60]",
   themed = false,
+  backDismiss = true,
 }: ModalProps) {
-  useBackDismiss(onClose);
+  useBackDismiss(onClose, backDismiss);
   useScrollLock();
 
   useEffect(() => {

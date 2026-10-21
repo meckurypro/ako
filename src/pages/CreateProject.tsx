@@ -54,6 +54,17 @@ import { PitchFields, EMPTY_PITCH_FIELDS, type PitchFieldsValue } from "../compo
 import { BookFields, EMPTY_BOOK_FIELDS, type BookFieldsValue } from "../components/project-types/BookFields";
 import { useCreatePitchProject } from "../hooks/useProjects";
 import { useToast } from "../components/Toast";
+import { useLeaveGuard } from "../hooks/useLeaveGuard";
+import { SaveProgressDialog } from "../components/SaveProgressDialog";
+import {
+  clearProjectDraft,
+  projectDraftHasProgress,
+  projectDraftKey,
+  projectDraftSignature,
+  readProjectDraft,
+  writeProjectDraft,
+  type ProjectDraftData,
+} from "../lib/projectDraft";
 
 export function CreateProject() {
   const navigate = useNavigate();
@@ -156,6 +167,133 @@ export function CreateProject() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [projectType, bookFields.is_own_work]);
+
+  // ---- Unsaved progress ---------------------------------------------------------------------------------
+  // Leaving this form with something filled in asks "save as a draft / discard?" (see useLeaveGuard). The draft is
+  // kept on this device — see lib/projectDraft.ts for why it isn't a `draft` row in `projects` — and is put back
+  // the next time New project opens. One draft per account per acting identity (personal / each Page).
+  const draftKey = me?.id && identity !== undefined ? projectDraftKey(me.id, postingAsPage?.id) : null;
+  const restoredRef = useRef(false);
+  // The form as last restored from a draft; leaving with the form still identical to it isn't "unsaved".
+  const baselineRef = useRef<string | null>(null);
+  const [restoredDraftNotice, setRestoredDraftNotice] = useState(false);
+
+  function collectDraft(): ProjectDraftData {
+    return {
+      title,
+      description,
+      projectType,
+      topicIds: Array.from(topicIds),
+      priceUsd,
+      showPromo,
+      promoPriceUsd,
+      isPrivate,
+      thumbnailUrl,
+      thumbnailRatio,
+      supportingImageUrls,
+      fileFields,
+      urlFields,
+      mediaFields,
+      eventFields,
+      meetingFields,
+      gigFields,
+      pitchFields,
+      roomFields,
+      bookFields,
+    };
+  }
+
+  function applyDraft(d: ProjectDraftData) {
+    setTitle(d.title);
+    setDescription(d.description);
+    setProjectType(d.projectType);
+    setTopicIds(new Set(d.topicIds));
+    setPriceUsd(d.priceUsd);
+    setShowPromo(d.showPromo);
+    setPromoPriceUsd(d.promoPriceUsd);
+    setIsPrivate(d.isPrivate);
+    setThumbnailUrl(d.thumbnailUrl);
+    setThumbnailRatio(d.thumbnailRatio);
+    setSupportingImageUrls(d.supportingImageUrls);
+    setFileFields(d.fileFields);
+    setUrlFields(d.urlFields);
+    setMediaFields(d.mediaFields);
+    setEventFields(d.eventFields);
+    setMeetingFields(d.meetingFields);
+    setGigFields(d.gigFields);
+    setPitchFields(d.pitchFields);
+    setRoomFields(d.roomFields);
+    setBookFields(d.bookFields);
+  }
+
+  function resetForm() {
+    setTitle("");
+    setDescription("");
+    setProjectType(allowedTypes.length === 0 || allowedTypes.includes("file") ? "file" : allowedTypes[0]);
+    setTopicIds(new Set());
+    setPriceUsd("0");
+    setShowPromo(false);
+    setPromoPriceUsd("");
+    setIsPrivate(false);
+    setThumbnailUrl(null);
+    setThumbnailRatio(null);
+    setSupportingImageUrls([]);
+    setFileFields(EMPTY_FILE_FIELDS);
+    setUrlFields(EMPTY_URL_FIELDS);
+    setMediaFields(EMPTY_MEDIA_FIELDS);
+    setEventFields(EMPTY_EVENT_FIELDS);
+    setMeetingFields(EMPTY_MEETING_FIELDS);
+    setGigFields(EMPTY_GIG_FIELDS);
+    setPitchFields(EMPTY_PITCH_FIELDS);
+    setRoomFields(EMPTY_ROOM_FIELDS);
+    setBookFields(EMPTY_BOOK_FIELDS);
+  }
+
+  // Put a saved draft back, once, as soon as we know whose form this is (account + acting identity).
+  useEffect(() => {
+    if (!draftKey || restoredRef.current) return;
+    restoredRef.current = true;
+    const stored = readProjectDraft(draftKey);
+    if (!stored) return;
+    applyDraft(stored.data);
+    baselineRef.current = projectDraftSignature(stored.data);
+    setRestoredDraftNotice(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [draftKey]);
+
+  const currentDraft = collectDraft();
+  const hasUnsavedProgress =
+    projectDraftHasProgress(currentDraft) && projectDraftSignature(currentDraft) !== baselineRef.current;
+  const leaveGuard = useLeaveGuard(hasUnsavedProgress);
+
+  function handleLeaveSave() {
+    if (!draftKey || !writeProjectDraft(draftKey, collectDraft())) {
+      toast("Couldn't save the draft on this device. Check your browser's storage settings.", { variant: "error" });
+      leaveGuard.stay();
+      return;
+    }
+    toast("Draft saved. It'll be here next time you create a project.", { variant: "success" });
+    leaveGuard.proceed();
+  }
+
+  function handleLeaveDiscard() {
+    if (draftKey) clearProjectDraft(draftKey);
+    leaveGuard.proceed();
+  }
+
+  function handleStartOver() {
+    if (draftKey) clearProjectDraft(draftKey);
+    baselineRef.current = null;
+    setRestoredDraftNotice(false);
+    resetForm();
+  }
+
+  // The project exists now: the saved draft has done its job, and the redirect that follows is the person
+  // finishing, not leaving unsaved work behind.
+  function finishedCreating() {
+    if (draftKey) clearProjectDraft(draftKey);
+    leaveGuard.allowLeaving();
+  }
 
   const thumbnailInputRef = useRef<HTMLInputElement>(null);
 
@@ -301,6 +439,7 @@ export function CreateProject() {
           goal_amount_usd: parseFloat(pitchFields.goal_amount_usd),
           topic_ids: Array.from(topicIds),
         });
+        finishedCreating();
         if (postingAsPage) {
           navigate(`/page/${postingAsPage.username}?tab=projects`);
           toast(`${title.trim()} created successfully.`, { variant: "success" });
@@ -459,6 +598,7 @@ export function CreateProject() {
               }
             : undefined,
       });
+      finishedCreating();
       // An uploaded PDF book: extract its text into chapters in the background (best effort — the reader retries on the
       // owner's first open, and falls back to page images if it can't).
       if (projectType === "book" && bookFields.content_source === "upload" && bookFields.allow_read_in_app && created?.id) {
@@ -510,6 +650,15 @@ export function CreateProject() {
         </button>
 
         <h2 className="font-display text-2xl text-ink mb-6">New project</h2>
+
+        {restoredDraftNotice && (
+          <div className="flex items-center justify-between gap-3 rounded-xl border border-border bg-surface px-4 py-3 mb-5">
+            <p className="text-sm text-ink-muted">Picked up where you left off.</p>
+            <button type="button" onClick={handleStartOver} className="text-sm font-medium text-accent flex-shrink-0">
+              Start over
+            </button>
+          </div>
+        )}
 
         <form onSubmit={handleSubmit}>
           {projectType === "file" ? (
@@ -774,6 +923,15 @@ export function CreateProject() {
           </Button>
         </form>
       </div>
+
+      {leaveGuard.isBlocked && (
+        <SaveProgressDialog
+          description="Save this project as a draft on this device to finish later, or discard it."
+          onSave={handleLeaveSave}
+          onDiscard={handleLeaveDiscard}
+          onKeepEditing={leaveGuard.stay}
+        />
+      )}
     </div>
   );
 }
