@@ -16,6 +16,7 @@
 import { useEffect, useState } from "react";
 import { ArrowUp } from "lucide-react";
 import { useLocation } from "react-router-dom";
+import { useHasPrimaryFloatingAction } from "../lib/floatingChrome";
 
 // How far down the page (px, plain window.scrollY) before the arrow appears.
 const SCROLL_TOP_THRESHOLD = 480;
@@ -42,6 +43,8 @@ export function ScrollToTopButton() {
   const { pathname } = useLocation();
   const [show, setShow] = useState(false);
   const [navHeight, setNavHeight] = useState(0);
+  // A screen with its own floating action (ProfilePage's "Back to post") owns the corner; no arrow beside it.
+  const hasPrimaryAction = useHasPrimaryFloatingAction();
 
   useEffect(() => {
     function update() {
@@ -60,7 +63,7 @@ export function ScrollToTopButton() {
     };
   }, [pathname]);
 
-  if (!show || isExcluded(pathname)) return null;
+  if (!show || hasPrimaryAction || isExcluded(pathname)) return null;
 
   const style =
     navHeight > 0

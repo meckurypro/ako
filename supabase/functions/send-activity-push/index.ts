@@ -7,10 +7,14 @@
 // `x-webhook-secret`. verify_jwt is OFF for this function; the secret is checked through the
 // verify_push_webhook_secret() RPC instead of being copied into function env.
 //
-// Privacy: like send-message-push, titles and bodies are fixed templates plus the actor's display
-// name. No comment text, DM text or preview_text ever goes into a push payload.
-// Reactions (like, dislike, support, disagree, pushback, comment_like, comment_dislike) are not in
-// COPY on purpose: they'd be a push per tap. Nothing here changes what the in-app list shows.
+// Privacy: like send-message-push, bodies are fixed templates. No comment text, DM text or
+// preview_text ever goes into a push payload. The title is always "Akọ"; the body is one plain
+// sentence. For social events (likes, comments, replies, shares, gifts, mentions...) the sentence
+// starts with the actor's name only if the recipient knows them (either follows the other),
+// otherwise "Someone". Follows, invites and other things you must act on always carry the name.
+// Dislikes (post and comment) are deliberately not pushed. Reactions are deduped per
+// actor/type/target by the notify_* triggers, so it is one push per person per thing, not per tap.
+// Nothing here changes what the in-app list shows.
 //
 // Android: the channel id below MUST match src/lib/notificationChannels.ts in the native app.
 // Sound is the phone's own notification sound ("default") — no custom audio file.
@@ -20,22 +24,24 @@ const EXPO_PUSH_URL = "https://exp.host/--/api/v2/push/send";
 const BATCH_SIZE = 100; // Expo's documented max per request
 const CHANNEL_ACTIVITY = "activity_v2";
 
-type Copy = { body: string; systemTitle?: boolean };
+// `body` is the verb phrase ("shared your post"). `systemTitle` = no person behind it, body is a full
+// sentence. `social` = apply the known-vs-"Someone" naming rule; without it an actor is always named.
+type Copy = { body: string; systemTitle?: boolean; social?: boolean };
 
 // Pushed types. `systemTitle` = there is no person behind it, so the title is "Akọ" not an actor name.
 const COPY: Record<string, Copy> = {
   follow: { body: "started following you" },
   follow_request: { body: "requested to follow you" },
   follow_request_accepted: { body: "accepted your follow request" },
-  comment: { body: "commented on your post" },
-  comment_reply: { body: "replied to your comment" },
-  post_comment_activity: { body: "There's new activity on a post you commented on", systemTitle: true },
-  mention: { body: "mentioned you" },
-  gift_received: { body: "sent you a gift" },
-  reshare: { body: "reshared your post" },
-  quote: { body: "quoted your post" },
-  share: { body: "shared your post" },
-  post_tagged: { body: "tagged you in a post" },
+  comment: { body: "commented on your post", social: true },
+  comment_reply: { body: "replied to your comment", social: true },
+  // like / support / disagree / pushback / comment_like / share / post_comment_activity depend on what they
+  // were done to, so they are worded by resolveCopy() below, not listed here.
+  mention: { body: "mentioned you", social: true },
+  gift_received: { body: "gifted you", social: true },
+  reshare: { body: "reposted your post", social: true },
+  quote: { body: "quoted your post", social: true },
+  post_tagged: { body: "tagged you in a post", social: true },
   project_tagged: { body: "Your project was tagged in a post", systemTitle: true },
   project_access_granted: { body: "gave you access to a private project" },
   file_downloaded: { body: "downloaded your file" },
@@ -65,6 +71,65 @@ const PAGE_COPY: Record<string, Copy> = {
   follow: { body: "started following your page" },
 };
 
+type NotifRow = {
+  type: string;
+  actorId: string | null;
+  targetType: string | null;
+  targetId: string | null;
+  previewText: string | null;
+};
+
+const POST_REACTION_VERB: Record<string, string> = {
+  support: "supported",
+  disagree: "disagreed with",
+  pushback: "pushed back on",
+};
+
+// Words the notification for what it actually is. Returns null for anything that isn't pushed.
+// Rows differ by what they were done to, which the `type` alone doesn't say:
+//  - support / disagree / pushback on a POST with preview_text is a top-level comment (notify_on_comment
+//    stores the stance as the type); without preview_text it's a plain reaction (notify_on_reaction).
+//  - post_comment_activity goes to the POST's author when someone replies to, reacts to or gifts a
+//    comment under their post, so it is resolved from the comment's own side effects.
+async function resolveCopy(admin: ReturnType<typeof createClient>, n: NotifRow): Promise<Copy | null> {
+  const direct = COPY[n.type];
+  if (direct) return direct;
+
+  const onProject = n.targetType === "project";
+  const onComment = n.targetType === "comment";
+  const thing = onProject ? "project" : onComment ? "comment" : "post";
+
+  switch (n.type) {
+    case "like":
+      return { body: `liked your ${thing}`, social: true };
+    case "share":
+      return { body: `shared your ${onProject ? "project" : "post"}`, social: true };
+    case "comment_like":
+      return { body: "liked your comment", social: true };
+    case "support":
+    case "disagree":
+    case "pushback":
+      if (n.targetType === "post" && n.previewText) return { body: "commented on your post", social: true };
+      return { body: `${POST_REACTION_VERB[n.type]} your ${thing}`, social: true };
+    case "post_comment_activity": {
+      if (!n.targetId || !n.actorId) return { body: "engaged with a comment on your post", social: true };
+      if (n.previewText) return { body: "replied to a comment on your post", social: true };
+      const { data: gift } = await admin
+        .from("gifts").select("id").eq("sender_id", n.actorId).eq("comment_id", n.targetId).limit(1).maybeSingle();
+      if (gift) return { body: "gifted a comment on your post", social: true };
+      const { data: reaction } = await admin
+        .from("reactions").select("type").eq("user_id", n.actorId).eq("comment_id", n.targetId).limit(1).maybeSingle();
+      const rt = (reaction as { type?: string } | null)?.type;
+      if (rt === "like") return { body: "liked a comment on your post", social: true };
+      if (rt && POST_REACTION_VERB[rt]) return { body: `${POST_REACTION_VERB[rt]} a comment on your post`, social: true };
+      if (rt === "dislike") return null;
+      return { body: "engaged with a comment on your post", social: true };
+    }
+    default:
+      return null; // dislike, comment_dislike and anything unlisted
+  }
+}
+
 type ExpoTicket = { status: "ok" | "error"; id?: string; message?: string; details?: { error?: string } };
 
 const json = (body: unknown, status = 200) =>
@@ -89,14 +154,16 @@ Deno.serve(async (req) => {
     let type: string;
     let actorId: string | null;
     let recipientIds: string[];
+    let row: NotifRow | null = null;
 
     if (source === "user") {
-      const { data: n } = await admin.from("notifications").select("id, user_id, type, actor_id, read_at").eq("id", notification_id).maybeSingle();
+      const { data: n } = await admin.from("notifications").select("id, user_id, type, actor_id, read_at, target_type, target_id, preview_text").eq("id", notification_id).maybeSingle();
       if (!n) return json({ sent: 0, reason: "notification not found" });
       if (n.read_at) return json({ sent: 0, reason: "already read" });
       type = n.type;
       actorId = n.actor_id;
       recipientIds = [n.user_id];
+      row = { type: n.type, actorId: n.actor_id, targetType: n.target_type, targetId: n.target_id, previewText: n.preview_text };
     } else {
       const { data: n } = await admin.from("page_notifications").select("id, page_id, type, actor_id, read_at").eq("id", notification_id).maybeSingle();
       if (!n) return json({ sent: 0, reason: "notification not found" });
@@ -107,7 +174,7 @@ Deno.serve(async (req) => {
       recipientIds = (admins ?? []).map((m) => m.user_id);
     }
 
-    const copy = (source === "page" ? PAGE_COPY : COPY)[type];
+    const copy = source === "page" ? PAGE_COPY[type] : row ? await resolveCopy(admin, row) : null;
     if (!copy) return json({ sent: 0, reason: "type not pushed" });
 
     // Never notify someone about their own action.
@@ -129,13 +196,29 @@ Deno.serve(async (req) => {
     if (!targets.length) return json({ sent: 0, reason: "no eligible tokens" });
 
     const actor = actorRes.data as { display_name?: string; username?: string } | null;
-    const title = copy.systemTitle || !actor ? "Akọ" : actor.display_name || actor.username || "Someone";
-    const body = !copy.systemTitle && actor ? copy.body : copy.body.charAt(0).toUpperCase() + copy.body.slice(1);
+    const actorName = actor?.display_name || actor?.username || null;
+
+    // "Someone they know" = either of them follows the other. Only looked up for social events.
+    const knows = new Set<string>();
+    if (copy.social && actorId && actorName) {
+      const [theyFollowActor, actorFollowsThem] = await Promise.all([
+        admin.from("follows").select("follower_id").eq("following_id", actorId).in("follower_id", recipientIds),
+        admin.from("follows").select("following_id").eq("follower_id", actorId).in("following_id", recipientIds),
+      ]);
+      ((theyFollowActor.data ?? []) as { follower_id: string }[]).forEach((r) => knows.add(r.follower_id));
+      ((actorFollowsThem.data ?? []) as { following_id: string }[]).forEach((r) => knows.add(r.following_id));
+    }
+
+    const bodyFor = (userId: string): string => {
+      if (copy.systemTitle || !actorId) return copy.body.charAt(0).toUpperCase() + copy.body.slice(1);
+      const name = copy.social ? (knows.has(userId) && actorName ? actorName : "Someone") : actorName || "Someone";
+      return `${name} ${copy.body}`;
+    };
 
     const messages = targets.map((t) => ({
       to: t.token,
-      title,
-      body,
+      title: "Akọ",
+      body: bodyFor(t.user_id),
       sound: "default", // the phone's own notification sound (Android: set by the channel; iOS: this field)
       priority: "high", // deliver promptly even when the device is dozing
       channelId: CHANNEL_ACTIVITY,

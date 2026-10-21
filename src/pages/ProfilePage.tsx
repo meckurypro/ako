@@ -59,6 +59,7 @@ import { ProfilePagesModal } from "../components/ProfilePagesModal";
 import { useProfilePages } from "../hooks/usePages";
 import { useIsRestricted } from "../hooks/useAccountAccess";
 import { APP_URL } from "../lib/appUrl";
+import { usePrimaryFloatingAction } from "../lib/floatingChrome";
 import { profileTabIcon } from "../lib/profileTabIcons";
 
 // Website links are saved in full (whatever the user pastes, including
@@ -282,6 +283,8 @@ export function ProfilePage() {
     if (fromFeedPost) window.history.replaceState({}, "");
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  usePrimaryFloatingAction(!!fromFeedPost);
 
   function handleBackToFeedPost() {
     if (!fromFeedPost) return;
