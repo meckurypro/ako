@@ -98,8 +98,9 @@ export function DownloadAppModal({ onClose }: { onClose: () => void }) {
   return (
     <Modal onClose={onClose} themed ariaLabel="Get the Akọ app" maxWidthClass="max-w-sm">
       <div className="flex flex-col items-center text-center">
-        <AkoMark size={56} className="!rounded-2xl shadow-md" />
-        <h3 className="font-display text-xl text-ink mt-4">Get Akọ on your phone</h3>
+        {/* The logo already says "Akọ", so the heading doesn't repeat the name. */}
+        <AkoMark size={120} shadow className="!rounded-none" />
+        <h3 className="font-display text-xl text-ink mt-4">Get the app on your phone</h3>
         <p className="text-sm text-ink-muted mt-1.5 mb-5">
           Choose where to download the app.
         </p>

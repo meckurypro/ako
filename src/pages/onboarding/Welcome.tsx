@@ -22,7 +22,7 @@ export function Welcome() {
           <Wordmark />
         </div>
 
-        <h1 className="font-display text-2xl text-ink mb-3">Welcome to Akọ</h1>
+        <h1 className="font-display text-2xl text-ink mb-3">Welcome</h1>
         <p className="text-ink-muted mb-10 max-w-xs">
           Tell us what interests you. We'll help you find your people.
         </p>
