@@ -144,7 +144,7 @@ export function DiscoverShell({
             <div className="relative flex-1 min-w-0">
               <Search
                 size={16}
-                className="absolute left-4 top-1/2 -translate-y-1/2 text-ink-muted pointer-events-none"
+                className="absolute left-4 top-1/2 -translate-y-1/2 text-brand-orange pointer-events-none"
               />
               <input
                 ref={inputRef}

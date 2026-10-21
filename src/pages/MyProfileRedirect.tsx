@@ -1,6 +1,7 @@
 import { Navigate } from "react-router-dom";
 import { useAuth } from "../hooks/useAuth";
 import { useActiveIdentity } from "../hooks/usePages";
+import { ProfilePageSkeleton } from "../components/ProfileSkeletons";
 
 // /me — the bottom nav's Profile tab always points here. Where it lands
 // depends on active_page_id (see useActiveIdentity/switch_active_mode):
@@ -22,11 +23,9 @@ export function MyProfileRedirect() {
   // actually resolved, at the cost of a beat longer on the loading
   // screen every time — worth it for a redirect that only gets one shot.
   if (loading || identityLoading || identityFetching || !profile) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-canvas">
-        <p className="text-ink-muted">Loading…</p>
-      </div>
-    );
+    // Same frame as the profile itself (toolbar gap + skeleton + BottomNav), so
+    // tapping Profile never blanks the screen or drops the nav while this resolves.
+    return <ProfilePageSkeleton />;
   }
 
   if (identity?.mode === "page") {

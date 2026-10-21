@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import { Search as SearchIcon } from "lucide-react";
 import { useAuth } from "../hooks/useAuth";
 import { useTabState } from "../hooks/useTabState";
@@ -13,6 +13,8 @@ import { PersonRow } from "./PersonRow";
 import { PageRow } from "./PageRow";
 import { PostCard } from "./PostCard";
 import { ProjectMiniGrid } from "./ProjectMiniCard";
+import { SwipeableTabs } from "./SwipeableTabs";
+import { SlidingTabBar } from "./SlidingTabBar";
 
 // Shared by Discover and the standalone Search screen so both search
 // the same things, the same way: people, pages, posts and projects,
@@ -126,6 +128,9 @@ export function SearchResults({
   const { user } = useAuth();
   const [tab, setTab] = useSearchTab(scope);
   const visibleTabs = scope === "discover" ? DISCOVER_TABS : TABS;
+  const activeIndex = Math.max(visibleTabs.indexOf(tab as never), 0);
+  const [tabProgress, setTabProgress] = useState(activeIndex);
+  const [tabDragging, setTabDragging] = useState(false);
   const showPeople = scope === "all";
   const showPosts = scope === "all";
 
@@ -196,62 +201,67 @@ export function SearchResults({
   const settled = !isPending && !sources.some((q) => q.isLoading);
   const allEmpty = settled && sources.every((q) => !q.isError && (q.data ?? []).length === 0);
 
+  function renderPane(t: SearchTab): ReactNode {
+    if (t === "people") return renderPeople();
+    if (t === "pages") return renderPages();
+    if (t === "posts") return renderPosts();
+    if (t === "projects") return renderProjects();
+    return allEmpty ? (
+      <EmptyState label={`No results for “${query.trim()}”`} hint="Check the spelling or try a shorter search." />
+    ) : (
+      <>
+        {showPeople && (loading(people) || (people.data?.length ?? 0) > 0 || people.isError) && (
+          <Section title="People" showSeeAll={(people.data?.length ?? 0) > PREVIEW_COUNT} onSeeAll={() => setTab("people")}>
+            {renderPeople(PREVIEW_COUNT)}
+          </Section>
+        )}
+        {(loading(pages) || (pages.data?.length ?? 0) > 0 || pages.isError) && (
+          <Section title="Pages" showSeeAll={(pages.data?.length ?? 0) > PREVIEW_COUNT} onSeeAll={() => setTab("pages")}>
+            {renderPages(PREVIEW_COUNT)}
+          </Section>
+        )}
+        {(loading(projects) || (projects.data?.length ?? 0) > 0 || projects.isError) && (
+          <Section title="Projects" showSeeAll={(projects.data?.length ?? 0) > PREVIEW_COUNT} onSeeAll={() => setTab("projects")}>
+            {renderProjects(PREVIEW_COUNT)}
+          </Section>
+        )}
+        {showPosts && (loading(posts) || (posts.data?.length ?? 0) > 0 || posts.isError) && (
+          <Section title="Posts" showSeeAll={(posts.data?.length ?? 0) > PREVIEW_COUNT} onSeeAll={() => setTab("posts")}>
+            {renderPosts(PREVIEW_COUNT)}
+          </Section>
+        )}
+      </>
+    );
+  }
+
   return (
     <div>
-      <div
-        role="tablist"
-        aria-label="Search results"
-        className={`flex gap-5 border-b border-border mb-4 overflow-x-auto no-scrollbar ${stickyTabsClassName}`}
+      <div className={`mb-4 ${stickyTabsClassName}`}>
+        <SlidingTabBar
+          ariaLabel="Search results"
+          tabs={visibleTabs.map((t) => ({ id: t, label: TAB_LABELS[t] }))}
+          activeIndex={activeIndex}
+          progress={tabProgress}
+          dragging={tabDragging}
+          onSelect={(i) => setTab(visibleTabs[i])}
+        />
+      </div>
+
+      {/* Swipe left/right between result tabs — same carousel as Feed and Profile. */}
+      <SwipeableTabs
+        index={activeIndex}
+        onIndexChange={(i) => setTab(visibleTabs[i])}
+        onProgress={(progress, dragging) => {
+          setTabProgress(progress);
+          setTabDragging(dragging);
+        }}
       >
         {visibleTabs.map((t) => (
-          <button
-            key={t}
-            role="tab"
-            aria-selected={tab === t}
-            onClick={() => setTab(t)}
-            className={`shrink-0 text-sm font-medium pb-3 pt-1 border-b-2 -mb-px transition-colors ${
-              tab === t ? "text-accent border-accent" : "text-ink-muted border-transparent"
-            }`}
-          >
-            {TAB_LABELS[t]}
-          </button>
+          <div key={t} role="tabpanel">
+            {renderPane(t)}
+          </div>
         ))}
-      </div>
-
-      <div role="tabpanel">
-        {tab === "people" && renderPeople()}
-        {tab === "pages" && renderPages()}
-        {tab === "posts" && renderPosts()}
-        {tab === "projects" && renderProjects()}
-
-        {tab === "all" &&
-          (allEmpty ? (
-            <EmptyState label={`No results for “${query.trim()}”`} hint="Check the spelling or try a shorter search." />
-          ) : (
-            <>
-              {showPeople && (loading(people) || (people.data?.length ?? 0) > 0 || people.isError) && (
-                <Section title="People" showSeeAll={(people.data?.length ?? 0) > PREVIEW_COUNT} onSeeAll={() => setTab("people")}>
-                  {renderPeople(PREVIEW_COUNT)}
-                </Section>
-              )}
-              {(loading(pages) || (pages.data?.length ?? 0) > 0 || pages.isError) && (
-                <Section title="Pages" showSeeAll={(pages.data?.length ?? 0) > PREVIEW_COUNT} onSeeAll={() => setTab("pages")}>
-                  {renderPages(PREVIEW_COUNT)}
-                </Section>
-              )}
-              {(loading(projects) || (projects.data?.length ?? 0) > 0 || projects.isError) && (
-                <Section title="Projects" showSeeAll={(projects.data?.length ?? 0) > PREVIEW_COUNT} onSeeAll={() => setTab("projects")}>
-                  {renderProjects(PREVIEW_COUNT)}
-                </Section>
-              )}
-              {showPosts && (loading(posts) || (posts.data?.length ?? 0) > 0 || posts.isError) && (
-                <Section title="Posts" showSeeAll={(posts.data?.length ?? 0) > PREVIEW_COUNT} onSeeAll={() => setTab("posts")}>
-                  {renderPosts(PREVIEW_COUNT)}
-                </Section>
-              )}
-            </>
-          ))}
-      </div>
+      </SwipeableTabs>
     </div>
   );
 }

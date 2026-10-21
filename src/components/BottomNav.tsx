@@ -95,7 +95,11 @@ export function BottomNav() {
   // against the page currently acting-as, never any other page someone
   // just happens to be viewing.
   const pageMatch = useMatch("/page/:username/*");
+  // /me itself counts too: it's only on screen while the redirect resolves, and
+  // the Profile tab should already read as selected then (no flash of "none").
+  const meMatch = useMatch("/me");
   const isOwnProfileActive =
+    !!meMatch ||
     (!!profile?.username && profileMatch?.params.username === profile.username) ||
     (identity?.mode === "page" && pageMatch?.params.username === identity.page.username);
 

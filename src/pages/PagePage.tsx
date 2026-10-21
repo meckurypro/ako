@@ -1,4 +1,5 @@
 // src/pages/PagePage.tsx
+import { ProfilePageSkeleton } from "../components/ProfileSkeletons";
 import { useEffect, useRef, useState } from "react";
 import { useParams, Link, useNavigate } from "react-router-dom";
 import { useSmartBack } from "../hooks/useSmartBack";
@@ -162,13 +163,7 @@ export function PagePage() {
     switchMode.mutate(pageId, { onSuccess: () => navigate(destination) });
   }
 
-  if (isLoading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-canvas">
-        <p className="text-ink-muted">Loading…</p>
-      </div>
-    );
-  }
+  if (isLoading) return <ProfilePageSkeleton />;
 
   if (!page) {
     return (

@@ -1,5 +1,5 @@
 // src/pages/LibraryActivity.tsx
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { isBookType } from "../lib/bookCover";
 import { Link } from "react-router-dom";
 import { X, ImageIcon, LibraryBig, BookText, GraduationCap, Music, FileText, Link as LinkIcon } from "lucide-react";
@@ -8,6 +8,8 @@ import { useLibrary, libraryItemRoute, type LibraryItem, type LibraryItemType } 
 import { useRemoveFromLibrary } from "../hooks/useLibraryRemovals";
 import { ConfirmDialog } from "../components/ConfirmDialog";
 import { BottomNav } from "../components/BottomNav";
+import { SwipeableTabs } from "../components/SwipeableTabs";
+import { SlidingTabBar } from "../components/SlidingTabBar";
 
 // One tab per kind of thing you own — same tabbed shape as Connect.
 const TABS = ["books", "courses", "media", "files", "links"] as const;
@@ -101,49 +103,64 @@ function LibraryRow({ item }: { item: LibraryItem }) {
 export function LibraryActivity() {
   const { data: items, isLoading } = useLibrary();
   const [tab, setTab] = useTabState<LibraryTab>(TABS, "books");
-  const meta = TAB_META[tab];
-  const rows = (items ?? []).filter((i) => i.projectType === meta.type);
+  const activeIndex = Math.max(TABS.indexOf(tab), 0);
+  const [tabProgress, setTabProgress] = useState(activeIndex);
+  const [tabDragging, setTabDragging] = useState(false);
+
+  function renderPane(t: LibraryTab): ReactNode {
+    const meta = TAB_META[t];
+    const rows = (items ?? []).filter((i) => i.projectType === meta.type);
+    if (isLoading) return <p className="text-ink-muted text-sm">Loading…</p>;
+    if (rows.length === 0) {
+      return (
+        <div className="flex flex-col items-center text-center gap-2 mt-16 text-ink-muted">
+          <LibraryBig size={24} className="text-brand-orange" />
+          <p className="text-sm">{meta.empty}</p>
+        </div>
+      );
+    }
+    // Desktop: each LibraryRow is a self-contained thumbnail+title tile, so a
+    // 3-up grid is a genuine reflow. Mobile keeps the single-column list.
+    return (
+      <div className="flex flex-col gap-2 md:grid md:grid-cols-3 md:gap-3">
+        {rows.map((item) => (
+          <LibraryRow key={item.projectId} item={item} />
+        ))}
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-canvas px-4 md:px-8 pt-6 md:pt-10 pb-24">
       <div className="max-w-xl md:max-w-4xl mx-auto">
-        <h2 className="font-display text-2xl text-ink mb-6 flex items-center gap-2">
-          <LibraryBig size={22} className="text-ink-muted" />
+        <h2 className="font-bold text-[1.75rem] leading-tight tracking-tight text-ink mb-5 flex items-center gap-2.5">
+          <LibraryBig size={24} className="text-brand-orange" />
           Library
         </h2>
 
-        <div role="tablist" aria-label="Library" className="flex border-b border-border mb-5">
-          {TABS.map((t) => (
-            <button
-              key={t}
-              role="tab"
-              aria-selected={tab === t}
-              onClick={() => setTab(t)}
-              className={`flex-1 text-center text-sm font-medium whitespace-nowrap pb-3 border-b-2 -mb-px transition-colors ${
-                tab === t ? "text-accent border-accent" : "text-ink-muted border-transparent"
-              }`}
-            >
-              {TAB_META[t].label}
-            </button>
-          ))}
-        </div>
+        <SlidingTabBar
+          ariaLabel="Library"
+          tabs={TABS.map((t) => ({ id: t, label: TAB_META[t].label }))}
+          activeIndex={activeIndex}
+          progress={tabProgress}
+          dragging={tabDragging}
+          onSelect={(i) => setTab(TABS[i])}
+          className="mb-5"
+        />
 
-        {isLoading ? (
-          <p className="text-ink-muted text-sm">Loading…</p>
-        ) : rows.length === 0 ? (
-          <div className="flex flex-col items-center text-center gap-2 mt-16 text-ink-muted">
-            <LibraryBig size={24} />
-            <p className="text-sm">{meta.empty}</p>
-          </div>
-        ) : (
-          // Desktop: each LibraryRow is a self-contained thumbnail+title tile, so a
-          // 3-up grid is a genuine reflow. Mobile keeps the single-column list.
-          <div className="flex flex-col gap-2 md:grid md:grid-cols-3 md:gap-3">
-            {rows.map((item) => (
-              <LibraryRow key={item.projectId} item={item} />
-            ))}
-          </div>
-        )}
+        {/* Swipe left/right to change tab — same carousel as Feed and Profile. */}
+        <SwipeableTabs
+          index={activeIndex}
+          onIndexChange={(i) => setTab(TABS[i])}
+          onProgress={(progress, dragging) => {
+            setTabProgress(progress);
+            setTabDragging(dragging);
+          }}
+        >
+          {TABS.map((t) => (
+            <div key={t}>{renderPane(t)}</div>
+          ))}
+        </SwipeableTabs>
       </div>
 
       <BottomNav />

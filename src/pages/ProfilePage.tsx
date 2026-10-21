@@ -1,7 +1,7 @@
 // src/pages/ProfilePage.tsx
 import { useState, useRef, useEffect } from "react";
 import { useParams, Link, useNavigate, useLocation } from "react-router-dom";
-import { Settings, Wallet, MessageCircle, MoreHorizontal, Plus, Eye, X, UserCheck, UserPlus, Lock, Redo2, Building2, Undo2, ChevronDown, UserMinus, Bell, BellOff, Briefcase, Clock, Share2, Menu, Link2, Ban, Layers, LayoutGrid, RefreshCw, Activity as ActivityIcon, type LucideIcon } from "lucide-react";
+import { Wallet, MessageCircle, MoreHorizontal, Plus, Eye, X, UserCheck, UserPlus, Lock, Building2, Undo2, ChevronDown, UserMinus, Bell, BellOff, Briefcase, Clock, Pencil, Share2, Menu, Link2, Ban, Layers, LayoutGrid, RefreshCw, Activity as ActivityIcon, type LucideIcon } from "lucide-react";
 import { useAuth } from "../hooks/useAuth";
 import { useProjectOwnership } from "../hooks/useProjectOwnership";
 import {
@@ -60,7 +60,6 @@ import { useProfilePages } from "../hooks/usePages";
 import { useIsRestricted } from "../hooks/useAccountAccess";
 import { APP_URL } from "../lib/appUrl";
 import { profileTabIcon } from "../lib/profileTabIcons";
-import { useTheme } from "../hooks/useTheme";
 
 // Website links are saved in full (whatever the user pastes, including
 // long query strings), but only the bare domain is ever shown — the
@@ -202,7 +201,6 @@ export function ProfilePage() {
   const navigate = useNavigate();
   const location = useLocation();
   const restricted = useIsRestricted();
-  const { resolvedTheme } = useTheme();
   const startConversation = useStartConversation();
   const toast = useToast();
   // Separate menu from the visitor-side "Send to" sheet below — the
@@ -542,16 +540,6 @@ export function ProfilePage() {
     navigate(`/messages/${conversationId}`);
   }
 
-  // Owner sharing their OWN profile gets the full-screen QR takeover
-  // (see ProfileShareScreen) — a visitor sees the consolidated "Send
-  // to" sheet instead (see ShareProfileSheet, wired into the visitor
-  // toolbar below), matching how each audience actually wants to
-  // hand the link off.
-  function handleShareProfile() {
-    setOwnerMenuOpen(false);
-    setQrShareOpen(true);
-  }
-
   // Opens the confirm — the actual removal is confirmRemoveFollower
   // below. Closes whichever menu it was opened from first.
   function handleRemoveFollower() {
@@ -613,7 +601,7 @@ export function ProfilePage() {
 
   return (
     <div className="min-h-screen bg-canvas pb-24">
-      {/* Tier 1 — the icon toolbar. Owner: Akọ mark on the left, the
+      {/* Tier 1 — the icon toolbar. Owner: edit (pencil) on the left, the
           reserved ad slot in the middle, create (+) and the menu on the
           right. Visitor: share and more. While the owner previews as a
           visitor it's just the exit control. Sticky and fixed-height so
@@ -627,14 +615,9 @@ export function ProfilePage() {
         <div className={`max-w-xl md:max-w-2xl mx-auto px-3 ${TOOLBAR_HEIGHT_CLASS} flex items-center gap-1`}>
           {showOwnerView ? (
             <>
-              {/* Brand mark, transparent background; light/dark artwork follows the theme
-                  (page-mode shares the light/dark pair). Editing lives on the avatar's + badge. */}
-              <img
-                src={resolvedTheme === "dark" ? "/app_icon_dark_without_tagline.png" : "/app_icon_light_without_tagline.png"}
-                alt="Akọ"
-                className="h-7 w-auto shrink-0 ml-1 select-none"
-                draggable={false}
-              />
+              <Link to="/settings/profile" aria-label="Edit profile" title="Edit profile" className={TOOLBAR_ICON_BTN}>
+                <Pencil size={22} />
+              </Link>
               <ProfileAdSlot className="flex-1 min-w-0 mx-1" />
               {!restricted && (
                 <Link to="/create" state={{ background: location }} aria-label="Create" title="Create" className={TOOLBAR_ICON_BTN}>
@@ -712,14 +695,6 @@ export function ProfilePage() {
                           },
                           ] satisfies DropdownMenuItem[])),
                       { key: "wallet", label: "Wallet", icon: <Wallet />, onSelect: () => navigate("/wallet") },
-                      {
-                        key: "view-as-visitor",
-                        label: "View as visitor",
-                        icon: <Eye />,
-                        onSelect: () => setPreviewingAsVisitor(true),
-                      },
-                      { key: "settings", label: "Settings", icon: <Settings />, onSelect: () => navigate("/settings/profile") },
-                      { key: "share", label: "Share profile", icon: <Redo2 />, onSelect: handleShareProfile },
                     ]}
                   />
                 )}
