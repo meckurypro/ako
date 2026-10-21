@@ -38,6 +38,7 @@ const COPY: Record<string, Copy> = {
   post_tagged: { body: "tagged you in a post" },
   project_tagged: { body: "Your project was tagged in a post", systemTitle: true },
   project_access_granted: { body: "gave you access to a private project" },
+  file_downloaded: { body: "downloaded your file" },
   collaboration_invite: { body: "invited you to collaborate" },
   collaboration_accepted: { body: "accepted your collaboration invite" },
   foreword_invite: { body: "asked you to write a foreword" },
@@ -46,6 +47,10 @@ const COPY: Record<string, Copy> = {
   foreword_declined: { body: "declined to write a foreword" },
   page_role_invite: { body: "invited you to a page role" },
   page_role_accepted: { body: "accepted a page role" },
+  // Page-role catalogue: someone typed a role that isn't in the list (goes to admins), and the admin's decision (goes to the people waiting on it).
+  page_role_requested: { body: "requested a new page role" },
+  page_role_approved: { body: "Your page role was approved", systemTitle: true },
+  page_role_rejected: { body: "Your page role wasn't approved", systemTitle: true },
   give_back_received: { body: "You received a give-back", systemTitle: true },
   project_purchased: { body: "Someone purchased your project", systemTitle: true },
   affiliate_commission_earned: { body: "You earned an affiliate commission", systemTitle: true },

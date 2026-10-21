@@ -1050,3 +1050,109 @@ export function useSetSuggestedProfilePriority() {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["admin-suggested-profiles"] }),
   });
 }
+
+// ------------------------------------------------------------
+// Page roles — the catalogue behind the "Your role at it" dropdown, and approval of roles people typed
+// themselves (supabase/ako_page_roles_catalogue.sql). Approving/rejecting is just an UPDATE of status: a DB trigger
+// then switches the waiting members' titles (silently) and notifies them.
+// ------------------------------------------------------------
+export interface PageRoleRequest {
+  id: string;
+  label: string;
+  created_at: string;
+  requested_by: string | null;
+  requester_username: string | null;
+  requester_name: string | null;
+  holders: { page_name: string; page_username: string; member_username: string; member_status: string }[];
+}
+
+export interface AdminPageRole {
+  id: string;
+  label: string;
+  usage_count: number;
+  is_system: boolean;
+}
+
+export function useAdminPageRoleRequests() {
+  return useQuery({
+    queryKey: ["admin-page-role-requests"],
+    queryFn: async (): Promise<PageRoleRequest[]> => {
+      const { data, error } = await supabase.rpc("admin_page_role_requests");
+      if (error) throw error;
+      return (data ?? []) as PageRoleRequest[];
+    },
+  });
+}
+
+export function useAdminPageRoles() {
+  return useQuery({
+    queryKey: ["admin-page-roles"],
+    queryFn: async (): Promise<AdminPageRole[]> => {
+      const { data, error } = await supabase
+        .from("page_role_labels")
+        .select("id, label, usage_count, is_system")
+        .eq("status", "approved")
+        .order("label_key");
+      if (error) throw error;
+      return (data ?? []) as AdminPageRole[];
+    },
+  });
+}
+
+function invalidatePageRoles(queryClient: ReturnType<typeof useQueryClient>) {
+  queryClient.invalidateQueries({ queryKey: ["admin-page-role-requests"] });
+  queryClient.invalidateQueries({ queryKey: ["admin-page-roles"] });
+  queryClient.invalidateQueries({ queryKey: ["page-roles"] });
+  // Members' titles change underneath the people waiting on an approved role.
+  queryClient.invalidateQueries({ queryKey: ["page-members"] });
+}
+
+export function useReviewPageRole() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, approve, label }: { id: string; approve: boolean; label?: string }) => {
+      const { data, error } = await supabase
+        .from("page_role_labels")
+        .update({ status: approve ? "approved" : "rejected", ...(approve && label ? { label } : {}) })
+        .eq("id", id)
+        .eq("status", "pending")
+        .select("id");
+      if (error) throw error;
+      if (!data?.length) throw new Error("This request was already handled.");
+    },
+    onSuccess: () => invalidatePageRoles(queryClient),
+  });
+}
+
+export function useCreatePageRole() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (label: string) => {
+      const { error } = await supabase.from("page_role_labels").insert({ label, status: "approved", usage_count: 0 });
+      if (error) throw error;
+    },
+    onSuccess: () => invalidatePageRoles(queryClient),
+  });
+}
+
+export function useRenamePageRole() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, label }: { id: string; label: string }) => {
+      const { error } = await supabase.from("page_role_labels").update({ label }).eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => invalidatePageRoles(queryClient),
+  });
+}
+
+export function useDeletePageRole() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase.from("page_role_labels").delete().eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => invalidatePageRoles(queryClient),
+  });
+}

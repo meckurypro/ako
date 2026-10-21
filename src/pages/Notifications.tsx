@@ -80,6 +80,12 @@ const TYPE_CONFIG: Record<string, { icon: typeof Heart; verb: string }> = {
   page_role_invite: { icon: Users, verb: "invited you to join their team" },
   page_role_accepted: { icon: UserCheck, verb: "accepted your team invite" },
   page_role_declined: { icon: UserX, verb: "declined your team invite" },
+  // Page-role catalogue (supabase/ako_page_roles_catalogue.sql): a role someone typed that isn't in the list reaches
+  // admins as a request; the admin's decision comes back to the people waiting on it. The decision rows have no
+  // actor (nobody "did" it to you), so they render with the icon like promotion_approved.
+  page_role_requested: { icon: Briefcase, verb: "asked for a new page role" },
+  page_role_approved: { icon: UserCheck, verb: "Your page role was approved" },
+  page_role_rejected: { icon: UserX, verb: "Your page role wasn't approved" },
   post_tagged: { icon: Tag, verb: "tagged you in a post" },
   project_tagged: { icon: Tag, verb: "tagged you in a project" },
   // Owner added you to a private project's access list (project_members). target_type "project",
@@ -318,7 +324,7 @@ function RowShell({
 function PageResponseRow({ n, onRead }: { n: NotificationWithActor; onRead: () => void }) {
   const { data: page } = usePageById(n.target_id ?? "", !!n.target_id);
   const navigate = useNavigate();
-  const config = n.type === "page_role_declined" ? TYPE_CONFIG.page_role_declined : TYPE_CONFIG.page_role_accepted;
+  const config = TYPE_CONFIG[n.type] ?? TYPE_CONFIG.page_role_accepted;
   return (
     <RowShell
       unread={!n.read_at}
@@ -364,8 +370,28 @@ function NotificationRow({
     );
   }
 
-  if (n.type === "page_role_accepted" || n.type === "page_role_declined") {
+  if (
+    n.type === "page_role_accepted" ||
+    n.type === "page_role_declined" ||
+    n.type === "page_role_approved" ||
+    n.type === "page_role_rejected"
+  ) {
     return <PageResponseRow n={n} onRead={onRead} />;
+  }
+
+  // A new-role request is for the Akọ team: it lands on the admin review screen.
+  if (n.type === "page_role_requested") {
+    return (
+      <RowShell
+        unread={!n.read_at}
+        onActivate={() => {
+          onRead();
+          navigate("/admin/page-roles");
+        }}
+      >
+        <NotificationRowContent n={n} config={config} />
+      </RowShell>
+    );
   }
 
   // Same "needs a synchronous accept/decline step, not a plain link"

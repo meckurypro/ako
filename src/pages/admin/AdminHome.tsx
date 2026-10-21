@@ -1,7 +1,7 @@
 // src/pages/admin/AdminHome.tsx
 import { Link } from "react-router-dom";
-import { Tag, Gift, Flag, ShieldAlert, Mail, Send, MailPlus, Bell, ToggleLeft, ToggleRight, ShieldCheck, UserCheck, Sparkles, Landmark, Wallet, Users, Building2, Megaphone, HandCoins, ClipboardCheck, BadgeCheck, Smartphone } from "lucide-react";
-import { usePendingReports } from "../../hooks/useAdmin";
+import { Tag, Gift, Flag, ShieldAlert, Mail, Send, MailPlus, Bell, ToggleLeft, ToggleRight, ShieldCheck, UserCheck, Sparkles, Landmark, Wallet, Users, Building2, Megaphone, HandCoins, ClipboardCheck, BadgeCheck, Smartphone, Briefcase } from "lucide-react";
+import { usePendingReports, useAdminPageRoleRequests } from "../../hooks/useAdmin";
 import { usePendingPromotions } from "../../hooks/usePromotions";
 import { usePendingAccountCount } from "../../hooks/useAdminAccountReviewCount";
 
@@ -45,6 +45,9 @@ export function AdminHome() {
   const pendingPromotionCount = pendingPromotions?.length ?? 0;
 
   const { data: pendingAccountCount } = usePendingAccountCount();
+
+  const { data: pageRoleRequests } = useAdminPageRoleRequests();
+  const pendingPageRoleCount = pageRoleRequests?.length ?? 0;
 
   return (
     <div className="min-h-screen bg-canvas px-4 pt-8 pb-10">
@@ -92,6 +95,21 @@ export function AdminHome() {
           {pendingPromotionCount > 0 && (
             <span className="bg-danger text-canvas text-xs font-medium rounded-full w-6 h-6 flex items-center justify-center">
               {pendingPromotionCount}
+            </span>
+          )}
+        </Link>
+
+        <Link
+          to="/admin/page-roles"
+          className="flex items-center justify-between bg-surface rounded-xl p-4 mb-4 border border-border"
+        >
+          <div className="flex items-center gap-3">
+            <Briefcase size={20} className="text-accent" />
+            <span className="font-medium text-ink">Page roles</span>
+          </div>
+          {pendingPageRoleCount > 0 && (
+            <span className="bg-danger text-canvas text-xs font-medium rounded-full w-6 h-6 flex items-center justify-center">
+              {pendingPageRoleCount}
             </span>
           )}
         </Link>

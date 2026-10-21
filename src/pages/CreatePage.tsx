@@ -3,12 +3,14 @@ import { useState, useEffect, useRef } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useSmartBack } from "../hooks/useSmartBack";
 import { ArrowLeft } from "lucide-react";
+import { RoleSelect } from "../components/RoleSelect";
+import { displayedRoleLabel } from "../lib/pageRoles";
 import { supabase } from "../lib/supabase";
 import {
   useCreatePage,
   useMyPages,
   usePageById,
-  usePageRoleLabelSuggestions,
+  usePageRoles,
   usePageCreationEligibility,
   getPageCreationEligibilityReasons,
 } from "../hooks/usePages";
@@ -58,9 +60,9 @@ const NAME_LABEL: Record<PageType, string> = {
 };
 
 const NAME_PLACEHOLDER: Record<PageType, string> = {
-  organization: "Acme Inc",
-  brand: "Acme",
-  product: "Acme Widget",
+  organization: "eg. IQ Academy",
+  brand: "eg. IQ Music",
+  product: "eg. Filma",
 };
 
 const TAGLINE_PLACEHOLDER: Record<PageType, string> = {
@@ -103,7 +105,6 @@ export function CreatePage() {
   const [name, setName] = useState("");
   const [username, setUsername] = useState("");
   const [roleLabel, setRoleLabel] = useState("");
-  const [showRoleSuggestions, setShowRoleSuggestions] = useState(false);
   const [tagline, setTagline] = useState("");
   const [bio, setBio] = useState("");
   const [topicIds, setTopicIds] = useState<Set<string>>(new Set());
@@ -113,11 +114,9 @@ export function CreatePage() {
   const [usernameStatus, setUsernameStatus] = useState<UsernameStatus>("idle");
   const usernameCheckId = useRef(0);
 
-  // Same live suggestion list PageTeam.tsx uses when inviting a team
-  // member to a role — here it's for the founder's own role on a
-  // brand-new page, backed by the same page_role_labels table so a
-  // title only ever gets typed out in full once across the app.
-  const { data: roleSuggestions } = usePageRoleLabelSuggestions(roleLabel);
+  // The admin-managed role catalogue behind the role dropdown (same one PageTeam uses when inviting). A role that
+  // isn't in it is sent to the Akọ team for approval and shows as the generic title until then.
+  const { data: roles = [] } = usePageRoles();
 
   // Any page you admin can host a Subsidiary, and a Subsidiary can be
   // any page type — no longer restricted to "brand under an
@@ -353,7 +352,7 @@ export function CreatePage() {
               value={username}
               onChange={(e) => setUsername(e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, ""))}
               maxLength={30}
-              placeholder="meckuryai"
+              placeholder="eg. meckuryai"
               className="w-full bg-surface rounded-xl px-4 py-3 text-sm text-ink placeholder:text-ink-muted"
             />
             <p className="text-xs text-ink-muted mt-1">akọ.app/page/{username || "..."}</p>
@@ -368,52 +367,12 @@ export function CreatePage() {
             )}
           </div>
 
-          <div className="relative">
+          <div>
             <label className="block text-xs font-medium text-ink-muted mb-1">Your role at it</label>
-            <input
-              value={roleLabel}
-              onChange={(e) => {
-                setRoleLabel(e.target.value);
-                setShowRoleSuggestions(true);
-              }}
-              onFocus={() => setShowRoleSuggestions(true)}
-              onBlur={() => {
-                // Give a suggestion's onMouseDown below a chance to fire
-                // first — a plain blur would otherwise close this before
-                // the click on it registers.
-                setTimeout(() => setShowRoleSuggestions(false), 100);
-              }}
-              maxLength={60}
-              placeholder="CEO, Founder, Community Lead…"
-              className="w-full bg-surface rounded-xl px-4 py-3 text-sm text-ink placeholder:text-ink-muted"
-            />
+            <RoleSelect value={roleLabel} onChange={setRoleLabel} placeholder="Select your role…" ariaLabel="Your role at it" />
             <p className="text-xs text-ink-muted mt-1">
-              Shown as "{roleLabel || "Your role"} at {name || "this page"}" on your profile.
+              Shown as "{displayedRoleLabel(roles, roleLabel)} at {name || "this page"}" on your profile.
             </p>
-
-            {/* Existing role titles that match what's typed so far — same
-                list PageTeam.tsx shows when inviting someone, backed by
-                page_role_labels. Picking one just fills the field;
-                typing something new is still a perfectly valid role, it
-                simply won't show suggestions. */}
-            {showRoleSuggestions && roleLabel.trim().length > 0 && !!roleSuggestions?.length && (
-              <div className="absolute top-full left-0 right-0 mt-1 bg-canvas border border-border rounded-xl shadow-lg max-h-56 overflow-y-auto z-10">
-                {roleSuggestions.map((label) => (
-                  <button
-                    key={label}
-                    type="button"
-                    onMouseDown={(e) => e.preventDefault()}
-                    onClick={() => {
-                      setRoleLabel(label);
-                      setShowRoleSuggestions(false);
-                    }}
-                    className="w-full px-3 py-2.5 text-left text-sm text-ink hover:bg-surface truncate"
-                  >
-                    {label}
-                  </button>
-                ))}
-              </div>
-            )}
           </div>
 
           <div>
