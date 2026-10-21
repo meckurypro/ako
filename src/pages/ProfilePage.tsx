@@ -663,9 +663,9 @@ export function ProfilePage() {
 
                 {ownerMenuOpen && (
                   <DropdownMenu
+                    title="Menu"
                     anchorRef={ownerMenuButtonRef}
                     onClose={() => setOwnerMenuOpen(false)}
-                    widthClass="w-64"
                     items={[
                       {
                         key: "activity",
@@ -960,9 +960,9 @@ export function ProfilePage() {
 
               {relationshipMenuOpen && isFollowing && (
                 <DropdownMenu
+                  title="Following"
                   anchorRef={relationshipMenuButtonRef}
                   onClose={() => setRelationshipMenuOpen(false)}
-                  widthClass="w-56"
                   items={[
                     {
                       key: "mute",

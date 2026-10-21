@@ -14,9 +14,8 @@ export function UnsavedChangesDialog({
   onStay: () => void;
 }) {
   return (
-    <Modal onClose={onStay} role="alertdialog" ariaLabel="Unsaved changes">
-      <p className="font-medium text-overlay-ink text-[15px] leading-snug">You have unsaved changes</p>
-      <p className="text-sm text-overlay-ink-muted mt-2 leading-relaxed">
+    <Modal onClose={onStay} role="alertdialog" title="You have unsaved changes">
+      <p className="text-sm text-overlay-ink-muted leading-relaxed">
         Moves, deletions and edits only take effect once you save. Leave now and they're lost.
       </p>
       <div className="flex flex-col gap-2 mt-6">

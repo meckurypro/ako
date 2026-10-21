@@ -38,14 +38,13 @@ export function SaveProgressDialog({
   onKeepEditing,
 }: SaveProgressDialogProps) {
   return (
-    <Modal onClose={saving ? () => {} : onKeepEditing} role="alertdialog" ariaLabel={title} backDismiss={false}>
+    <Modal onClose={saving ? () => {} : onKeepEditing} role="alertdialog" title={title} backDismiss={false}>
       <div className="flex items-start gap-4">
         <span className="flex-shrink-0 w-10 h-10 rounded-full bg-overlay-surface-raised text-overlay-ink flex items-center justify-center">
           <Save size={19} />
         </span>
         <div className="min-w-0 pt-0.5">
-          <p className="font-medium text-overlay-ink text-[15px] leading-snug">{title}</p>
-          <p className="text-sm text-overlay-ink-muted mt-2 leading-relaxed">{description}</p>
+          <p className="text-sm text-overlay-ink-muted leading-relaxed">{description}</p>
           {saveDisabled && saveHint && <p className="text-xs text-overlay-ink-muted mt-2 leading-relaxed">{saveHint}</p>}
         </div>
       </div>

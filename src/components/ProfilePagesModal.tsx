@@ -39,8 +39,7 @@ type ProfilePagesModalProps =
 
 export function ProfilePagesModal(props: ProfilePagesModalProps) {
   return (
-    <Modal onClose={props.onClose} ariaLabel="Pages">
-      <h2 className="text-lg font-semibold text-overlay-ink">Pages</h2>
+    <Modal onClose={props.onClose} title="Pages">
       {props.mode === "visitor" ? (
         <VisitorList pages={props.pages} onClose={props.onClose} />
       ) : (
@@ -53,7 +52,7 @@ export function ProfilePagesModal(props: ProfilePagesModalProps) {
 function VisitorList({ pages, onClose }: { pages: ProfilePageAffiliation[]; onClose: () => void }) {
   const navigate = useNavigate();
   return (
-    <ul className="mt-3 -mx-2">
+    <ul className="-mx-2">
       {pages.map((p) => (
         <li key={p.page_id}>
           <button
@@ -65,7 +64,7 @@ function VisitorList({ pages, onClose }: { pages: ProfilePageAffiliation[]; onCl
             <Avatar src={p.avatar_url} name={p.name} size="vn" />
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-1.5">
-                <span className="font-medium text-overlay-ink truncate">{p.name}</span>
+                <span className="font-semibold text-overlay-ink truncate">{p.name}</span>
                 {p.is_verified && <VerifiedBadge className="shrink-0" />}
               </div>
               <p className="text-sm text-overlay-ink-muted truncate">{p.role_label}</p>
@@ -130,20 +129,20 @@ function OwnerList({ onClose, navigateOnSwitch }: { onClose: () => void; navigat
   }
 
   if (isLoading) {
-    return <p className="mt-4 text-sm text-overlay-ink-muted">Loading…</p>;
+    return <p className="text-sm text-overlay-ink-muted">Loading…</p>;
   }
 
   return (
     <>
       {hasInvites && (
-        <div className="mt-3">
+        <div>
           <h3 className="text-xs font-medium uppercase tracking-wide text-overlay-ink-muted mb-1">Invites</h3>
           <ul className="-mx-2">
             {invites!.map((invite) => (
               <li key={invite.id} className="flex items-center gap-3 px-2 py-2.5">
                 <Avatar src={invite.page.avatar_url} name={invite.page.name} size="vn" />
                 <div className="flex-1 min-w-0">
-                  <p className="font-medium text-overlay-ink truncate">{invite.page.name}</p>
+                  <p className="font-semibold text-overlay-ink truncate">{invite.page.name}</p>
                   <p className="text-sm text-overlay-ink-muted truncate">Invited as {invite.role_label}</p>
                 </div>
                 <button
@@ -181,7 +180,7 @@ function OwnerList({ onClose, navigateOnSwitch }: { onClose: () => void; navigat
       )}
 
       {hasPages ? (
-        <ul className="mt-3 -mx-2">
+        <ul className="-mx-2">
           {actingAsPage && (
             <li>
               <button
@@ -192,7 +191,7 @@ function OwnerList({ onClose, navigateOnSwitch }: { onClose: () => void; navigat
               >
                 <Avatar src={me?.avatar_url} name={me?.display_name ?? "You"} size="vn" />
                 <div className="flex-1 min-w-0">
-                  <span className="font-medium text-overlay-ink truncate block">{me?.display_name}</span>
+                  <span className="font-semibold text-overlay-ink truncate block">{me?.display_name}</span>
                   <p className="text-sm text-overlay-ink-muted truncate">Personal account</p>
                 </div>
               </button>
@@ -209,7 +208,7 @@ function OwnerList({ onClose, navigateOnSwitch }: { onClose: () => void; navigat
                 <Avatar src={page.avatar_url} name={page.name} size="vn" />
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-1.5">
-                    <span className="font-medium text-overlay-ink truncate">{page.name}</span>
+                    <span className="font-semibold text-overlay-ink truncate">{page.name}</span>
                     {page.is_verified && <VerifiedBadge className="shrink-0" />}
                   </div>
                   <p className="text-sm text-overlay-ink-muted truncate">
@@ -222,7 +221,7 @@ function OwnerList({ onClose, navigateOnSwitch }: { onClose: () => void; navigat
           ))}
         </ul>
       ) : (
-        <p className="mt-3 text-sm text-overlay-ink-muted">
+        <p className="text-sm text-overlay-ink-muted">
           While you're acting as a page, your posts, name, and photo show as the page's instead of yours —
           everyone managing it shares the same page.
           {canCreate && (

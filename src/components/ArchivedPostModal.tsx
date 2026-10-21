@@ -32,6 +32,7 @@ interface ArchivedPostModalProps {
 export function ArchivedPostModal({ post, onClose }: ArchivedPostModalProps) {
   return (
     <Modal onClose={onClose} ariaLabel="Archived post preview" maxWidthClass="max-w-xl" bare zIndexClass="z-40">
+      <h2 className="mb-2 px-1 text-lg font-semibold text-canvas">Archived post</h2>
       <button
         onClick={onClose}
         aria-label="Close"

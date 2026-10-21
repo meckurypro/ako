@@ -234,9 +234,9 @@ export function MessageActionMenu({
           </button>
           {moreOpen && (
             <DropdownMenu
+              title="Message options"
               anchorRef={moreButtonRef}
               onClose={() => setMoreOpen(false)}
-              widthClass="w-52"
               items={(() => {
                 const menuItems: (DropdownMenuItem | "divider")[] = [
                   {

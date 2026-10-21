@@ -1,9 +1,6 @@
 // src/components/PostActionSheet.tsx
 import { Pencil, Archive, RotateCcw, Trash2 } from "lucide-react";
-import { useBackDismiss } from "../hooks/useBackDismiss";
-import { useDismissKeyboardOnMount } from "../hooks/useDismissKeyboard";
-import { useScrollLock } from "../hooks/useScrollLock";
-import { Portal } from "./Portal";
+import { OptionsModal, type OptionItem } from "./OptionsModal";
 
 interface PostActionSheetProps {
   canEdit: boolean;
@@ -14,67 +11,17 @@ interface PostActionSheetProps {
   onClose: () => void;
 }
 
-/**
- * Bottom sheet for a post's own author — Edit / Archive / Delete.
- * Same chrome as ConversationActionSheet for consistency.
- */
-export function PostActionSheet({
-  canEdit,
-  isArchived,
-  onEdit,
-  onToggleArchive,
-  onDelete,
-  onClose,
-}: PostActionSheetProps) {
-  useBackDismiss(onClose);
-  useDismissKeyboardOnMount();
-  useScrollLock();
-
-  return (
-    <Portal>
-    <div className="fixed inset-0 ako-keyboard-aware z-50 flex items-end justify-center">
-      <div className="absolute inset-0 bg-canvas/70 backdrop-blur-overlay" onClick={onClose} />
-      <div className="relative w-full max-w-xl bg-surface rounded-t-2xl border-t border-border pb-[env(safe-area-inset-bottom)]">
-        {canEdit && (
-          <button
-            onClick={() => {
-              onEdit();
-              onClose();
-            }}
-            className="w-full flex items-center gap-3 px-4 py-3.5 text-sm text-ink"
-          >
-            <Pencil size={18} />
-            Edit
-          </button>
-        )}
-
-        <button
-          onClick={() => {
-            onToggleArchive();
-            onClose();
-          }}
-          className="w-full flex items-center gap-3 px-4 py-3.5 text-sm text-ink"
-        >
-          {isArchived ? <RotateCcw size={18} /> : <Archive size={18} />}
-          {isArchived ? "Unarchive" : "Archive"}
-        </button>
-
-        <button
-          onClick={() => {
-            onDelete();
-            onClose();
-          }}
-          className="w-full flex items-center gap-3 px-4 py-3.5 text-sm text-danger"
-        >
-          <Trash2 size={18} />
-          Delete post
-        </button>
-
-        <button onClick={onClose} className="w-full py-3.5 text-sm text-ink-muted border-t border-border mt-1">
-          Cancel
-        </button>
-      </div>
-    </div>
-    </Portal>
-  );
+/** Options for a post's own author — Edit / Archive / Delete. Renders as the shared centred options list. */
+export function PostActionSheet({ canEdit, isArchived, onEdit, onToggleArchive, onDelete, onClose }: PostActionSheetProps) {
+  const items: OptionItem[] = [
+    ...(canEdit ? [{ key: "edit", label: "Edit", icon: <Pencil />, onSelect: onEdit }] : []),
+    {
+      key: "archive",
+      label: isArchived ? "Unarchive" : "Archive",
+      icon: isArchived ? <RotateCcw /> : <Archive />,
+      onSelect: onToggleArchive,
+    },
+    { key: "delete", label: "Delete post", icon: <Trash2 />, onSelect: onDelete, variant: "danger" },
+  ];
+  return <OptionsModal title="Post options" items={items} onClose={onClose} />;
 }

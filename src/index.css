@@ -452,6 +452,20 @@ body {
 }
 
 /*
+  No scrollbars on inner scroll containers, anywhere (carousels, lists, sheets, tab panes). They used to flash in
+  and out whenever a pane mounted or a tab switched (the Projects tab on a profile), which read as a glitch. Content
+  still scrolls — only the bars are gone. The page itself (<html>) is deliberately left alone, so it keeps the
+  platform's own scroll indicator that appears while the user is actually scrolling.
+*/
+*:not(html) {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+*:not(html)::-webkit-scrollbar {
+  display: none;
+}
+
+/*
   WhatsApp-style message bubble corners (see MessageThread.tsx). Real
   WhatsApp bubbles round three corners and leave the fourth — the one
   nearest the sender's side of the screen — as a small flat-then-
@@ -818,7 +832,7 @@ body {
 .ako-keyboard-aware {
   padding-bottom: var(--kb-inset, 0px);
 }
-html[data-kb-open] .ako-keyboard-aware > * {
+html[data-kb-open] .ako-keyboard-aware > *:not([data-anchored-panel]) {
   max-height: 100% !important;
 }
 

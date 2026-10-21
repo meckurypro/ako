@@ -189,9 +189,9 @@ export function ShareProfileSheet({
   if (mode === "nickname") {
     return (
       <Portal>
-        <div className="fixed inset-0 ako-keyboard-aware z-50 flex items-end sm:items-center justify-center">
+        <div className="fixed inset-0 ako-keyboard-aware z-50 flex items-center justify-center px-6">
           <div className="absolute inset-0 bg-canvas/70 backdrop-blur-overlay" onClick={onClose} />
-          <div className="relative w-full max-w-md bg-surface rounded-t-2xl sm:rounded-2xl border-t sm:border border-border p-5 pb-[calc(env(safe-area-inset-bottom)+1.25rem)]">
+          <div className="relative w-full max-w-md bg-surface rounded-[28px] border border-border p-5 pb-[calc(env(safe-area-inset-bottom)+1.25rem)]">
             <p className="text-sm font-medium text-ink mb-1">Customise name</p>
             <p className="text-xs text-ink-muted mb-4">
               Only you will see this name for {profile.display_name}.
@@ -225,9 +225,9 @@ export function ShareProfileSheet({
   if (mode === "report") {
     return (
       <Portal>
-        <div className="fixed inset-0 ako-keyboard-aware z-50 flex items-end sm:items-center justify-center">
+        <div className="fixed inset-0 ako-keyboard-aware z-50 flex items-center justify-center px-6">
           <div className="absolute inset-0 bg-canvas/70 backdrop-blur-overlay" onClick={onClose} />
-          <div className="relative w-full max-w-md bg-surface rounded-t-2xl sm:rounded-2xl border-t sm:border border-border max-h-[85vh] overflow-y-auto pb-[env(safe-area-inset-bottom)]">
+          <div className="relative w-full max-w-md bg-surface rounded-[28px] border border-border max-h-[calc(100dvh-10rem)] overflow-y-auto">
             {reportSubmitted ? (
               <div className="p-6 text-center">
                 <Flag size={28} className="mx-auto text-accent mb-3" />
@@ -348,9 +348,9 @@ export function ShareProfileSheet({
 
   return (
     <Portal>
-      <div className="fixed inset-0 ako-keyboard-aware z-50 flex items-end justify-center">
+      <div className="fixed inset-0 ako-keyboard-aware z-50 flex items-center justify-center px-6">
         <div className="absolute inset-0 bg-canvas/70 backdrop-blur-overlay" onClick={onClose} />
-        <div className="relative w-full max-w-xl bg-surface rounded-t-2xl border-t border-border max-h-[88vh] overflow-y-auto pb-[env(safe-area-inset-bottom)]">
+        <div className="relative w-full max-w-xl bg-surface rounded-[28px] border border-border max-h-[calc(100dvh-10rem)] overflow-y-auto">
           <div className="flex items-center justify-between px-4 pt-4 pb-3">
             <div className="w-7" />
             <p className="text-sm font-medium text-ink">Send to</p>

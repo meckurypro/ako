@@ -59,9 +59,9 @@ export function OfferNudgeSheet({ projectId, projectTitle, singlePrice, offers, 
 
   return (
     <Portal>
-      <div className="fixed inset-0 ako-keyboard-aware z-50 flex items-end justify-center">
+      <div className="fixed inset-0 ako-keyboard-aware z-50 flex items-center justify-center px-6">
         <div className="absolute inset-0 bg-ink/40" onClick={busy ? undefined : onClose} />
-        <div className="relative w-full max-w-xl bg-surface rounded-t-2xl border-t border-border max-h-[85vh] overflow-y-auto pb-[env(safe-area-inset-bottom)]">
+        <div className="relative w-full max-w-xl bg-surface rounded-[28px] border border-border max-h-[calc(100dvh-10rem)] overflow-y-auto">
           <div className="flex items-center justify-between px-4 pt-4 pb-1 sticky top-0 bg-surface">
             <div className="min-w-0">
               <p className="text-sm font-medium text-ink">Better together</p>

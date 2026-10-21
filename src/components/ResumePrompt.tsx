@@ -18,14 +18,13 @@ interface ResumePromptProps {
 export function ResumePrompt({ where, percent, onContinue, onStartOver, kind = "book" }: ResumePromptProps) {
   const title = kind === "course" ? "Continue where you stopped?" : "Continue reading?";
   return (
-    <Modal onClose={onContinue} ariaLabel={title}>
+    <Modal onClose={onContinue} title={title}>
       <div className="flex items-start gap-4">
         <span className="flex-shrink-0 w-10 h-10 rounded-full bg-overlay-surface-raised text-overlay-accent flex items-center justify-center">
           <BookOpen size={19} />
         </span>
         <div className="min-w-0 pt-0.5">
-          <p className="font-medium text-overlay-ink text-[15px] leading-snug">{title}</p>
-          <p className="text-sm text-overlay-ink-muted mt-2 leading-relaxed">
+          <p className="text-sm text-overlay-ink-muted leading-relaxed">
             You were at {where}
             {percent != null ? ` (${Math.round(percent)}% through)` : ""}.
           </p>

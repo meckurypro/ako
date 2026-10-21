@@ -17,8 +17,7 @@ import { Avatar } from "../components/Avatar";
 import { ProjectCard } from "../components/ProjectCard";
 import { ArchivedPostModal } from "../components/ArchivedPostModal";
 import { ConfirmDialog } from "../components/ConfirmDialog";
-import { useBackDismiss } from "../hooks/useBackDismiss";
-import { useScrollLock } from "../hooks/useScrollLock";
+import { OptionsModal } from "../components/OptionsModal";
 import { BottomNav } from "../components/BottomNav";
 import { isPlainReshare, isQuote, type PostWithAuthor } from "../types/database";
 import { MessagePreviewLine } from "../components/MessagePreviewLine";
@@ -130,8 +129,6 @@ export function Archive() {
   // shared by both the requests group and the archived-messages
   // accordion below. ---
   const [actionTarget, setActionTarget] = useState<ArchivedConversationSummary | null>(null);
-  useBackDismiss(() => setActionTarget(null), !!actionTarget);
-  useScrollLock(!!actionTarget);
   const longPressTimers = useRef<Record<string, ReturnType<typeof setTimeout> | null>>({});
   const longPressStart = useRef<Record<string, { x: number; y: number }>>({});
   const longPressFired = useRef<Record<string, boolean>>({});
@@ -426,49 +423,21 @@ export function Archive() {
       {previewPost && <ArchivedPostModal post={previewPost} onClose={() => setPreviewPost(null)} />}
 
       {actionTarget && (
-        <div className="fixed inset-0 ako-keyboard-aware z-50 flex items-end justify-center">
-          <div className="absolute inset-0 bg-canvas/70 backdrop-blur-overlay" onClick={() => setActionTarget(null)} />
-          <div className="relative w-full max-w-xl bg-surface rounded-t-2xl border-t border-border pb-[env(safe-area-inset-bottom)]">
-            <p className="px-4 pt-4 pb-2 text-xs text-ink-muted truncate">{actionTarget.other_participant.display_name}</p>
-
-            <button
-              onClick={() => {
-                handleUnarchive(actionTarget);
-                setActionTarget(null);
-              }}
-              className="w-full flex items-center gap-3 px-4 py-3.5 text-sm text-ink"
-            >
-              <ArchiveRestore size={18} />
-              Unarchive
-            </button>
-
-            <button
-              onClick={() => {
-                enterSelectMode(actionTarget.id);
-                setActionTarget(null);
-              }}
-              className="w-full flex items-center gap-3 px-4 py-3.5 text-sm text-ink"
-            >
-              <CheckSquare size={18} />
-              Select chats
-            </button>
-
-            <button
-              onClick={() => {
-                setDeleteTarget({ ids: [actionTarget.id], label: "this chat" });
-                setActionTarget(null);
-              }}
-              className="w-full flex items-center gap-3 px-4 py-3.5 text-sm text-danger"
-            >
-              <Trash2 size={18} />
-              Delete chat
-            </button>
-
-            <button onClick={() => setActionTarget(null)} className="w-full py-3.5 text-sm text-ink-muted border-t border-border mt-1">
-              Cancel
-            </button>
-          </div>
-        </div>
+        <OptionsModal
+          title={actionTarget.other_participant.display_name || "Chat options"}
+          onClose={() => setActionTarget(null)}
+          items={[
+            { key: "unarchive", label: "Unarchive", icon: <ArchiveRestore />, onSelect: () => handleUnarchive(actionTarget) },
+            { key: "select", label: "Select chats", icon: <CheckSquare />, onSelect: () => enterSelectMode(actionTarget.id) },
+            {
+              key: "delete",
+              label: "Delete chat",
+              icon: <Trash2 />,
+              variant: "danger",
+              onSelect: () => setDeleteTarget({ ids: [actionTarget.id], label: "this chat" }),
+            },
+          ]}
+        />
       )}
 
       {deleteTarget && (

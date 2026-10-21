@@ -41,9 +41,9 @@ export function TagProjectPicker({
 
   return (
     <Portal>
-      <div className="fixed inset-0 ako-keyboard-aware z-[60] flex items-end sm:items-center justify-center" role="dialog" aria-modal="true">
+      <div className="fixed inset-0 ako-keyboard-aware z-[60] flex items-center justify-center px-6" role="dialog" aria-modal="true">
         <div className="absolute inset-0 bg-canvas/70 backdrop-blur-overlay" onClick={onClose} />
-        <div className="relative w-full sm:max-w-sm max-h-[70vh] bg-surface rounded-t-2xl sm:rounded-2xl border border-border overflow-hidden flex flex-col">
+        <div className="relative w-full max-w-sm max-h-[calc(100dvh-10rem)] bg-surface rounded-[28px] border border-border overflow-hidden flex flex-col">
           <div className="flex items-center justify-between px-4 py-3 border-b border-border flex-shrink-0">
             <p className="font-medium text-ink">Tag a project</p>
             <button onClick={onClose} className="p-1 text-ink-muted" aria-label="Close">

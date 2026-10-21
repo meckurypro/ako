@@ -1342,9 +1342,9 @@ export function ProjectCard({
 
           {menuOpen && (
             <DropdownMenu
+              title="Project options"
               anchorRef={menuButtonRef}
               onClose={() => setMenuOpen(false)}
-              widthClass="w-56"
               items={buildOwnerMenuItems()}
             />
           )}
@@ -1853,9 +1853,9 @@ export function ProjectCard({
             )}
             {menuOpen && (
               <DropdownMenu
+                title="Project options"
                 anchorRef={menuButtonRef}
                 onClose={() => setMenuOpen(false)}
-                widthClass="w-56"
                 items={buildDetailMenuItems()}
               />
             )}

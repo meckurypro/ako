@@ -8,7 +8,7 @@ import { setJustPosted } from "../lib/justPosted";
 import { setJustSaved } from "../lib/justSaved";
 import { formatScheduleShort } from "../lib/schedulePresets";
 import { SchedulePostModal } from "../components/SchedulePostModal";
-import { X, Image as ImageIcon, Link2, MoreHorizontal } from "lucide-react";
+import { X, Image as ImageIcon, Link2, MoreHorizontal, FileText, CalendarClock } from "lucide-react";
 import { useCreatePost, useDeleteDraftOrScheduledPost } from "../hooks/usePosts";
 import { TopicPicker, MAX_TOPICS } from "../components/TopicPicker";
 import { useUploadPostMedia, isVideoUrl } from "../hooks/useUploadPostMedia";
@@ -336,12 +336,14 @@ export function Compose() {
     {
       key: "draft",
       label: "Save as draft",
+      icon: <FileText />,
       onSelect: handleSaveDraft,
       disabled: !canPost,
     },
     {
       key: "schedule",
       label: "Schedule…",
+      icon: <CalendarClock />,
       onSelect: () => setScheduleModalOpen(true),
       disabled: !canPost,
     },
@@ -588,10 +590,10 @@ export function Compose() {
 
       {moreMenuOpen && (
         <DropdownMenu
+          title="Post options"
           anchorRef={moreButtonRef}
           items={moreMenuItems}
           onClose={() => setMoreMenuOpen(false)}
-          widthClass="w-48"
         />
       )}
 

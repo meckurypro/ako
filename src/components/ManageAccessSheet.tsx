@@ -42,9 +42,9 @@ export function ManageAccessSheet({ projectId, projectTitle, onClose }: ManageAc
   // was clipped/offset inside that pane instead of filling the viewport.
   return (
     <Portal>
-    <div className="fixed inset-0 ako-keyboard-aware z-50 flex items-end justify-center">
+    <div className="fixed inset-0 ako-keyboard-aware z-50 flex items-center justify-center px-6">
       <div className="absolute inset-0 bg-ink/40" onClick={onClose} />
-      <div className="relative w-full max-w-xl bg-surface rounded-t-2xl border-t border-border max-h-[85vh] flex flex-col pb-[env(safe-area-inset-bottom)]">
+      <div className="relative w-full max-w-xl bg-surface rounded-[28px] border border-border max-h-[calc(100dvh-10rem)] flex flex-col">
         <div className="flex items-center justify-between px-4 pt-4 pb-2">
           <div className="min-w-0">
             <p className="text-sm font-medium text-ink">Manage access</p>

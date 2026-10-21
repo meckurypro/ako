@@ -45,7 +45,7 @@ export function CommentMoreMenu({ comment, iconSize = 16 }: { comment: CommentWi
       >
         <MoreHorizontal size={iconSize} />
       </button>
-      {open && <DropdownMenu anchorRef={buttonRef} onClose={() => setOpen(false)} items={items} widthClass="w-44" />}
+      {open && <DropdownMenu title="Comment options" anchorRef={buttonRef} onClose={() => setOpen(false)} items={items} />}
     </div>
   );
 }

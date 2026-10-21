@@ -53,10 +53,10 @@ export function MusicDiscoverySheet({ catalogueId, onClose }: MusicDiscoveryShee
 
   return (
     <Portal>
-      <div className="fixed inset-0 ako-keyboard-aware z-[70] flex items-end justify-center" role="dialog" aria-modal="true">
+      <div className="fixed inset-0 ako-keyboard-aware z-[70] flex items-center justify-center px-6" role="dialog" aria-modal="true">
         <div className="absolute inset-0 bg-canvas/70 backdrop-blur-overlay" onClick={onClose} />
 
-        <div className="relative w-full max-w-xl bg-surface rounded-t-3xl border border-border">
+        <div className="relative w-full max-w-xl bg-surface rounded-[28px] border border-border">
           <div className="flex items-center justify-between px-4 pt-4 pb-3 border-b border-border">
             <h2 className="font-display text-lg text-ink">Song</h2>
             <button onClick={onClose} className="p-1 text-ink-muted" aria-label="Close">

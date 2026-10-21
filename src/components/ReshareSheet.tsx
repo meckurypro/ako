@@ -3,8 +3,7 @@ import { useState } from "react";
 import { Repeat2, PenSquare } from "lucide-react";
 import { useCreateReshare } from "../hooks/usePosts";
 import { useBackDismiss } from "../hooks/useBackDismiss";
-import { useScrollLock } from "../hooks/useScrollLock";
-import { Portal } from "./Portal";
+import { Modal } from "./Modal";
 import { RepostEmbed } from "./RepostEmbed";
 import { useToast } from "./Toast";
 import type { RepostSource } from "../types/database";
@@ -35,7 +34,6 @@ export function ReshareSheet({ postId, source, onClose }: ReshareSheetProps) {
   // Second level — only pushed while in the "quote" step, so back
   // from there returns to "choose" instead of closing outright.
   useBackDismiss(() => setMode("choose"), mode === "quote");
-  useScrollLock();
 
   async function handleRepost() {
     setError(null);
@@ -60,84 +58,77 @@ export function ReshareSheet({ postId, source, onClose }: ReshareSheetProps) {
     }
   }
 
+  // Both steps render in the shared centred Modal with its own back-dismiss switched off: this component already
+  // manages two history levels itself (see above), and a second layer from Modal would double them up.
   if (mode === "choose") {
     return (
-      <Portal>
-      <div className="fixed inset-0 ako-keyboard-aware z-50 flex items-end justify-center">
-        <div className="absolute inset-0 bg-canvas/70 backdrop-blur-overlay" onClick={onClose} />
-        <div className="relative w-full max-w-xl bg-surface rounded-t-2xl border-t border-border pb-[env(safe-area-inset-bottom)]">
+      <Modal onClose={onClose} title="Share post" backDismiss={false}>
+        <div className="-mx-2">
           <button
+            type="button"
             onClick={handleRepost}
             disabled={createReshare.isPending}
-            className="w-full flex items-center gap-3 px-4 py-3.5 text-sm text-ink disabled:opacity-50"
+            className="flex w-full items-center gap-3 rounded-2xl px-2 py-3 text-left text-overlay-ink active:bg-overlay-surface-raised disabled:opacity-50"
           >
-            <Repeat2 size={18} className="text-accent" />
-            {createReshare.isPending ? "Reposting…" : "Repost"}
+            <span className="flex h-10 w-10 shrink-0 items-center justify-center text-overlay-accent">
+              <Repeat2 size={24} />
+            </span>
+            <span className="font-semibold">{createReshare.isPending ? "Reposting…" : "Repost"}</span>
           </button>
 
           <button
+            type="button"
             onClick={() => setMode("quote")}
-            className="w-full flex items-center gap-3 px-4 py-3.5 text-sm text-ink"
+            className="flex w-full items-center gap-3 rounded-2xl px-2 py-3 text-left text-overlay-ink active:bg-overlay-surface-raised"
           >
-            <PenSquare size={18} className="text-accent" />
-            Quote
-          </button>
-
-          {error && <p className="text-danger text-sm px-4 pb-2">{error}</p>}
-
-          <button onClick={onClose} className="w-full py-3.5 text-sm text-ink-muted border-t border-border mt-1">
-            Cancel
+            <span className="flex h-10 w-10 shrink-0 items-center justify-center text-overlay-accent">
+              <PenSquare size={24} />
+            </span>
+            <span className="font-semibold">Quote</span>
           </button>
         </div>
-      </div>
-      </Portal>
+
+        {error && <p className="mt-2 text-sm text-overlay-danger">{error}</p>}
+      </Modal>
     );
   }
 
   return (
-    <Portal>
-    <div className="fixed inset-0 ako-keyboard-aware bg-canvas/70 backdrop-blur-overlay flex items-end sm:items-center justify-center z-50 px-4">
-      <div className="bg-canvas rounded-2xl w-full max-w-md mb-safe overflow-hidden border-t-4 border-accent">
-        <div className="p-5">
-          <textarea
-            value={caption}
-            onChange={(e) => setCaption(e.target.value)}
-            maxLength={1000}
-            rows={4}
-            autoFocus
-            placeholder="Add a comment…"
-            className="w-full px-4 py-3 rounded-xl border border-border bg-surface text-ink
-              resize-none focus:outline-none focus:ring-2 focus:ring-accent/40 focus:border-accent transition-colors duration-150"
-          />
+    <Modal onClose={() => setMode("choose")} title="Quote post" backDismiss={false} themed maxWidthClass="max-w-md">
+      <textarea
+        value={caption}
+        onChange={(e) => setCaption(e.target.value)}
+        maxLength={1000}
+        rows={4}
+        autoFocus
+        placeholder="Add a comment…"
+        className="w-full resize-none rounded-xl border border-border bg-canvas px-4 py-3 text-ink transition-colors duration-150 focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/40"
+      />
 
-          {/* Preview of the original, exactly as it'll appear embedded once posted */}
-          <RepostEmbed source={source} />
+      {/* Preview of the original, exactly as it'll appear embedded once posted */}
+      <RepostEmbed source={source} />
 
-          {error && <p className="text-danger text-sm mt-2">{error}</p>}
+      {error && <p className="mt-2 text-sm text-danger">{error}</p>}
 
-          <div className="flex items-center justify-between mt-3">
-            <span className="text-xs text-ink-muted">{caption.length}/1000</span>
-            <button
-              onClick={handleQuoteSubmit}
-              disabled={createReshare.isPending || !caption.trim()}
-              className="px-5 py-2 rounded-full text-sm font-medium bg-accent text-canvas disabled:opacity-50 transition-colors duration-150"
-            >
-              {createReshare.isPending ? "Posting…" : "Quote"}
-            </button>
-          </div>
-
-          <div className="flex justify-center mt-3">
-            <button
-              onClick={onClose}
-              className="px-6 py-2 rounded-full text-sm font-medium text-ink-muted
-                border border-border hover:bg-surface transition-colors"
-            >
-              Cancel
-            </button>
-          </div>
-        </div>
+      <div className="mt-3 flex items-center justify-between">
+        <span className="text-xs text-ink-muted">{caption.length}/1000</span>
+        <button
+          onClick={handleQuoteSubmit}
+          disabled={createReshare.isPending || !caption.trim()}
+          className="rounded-full bg-accent px-5 py-2 text-sm font-medium text-canvas transition-colors duration-150 disabled:opacity-50"
+        >
+          {createReshare.isPending ? "Posting…" : "Quote"}
+        </button>
       </div>
-    </div>
-    </Portal>
+
+      <div className="mt-3 flex justify-center">
+        <button
+          onClick={() => setMode("choose")}
+          className="rounded-full border border-border px-6 py-2 text-sm font-medium text-ink-muted transition-colors hover:bg-canvas"
+        >
+          Cancel
+        </button>
+      </div>
+    </Modal>
   );
 }

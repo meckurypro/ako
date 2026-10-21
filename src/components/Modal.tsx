@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 import { useEffect } from "react";
 import { useBackDismiss } from "../hooks/useBackDismiss";
 import { useScrollLock } from "../hooks/useScrollLock";
+import { useAnchoredPanel } from "../hooks/useAnchoredPanel";
 import { Portal } from "./Portal";
 
 interface ModalProps {
@@ -42,6 +43,8 @@ interface ModalProps {
    *  calls history.back() when the dialog unmounts, which — after the blocked navigation is allowed to proceed —
    *  would pop the destination page right back off. */
   backDismiss?: boolean;
+  /** Heading shown at the top of the card. Every modal has one; it stays pinned while the body scrolls. */
+  title?: string;
 }
 
 /**
@@ -94,6 +97,7 @@ export function Modal({
   zIndexClass = "z-[60]",
   themed = false,
   backDismiss = true,
+  title,
 }: ModalProps) {
   useBackDismiss(onClose, backDismiss);
   useScrollLock();
@@ -106,18 +110,39 @@ export function Modal({
     return () => document.removeEventListener("keydown", handleKeyDown);
   }, [onClose]);
 
+  const { containerRef, panelRef, style } = useAnchoredPanel();
+
   return (
     <Portal>
-      <div className={`fixed inset-0 ako-keyboard-aware ${zIndexClass} flex items-center justify-center px-6`} role={role} aria-modal="true" aria-label={ariaLabel}>
+      {/* Placement: centred on open from the card's natural height, then the TOP EDGE STAYS PUT — if the content
+          grows, the card extends downward until it nears the bottom nav, then its body scrolls. See
+          useAnchoredPanel. */}
+      <div
+        ref={containerRef}
+        className={`fixed inset-0 ako-keyboard-aware ${zIndexClass} flex items-start justify-center px-6 pt-[env(safe-area-inset-top)]`}
+        role={role}
+        aria-modal="true"
+        aria-label={ariaLabel ?? title}
+      >
         <div className="absolute inset-0 bg-black/40 backdrop-blur-overlay" onClick={onClose} />
         <div
+          ref={panelRef}
+          data-anchored-panel
+          style={style}
           className={
             bare
-              ? `relative w-full ${maxWidthClass} max-h-[85vh] overflow-y-auto`
-              : `relative w-full ${maxWidthClass} max-h-[85vh] overflow-y-auto ${themed ? "ako-themed-panel" : "ako-overlay-panel"} text-overlay-ink rounded-[28px] p-6`
+              ? `relative w-full ${maxWidthClass} overflow-y-auto overscroll-contain`
+              : `relative w-full ${maxWidthClass} flex flex-col overflow-hidden ${themed ? "ako-themed-panel" : "ako-overlay-panel"} text-overlay-ink rounded-[28px]`
           }
         >
-          {children}
+          {bare ? (
+            children
+          ) : (
+            <>
+              {title ? <h2 className="shrink-0 px-6 pt-6 pb-3 text-lg font-semibold text-overlay-ink">{title}</h2> : null}
+              <div className={`min-h-0 flex-1 overflow-y-auto overscroll-contain px-6 pb-6 ${title ? "" : "pt-6"}`}>{children}</div>
+            </>
+          )}
         </div>
       </div>
     </Portal>

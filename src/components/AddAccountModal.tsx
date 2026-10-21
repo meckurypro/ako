@@ -1,6 +1,5 @@
 // src/components/AddAccountModal.tsx
 import { useState } from "react";
-import { X } from "lucide-react";
 import { Modal } from "./Modal";
 import { useAddAccount } from "../hooks/useAccountSwitcher";
 
@@ -41,13 +40,7 @@ export function AddAccountModal({ onClose, onAdded }: AddAccountModalProps) {
   }
 
   return (
-    <Modal onClose={onClose} ariaLabel="Add account">
-      <div className="flex items-center justify-between mb-4">
-        <h2 className="font-display text-lg text-ink">Add account</h2>
-        <button onClick={onClose} aria-label="Close" className="text-ink-muted">
-          <X size={20} />
-        </button>
-      </div>
+    <Modal onClose={onClose} title="Add account">
 
       <p className="text-sm text-ink-muted mb-4">
         Sign into another personal account. Your current account stays saved on this device —

@@ -48,7 +48,7 @@ export function PageInviteResponseModal({
   }
 
   return (
-    <Modal onClose={onClose}>
+    <Modal onClose={onClose} title="Page invite">
       {isLoading ? (
         <p className="text-sm text-ink-muted text-center py-6">Loading…</p>
       ) : !invite ? (

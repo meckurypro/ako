@@ -39,19 +39,15 @@ export function CreateChoice() {
 
   return (
     <div
-      className="fixed inset-0 z-50 bg-canvas/70 backdrop-blur-overlay flex items-end justify-center"
+      className="fixed inset-0 z-50 bg-canvas/70 backdrop-blur-overlay flex items-center justify-center px-6"
       onClick={smartBack}
     >
       <div
-        className="w-full max-w-xl bg-canvas rounded-t-[28px] pb-[calc(env(safe-area-inset-bottom)+1rem)]"
+        className="w-full max-w-sm max-h-[calc(100dvh-10rem)] overflow-y-auto bg-canvas rounded-[28px] border border-border pb-3"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="flex justify-center pt-3">
-          <span className="w-10 h-1.5 rounded-full bg-border" />
-        </div>
-
-        <div className="flex items-center justify-between px-5 pt-3 pb-2">
-          <h2 className="font-display text-xl text-ink">Create</h2>
+        <div className="flex items-center justify-between px-6 pt-6 pb-3">
+          <h2 className="text-lg font-semibold text-ink">Create</h2>
           <button onClick={smartBack} aria-label="Close" className="text-ink-muted p-1">
             <X size={22} />
           </button>
@@ -68,7 +64,7 @@ export function CreateChoice() {
                 <Icon size={20} />
               </span>
               <span className="flex-1 min-w-0">
-                <span className="block text-[15px] font-medium text-ink">{label}</span>
+                <span className="block text-[15px] font-semibold text-ink">{label}</span>
                 <span className="block text-xs text-ink-muted truncate">{description}</span>
               </span>
               <ChevronRight size={18} className="text-ink-muted shrink-0" />
