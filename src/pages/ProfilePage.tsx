@@ -1,7 +1,7 @@
 // src/pages/ProfilePage.tsx
 import { useState, useRef, useEffect } from "react";
 import { useParams, Link, useNavigate, useLocation } from "react-router-dom";
-import { Settings, Wallet, MessageCircle, MoreHorizontal, Plus, Eye, X, Globe, UserCheck, Lock, Redo2, Building2, Undo2, ChevronDown, UserMinus, Bell, BellOff, Send, Briefcase, Activity as ActivityIcon } from "lucide-react";
+import { Settings, Wallet, MessageCircle, MoreHorizontal, Plus, Eye, X, UserCheck, UserPlus, Lock, Redo2, Building2, Undo2, ChevronDown, UserMinus, Bell, BellOff, Briefcase, Clock, Pencil, Share2, Menu, Link2, Ban, Layers, LayoutGrid, RefreshCw, Activity as ActivityIcon, type LucideIcon } from "lucide-react";
 import { useAuth } from "../hooks/useAuth";
 import { useProjectOwnership } from "../hooks/useProjectOwnership";
 import {
@@ -57,6 +57,7 @@ import { BottomNav } from "../components/BottomNav";
 import { ProfileAdSlot } from "../components/ProfileAdSlot";
 import { useIsRestricted } from "../hooks/useAccountAccess";
 import { APP_URL } from "../lib/appUrl";
+import { profileTabIcon } from "../lib/profileTabIcons";
 
 // Website links are saved in full (whatever the user pastes, including
 // long query strings), but only the bare domain is ever shown — the
@@ -115,7 +116,7 @@ function PortfolioCategoryPane({
     // when the aggregate query found eligible work — but cache
     // staleness between the two queries is possible, so fail quiet
     // rather than showing a broken-looking empty tab.
-    return <p className="text-ink-muted text-center py-10 text-sm">Nothing here yet.</p>;
+    return <EmptyNote icon={Layers}>Nothing here yet.</EmptyNote>;
   }
   return (
     <>
@@ -151,7 +152,7 @@ function TypeCategoryPane({
   // Skeleton tiles (not a blank pane, not a page-wide overlay) while just this tab's data loads.
   if (isLoading) return <ProjectMiniGridSkeleton projectType={projectType} />;
   if (!projects || projects.length === 0) {
-    return <p className="text-ink-muted text-center py-10 text-sm">Nothing here yet.</p>;
+    return <EmptyNote icon={Layers}>Nothing here yet.</EmptyNote>;
   }
   // Books: compact 2-up cover grid (same tiles as Discover/search). Tapping a card opens the book's own
   // slug page, where the full details, buy/download and owner controls live.
@@ -172,6 +173,25 @@ function TypeCategoryPane({
 // h-14 === 56px === top-14.
 const TOOLBAR_HEIGHT_CLASS = "h-14";
 const TOOLBAR_HEIGHT_PX = 56;
+
+// Shared button looks for the icon-led toolbar and action row.
+const TOOLBAR_ICON_BTN =
+  "w-10 h-10 shrink-0 flex items-center justify-center rounded-full text-ink hover:bg-ink/5 active:bg-ink/10 transition-colors";
+const ACTION_ICON_BTN_FLEX =
+  "flex-1 h-11 inline-flex items-center justify-center rounded-xl bg-surface border border-border text-ink active:scale-[0.97] transition-transform";
+
+// Icon-led empty / blocked / error state — same shape as the private-account
+// notice so every "nothing to show" moment on the profile reads the same.
+function EmptyNote({ icon: Icon, children }: { icon: LucideIcon; children: React.ReactNode }) {
+  return (
+    <div className="flex flex-col items-center text-center py-14 px-6">
+      <div className="w-14 h-14 rounded-full bg-accent-soft flex items-center justify-center mb-3">
+        <Icon size={22} className="text-accent" />
+      </div>
+      <p className="text-ink-muted text-sm max-w-xs">{children}</p>
+    </div>
+  );
+}
 
 export function ProfilePage() {
   const { username } = useParams<{ username: string }>();
@@ -582,34 +602,27 @@ export function ProfilePage() {
 
   return (
     <div className="min-h-screen bg-canvas pb-24">
-      {/* Tier 1 — the toolbar row (owner's Plus/⋯, a visitor's
-          Message/Follow/⋯, or the "Exit preview" control while the
-          owner is previewing as a visitor). Sticky, and fixed-height
-          when visible so Tier 2 below has a stable offset to dock
-          under — but fades and collapses to zero height once the
-          avatar/bio/stats block below has scrolled fully past it (see
-          tier1Collapsed), freeing that space for content and leaving
-          just Tier 2's tab titles + indicator line pinned. */}
+      {/* Tier 1 — the icon toolbar. Owner: edit (pencil) on the left, the
+          reserved ad slot in the middle, create (+) and the menu on the
+          right. Visitor: share and more. While the owner previews as a
+          visitor it's just the exit control. Sticky and fixed-height so
+          Tier 2 below has a stable offset to dock under, then fades away
+          once the header block has scrolled past (see tier1Collapsed). */}
       <div
-        className={`sticky top-0 z-chrome bg-canvas shadow-[0_2px_8px_-4px_rgba(var(--shadow-ink-rgb),0.10)] overflow-hidden transition-[opacity,max-height] duration-200 ease-out ${
+        className={`sticky top-0 z-chrome bg-canvas overflow-hidden transition-[opacity,max-height] duration-200 ease-out ${
           tier1Collapsed ? "opacity-0 max-h-0 pointer-events-none" : "opacity-100 max-h-14"
         }`}
       >
-        <div className={`max-w-xl md:max-w-2xl mx-auto px-4 ${TOOLBAR_HEIGHT_CLASS} flex items-center`}>
+        <div className={`max-w-xl md:max-w-2xl mx-auto px-3 ${TOOLBAR_HEIGHT_CLASS} flex items-center gap-1`}>
           {showOwnerView ? (
-            // The gap left of the Plus/⋯ icons is the reserved ad slot
-            // (see AKO_VETERAN_UI_UX_AUDIT's "reserved profile ad
-            // space" requirement) — ProfileAdSlot renders transparent
-            // until an admin has an active creative targeting this
-            // viewer (see useAdCreatives.ts / AdminProfileAds.tsx). Do
-            // not center these icons or fill this gap with other
-            // controls — it belongs to the ad slot even when it's
-            // currently showing nothing.
-            <div className="flex items-center gap-2 w-full">
-              <ProfileAdSlot className="flex-1 min-w-0" />
+            <>
+              <Link to="/settings/profile" aria-label="Edit profile" title="Edit profile" className={TOOLBAR_ICON_BTN}>
+                <Pencil size={22} />
+              </Link>
+              <ProfileAdSlot className="flex-1 min-w-0 mx-1" />
               {!restricted && (
-                <Link to="/create" state={{ background: location }} aria-label="Create" className="p-2 text-ink-muted shrink-0">
-                  <Plus size={22} />
+                <Link to="/create" state={{ background: location }} aria-label="Create" title="Create" className={TOOLBAR_ICON_BTN}>
+                  <Plus size={26} />
                 </Link>
               )}
 
@@ -617,15 +630,16 @@ export function ProfilePage() {
                 <button
                   ref={ownerMenuButtonRef}
                   onClick={() => setOwnerMenuOpen((o) => !o)}
-                  className="relative p-2 text-ink-muted"
+                  className={`relative ${TOOLBAR_ICON_BTN}`}
                   aria-label="Profile options"
+                  title="Menu"
                 >
-                  <MoreHorizontal size={20} />
+                  <Menu size={24} />
                   {/* Same badge shown again on the "Follow requests" row
                       below — this one flags that something inside the
                       menu needs attention before it's even opened. */}
                   {incomingRequestCount > 0 && (
-                    <span className="absolute top-0.5 right-0.5 bg-danger text-canvas text-[10px] font-medium rounded-full w-4 h-4 flex items-center justify-center">
+                    <span className="absolute top-1 right-1 bg-danger text-canvas text-[10px] font-medium rounded-full w-4 h-4 flex items-center justify-center">
                       {incomingRequestCount > 9 ? "9+" : incomingRequestCount}
                     </span>
                   )}
@@ -694,55 +708,230 @@ export function ProfilePage() {
                   />
                 )}
               </div>
-            </div>
+            </>
           ) : isOwnProfile ? (
-            // Previewing own profile as a visitor sees it. The
-            // explanatory banner scrolls with the rest of the header
-            // now (see below), but the control to leave preview mode
-            // stays reachable up here at all times, scrolled or not.
             <div className="flex items-center justify-end w-full">
               <button
                 onClick={() => setPreviewingAsVisitor(false)}
-                className="flex items-center gap-1 text-sm text-accent font-medium px-2 py-1.5"
+                className="flex items-center gap-1.5 text-sm text-accent font-medium px-3 py-2 rounded-full bg-accent-soft"
               >
                 <X size={14} />
                 Exit preview
               </button>
             </div>
-          ) : isFollowing ? (
-            // Already following: Message and Unfollow no longer sit
-            // exposed as their own one-tap controls (a raw "Unfollow"
-            // pill made it too easy to drop someone by accident) —
-            // they're compressed into this one relationship menu,
-            // right next to the existing "…" (which keeps Report/
-            // Block/Customise name/QR — see ShareProfileSheet). A
-            // dedicated "Following ▾" pill, not a bare icon, so the
-            // relationship state is still visible at a glance.
-            <div className="flex items-center justify-end gap-2 relative w-full">
+          ) : (
+            <>
+              <div className="flex-1" />
               <button
-                ref={relationshipMenuButtonRef}
-                onClick={() => setRelationshipMenuOpen((o) => !o)}
-                disabled={isBlocked}
-                className="flex items-center gap-1.5 text-sm font-medium bg-accent-soft text-accent rounded-full pl-4 pr-3 py-2 disabled:opacity-40"
+                onClick={() => setQrShareOpen(true)}
+                className={TOOLBAR_ICON_BTN}
+                aria-label="Share profile"
+                title="Share profile"
               >
-                <UserCheck size={16} />
-                Following
-                <ChevronDown size={14} />
+                <Share2 size={22} />
               </button>
+              <button
+                onClick={() => setShareSheetOpen(true)}
+                className={TOOLBAR_ICON_BTN}
+                aria-label="More options"
+                title="More options"
+              >
+                <MoreHorizontal size={22} />
+              </button>
+            </>
+          )}
+        </div>
+      </div>
 
-              {relationshipMenuOpen && (
+      {/* Non-sticky header content — name, handle, roles and stats on the
+          left; a large avatar on the right; then bio, website and the
+          action row. This scrolls away underneath Tier 1; only the
+          toolbar row and the tab bar (Tier 2, further down) stay pinned. */}
+      <div ref={headerBlockRef} className="max-w-xl md:max-w-2xl mx-auto px-4 pt-2">
+        {/* Preview-mode banner — informational only; the actual "Exit"
+            control lives in the always-reachable Tier 1 bar above. */}
+        {isOwnProfile && previewingAsVisitor && (
+          <div className="flex items-center gap-1.5 bg-accent-soft text-accent text-sm rounded-xl px-4 py-2.5 mb-4">
+            <Eye size={14} />
+            Viewing your profile as a visitor sees it
+          </div>
+        )}
+
+        <div className="flex items-start justify-between gap-4">
+          <div className="flex-1 min-w-0 pt-1">
+            <div className="flex items-center gap-2 flex-wrap">
+              {showOwnerView ? (
+                <div className="relative">
+                  <button
+                    type="button"
+                    onClick={handleAccountNameClick}
+                    className="flex items-center gap-1 text-left"
+                    aria-label="Switch account"
+                  >
+                    <h1 className="font-bold text-[1.75rem] leading-tight tracking-tight text-ink break-words">
+                      {profile.display_name}
+                    </h1>
+                    <ChevronDown size={18} className="text-ink-muted shrink-0 mt-1" />
+                  </button>
+                  {accountSwitcherOpen && (
+                    <AccountSwitcher onClose={() => setAccountSwitcherOpen(false)} />
+                  )}
+                </div>
+              ) : (
+                <h1 className="font-bold text-[1.75rem] leading-tight tracking-tight text-ink break-words">
+                  {displayName}
+                </h1>
+              )}
+              <TierBadge tier={profile.tier} />
+            </div>
+
+            <p className="text-base text-ink-muted mt-0.5 truncate">@{profile.username}</p>
+
+            {profile.badge_visible && (
+              <VerifiedBadge size={15} label className="mt-1" />
+            )}
+            {showOwnerView && profile.badge_streak != null && (
+              <BadgeStreakNote visible={!!profile.badge_visible} streak={profile.badge_streak} />
+            )}
+
+            {profile.roles.length > 0 && (
+              <RoleTags roles={profile.roles} className="text-xs text-ink-muted block mt-1" />
+            )}
+
+            {/* Visit count ("X visits in the last 30 days") lives in
+                Settings → Profile — it's an owner-facing stat about the
+                account, not part of this row (see Settings.tsx). */}
+            <div className="flex items-center gap-7 mt-5">
+              <Link to={`/profile/${profile.username}/following`} className="block">
+                <span className="block text-xl font-semibold leading-none text-ink tabular-nums">
+                  {profile.following_count}
+                </span>
+                <span className="block text-sm text-ink-muted mt-1.5">Following</span>
+              </Link>
+              <Link to={`/profile/${profile.username}/followers`} className="block">
+                <span className="block text-xl font-semibold leading-none text-ink tabular-nums">
+                  {profile.follower_count}
+                </span>
+                <span className="block text-sm text-ink-muted mt-1.5">Followers</span>
+              </Link>
+            </div>
+          </div>
+
+          <div className="relative shrink-0">
+            {profile.avatar_url ? (
+              <button
+                type="button"
+                onClick={() => setAvatarOpen(true)}
+                className="block rounded-full ring-2 ring-border ring-offset-2 ring-offset-canvas"
+                aria-label="View profile photo"
+              >
+                <Avatar src={profile.avatar_url} name={profile.display_name} size="2xl" />
+              </button>
+            ) : (
+              <span className="block rounded-full ring-2 ring-border ring-offset-2 ring-offset-canvas">
+                <Avatar src={profile.avatar_url} name={profile.display_name} size="2xl" />
+              </span>
+            )}
+            {showOwnerView && (
+              <Link
+                to="/settings/profile"
+                aria-label="Change profile photo"
+                title="Change profile photo"
+                className="absolute -bottom-1 -right-1 w-9 h-9 rounded-full bg-cta text-white border-[3px] border-canvas flex items-center justify-center shadow-sm active:scale-95 transition-transform"
+              >
+                <Plus size={18} strokeWidth={2.75} />
+              </Link>
+            )}
+          </div>
+        </div>
+
+        {profile.bio && (
+          <p className="text-[15px] leading-relaxed text-ink mt-5 whitespace-pre-line break-words">{profile.bio}</p>
+        )}
+
+        {profile.website_url && (
+          <a
+            href={getWebsiteHref(profile.website_url)}
+            target="_blank"
+            rel="noopener noreferrer"
+            title={profile.website_url}
+            className="inline-flex items-center gap-1.5 mt-3 max-w-full rounded-full bg-accent-soft text-accent text-sm font-medium px-3 py-1.5"
+          >
+            <Link2 size={14} className="shrink-0" />
+            <span className="truncate">{getWebsiteDomain(profile.website_url)}</span>
+          </a>
+        )}
+
+        {/* Action row — icon-led. The owner gets quick actions; a visitor
+            gets the one follow control that matches the relationship
+            (follow / follow back / requested / following) plus message. */}
+        <div className="flex items-center gap-2 mt-5 mb-4">
+          {showOwnerView ? (
+            <>
+              <button
+                type="button"
+                onClick={() => setQrShareOpen(true)}
+                className={ACTION_ICON_BTN_FLEX}
+                aria-label="Share profile"
+                title="Share profile"
+              >
+                <Share2 size={20} />
+              </button>
+              <button
+                type="button"
+                onClick={() => setPreviewingAsVisitor(true)}
+                className={ACTION_ICON_BTN_FLEX}
+                aria-label="View as visitor"
+                title="View as visitor"
+              >
+                <Eye size={20} />
+              </button>
+              <Link to="/activity" className={ACTION_ICON_BTN_FLEX} aria-label="Activity" title="Activity">
+                <ActivityIcon size={20} />
+              </Link>
+            </>
+          ) : isOwnProfile ? null : (
+            <>
+              {isFollowing ? (
+                <button
+                  ref={relationshipMenuButtonRef}
+                  onClick={() => setRelationshipMenuOpen((o) => !o)}
+                  disabled={isBlocked}
+                  aria-label="Following — open options"
+                  className="flex-1 h-11 inline-flex items-center justify-center gap-2 rounded-xl bg-accent-soft text-accent text-[15px] font-semibold active:scale-[0.98] transition-transform disabled:opacity-40"
+                >
+                  <UserCheck size={19} />
+                  Following
+                  <ChevronDown size={16} />
+                </button>
+              ) : (
+                <button
+                  onClick={handleFollowClick}
+                  disabled={
+                    toggleFollow.isPending ||
+                    sendFollowRequest.isPending ||
+                    cancelFollowRequest.isPending ||
+                    isBlocked
+                  }
+                  className={`flex-1 h-11 inline-flex items-center justify-center gap-2 rounded-xl text-[15px] font-semibold active:scale-[0.98] transition-transform disabled:opacity-40 ${
+                    hasPendingRequest
+                      ? "bg-accent-soft text-accent"
+                      : isFollowedByUser
+                      ? "bg-pushback/15 text-pushback"
+                      : "bg-cta text-white"
+                  }`}
+                >
+                  {hasPendingRequest ? <Clock size={19} /> : <UserPlus size={19} />}
+                  {hasPendingRequest ? "Requested" : isFollowedByUser ? "Follow back" : "Follow"}
+                </button>
+              )}
+
+              {relationshipMenuOpen && isFollowing && (
                 <DropdownMenu
                   anchorRef={relationshipMenuButtonRef}
                   onClose={() => setRelationshipMenuOpen(false)}
                   widthClass="w-56"
                   items={[
-                    {
-                      key: "message",
-                      label: "Message",
-                      icon: <Send />,
-                      disabled: startConversation.isPending,
-                      onSelect: () => void handleMessage(),
-                    },
                     {
                       key: "mute",
                       label: isMuted ? "Unmute" : "Mute their updates",
@@ -763,195 +952,64 @@ export function ProfilePage() {
               )}
 
               <button
-                onClick={() => setShareSheetOpen(true)}
-                className="text-ink-muted p-2"
-                aria-label="More options"
-              >
-                <MoreHorizontal size={18} />
-              </button>
-            </div>
-          ) : (
-            <div className="flex items-center justify-end gap-2 relative w-full">
-              <button
                 onClick={handleMessage}
                 disabled={startConversation.isPending || isBlocked}
-                className="flex items-center gap-1.5 text-sm text-ink-muted border border-border rounded-full px-4 py-2 disabled:opacity-40"
+                className="h-11 w-12 shrink-0 inline-flex items-center justify-center rounded-xl bg-surface border border-border text-ink active:scale-[0.96] transition-transform disabled:opacity-40"
+                aria-label="Message"
+                title="Message"
               >
-                <MessageCircle size={16} />
-                Message
+                <MessageCircle size={20} />
               </button>
-              <button
-                onClick={handleFollowClick}
-                disabled={
-                  toggleFollow.isPending ||
-                  sendFollowRequest.isPending ||
-                  cancelFollowRequest.isPending ||
-                  isBlocked
-                }
-                className={`px-5 py-2 rounded-full text-sm font-medium disabled:opacity-40 ${
-                  hasPendingRequest
-                    ? "bg-accent-soft text-accent"
-                    : isFollowedByUser
-                    ? "bg-pushback/15 text-pushback"
-                    : "bg-ink/10 text-ink"
-                }`}
-              >
-                {hasPendingRequest ? "Requested" : isFollowedByUser ? "Follow back" : "Follow"}
-              </button>
-
-              <button
-                onClick={() => setShareSheetOpen(true)}
-                className="text-ink-muted p-2"
-                aria-label="More options"
-              >
-                <MoreHorizontal size={18} />
-              </button>
-            </div>
+            </>
           )}
         </div>
       </div>
 
-      {/* Non-sticky header content — banner, avatar/name/roles/handle,
-          bio, and the Following/Followers stats row. This scrolls
-          away underneath Tier 1 above, same as any other page content;
-          only the toolbar row and the tab bar (Tier 2, further down)
-          stay pinned. */}
-      <div ref={headerBlockRef} className="max-w-xl md:max-w-2xl mx-auto px-4 pt-4">
-        {/* Preview-mode banner — informational only now; the actual
-            "Exit" control lives in the always-reachable Tier 1 bar
-            above, so this can scroll away without taking the exit
-            with it. */}
-        {isOwnProfile && previewingAsVisitor && (
-          <div className="flex items-center gap-1.5 bg-accent-soft text-accent text-sm rounded-xl px-4 py-2.5 mb-4">
-            <Eye size={14} />
-            Viewing your profile as a visitor sees it
-          </div>
-        )}
-
-        {/* Header: avatar beside name / roles / handle + website */}
-        <div className="flex items-start gap-4">
-          {profile.avatar_url ? (
-            <button
-              type="button"
-              onClick={() => setAvatarOpen(true)}
-              className="flex-shrink-0"
-              aria-label="View profile photo"
-            >
-              <Avatar src={profile.avatar_url} name={profile.display_name} size="lg" />
-            </button>
-          ) : (
-            <Avatar src={profile.avatar_url} name={profile.display_name} size="lg" />
-          )}
-          <div className="flex-1 min-w-0 pt-1">
-            <div className="flex items-center gap-2 flex-wrap">
-              {showOwnerView ? (
-                <div className="relative">
-                  <button
-                    type="button"
-                    onClick={handleAccountNameClick}
-                    className="flex items-center gap-1"
-                  >
-                    <h1 className="font-medium text-lg text-ink">{profile.display_name}</h1>
-                  </button>
-                  {accountSwitcherOpen && (
-                    <AccountSwitcher onClose={() => setAccountSwitcherOpen(false)} />
-                  )}
-                </div>
-              ) : (
-                <h1 className="font-medium text-lg text-ink">{displayName}</h1>
-              )}
-              <TierBadge tier={profile.tier} />
-            </div>
-
-            {profile.badge_visible && (
-              <VerifiedBadge size={15} label className="mt-1" />
-            )}
-            {showOwnerView && profile.badge_streak != null && (
-              <BadgeStreakNote visible={!!profile.badge_visible} streak={profile.badge_streak} />
-            )}
-
-            {profile.roles.length > 0 && (
-              <RoleTags roles={profile.roles} className="text-xs text-ink-muted block mt-0.5" />
-            )}
-
-            <p className="text-sm text-ink-muted mt-0.5">
-              @{profile.username}
-              {profile.website_url && (
-                <>
-                  {" / "}
-                  <a
-                    href={getWebsiteHref(profile.website_url)}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    title={profile.website_url}
-                    className="inline-flex items-center gap-1 text-accent hover:underline align-bottom max-w-[160px]"
-                  >
-                    <Globe size={12} className="flex-shrink-0" />
-                    <span className="truncate">{getWebsiteDomain(profile.website_url)}</span>
-                  </a>
-                </>
-              )}
-            </p>
-          </div>
-        </div>
-
-        {profile.bio && <p className="text-ink mt-4">{profile.bio}</p>}
-
-        {/* Visit count ("X visits in the last 30 days") moved to
-            Settings → Profile — it's an owner-facing stat about the
-            account, not part of what belongs in this Following/
-            Followers row (see Settings.tsx). */}
-        <div className="flex items-center gap-5 mt-4 mb-4 flex-wrap">
-          <Link to={`/profile/${profile.username}/following`} className="text-sm">
-            <span className="font-medium text-ink">{profile.following_count}</span>{" "}
-            <span className="text-ink-muted">Following</span>
-          </Link>
-          <Link to={`/profile/${profile.username}/followers`} className="text-sm">
-            <span className="font-medium text-ink">{profile.follower_count}</span>{" "}
-            <span className="text-ink-muted">Followers</span>
-          </Link>
-        </div>
-      </div>
-
-      {/* Tier 2 — the Posts/Projects tab bar. Its own sticky element,
-          docking under Tier 1 (top-14 === Tier 1's h-14) normally, and
-          right at the very top (top-0) once Tier 1 has collapsed away
-          — see tier1Collapsed above — so the tab titles and the
-          sliding indicator line are the only things left pinned once
-          the avatar/bio/stats block has scrolled past. Hidden entirely
-          for a locked private profile, same as before, since there's
-          nothing behind either tab for a visitor to switch to. */}
+      {/* Tier 2 — the icon tab bar. Its own sticky element, docking under
+          Tier 1 (top-14 === Tier 1's h-14) normally and at the very top
+          once Tier 1 has collapsed away, so only the tab icons and the
+          sliding indicator stay pinned once the header has scrolled past.
+          Tabs carry no text: each icon comes from profileTabIcon(), and
+          the label stays available as aria-label / tooltip. Hidden
+          entirely for a locked private profile. */}
       {!isPrivateLocked && tabDefs.length > 0 && (
         <div
-          className={`sticky z-subchrome bg-canvas shadow-[0_2px_8px_-4px_rgba(var(--shadow-ink-rgb),0.10)] transition-[top] duration-200 ease-out ${
+          className={`sticky z-subchrome bg-canvas transition-[top] duration-200 ease-out ${
             tier1Collapsed ? "top-0" : "top-14"
           }`}
         >
           <div className="max-w-xl md:max-w-2xl mx-auto px-4">
-            {/* Equal width, same sliding-indicator treatment as before —
-                only the wrapper around this moved, not the tab row
-                itself. */}
-            <div className="relative flex items-stretch border-b border-border">
-              {tabDefs.map((tab, i) => (
-                <button
-                  key={tab.id}
-                  onClick={() => handleTabClick(i, tab.id)}
-                  className={`flex-1 text-center text-sm font-medium pt-3 pb-3 ${
-                    activeTab === tab.id ? "text-accent" : "text-ink-muted"
-                  }`}
-                >
-                  {tab.label}
-                </button>
-              ))}
+            <div role="tablist" className="relative flex items-stretch border-b border-border">
+              {tabDefs.map((tab, i) => {
+                const TabIcon = profileTabIcon(tab.id, tab.label);
+                const isActive = activeTab === tab.id;
+                return (
+                  <button
+                    key={tab.id}
+                    role="tab"
+                    aria-selected={isActive}
+                    aria-label={tab.label}
+                    title={tab.label}
+                    onClick={() => handleTabClick(i, tab.id)}
+                    className={`flex-1 h-12 flex items-center justify-center transition-colors ${
+                      isActive ? "text-accent" : "text-ink-muted"
+                    }`}
+                  >
+                    <TabIcon size={24} strokeWidth={isActive ? 2.25 : 1.75} />
+                  </button>
+                );
+              })}
               <div
-                className={`ako-tab-indicator absolute bottom-0 left-0 h-[2px] bg-accent rounded-full ${
+                className={`ako-tab-indicator absolute bottom-0 left-0 h-[3px] flex justify-center ${
                   tabDragging ? "ako-tab-indicator--dragging" : ""
                 }`}
                 style={{
                   width: `${100 / tabDefs.length}%`,
                   transform: `translateX(${tabProgress * 100}%)`,
                 }}
-              />
+              >
+                <span className="block w-9 h-full rounded-full bg-accent" />
+              </div>
             </div>
           </div>
         </div>
@@ -964,9 +1022,7 @@ export function ProfilePage() {
             shows the one relevant message instead of two identical panes. */}
         <div className="mt-4">
           {isBlocked ? (
-            <p className="text-ink-muted text-center py-10 text-sm">
-              You've blocked this account. Unblock to see their content.
-            </p>
+            <EmptyNote icon={Ban}>You've blocked this account. Unblock to see their content.</EmptyNote>
           ) : isPrivateLocked ? (
             <div className="flex flex-col items-center text-center py-14 px-6">
               <div className="w-14 h-14 rounded-full bg-accent-soft flex items-center justify-center mb-3">
@@ -980,9 +1036,9 @@ export function ProfilePage() {
           ) : tabDefs.length === 0 && tabsLoading ? (
             <ProjectMiniGridSkeleton />
           ) : tabDefs.length === 0 ? (
-            <p className="text-ink-muted text-center py-10 text-sm">
+            <EmptyNote icon={Layers}>
               {projectsOwnerView ? "No projects yet — publish your first one." : "No projects yet."}
-            </p>
+            </EmptyNote>
           ) : (
             <SwipeableTabs
               index={activeIndex}
@@ -1003,9 +1059,9 @@ export function ProfilePage() {
                           <PostCard key={post.id} post={post} isOwnerView={showOwnerView} />
                         ))
                       ) : postsError ? (
-                        <p className="text-ink-muted text-center py-10 text-sm">Couldn't load posts. Pull down or reopen the page to retry.</p>
+                        <EmptyNote icon={RefreshCw}>Couldn't load posts. Pull down or reopen the page to retry.</EmptyNote>
                       ) : (
-                        <p className="text-ink-muted text-center py-10 text-sm">No posts yet.</p>
+                        <EmptyNote icon={LayoutGrid}>No posts yet.</EmptyNote>
                       )}
                     </div>
                   );
@@ -1044,9 +1100,9 @@ export function ProfilePage() {
                       ) : projectsLoading ? (
                         <ProjectMiniGridSkeleton />
                       ) : (
-                        <p className="text-ink-muted text-center py-10 text-sm">
+                        <EmptyNote icon={Layers}>
                           {projectsOwnerView ? "No projects yet — publish your first one." : "No projects yet."}
-                        </p>
+                        </EmptyNote>
                       )}
                     </div>
                   );

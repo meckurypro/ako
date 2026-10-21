@@ -32,27 +32,28 @@ export function ProjectMiniGridSkeleton({ count = 4, projectType }: { count?: nu
 export function ProfilePageSkeleton() {
   return (
     <div className="min-h-screen bg-canvas pb-24">
-      <div className="sticky top-0 z-chrome bg-canvas shadow-[0_2px_8px_-4px_rgba(var(--shadow-ink-rgb),0.10)]">
+      <div className="sticky top-0 z-chrome bg-canvas">
         <div className="max-w-xl md:max-w-2xl mx-auto px-4 h-14" />
       </div>
       <div className="max-w-xl md:max-w-2xl mx-auto px-4" role="status" aria-busy="true" aria-label="Loading profile">
-        <div className="animate-pulse pt-4">
-          <div className="flex items-center gap-4">
-            <div className="w-20 h-20 rounded-full bg-surface shrink-0" />
-            <div className="flex-1 space-y-2.5">
-              <div className="h-5 w-2/5 rounded bg-surface" />
-              <div className="h-3.5 w-1/3 rounded bg-surface" />
+        <div className="animate-pulse pt-2">
+          <div className="flex items-start justify-between gap-4">
+            <div className="flex-1 pt-1 space-y-2.5">
+              <div className="h-7 w-3/5 rounded bg-surface" />
+              <div className="h-4 w-2/5 rounded bg-surface" />
+              <div className="mt-5 flex gap-7">
+                <div className="h-9 w-16 rounded bg-surface" />
+                <div className="h-9 w-16 rounded bg-surface" />
+              </div>
             </div>
+            <div className="w-28 h-28 rounded-full bg-surface shrink-0" />
           </div>
           <div className="mt-5 space-y-2">
             <div className="h-3.5 w-full rounded bg-surface" />
             <div className="h-3.5 w-4/5 rounded bg-surface" />
           </div>
-          <div className="mt-5 flex gap-5">
-            <div className="h-3.5 w-20 rounded bg-surface" />
-            <div className="h-3.5 w-20 rounded bg-surface" />
-          </div>
-          <div className="mt-6 h-10 w-full rounded bg-surface" />
+          <div className="mt-5 h-11 w-full rounded-xl bg-surface" />
+          <div className="mt-4 h-12 w-full rounded bg-surface" />
         </div>
         <div className="mt-4">
           <PostListSkeleton count={2} />

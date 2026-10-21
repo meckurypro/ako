@@ -1,7 +1,7 @@
 interface AvatarProps {
   src?: string | null;
   name: string;
-  size?: "sm" | "md" | "vn" | "lg" | "xl";
+  size?: "sm" | "md" | "vn" | "lg" | "xl" | "2xl";
 }
 
 const sizeClasses = {
@@ -12,6 +12,7 @@ const sizeClasses = {
   vn: "w-12 h-12 text-base",
   xl: "w-16 h-16 text-xl",
   lg: "w-20 h-20 text-2xl",
+  "2xl": "w-28 h-28 text-4xl",
 };
 
 export function Avatar({ src, name, size = "md" }: AvatarProps) {
