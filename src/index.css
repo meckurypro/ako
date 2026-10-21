@@ -43,6 +43,7 @@
   --color-stance-support: #4E8A62;
   --color-stance-disagree: #B4574A;
   --color-stance-pushback: #B8862E;
+  --color-brand-orange: #FD5200;   /* the orange in the Akọ logo (sampled from the app icon) — pages/organisation affordances */
   --color-online-glow: #FF6A00;    /* neon orange — "recently online" presence dot only. Used to double as the read-tick color too (misleadingly named --color-tick-read); ticks now use their own --color-tick-blue below, WhatsApp-accurate instead of this loud orange. */
   --color-tick-blue: #53BDEB;      /* WhatsApp's own read-receipt blue — double-tick color once a message has been read. Sent/delivered ticks stay the neutral unread color in MessageStatusTicks; only this final state goes blue, matching WhatsApp exactly. */
   --color-presence-online: #39FF6A; /* neon green — online-now presence dot */

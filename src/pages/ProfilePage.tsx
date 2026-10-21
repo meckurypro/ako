@@ -55,6 +55,8 @@ import { ProjectMiniCard, ProjectMiniGrid } from "../components/ProjectMiniCard"
 import { PostListSkeleton, ProfilePageSkeleton, ProjectMiniGridSkeleton } from "../components/ProfileSkeletons";
 import { BottomNav } from "../components/BottomNav";
 import { ProfileAdSlot } from "../components/ProfileAdSlot";
+import { ProfilePagesModal } from "../components/ProfilePagesModal";
+import { useProfilePages } from "../hooks/usePages";
 import { useIsRestricted } from "../hooks/useAccountAccess";
 import { APP_URL } from "../lib/appUrl";
 import { profileTabIcon } from "../lib/profileTabIcons";
@@ -335,6 +337,8 @@ export function ProfilePage() {
   const { data: nickname } = useContactNickname(profile?.id ?? "");
 
   const isOwnProfile = user?.id === profile?.id;
+  const profilePagesQuery = useProfilePages(profile?.id ?? "");
+  const [pagesOpen, setPagesOpen] = useState(false);
   const showOwnerView = isOwnProfile && !previewingAsVisitor;
   // Projects on this profile are the PERSON's. While acting as a Page, the
   // Page is a different account, so they read as another user's content: no
@@ -362,6 +366,8 @@ export function ProfilePage() {
   // briefly showing content and yanking it back a moment later), which
   // is the safer direction to be wrong in for a privacy gate.
   const isPrivateLocked = !!profile?.is_private && !showOwnerView && !isFollowing;
+  // Pages icon: orange + tappable only when there is something to show; hidden behind a private lock.
+  const hasPages = !isPrivateLocked && (profilePagesQuery.data?.length ?? 0) > 0;
 
   // Passing "" makes each hook's own `enabled: !!userId` guard skip the
   // request entirely — a locked-out visitor's client never asks the
@@ -808,20 +814,6 @@ export function ProfilePage() {
             {/* Visit count ("X visits in the last 30 days") lives in
                 Settings → Profile — it's an owner-facing stat about the
                 account, not part of this row (see Settings.tsx). */}
-            <div className="flex items-center gap-7 mt-5">
-              <Link to={`/profile/${profile.username}/following`} className="block">
-                <span className="block text-xl font-semibold leading-none text-ink tabular-nums">
-                  {profile.following_count}
-                </span>
-                <span className="block text-sm text-ink-muted mt-1.5">Following</span>
-              </Link>
-              <Link to={`/profile/${profile.username}/followers`} className="block">
-                <span className="block text-xl font-semibold leading-none text-ink tabular-nums">
-                  {profile.follower_count}
-                </span>
-                <span className="block text-sm text-ink-muted mt-1.5">Followers</span>
-              </Link>
-            </div>
           </div>
 
           <div className="relative shrink-0">
@@ -850,6 +842,36 @@ export function ProfilePage() {
               </Link>
             )}
           </div>
+        </div>
+
+        {/* Stats row — Following / Followers on the left, Pages on the right (under the avatar). */}
+        <div className="flex items-center justify-between gap-4 mt-5">
+          <div className="flex items-center gap-7">
+            <Link to={`/profile/${profile.username}/following`} className="block">
+              <span className="block text-xl font-semibold leading-none text-ink tabular-nums">
+                {profile.following_count}
+              </span>
+              <span className="block text-sm text-ink-muted mt-1.5">Following</span>
+            </Link>
+            <Link to={`/profile/${profile.username}/followers`} className="block">
+              <span className="block text-xl font-semibold leading-none text-ink tabular-nums">
+                {profile.follower_count}
+              </span>
+              <span className="block text-sm text-ink-muted mt-1.5">Followers</span>
+            </Link>
+          </div>
+          <button
+            type="button"
+            disabled={!hasPages}
+            onClick={() => setPagesOpen(true)}
+            aria-label={hasPages ? "View pages" : "Not affiliated with any pages"}
+            title={hasPages ? "Pages" : "Not affiliated with any pages"}
+            className={`shrink-0 w-11 h-11 mr-1 rounded-full flex items-center justify-center transition-transform ${
+              hasPages ? "text-brand-orange active:scale-95" : "text-ink-muted opacity-40 cursor-default"
+            }`}
+          >
+            <Building2 size={26} strokeWidth={2} />
+          </button>
         </div>
 
         {profile.bio && (
@@ -1193,6 +1215,10 @@ export function ProfilePage() {
           onReportContent={() => setReportContentOpen(true)}
           onClose={() => setShareSheetOpen(false)}
         />
+      )}
+
+      {pagesOpen && hasPages && (
+        <ProfilePagesModal pages={profilePagesQuery.data ?? []} onClose={() => setPagesOpen(false)} />
       )}
 
       {reportContentOpen && (
