@@ -249,6 +249,7 @@ export function SearchResults({
 
       {/* Swipe left/right between result tabs — same carousel as Feed and Profile. */}
       <SwipeableTabs
+        fillViewport
         index={activeIndex}
         onIndexChange={(i) => setTab(visibleTabs[i])}
         onProgress={(progress, dragging) => {

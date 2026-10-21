@@ -61,6 +61,7 @@ import { useIsRestricted } from "../hooks/useAccountAccess";
 import { APP_URL } from "../lib/appUrl";
 import { usePrimaryFloatingAction } from "../lib/floatingChrome";
 import { profileTabIcon } from "../lib/profileTabIcons";
+import { useHidePageScrollbar } from "../lib/useHidePageScrollbar";
 
 // Website links are saved in full (whatever the user pastes, including
 // long query strings), but only the bare domain is ever shown — the
@@ -197,6 +198,8 @@ function EmptyNote({ icon: Icon, children }: { icon: LucideIcon; children: React
 }
 
 export function ProfilePage() {
+  // The page scrollbar popped in and out as the tab changed the page height (Posts vs Files); keep it out of the way.
+  useHidePageScrollbar();
   const { username } = useParams<{ username: string }>();
   const { user } = useAuth();
   const navigate = useNavigate();

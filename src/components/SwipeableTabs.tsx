@@ -67,11 +67,42 @@ interface SwipeableTabsProps {
   /** One pane per tab, in tab order. */
   children: ReactNode[];
   className?: string;
+  /**
+   * Stretch the swipe area down to the bottom of the screen. The carousel is only as tall as its active pane, so on
+   * a short or empty tab (a Connect tab with nothing in it, a handful of search results) a swipe that starts below
+   * the content missed it entirely and the tabs felt like they didn't swipe. Use on screens whose panes can be short.
+   */
+  fillViewport?: boolean;
 }
 
-export function SwipeableTabs({ index, onIndexChange, onProgress, children, className }: SwipeableTabsProps) {
+// Space kept clear under the swipe area so filling the viewport never makes the page scroll when it otherwise wouldn't
+// (the bottom nav plus the page's own bottom padding).
+const FILL_VIEWPORT_RESERVE_PX = 120;
+
+export function SwipeableTabs({ index, onIndexChange, onProgress, children, className, fillViewport }: SwipeableTabsProps) {
   const count = children.length;
   const containerRef = useRef<HTMLDivElement>(null);
+  const [fillMinHeight, setFillMinHeight] = useState(0);
+
+  useEffect(() => {
+    if (!fillViewport) return;
+    const node = containerRef.current;
+    if (!node) return;
+    function measure() {
+      const top = node!.getBoundingClientRect().top + window.scrollY;
+      const next = Math.max(0, Math.round(window.innerHeight - top - FILL_VIEWPORT_RESERVE_PX));
+      setFillMinHeight((prev) => (prev === next ? prev : next));
+    }
+    measure();
+    window.addEventListener("resize", measure);
+    // Anything above the carousel changing height moves its top edge.
+    const ro = new ResizeObserver(measure);
+    ro.observe(document.body);
+    return () => {
+      window.removeEventListener("resize", measure);
+      ro.disconnect();
+    };
+  }, [fillViewport]);
   const paneRefs = useRef<(HTMLDivElement | null)[]>([]);
   const isFirstRender = useRef(true);
 
@@ -346,6 +377,7 @@ export function SwipeableTabs({ index, onIndexChange, onProgress, children, clas
       className={`overflow-hidden ${className ?? ""}`}
       style={{
         height: measuredHeight,
+        minHeight: fillViewport && fillMinHeight > 0 ? fillMinHeight : undefined,
         transition: dragging ? "none" : "height 300ms cubic-bezier(0.16, 1, 0.3, 1)",
       }}
     >

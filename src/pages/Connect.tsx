@@ -184,6 +184,7 @@ export function Connect() {
 
         {/* Swipe left/right to change tab — same carousel as Feed and Profile. */}
         <SwipeableTabs
+          fillViewport
           index={activeIndex}
           onIndexChange={(i) => setTab(TABS[i])}
           onProgress={(progress, dragging) => {
