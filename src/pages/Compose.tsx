@@ -1,7 +1,7 @@
 // src/pages/Compose.tsx
 
 import { useRef, useState, useEffect } from "react";
-import { useNavigate, useLocation, Link } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import { useSmartBack } from "../hooks/useSmartBack";
 import { useReturnAfterSave } from "../hooks/useReturnAfterSave";
 import { setJustPosted } from "../lib/justPosted";
@@ -29,6 +29,7 @@ import type { MusicSearchResult } from "../types/music";
 import { useFeatureFlag } from "../hooks/useFeatureFlags";
 import { useLeaveGuard } from "../hooks/useLeaveGuard";
 import { SaveProgressDialog } from "../components/SaveProgressDialog";
+import { ProfilePagesModal } from "../components/ProfilePagesModal";
 
 const HEADING_LIMIT = 50;
 const MAX_MEDIA_FILES = 4;
@@ -53,6 +54,7 @@ export function Compose() {
   const location = useLocation();
   const smartBack = useSmartBack();
   const returnAfterSave = useReturnAfterSave();
+  const [pagesOpen, setPagesOpen] = useState(false);
   const [heading, setHeading] = useState("");
   const [headingColor, setHeadingColor] = useState<string | null>(null);
   const [content, setContent] = useState("");
@@ -353,7 +355,7 @@ export function Compose() {
     <div className="min-h-screen bg-canvas">
       {/* Bottom padding clears the fixed action bar so nothing sits behind it. */}
       <div className="max-w-xl mx-auto px-4 pt-4 pb-28">
-        {/* Who this posts as — reflects account mode (see /pages). Not
+        {/* Who this posts as — reflects account mode (see ProfilePagesModal). Not
             editable from here on purpose: switch mode first, then compose,
             so there's no chance of posting as the wrong identity mid-draft. */}
         <div className="flex items-center gap-2 mb-4">
@@ -370,7 +372,7 @@ export function Compose() {
             {!postingAsPage && (
               <>
                 {" "}
-                · <Link to="/pages" className="text-accent">switch</Link>
+                · <button type="button" onClick={() => setPagesOpen(true)} className="text-accent">switch</button>
               </>
             )}
           </p>
@@ -592,6 +594,8 @@ export function Compose() {
           widthClass="w-48"
         />
       )}
+
+      {pagesOpen && <ProfilePagesModal mode="owner" navigateOnSwitch={false} onClose={() => setPagesOpen(false)} />}
 
       {leaveGuard.isBlocked && (
         <SaveProgressDialog

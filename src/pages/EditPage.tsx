@@ -1,12 +1,21 @@
 // src/pages/EditPage.tsx
 import { useEffect, useRef, useState, type FormEvent } from "react";
-import { useParams } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import { useReturnAfterSave } from "../hooks/useReturnAfterSave";
 import { useToast } from "../components/Toast";
 import { useSmartBack } from "../hooks/useSmartBack";
-import { ArrowLeft, Camera } from "lucide-react";
+import { ArrowLeft, Camera, Trash2 } from "lucide-react";
 import { useAuth } from "../hooks/useAuth";
-import { usePageByUsername, usePageMembers, useUpdatePage, usePageTopics, useMyPagePermissions } from "../hooks/usePages";
+import {
+  usePageByUsername,
+  usePageMembers,
+  useUpdatePage,
+  usePageTopics,
+  useMyPagePermissions,
+  useResolvePageOwner,
+  useDeletePage,
+} from "../hooks/usePages";
+import { ConfirmDialog } from "../components/ConfirmDialog";
 import { TopicPicker, MAX_TOPICS } from "../components/TopicPicker";
 import { useUploadAvatar } from "../hooks/useUploadAvatar";
 import { Avatar } from "../components/Avatar";
@@ -25,6 +34,7 @@ export function EditPage() {
   const toast = useToast();
   const smartBack = useSmartBack();
   const { user } = useAuth();
+  const navigate = useNavigate();
 
   const { data: page, isLoading } = usePageByUsername(username!);
   const { data: members } = usePageMembers(page?.id ?? "");
@@ -52,6 +62,12 @@ export function EditPage() {
   // Admins, or a member an admin granted "edit page details" to.
   const { data: myPagePerms, isLoading: permsLoading } = useMyPagePermissions(page?.id);
   const canEdit = isAdmin || !!myPagePerms?.permissions.edit_page;
+  // Deleting a page is deliberately tucked away down here, not on the page itself. Only the
+  // resolved owner (the creator, or their successor) can do it — the RPC enforces the same.
+  const { data: pageOwnerId } = useResolvePageOwner(page?.id ?? "", isAdmin);
+  const isOwnerOfPage = isAdmin && !!user && pageOwnerId === user.id;
+  const deletePage = useDeletePage();
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
   useEffect(() => {
     if (page && !hydrated) {
@@ -265,7 +281,40 @@ export function EditPage() {
             {updatePage.isPending ? "Saving…" : "Save changes"}
           </button>
         </form>
+
+        {isOwnerOfPage && (
+          <div className="mt-12 pt-6 border-t border-border">
+            <h3 className="text-xs font-medium text-ink-muted uppercase tracking-wide mb-1">Danger zone</h3>
+            <p className="text-xs text-ink-muted mb-3">
+              Deleting {page.name} removes it from search and everyone's feed.
+            </p>
+            <button
+              type="button"
+              onClick={() => setShowDeleteConfirm(true)}
+              disabled={deletePage.isPending}
+              className="w-full flex items-center justify-center gap-2 rounded-xl border border-danger/40 text-danger py-3 text-sm font-medium disabled:opacity-60"
+            >
+              <Trash2 size={16} />
+              Delete page
+            </button>
+          </div>
+        )}
       </div>
+
+      {showDeleteConfirm && (
+        <ConfirmDialog
+          title="Delete this page?"
+          description={`${page.name} will disappear from search and everyone's feed. This can't be undone from here.`}
+          confirmLabel="Delete"
+          onConfirm={() => {
+            setShowDeleteConfirm(false);
+            deletePage.mutate(page.id, {
+              onSuccess: () => navigate("/me", { replace: true }),
+            });
+          }}
+          onCancel={() => setShowDeleteConfirm(false)}
+        />
+      )}
     </div>
   );
 }

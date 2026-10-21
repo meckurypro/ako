@@ -368,6 +368,9 @@ export function ProfilePage() {
   const isPrivateLocked = !!profile?.is_private && !showOwnerView && !isFollowing;
   // Pages icon: orange + tappable only when there is something to show; hidden behind a private lock.
   const hasPages = !isPrivateLocked && (profilePagesQuery.data?.length ?? 0) > 0;
+  // The owner can always open the modal: with pages it lists them (tap to switch into one), without
+  // any it explains pages and offers to set one up. A visitor only gets it when there's something to see.
+  const pagesIconEnabled = showOwnerView || hasPages;
 
   // Passing "" makes each hook's own `enabled: !!userId` guard skip the
   // request entirely — a locked-out visitor's client never asks the
@@ -704,7 +707,7 @@ export function ProfilePage() {
                             icon: <Building2 />,
                             onSelect: () => {
                               setOwnerMenuOpen(false);
-                              navigate("/pages");
+                              setPagesOpen(true);
                             },
                           },
                           ] satisfies DropdownMenuItem[])),
@@ -862,12 +865,12 @@ export function ProfilePage() {
           </div>
           <button
             type="button"
-            disabled={!hasPages}
+            disabled={!pagesIconEnabled}
             onClick={() => setPagesOpen(true)}
-            aria-label={hasPages ? "View pages" : "Not affiliated with any pages"}
-            title={hasPages ? "Pages" : "Not affiliated with any pages"}
+            aria-label={pagesIconEnabled ? "View pages" : "Not affiliated with any pages"}
+            title={pagesIconEnabled ? "Pages" : "Not affiliated with any pages"}
             className={`shrink-0 w-11 h-11 mr-1 rounded-full flex items-center justify-center transition-transform ${
-              hasPages ? "text-brand-orange active:scale-95" : "text-ink-muted opacity-40 cursor-default"
+              pagesIconEnabled ? "text-brand-orange active:scale-95" : "text-ink-muted opacity-40 cursor-default"
             }`}
           >
             <Building2 size={26} strokeWidth={2} />
@@ -1217,8 +1220,9 @@ export function ProfilePage() {
         />
       )}
 
-      {pagesOpen && hasPages && (
-        <ProfilePagesModal pages={profilePagesQuery.data ?? []} onClose={() => setPagesOpen(false)} />
+      {pagesOpen && showOwnerView && <ProfilePagesModal mode="owner" onClose={() => setPagesOpen(false)} />}
+      {pagesOpen && !showOwnerView && hasPages && (
+        <ProfilePagesModal mode="visitor" pages={profilePagesQuery.data ?? []} onClose={() => setPagesOpen(false)} />
       )}
 
       {reportContentOpen && (

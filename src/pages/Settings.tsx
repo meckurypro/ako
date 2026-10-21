@@ -306,6 +306,8 @@ export function Settings() {
     try {
       const url = await uploadAvatar.mutateAsync(file);
       setAvatarUrl(url);
+      // The photo is saved with the rest of the profile — open that section so "Save changes" is in view.
+      setOpenSection("profile");
     } catch (err) {
       setUploadError(err instanceof Error ? err.message : "Upload failed.");
     } finally {
@@ -472,11 +474,83 @@ export function Settings() {
   return (
     <div className="min-h-screen bg-canvas px-4 pt-4 pb-10">
       <div className="max-w-md md:max-w-xl mx-auto">
-        <div className="flex items-center gap-3 mb-6">
-          <button onClick={smartBack} className="text-ink-muted">
+        <div className="flex items-center gap-1 mb-2 -ml-2">
+          <button
+            onClick={smartBack}
+            aria-label="Back"
+            className="w-10 h-10 shrink-0 flex items-center justify-center rounded-full text-ink hover:bg-ink/5 active:bg-ink/10 transition-colors"
+          >
             <ArrowLeft size={22} />
           </button>
-          <h2 className="font-display text-xl text-ink">Settings</h2>
+          <h2 className="font-bold text-lg tracking-tight text-ink">Settings</h2>
+        </div>
+
+        {/* Hero — same shape as the top of the profile page: big name + handle + stacked stats on the
+            left, large ringed avatar on the right with a round change-photo badge. */}
+        <div className="mb-6">
+          <div className="flex items-start justify-between gap-4">
+            <div className="flex-1 min-w-0 pt-1">
+              <h1 className="font-bold text-[1.75rem] leading-tight tracking-tight text-ink break-words">
+                {profile?.display_name}
+              </h1>
+              <p className="text-base text-ink-muted mt-0.5 truncate">@{profile?.username}</p>
+              {uploadError && <p className="text-danger text-sm mt-2">{uploadError}</p>}
+              {avatarUrl !== (profile?.avatar_url ?? "") && (
+                <p className="text-accent text-sm mt-2">New photo selected — save your changes to apply it.</p>
+              )}
+            </div>
+
+            <div className="relative shrink-0">
+              <span className="block rounded-full ring-2 ring-border ring-offset-2 ring-offset-canvas">
+                <Avatar src={avatarUrl} name={displayName || profile?.display_name || "?"} size="2xl" />
+              </span>
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={uploadAvatar.isPending}
+                aria-label="Change profile photo"
+                title="Change profile photo"
+                className="absolute -bottom-1 -right-1 w-9 h-9 rounded-full bg-cta text-white border-[3px] border-canvas flex items-center justify-center shadow-sm active:scale-95 transition-transform disabled:opacity-70"
+              >
+                {uploadAvatar.isPending ? <Loader2 size={16} className="animate-spin" /> : <Camera size={16} />}
+              </button>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/jpeg,image/png,image/webp,image/gif"
+                onChange={handleFileSelect}
+                className="hidden"
+              />
+            </div>
+          </div>
+
+          {/* Stats — owner-only visit count (moved here from the profile's Following/Followers row)
+              next to the follow counts, in the profile's stacked number-over-label style. */}
+          <div className="flex items-center gap-7 mt-5">
+            {typeof profile?.following_count === "number" && (
+              <div>
+                <span className="block text-xl font-semibold leading-none text-ink tabular-nums">
+                  {profile.following_count}
+                </span>
+                <span className="block text-sm text-ink-muted mt-1.5">Following</span>
+              </div>
+            )}
+            {typeof profile?.follower_count === "number" && (
+              <div>
+                <span className="block text-xl font-semibold leading-none text-ink tabular-nums">
+                  {profile.follower_count}
+                </span>
+                <span className="block text-sm text-ink-muted mt-1.5">Followers</span>
+              </div>
+            )}
+            <div title="Only visible to you">
+              <span className="flex items-center gap-1.5 text-xl font-semibold leading-none text-ink tabular-nums">
+                {visitCount ?? 0}
+                <Eye size={15} className="text-ink-muted" />
+              </span>
+              <span className="block text-sm text-ink-muted mt-1.5">Visits · 30 days</span>
+            </div>
+          </div>
         </div>
 
         <div className="flex flex-col gap-3">
@@ -518,41 +592,7 @@ export function Settings() {
             onToggle={() => toggleSection("profile")}
           >
             <form onSubmit={handleSaveProfile}>
-              <div className="flex flex-col items-center mb-6 mt-3">
-                <button type="button" onClick={() => fileInputRef.current?.click()} className="relative">
-                  <Avatar src={avatarUrl} name={displayName || "?"} size="lg" />
-                  <span className="absolute bottom-0 right-0 bg-accent text-canvas rounded-full p-1.5">
-                    <Camera size={14} />
-                  </span>
-                </button>
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  accept="image/jpeg,image/png,image/webp,image/gif"
-                  onChange={handleFileSelect}
-                  className="hidden"
-                />
-                <button
-                  type="button"
-                  onClick={() => fileInputRef.current?.click()}
-                  className="text-sm text-accent font-medium mt-2"
-                  disabled={uploadAvatar.isPending}
-                >
-                  {uploadAvatar.isPending ? "Uploading…" : "Change photo"}
-                </button>
-                {uploadError && <p className="text-danger text-sm mt-1">{uploadError}</p>}
-
-                {/* Moved from ProfilePage's Following/Followers row —
-                    an owner-only stat, so it lives here among the rest
-                    of the account's own settings instead. */}
-                <span
-                  className="flex items-center gap-1.5 text-sm text-ink-muted mt-3"
-                  title="Only visible to you"
-                >
-                  <Eye size={14} />
-                  <span className="font-medium text-ink">{visitCount ?? 0}</span> visits in the last 30 days
-                </span>
-              </div>
+              <div className="mt-3" />
 
               <FormField
                 id="display_name"

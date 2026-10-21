@@ -43,7 +43,6 @@ import { FollowListPage } from "./pages/FollowListPage";
 import { MyProfileRedirect } from "./pages/MyProfileRedirect";
 import { MyInboxRedirect } from "./pages/MyInboxRedirect";
 
-import { Pages } from "./pages/Pages";
 import { CreatePage } from "./pages/CreatePage";
 import { PagePage } from "./pages/PagePage";
 import { PageTeam } from "./pages/PageTeam";
@@ -406,14 +405,8 @@ function AppRoutes() {
             />
 
             {/* Account mode: organisation/brand pages */}
-            <Route
-              path="/pages"
-              element={
-                <RequireAuth>
-                  <Pages />
-                </RequireAuth>
-              }
-            />
+            {/* Old "Account mode" hub — now the Pages modal on the profile. Keep stale links working. */}
+            <Route path="/pages" element={<Navigate to="/me" replace />} />
             <Route
               path="/pages/new"
               element={

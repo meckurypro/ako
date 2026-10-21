@@ -10,6 +10,7 @@
 // unlike TopHeader/BottomNav it is NOT imported by individual pages.
 import { useEffect, useRef, useState, type ComponentType } from "react";
 import { Link, NavLink, useLocation, useMatch, type Location } from "react-router-dom";
+import { ProfilePagesModal } from "./ProfilePagesModal";
 import { Search, MessageCircle, User, Bell, Plus, Wallet as WalletIcon, Settings as SettingsIcon, Radio, LibraryBig, Users } from "lucide-react";
 import { AkoMark } from "./AkoMark";
 import { Avatar } from "./Avatar";
@@ -132,6 +133,7 @@ export function Sidebar({ collapsed, onToggleCollapsed }: SidebarProps) {
   const restricted = useIsRestricted();
   const restrictedCanCreate = useCanCreateAnyProject();
   const location = useLocation();
+  const [pagesOpen, setPagesOpen] = useState(false);
 
   // `collapsed` is the pinned preference (persisted — see AppShell),
   // toggled explicitly via the button at the bottom. `isHovering` is
@@ -276,7 +278,18 @@ export function Sidebar({ collapsed, onToggleCollapsed }: SidebarProps) {
         )}
         <nav className="flex flex-col gap-1">
           <NavItem to={profileHref} icon={User} label="Profile" isActive={isOwnProfileActive} collapsed={!showLabels} />
-          <NavItem to="/pages" icon={Radio} label="Pages" collapsed={!showLabels} />
+          <button
+            type="button"
+            onClick={() => setPagesOpen(true)}
+            aria-label="Pages"
+            title={!showLabels ? "Pages" : undefined}
+            className="group relative flex items-center gap-3 rounded-full px-3 py-2.5 text-left text-[15px] font-medium text-ink-muted transition-colors hover:bg-canvas hover:text-ink"
+          >
+            <span className="relative shrink-0">
+              <Radio size={24} strokeWidth={1.75} fill="none" />
+            </span>
+            {showLabels && <span className="truncate">Pages</span>}
+          </button>
           <NavItem to="/library" icon={LibraryBig} label="Library" collapsed={!showLabels} />
           <NavItem to="/connect" icon={Users} label="Connect" collapsed={!showLabels} />
           <NavItem to="/wallet" icon={WalletIcon} label="Wallet" collapsed={!showLabels} />
@@ -317,6 +330,7 @@ export function Sidebar({ collapsed, onToggleCollapsed }: SidebarProps) {
         </button>
       </div>
     </aside>
+    {pagesOpen && <ProfilePagesModal mode="owner" onClose={() => setPagesOpen(false)} />}
     </>
   );
 }

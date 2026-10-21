@@ -2,7 +2,7 @@
 import { FileFolderHero } from "../components/FileFolderArt";
 import { BOOK_COVER_HINT, BOOK_COVER_RATIO, isBookCoverRatio, BOOK_COVER_ERROR } from "../lib/bookCover";
 import { useEffect, useRef, useState, type FormEvent } from "react";
-import { useNavigate, Link } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { useSmartBack } from "../hooks/useSmartBack";
 import { extractBookPdf } from "../hooks/useBookBuilder";
 import { ArrowLeft, ImageIcon } from "lucide-react";
@@ -56,6 +56,7 @@ import { useCreatePitchProject } from "../hooks/useProjects";
 import { useToast } from "../components/Toast";
 import { useLeaveGuard } from "../hooks/useLeaveGuard";
 import { SaveProgressDialog } from "../components/SaveProgressDialog";
+import { ProfilePagesModal } from "../components/ProfilePagesModal";
 import {
   clearProjectDraft,
   projectDraftHasProgress,
@@ -80,6 +81,7 @@ export function CreateProject() {
   const uploadThumbnail = useUploadProjectThumbnail();
   const projectsEnabled = useFeatureFlag("projects_enabled");
 
+  const [pagesOpen, setPagesOpen] = useState(false);
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const descriptionRef = useRef<HTMLTextAreaElement>(null);
@@ -732,7 +734,7 @@ export function CreateProject() {
               {!postingAsPage && (
                 <>
                   {" "}
-                  · <Link to="/pages" className="text-accent">switch</Link>
+                  · <button type="button" onClick={() => setPagesOpen(true)} className="text-accent">switch</button>
                 </>
               )}
             </p>
@@ -922,6 +924,8 @@ export function CreateProject() {
           </Button>
         </form>
       </div>
+
+      {pagesOpen && <ProfilePagesModal mode="owner" navigateOnSwitch={false} onClose={() => setPagesOpen(false)} />}
 
       {leaveGuard.isBlocked && (
         <SaveProgressDialog
