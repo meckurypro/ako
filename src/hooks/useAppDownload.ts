@@ -6,12 +6,16 @@
 //
 // Read: any signed-in user (Settings CTA + download modal). Write: admins only (RLS enforces it; the
 // admin page is just the UI for it).
+import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import * as tus from "tus-js-client";
 import { supabase } from "../lib/supabase";
 import { useAuth } from "./useAuth";
 
 export const APP_RELEASES_BUCKET = "app-releases";
-export const MAX_APK_BYTES = 200 * 1024 * 1024; // matches the bucket's file_size_limit
+export const MAX_APK_BYTES = 300 * 1024 * 1024; // matches the bucket's file_size_limit
+// Supabase requires exactly 6 MB chunks for resumable uploads.
+const APK_CHUNK_SIZE = 6 * 1024 * 1024;
 const APK_MIME = "application/vnd.android.package-archive";
 // The name the browser saves the file as, whatever the object is called in storage.
 const APK_DOWNLOAD_NAME = "Ako.apk";
@@ -92,22 +96,72 @@ async function looksLikeZip(file: File): Promise<boolean> {
   return head.length === 4 && head[0] === 0x50 && head[1] === 0x4b && head[2] === 0x03 && head[3] === 0x04;
 }
 
+/**
+ * Resumable (TUS) upload of the APK. A 300 MB file is far too big for one request: a single dropped
+ * packet or proxy timeout would restart it from zero. In 6 MB chunks it retries only the failing chunk,
+ * survives a flaky connection, can resume an interrupted attempt of the same file, and reports progress.
+ * The access token is re-read before EVERY request, so a slow upload that outlives the 1-hour session
+ * token keeps going instead of failing with 401 halfway.
+ */
+function uploadApkResumable(file: File, path: string, onProgress: (pct: number) => void): Promise<void> {
+  const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string;
+  const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY as string;
+  return new Promise<void>((resolve, reject) => {
+    const upload = new tus.Upload(file, {
+      endpoint: `${supabaseUrl}/storage/v1/upload/resumable`,
+      // Keep retrying for several minutes before giving up on a bad connection.
+      retryDelays: [0, 2000, 5000, 10000, 20000, 30000, 60000],
+      headers: { apikey: anonKey, "x-upsert": "false" },
+      onBeforeRequest: async (req) => {
+        const { data } = await supabase.auth.getSession();
+        const token = data.session?.access_token;
+        if (token) req.setHeader("authorization", `Bearer ${token}`);
+      },
+      uploadDataDuringCreation: true,
+      removeFingerprintOnSuccess: true,
+      metadata: {
+        bucketName: APP_RELEASES_BUCKET,
+        objectName: path,
+        contentType: APK_MIME,
+        cacheControl: "3600",
+      },
+      chunkSize: APK_CHUNK_SIZE,
+      onError: (err) => reject(err),
+      onProgress: (sent, total) => onProgress(Math.min(100, Math.round((sent / total) * 100))),
+      onSuccess: () => resolve(),
+    });
+    upload.findPreviousUploads().then((previous) => {
+      // Pick up where an interrupted attempt of this exact file left off.
+      if (previous.length) upload.resumeFromPreviousUpload(previous[0]);
+      upload.start();
+    });
+  });
+}
+
 export function useUploadApk() {
   const { user } = useAuth();
   const queryClient = useQueryClient();
-  return useMutation({
+  const [progress, setProgress] = useState(0);
+  const mutation = useMutation({
     mutationFn: async ({ file, previousPath }: { file: File; previousPath: string | null }) => {
       if (!/\.apk$/i.test(file.name)) throw new Error("That isn't an .apk file.");
-      if (file.size > MAX_APK_BYTES) throw new Error("That file is over the 200 MB limit.");
+      if (file.size > MAX_APK_BYTES) throw new Error("That file is over the 300 MB limit.");
       if (!(await looksLikeZip(file))) throw new Error("That file doesn't look like a valid APK.");
 
       // A fresh object path every time: replacing the APK never serves a stale cached copy, and a
       // failed upload can't corrupt the APK users are currently downloading.
       const newPath = `ako-${Date.now()}.apk`;
-      const { error: uploadError } = await supabase.storage
-        .from(APP_RELEASES_BUCKET)
-        .upload(newPath, file, { contentType: APK_MIME, cacheControl: "3600", upsert: false });
-      if (uploadError) throw uploadError;
+      setProgress(0);
+      try {
+        await uploadApkResumable(file, newPath, setProgress);
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : "";
+        if (/exceeded the maximum allowed size|413|payload too large/i.test(msg)) {
+          throw new Error("The server rejected the file as too large. Check Supabase > Storage > Settings > upload file size limit.");
+        }
+        throw new Error("Upload interrupted. Check your connection and try again — it will resume where it stopped.");
+      }
+      setProgress(100);
 
       const { error: rowError } = await supabase
         .from("app_download_settings")
@@ -134,6 +188,7 @@ export function useUploadApk() {
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: APP_DOWNLOAD_QUERY_KEY }),
   });
+  return Object.assign(mutation, { progress });
 }
 
 export function formatApkSize(bytes: number | null | undefined): string {

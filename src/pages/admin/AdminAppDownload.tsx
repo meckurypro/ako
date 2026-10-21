@@ -195,7 +195,7 @@ export function AdminAppDownload() {
                 {uploadApk.isPending ? (
                   <>
                     <Loader2 size={16} className="animate-spin" />
-                    Uploading…
+                    Uploading… {uploadApk.progress}%
                   </>
                 ) : (
                   <>
@@ -205,11 +205,16 @@ export function AdminAppDownload() {
                 )}
               </Button>
               {uploadApk.isPending && (
-                <p className="text-xs text-ink-muted text-center mt-2">
-                  Large files can take a few minutes — keep this page open until it finishes.
-                </p>
+                <>
+                  <div className="mt-3 h-1.5 w-full overflow-hidden rounded-full bg-border" role="progressbar" aria-valuenow={uploadApk.progress} aria-valuemin={0} aria-valuemax={100}>
+                    <div className="h-full rounded-full bg-accent transition-[width] duration-300" style={{ width: `${uploadApk.progress}%` }} />
+                  </div>
+                  <p className="text-xs text-ink-muted text-center mt-2">
+                    Large files can take several minutes — keep this page open until it finishes. If your connection drops it retries and resumes by itself.
+                  </p>
+                </>
               )}
-              <p className="text-[11px] text-ink-muted text-center mt-3">Up to 200 MB. Must be an .apk file.</p>
+              <p className="text-[11px] text-ink-muted text-center mt-3">Up to 300 MB. Must be an .apk file.</p>
             </div>
           </div>
         )}

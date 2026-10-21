@@ -46,11 +46,11 @@ create policy "Admins can update app download settings"
   with check (public.is_admin_or_moderator((select auth.uid())));
 
 -- ---------------------------------------------------------------------------------------------
--- Storage: public bucket for the APK. 200 MB per file (the project's own global upload limit, set in
+-- Storage: public bucket for the APK. 300 MB per file (the project's own global upload limit, set in
 -- Supabase > Storage settings, still applies on top of this — raise it there if an APK is larger).
 -- ---------------------------------------------------------------------------------------------
 insert into storage.buckets (id, name, public, file_size_limit)
-values ('app-releases', 'app-releases', true, 209715200)
+values ('app-releases', 'app-releases', true, 314572800)
 on conflict (id) do update set public = true, file_size_limit = excluded.file_size_limit;
 
 drop policy if exists "App releases are publicly readable" on storage.objects;

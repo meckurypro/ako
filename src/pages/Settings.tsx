@@ -486,19 +486,23 @@ export function Settings() {
           <button
             type="button"
             onClick={() => setShowDownloadApp(true)}
-            className="relative w-full overflow-hidden rounded-2xl bg-gradient-to-br from-accent to-accent-hover p-4 text-left text-canvas shadow-lg ring-1 ring-accent/30 transition-transform active:scale-[0.99]"
+            className="group relative w-full overflow-hidden rounded-3xl p-4 text-left text-white shadow-[0_10px_30px_-10px_rgba(var(--verified-glow),0.55)] ring-1 ring-white/20 transition-transform active:scale-[0.99]"
+            style={{ background: "linear-gradient(135deg, var(--verified-from) 0%, var(--verified-to) 100%)" }}
           >
+            {/* Soft light bloom + a faint ring give it depth without adding clutter. */}
+            <span aria-hidden="true" className="pointer-events-none absolute -right-10 -top-12 h-40 w-40 rounded-full bg-white/20 blur-2xl" />
+            <span aria-hidden="true" className="pointer-events-none absolute -bottom-16 -left-8 h-36 w-36 rounded-full bg-white/10 blur-2xl" />
             <span className="ako-download-cta-shine" aria-hidden="true" />
             <span className="relative flex items-center gap-3.5">
-              <span className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-xl bg-canvas/15">
-                <Smartphone size={24} />
+              <span className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-2xl bg-white/15 ring-1 ring-inset ring-white/30 backdrop-blur-sm">
+                <Smartphone size={22} strokeWidth={1.75} />
               </span>
               <span className="min-w-0 flex-1">
-                <span className="block text-[15px] font-semibold leading-tight">Get the Akọ app</span>
-                <span className="mt-0.5 block text-xs opacity-85">Take Akọ with you on Android and iPhone</span>
+                <span className="block text-[15px] font-semibold leading-tight tracking-tight">Get the Akọ app</span>
+                <span className="mt-0.5 block text-xs text-white/80">Take Akọ with you on Android and iPhone</span>
               </span>
-              <span className="inline-flex flex-shrink-0 items-center gap-1.5 rounded-full bg-canvas px-3.5 py-2 text-xs font-semibold text-accent">
-                <Download size={14} />
+              <span className="inline-flex flex-shrink-0 items-center gap-1.5 rounded-full bg-white px-3.5 py-2 text-xs font-semibold shadow-sm transition-transform group-hover:scale-[1.03]" style={{ color: "var(--verified-to)" }}>
+                <Download size={14} strokeWidth={2.25} />
                 Download
               </span>
             </span>
