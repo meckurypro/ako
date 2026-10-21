@@ -341,6 +341,8 @@ export function ProfilePage() {
   const profilePagesQuery = useProfilePages(profile?.id ?? "");
   const [pagesOpen, setPagesOpen] = useState(false);
   const showOwnerView = isOwnProfile && !previewingAsVisitor;
+  // Up to 3 websites; website_url mirrors the first for rows written before website_urls existed.
+  const websites = profile?.website_urls?.length ? profile.website_urls : profile?.website_url ? [profile.website_url] : [];
   // Projects on this profile are the PERSON's. While acting as a Page, the
   // Page is a different account, so they read as another user's content: no
   // owner controls and no drafts/archived — same as any visitor.
@@ -859,17 +861,22 @@ export function ProfilePage() {
           <p className="text-[15px] leading-relaxed text-ink mt-5 whitespace-pre-line break-words">{profile.bio}</p>
         )}
 
-        {profile.website_url && (
-          <a
-            href={getWebsiteHref(profile.website_url)}
-            target="_blank"
-            rel="noopener noreferrer"
-            title={profile.website_url}
-            className="inline-flex items-center gap-1.5 mt-3 max-w-full rounded-full bg-accent-soft text-accent text-sm font-medium px-3 py-1.5"
-          >
-            <Link2 size={14} className="shrink-0" />
-            <span className="truncate">{getWebsiteDomain(profile.website_url)}</span>
-          </a>
+        {websites.length > 0 && (
+          <div className="flex flex-wrap gap-2 mt-3">
+            {websites.map((url) => (
+              <a
+                key={url}
+                href={getWebsiteHref(url)}
+                target="_blank"
+                rel="noopener noreferrer"
+                title={url}
+                className="inline-flex items-center gap-1.5 max-w-full rounded-full bg-accent-soft text-accent text-sm font-medium px-3 py-1.5"
+              >
+                <Link2 size={14} className="shrink-0" />
+                <span className="truncate">{getWebsiteDomain(url)}</span>
+              </a>
+            ))}
+          </div>
         )}
 
         {/* Action row — icon-led. The owner gets quick actions; a visitor

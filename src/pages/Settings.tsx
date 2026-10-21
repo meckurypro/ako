@@ -33,6 +33,8 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "../lib/supabase";
 import { useAuth } from "../hooks/useAuth";
 import { useIsAdmin } from "../hooks/useAdmin";
+import { useIsRestricted } from "../hooks/useAccountAccess";
+import { WebsiteUrlsField, MAX_WEBSITES } from "../components/WebsiteUrlsField";
 import { removeSavedAccount } from "../lib/accountSessions";
 import { useUpdateProfile, useUpdateProfileRoles } from "../hooks/useProfile";
 import { useProfileVisitCount } from "../hooks/useProfileVisits";
@@ -226,7 +228,14 @@ export function Settings() {
   const [displayName, setDisplayName] = useState("");
   const [username, setUsername] = useState("");
   const [bio, setBio] = useState("");
-  const [websiteUrl, setWebsiteUrl] = useState("");
+  const [websiteUrls, setWebsiteUrls] = useState<string[]>([]);
+  // More than one website: verified AND unrestricted accounts only (the DB enforces it too).
+  const restricted = useIsRestricted();
+  const canAddMoreWebsites = !!profile?.is_verified && !restricted;
+  const websiteUrlsToSave = websiteUrls
+    .map((u) => u.trim())
+    .filter(Boolean)
+    .slice(0, canAddMoreWebsites ? MAX_WEBSITES : 1);
   const [avatarUrl, setAvatarUrl] = useState("");
   const [roleIds, setRoleIds] = useState<string[]>([]);
   const [profileError, setProfileError] = useState<string | null>(null);
@@ -249,7 +258,7 @@ export function Settings() {
       setDisplayName(profile.display_name ?? "");
       setUsername(profile.username ?? "");
       setBio(profile.bio ?? "");
-      setWebsiteUrl(profile.website_url ?? "");
+      setWebsiteUrls(profile.website_urls?.length ? profile.website_urls : profile.website_url ? [profile.website_url] : []);
       setAvatarUrl(profile.avatar_url ?? "");
       const sorted = [...(profile.profile_roles ?? [])].sort(
         (a: any, b: any) => a.position - b.position
@@ -365,7 +374,7 @@ export function Settings() {
         updateProfile.mutateAsync({
           display_name: displayName,
           bio,
-          website_url: websiteUrl,
+          website_urls: websiteUrlsToSave,
           avatar_url: avatarUrl,
           ...(usernameChanged ? { username: normalizedUsername } : {}),
         }),
@@ -688,13 +697,11 @@ export function Settings() {
                 <p className="text-xs text-ink-muted mt-1">{bio.length}/280</p>
               </div>
 
-              <FormField
-                id="website_url"
-                label="Website"
-                type="url"
-                value={websiteUrl}
-                onChange={(e) => setWebsiteUrl(e.target.value)}
-                placeholder="https://"
+              <WebsiteUrlsField
+                values={websiteUrls}
+                onChange={setWebsiteUrls}
+                canAddMore={canAddMoreWebsites}
+                showVerifiedHint={!restricted}
               />
 
               {roles && roles.length > 0 && (
