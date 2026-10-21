@@ -73,13 +73,19 @@ interface SwipeableTabsProps {
    * the content missed it entirely and the tabs felt like they didn't swipe. Use on screens whose panes can be short.
    */
   fillViewport?: boolean;
+  /**
+   * Remember the page's scroll position per tab and jump to it on every tab change (Feed's behaviour). Turn off where
+   * a tab change must never move the page — the profile, where it threw the page up or down on every switch.
+   * Default true.
+   */
+  restoreScroll?: boolean;
 }
 
 // Space kept clear under the swipe area so filling the viewport never makes the page scroll when it otherwise wouldn't
 // (the bottom nav plus the page's own bottom padding).
 const FILL_VIEWPORT_RESERVE_PX = 120;
 
-export function SwipeableTabs({ index, onIndexChange, onProgress, children, className, fillViewport }: SwipeableTabsProps) {
+export function SwipeableTabs({ index, onIndexChange, onProgress, children, className, fillViewport, restoreScroll = true }: SwipeableTabsProps) {
   const count = children.length;
   const containerRef = useRef<HTMLDivElement>(null);
   const [fillMinHeight, setFillMinHeight] = useState(0);
@@ -120,12 +126,13 @@ export function SwipeableTabs({ index, onIndexChange, onProgress, children, clas
   const scrollPositionsRef = useRef<number[]>(Array(count).fill(0));
 
   useEffect(() => {
+    if (!restoreScroll) return;
     function handleScroll() {
       scrollPositionsRef.current[index] = window.scrollY;
     }
     window.addEventListener("scroll", handleScroll, { passive: true });
     return () => window.removeEventListener("scroll", handleScroll);
-  }, [index]);
+  }, [index, restoreScroll]);
 
   // Restore on every real tab change (swipe settling OR a tab button
   // jump, both funnel through onIndexChange → this `index` prop) but
@@ -137,8 +144,9 @@ export function SwipeableTabs({ index, onIndexChange, onProgress, children, clas
       isFirstRender.current = false;
       return;
     }
+    if (!restoreScroll) return;
     window.scrollTo(0, scrollPositionsRef.current[index] ?? 0);
-  }, [index]);
+  }, [index, restoreScroll]);
 
   // Panes render lazily: a pane's real content only mounts once it's
   // the active tab or immediately next to it, instead of every pane

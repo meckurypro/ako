@@ -1061,6 +1061,7 @@ export function ProfilePage() {
             </EmptyNote>
           ) : (
             <SwipeableTabs
+              restoreScroll={false}
               index={activeIndex}
               onIndexChange={(i) => setActiveTab(TAB_IDS[i])}
               onProgress={(progress, dragging) => {
