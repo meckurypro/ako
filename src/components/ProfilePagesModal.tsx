@@ -1,6 +1,7 @@
 // src/components/ProfilePagesModal.tsx
 import { useNavigate } from "react-router-dom";
 import { Modal } from "./Modal";
+import { runAfterDismiss } from "../hooks/useBackDismiss";
 import { Avatar } from "./Avatar";
 import { VerifiedBadge } from "./VerifiedBadge";
 import type { ProfilePageAffiliation } from "../hooks/usePages";
@@ -24,10 +25,8 @@ export function ProfilePagesModal({
           <li key={p.page_id}>
             <button
               type="button"
-              onClick={() => {
-                onClose();
-                navigate(`/page/${p.username}`);
-              }}
+              // Navigate only once the modal's history entry has been popped, or that pop can undo the push.
+              onClick={() => runAfterDismiss(onClose, () => navigate(`/page/${p.username}`))}
               className="w-full flex items-center gap-3 px-2 py-3 rounded-2xl text-left active:bg-overlay-surface-raised"
             >
               <Avatar src={p.avatar_url} name={p.name} size="vn" />
