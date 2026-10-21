@@ -244,7 +244,8 @@
 }
 
 /*
-  Kebab / anchored menu (DropdownMenu.tsx) in LIGHT mode: light panel, dark
+  Kebab / anchored menu (DropdownMenu.tsx) AND every Modal / options list /
+  confirm dialog (.ako-overlay-panel) in LIGHT mode: light panel, dark
   text and icons. Dark mode keeps the dark-glass .ako-overlay-panel above
   unchanged. Rather than touching every row, the overlay tokens are re-pointed
   locally on the panel, so the existing text-overlay-ink / hover:bg-overlay-
@@ -252,13 +253,17 @@
   currentColor icons) all flip together. Page mode is covered too: it reads
   its own --color-surface / --color-ink / --color-border.
 */
-:root:not(.dark) .ako-menu-panel {
+:root:not(.dark) .ako-menu-panel,
+:root:not(.dark) .ako-overlay-panel {
   --color-overlay-ink: var(--color-ink);
   --color-overlay-ink-muted: var(--color-ink-muted);
+  --color-overlay-surface: var(--color-surface);
   --color-overlay-surface-raised: rgba(var(--shadow-ink-rgb), 0.06);
   --color-overlay-border: var(--color-border);
   --color-overlay-danger: var(--color-danger);
+  --color-overlay-danger-soft: color-mix(in srgb, var(--color-danger) 14%, transparent);
   --color-overlay-accent: var(--color-accent);
+  --color-overlay-accent-soft: var(--color-accent-soft);
   background: color-mix(in srgb, var(--color-surface) 96%, transparent);
   border: 1px solid var(--color-border);
   box-shadow:
