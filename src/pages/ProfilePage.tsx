@@ -57,7 +57,8 @@ import { BottomNav } from "../components/BottomNav";
 import { ProfileAdSlot } from "../components/ProfileAdSlot";
 import { ProfilePagesModal } from "../components/ProfilePagesModal";
 import { useProfilePages } from "../hooks/usePages";
-import { useIsRestricted } from "../hooks/useAccountAccess";
+import { useCanFollow, useIsRestricted } from "../hooks/useAccountAccess";
+import { useChangePulse } from "../hooks/useChangePulse";
 import { APP_URL } from "../lib/appUrl";
 import { usePrimaryFloatingAction } from "../lib/floatingChrome";
 import { profileTabIcon } from "../lib/profileTabIcons";
@@ -205,6 +206,7 @@ export function ProfilePage() {
   const navigate = useNavigate();
   const location = useLocation();
   const restricted = useIsRestricted();
+  const canFollow = useCanFollow();
   const startConversation = useStartConversation();
   const toast = useToast();
   // Separate menu from the visitor-side "Send to" sheet below — the
@@ -355,6 +357,10 @@ export function ProfilePage() {
   const isFollowing = !!isFollowingQuery.data;
   const isFollowedByUser = !!isFollowedByUserQuery.data;
   const hasPendingRequest = !!hasPendingRequestQuery.data;
+  // Quiet cross-fade on the follow control and a small tick on the counters when they change (index.css).
+  const followPulse = useChangePulse(isFollowing ? "following" : hasPendingRequest ? "requested" : "follow");
+  const followersPulse = useChangePulse(profile?.follower_count);
+  const followingPulse = useChangePulse(profile?.following_count);
   const isBlocked = !!isBlockedQuery.data;
   const isMuted = !!isMutedQuery.data;
   // A nickname only ever overrides what I, personally, see — it never
@@ -835,13 +841,13 @@ export function ProfilePage() {
           <div className="flex items-center gap-7">
             <Link to={`/profile/${profile.username}/following`} className="block">
               <span className="block text-xl font-semibold leading-none text-ink tabular-nums">
-                {profile.following_count}
+                <span className={followingPulse ? "ako-count-tick" : ""}>{profile.following_count}</span>
               </span>
               <span className="block text-sm text-ink-muted mt-1.5">Following</span>
             </Link>
             <Link to={`/profile/${profile.username}/followers`} className="block">
               <span className="block text-xl font-semibold leading-none text-ink tabular-nums">
-                {profile.follower_count}
+                <span className={followersPulse ? "ako-count-tick" : ""}>{profile.follower_count}</span>
               </span>
               <span className="block text-sm text-ink-muted mt-1.5">Followers</span>
             </Link>
@@ -918,33 +924,30 @@ export function ProfilePage() {
                   onClick={() => setRelationshipMenuOpen((o) => !o)}
                   disabled={isBlocked}
                   aria-label="Following — open options"
-                  className="flex-1 h-11 inline-flex items-center justify-center gap-2 rounded-xl bg-accent-soft text-accent text-[15px] font-semibold active:scale-[0.98] transition-transform disabled:opacity-40"
+                  className={`flex-1 h-11 inline-flex items-center justify-center gap-2 rounded-xl bg-accent-soft text-accent text-[15px] font-semibold active:scale-[0.98] transition-transform disabled:opacity-40 ${followPulse ? "ako-follow-swap" : ""}`}
                 >
                   <UserCheck size={19} />
                   Following
                   <ChevronDown size={16} />
                 </button>
-              ) : (
+              ) : canFollow || hasPendingRequest ? (
+                // Not disabled while a write is in flight: the tap already updated the screen and taps are queued
+                // in order (lib/followCache.ts), so a second tap is safe instead of silently ignored.
                 <button
                   onClick={handleFollowClick}
-                  disabled={
-                    toggleFollow.isPending ||
-                    sendFollowRequest.isPending ||
-                    cancelFollowRequest.isPending ||
-                    isBlocked
-                  }
+                  disabled={isBlocked}
                   className={`flex-1 h-11 inline-flex items-center justify-center gap-2 rounded-xl text-[15px] font-semibold active:scale-[0.98] transition-transform disabled:opacity-40 ${
                     hasPendingRequest
                       ? "bg-accent-soft text-accent"
                       : isFollowedByUser
                       ? "bg-pushback/15 text-pushback"
                       : "bg-cta text-white"
-                  }`}
+                  } ${followPulse ? "ako-follow-swap" : ""}`}
                 >
                   {hasPendingRequest ? <Clock size={19} /> : <UserPlus size={19} />}
                   {hasPendingRequest ? "Requested" : isFollowedByUser ? "Follow back" : "Follow"}
                 </button>
-              )}
+              ) : null}
 
               {relationshipMenuOpen && isFollowing && (
                 <DropdownMenu
@@ -964,7 +967,6 @@ export function ProfilePage() {
                       label: "Unfollow",
                       icon: <UserMinus />,
                       variant: "danger",
-                      disabled: toggleFollow.isPending,
                       onSelect: startUnfollow,
                     },
                   ]}

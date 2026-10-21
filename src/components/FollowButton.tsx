@@ -2,6 +2,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useIsFollowingAsActiveIdentity, useIsFollowedByUser, useToggleFollowAsActiveIdentity } from "../hooks/useProfile";
 import { useHasPendingFollowRequest, useSendFollowRequest } from "../hooks/useFollowRequests";
+import { useCanFollow } from "../hooks/useAccountAccess";
 
 interface FollowButtonProps {
   authorId: string;
@@ -41,6 +42,8 @@ export function FollowButton({ authorId, isPrivate }: FollowButtonProps) {
   const hasPendingQuery = useHasPendingFollowRequest(authorId);
   const toggleFollow = useToggleFollowAsActiveIdentity(authorId);
   const sendRequest = useSendFollowRequest(authorId);
+  // Accounts still under review can't follow yet (the server rejects it) — don't offer a control that can only fail.
+  const canFollow = useCanFollow();
 
   const isFollowing = !!isFollowingQuery.data;
   const isFollowedByUser = !!isFollowedByUserQuery.data;
@@ -68,7 +71,7 @@ export function FollowButton({ authorId, isPrivate }: FollowButtonProps) {
 
   // Wait for the relationship checks before rendering anything — avoids a
   // flash of "Follow" on someone you already follow while the query loads.
-  if (loading) {
+  if (loading || !canFollow) {
     return null;
   }
 
@@ -84,7 +87,7 @@ export function FollowButton({ authorId, isPrivate }: FollowButtonProps) {
     return (
       <span
         className={`text-[11px] font-semibold px-2.5 py-1 rounded-full bg-ink/10 text-ink whitespace-nowrap ${
-          justArrived ? "ako-pill-in" : ""
+          justArrived ? "ako-follow-swap" : ""
         }`}
       >
         {isFollowedByUser ? "Friends" : "Following"}
@@ -96,7 +99,7 @@ export function FollowButton({ authorId, isPrivate }: FollowButtonProps) {
     return (
       <span
         className={`text-[11px] font-semibold px-2.5 py-1 rounded-full bg-ink/10 text-ink whitespace-nowrap ${
-          justArrived ? "ako-pill-in" : ""
+          justArrived ? "ako-follow-swap" : ""
         }`}
       >
         Requested
@@ -104,6 +107,8 @@ export function FollowButton({ authorId, isPrivate }: FollowButtonProps) {
     );
   }
 
+  // Never disabled while a write is in flight: the tap already updated the screen (see lib/followCache.ts) and
+  // taps on one target are queued in order, so a second tap is safe rather than ignored.
   function handleClick(e: React.MouseEvent) {
     e.preventDefault();
     e.stopPropagation();
@@ -140,9 +145,8 @@ export function FollowButton({ authorId, isPrivate }: FollowButtonProps) {
   return (
     <button
       onClick={handleClick}
-      disabled={toggleFollow.isPending || sendRequest.isPending}
       aria-label={isFollowedByUser ? "Follow back" : "Follow"}
-      className={`text-[11px] font-semibold px-2.5 py-1 rounded-full disabled:opacity-50 whitespace-nowrap ${colorClasses}`}
+      className={`text-[11px] font-semibold px-2.5 py-1 rounded-full whitespace-nowrap active:scale-[0.96] transition-transform ${colorClasses}`}
     >
       Follow
     </button>

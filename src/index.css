@@ -688,6 +688,27 @@ body {
 }
 
 /*
+  Follow / unfollow / request — deliberately quiet. The control cross-fades and settles from a hair smaller
+  (no overshoot, no bounce), and a changed counter ticks in from just below. Both are < 200ms and are switched
+  off by prefers-reduced-motion with the rest below. See hooks/useChangePulse.ts.
+*/
+@keyframes ako-follow-swap {
+  0% { transform: scale(0.97); opacity: 0.55; }
+  100% { transform: scale(1); opacity: 1; }
+}
+.ako-follow-swap {
+  animation: ako-follow-swap 180ms ease-out;
+}
+@keyframes ako-count-tick {
+  0% { transform: translateY(35%); opacity: 0.3; }
+  100% { transform: translateY(0); opacity: 1; }
+}
+.ako-count-tick {
+  display: inline-block;
+  animation: ako-count-tick 200ms ease-out;
+}
+
+/*
   Gift sent — the button itself pops, and a single gift glyph rises and
   fades above it. This is the emotional-peak interaction (see GiftPicker.tsx)
   so it gets the most motion of any of these, deliberately.
@@ -783,6 +804,8 @@ body {
   .ako-like-pop,
   .ako-like-spark,
   .ako-pill-in,
+  .ako-follow-swap,
+  .ako-count-tick,
   .ako-gift-pop,
   .ako-gift-rise,
   .ako-unlock-reveal,

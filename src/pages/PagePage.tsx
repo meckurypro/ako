@@ -5,6 +5,7 @@ import { useParams, Link, useNavigate } from "react-router-dom";
 import { useSmartBack } from "../hooks/useSmartBack";
 import { ArrowLeft, ArrowLeftRight, Building2, Globe, MoreHorizontal, Pencil, Plus, Redo2, Users, UserCog } from "lucide-react";
 import { useAuth } from "../hooks/useAuth";
+import { useChangePulse } from "../hooks/useChangePulse";
 import { useIsRestricted } from "../hooks/useAccountAccess";
 import { useMyProfile } from "../hooks/useProfile";
 import { Avatar } from "../components/Avatar";
@@ -85,6 +86,7 @@ export function PagePage() {
   const subsidiariesEnabled = useFeatureFlag("subsidiaries_enabled");
 
   const isFollowing = !!isFollowingQuery.data;
+  const followPulse = useChangePulse(isFollowing);
   const myMembership = members?.find((m) => m.user_id === user?.id && m.status === "active");
   const isMember = !!myMembership;
   const isAdmin = !!myMembership?.is_admin;
@@ -355,10 +357,9 @@ export function PagePage() {
             <button
               type="button"
               onClick={() => (user ? toggleFollow.mutate(isFollowing) : navigate(`/login?redirect=/page/${page.username}`))}
-              disabled={toggleFollow.isPending}
-              className={`w-full mt-4 rounded-xl py-2.5 text-sm font-medium ${
+              className={`w-full mt-4 rounded-xl py-2.5 text-sm font-medium active:scale-[0.98] transition-transform ${
                 isFollowing ? "bg-surface text-ink" : "bg-accent text-canvas"
-              }`}
+              } ${followPulse ? "ako-follow-swap" : ""}`}
             >
               {isFollowing ? "Following" : "Follow"}
             </button>

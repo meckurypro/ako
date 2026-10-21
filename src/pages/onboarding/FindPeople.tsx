@@ -3,6 +3,7 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useOnboardingRecommendations, type OnboardingRecommendation } from "../../hooks/useOnboarding";
 import { useIsFollowing, useToggleFollow } from "../../hooks/useProfile";
+import { useCanFollow } from "../../hooks/useAccountAccess";
 import { Avatar } from "../../components/Avatar";
 import { Wordmark } from "../../components/Wordmark";
 import { Button } from "../../components/Button";
@@ -57,7 +58,6 @@ function SuggestedPersonRow({ person }: { person: OnboardingRecommendation }) {
         size="sm"
         onClick={() => toggleFollow.mutate(isFollowing)}
         disabled={isFollowingQuery.isLoading}
-        loading={toggleFollow.isPending}
         className="shrink-0"
       >
         {isFollowing ? "Following" : "Follow"}
@@ -70,6 +70,9 @@ export function FindPeople() {
   const navigate = useNavigate();
   const { data: recommendations, isLoading, error, refetch } = useOnboardingRecommendations(MAX_SUGGESTIONS);
   const [followedCount, setFollowedCount] = useState(0);
+  // New accounts are still under review, and the server rejects every follow from them — so the step quietly
+  // behaves like "no suggestions" (same copy, still continuable) instead of offering buttons that can only fail.
+  const canFollow = useCanFollow();
 
   // Local-only tally for the "Continue · N following" copy — actual
   // follow state lives server-side per card via useIsFollowing, this
@@ -102,7 +105,7 @@ export function FindPeople() {
               Try again
             </button>
           </div>
-        ) : !recommendations || recommendations.length === 0 ? (
+        ) : !canFollow || !recommendations || recommendations.length === 0 ? (
           // No/few matches (spec §16) — never a dead-end screen, still
           // fully continuable.
           <p className="text-ink-muted text-center py-16 text-sm">
