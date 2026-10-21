@@ -16,7 +16,9 @@
 --                   at most 20 chars, at least 3 — made unique with a numeric suffix
 --   display_name  : Google's full name, falling back to the email's local part
 --
--- People can change both afterwards like any other account. Safe to re-run.
+-- These are placeholders: the new account is also tagged `needs_profile_setup`, and the app asks
+-- them to choose their own username/name right after sign-in (see ako_google_profile_setup.sql).
+-- Safe to re-run.
 
 create or replace function public.fill_oauth_signup_defaults()
 returns trigger
@@ -62,7 +64,9 @@ begin
     candidate := left(base, 16) || (floor(random() * 9000) + 1000)::int::text;
   end loop;
 
-  new.raw_user_meta_data := meta || jsonb_build_object('username', candidate, 'display_name', display);
+  -- needs_profile_setup: picked up by ako_google_profile_setup.sql, which sends the new account
+  -- to the "complete your profile" step to choose a real username before onboarding.
+  new.raw_user_meta_data := meta || jsonb_build_object('username', candidate, 'display_name', display, 'needs_profile_setup', true);
   return new;
 end;
 $$;

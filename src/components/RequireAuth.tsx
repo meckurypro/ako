@@ -78,7 +78,13 @@ export function RequireAuth({ children, skipOnboardingCheck = false }: RequireAu
   if (!skipOnboardingCheck && onboarding && !onboarding.completed) {
     return (
       <Navigate
-        to={onboarding.hasInterests ? "/onboarding/people" : "/onboarding/welcome"}
+        to={
+          !onboarding.profileSetupCompleted
+            ? "/onboarding/profile"
+            : onboarding.hasInterests
+              ? "/onboarding/people"
+              : "/onboarding/welcome"
+        }
         replace
         state={{ from: location }}
       />

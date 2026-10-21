@@ -45,6 +45,10 @@ export interface Profile {
   // every profile that existed before that migration ran — only
   // genuinely new signups start out false. See useOnboardingStatus.
   onboarding_completed: boolean;
+  // false = a Google sign-up that still owes the "complete your profile" step
+  // (username + name) before the rest of onboarding. true for everyone else.
+  // See supabase/ako_google_profile_setup.sql.
+  profile_setup_completed: boolean;
   // Incubation Account Review & Access Gate — never set directly by
   // clients (see admin_approve_account() and the profiles update
   // trigger). 'approved' for every profile that existed before this

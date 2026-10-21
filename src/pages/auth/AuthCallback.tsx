@@ -84,6 +84,7 @@ export function AuthCallback() {
         // Where to go next depends on whether this person has finished
         // onboarding, which an email confirmation (always a brand-new
         // account) and a Google sign-in (new OR returning) disagree on:
+        //   • new Google account → /onboarding/profile (username + name) first.
         //   • not finished → onboarding Welcome. The remembered return
         //     path is left in place for BuildingAko to pick up at the end.
         //   • finished     → straight to where they were headed (or /feed).
@@ -94,12 +95,15 @@ export function AuthCallback() {
         void (async () => {
           const { data: profileRow } = await supabase
             .from("profiles")
-            .select("onboarding_completed")
+            .select("onboarding_completed, profile_setup_completed")
             .eq("id", session.user.id)
             .single();
 
           if (profileRow?.onboarding_completed) {
             navigate(takeReturnTo() ?? "/feed", { replace: true });
+          } else if (profileRow?.profile_setup_completed === false) {
+            // New Google account: pick a username + name first.
+            navigate("/onboarding/profile", { replace: true });
           } else {
             navigate("/onboarding/welcome", { replace: true });
           }

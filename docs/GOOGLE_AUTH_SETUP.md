@@ -27,7 +27,13 @@ username, and the profile can't be created without one — without this, a first
 "Database error saving new user". It only fills in a username/display name when they're missing, so email
 sign-ups are untouched.
 
+Then run `supabase/ako_google_profile_setup.sql` (after the file above). It adds `profiles.profile_setup_completed`
+and the `complete_profile_setup()` function behind the "Complete your profile" step.
+
 ## Behaviour worth knowing
+- A brand-new Google account first lands on `/onboarding/profile` (native: `/onboarding/profile` screen) to choose a
+  username and confirm their name, then continues with Welcome → Interests → People. The username the database
+  generates from the email is only a placeholder. Returning Google users and email sign-ups never see this step.
 - Sign-up and log-in are the same button: first use creates the account, later uses sign in.
 - If someone already has an email/password account and signs in with Google using the same (verified) email,
   Supabase links the Google identity to that existing account rather than creating a second one.

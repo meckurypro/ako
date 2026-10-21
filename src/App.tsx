@@ -22,6 +22,7 @@ import { VerifyEmail } from "./pages/auth/VerifyEmail";
 import { ResetPassword } from "./pages/auth/ResetPassword";
 import { AuthCallback } from "./pages/auth/AuthCallback";
 
+import { CompleteProfile } from "./pages/onboarding/CompleteProfile";
 import { Welcome } from "./pages/onboarding/Welcome";
 import { InterestPicker } from "./pages/onboarding/InterestPicker";
 import { FindPeople } from "./pages/onboarding/FindPeople";
@@ -215,6 +216,16 @@ function AppRoutes() {
                 inverse: it sends someone who has ALREADY completed
                 onboarding away from these pages (e.g. browser
                 back/bookmark) to /feed instead. */}
+            <Route
+              path="/onboarding/profile"
+              element={
+                <RequireAuth skipOnboardingCheck>
+                  <OnboardingStepGuard allowIncompleteProfile>
+                    <CompleteProfile />
+                  </OnboardingStepGuard>
+                </RequireAuth>
+              }
+            />
             <Route
               path="/onboarding/welcome"
               element={
