@@ -908,3 +908,25 @@ html[data-kb-open] .ako-keyboard-aware > *:not([data-anchored-panel]) {
 @media (prefers-reduced-motion: reduce) {
   .ako-download-cta-shine { display: none; }
 }
+
+/* Page hero slideshow — the active segment's fill runs for exactly one autoplay interval
+   (duration set inline from the page's own setting). Paused/reduced-motion drops the animation. */
+@keyframes ako-hero-progress {
+  from { transform: scaleX(0); }
+  to { transform: scaleX(1); }
+}
+.ako-hero-progress {
+  transform-origin: left center;
+  animation-name: ako-hero-progress;
+  animation-timing-function: linear;
+  animation-fill-mode: forwards;
+}
+.ako-hero-progress--paused {
+  animation-play-state: paused;
+}
+@media (prefers-reduced-motion: reduce) {
+  .ako-hero-progress {
+    animation: none;
+    transform: scaleX(1);
+  }
+}

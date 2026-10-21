@@ -2,7 +2,7 @@
 import { useState } from "react";
 import { useParams } from "react-router-dom";
 import { useSmartBack } from "../hooks/useSmartBack";
-import { ArrowLeft, ChevronDown, Search, ShieldCheck, X } from "lucide-react";
+import { ArrowDown, ArrowLeft, ArrowUp, ChevronDown, Eye, EyeOff, Search, ShieldCheck, X } from "lucide-react";
 import { useAuth } from "../hooks/useAuth";
 import { useSearchPeople } from "../hooks/useSearch";
 import { Avatar } from "../components/Avatar";
@@ -15,6 +15,11 @@ import {
   useSetPageMemberPermissions,
 } from "../hooks/usePages";
 import { PagePermissionsEditor } from "../components/PagePermissionsEditor";
+import {
+  MAX_FEATURED_MEMBERS,
+  useReorderFeaturedMembers,
+  useSetMemberFeatured,
+} from "../hooks/usePageLanding";
 import { RoleSelect } from "../components/RoleSelect";
 import {
   LEGACY_MEMBER_PERMISSIONS,
@@ -39,7 +44,7 @@ function MemberPermissions({ pageId, member }: { pageId: string; member: PageMem
   const dirty = !samePermissions(draft, saved);
 
   return (
-    <div className="px-4 pb-4 -mt-1">
+    <div className="px-4 pb-4">
       <button
         type="button"
         onClick={() => {
@@ -94,6 +99,8 @@ export function PageTeam() {
   const invite = useInvitePageMember();
   const remove = useRemovePageMember();
   const updateRole = useUpdatePageMemberRole();
+  const setFeatured = useSetMemberFeatured(page?.id ?? "");
+  const reorderFeatured = useReorderFeaturedMembers(page?.id ?? "");
   const toast = useToast();
 
   // Smart search-as-you-type replaces the old "type the exact username,
@@ -117,6 +124,36 @@ export function PageTeam() {
 
   const active = (members ?? []).filter((m) => m.status === "active");
   const pending = (members ?? []).filter((m) => m.status === "invited");
+  // Who visitors see in "Meet the team", in the order the admin chose.
+  const featuredMembers = active
+    .filter((m) => m.show_on_page)
+    .sort((a, b) => (a.display_order ?? 0) - (b.display_order ?? 0));
+  const featuredFull = featuredMembers.length >= MAX_FEATURED_MEMBERS;
+
+  function toggleFeatured(m: PageMemberWithProfile) {
+    setFeatured.mutate(
+      { user_id: m.user_id, featured: !m.show_on_page },
+      {
+        onSuccess: () =>
+          toast(
+            m.show_on_page
+              ? `${m.profile.display_name} is hidden from the page.`
+              : `${m.profile.display_name} now shows on the page.`,
+            { variant: "success" }
+          ),
+        onError: (err) => toast(err instanceof Error ? err.message : "Couldn't update that.", { variant: "error" }),
+      }
+    );
+  }
+
+  function moveFeatured(userId: string, delta: -1 | 1) {
+    const ids = featuredMembers.map((m) => m.user_id);
+    const from = ids.indexOf(userId);
+    const to = from + delta;
+    if (from < 0 || to < 0 || to >= ids.length) return;
+    [ids[from], ids[to]] = [ids[to], ids[from]];
+    reorderFeatured.mutate(ids, { onError: () => toast("Couldn't reorder.", { variant: "error" }) });
+  }
 
   // Already on the team (active or pending) shouldn't show up as an
   // invite target again.
@@ -306,6 +343,47 @@ export function PageTeam() {
           </div>
         )}
 
+        <div className="bg-surface rounded-2xl p-4 mb-6">
+          <p className="text-xs font-medium text-ink-muted uppercase tracking-wide">Shown on the page</p>
+          <p className="mt-1 text-xs text-ink-muted">
+            Visitors never see how big the team is — only the people you choose here, with their photo, name, role
+            and bio, in this order. Up to {MAX_FEATURED_MEMBERS}.
+          </p>
+          {featuredMembers.length === 0 ? (
+            <p className="mt-3 text-sm text-ink-muted">No one yet. Use “Show on page” on a team member below.</p>
+          ) : (
+            <ul className="mt-3 divide-y divide-border">
+              {featuredMembers.map((m, i) => (
+                <li key={m.id} className="flex items-center gap-3 py-2.5">
+                  <Avatar src={m.profile.avatar_url} name={m.profile.display_name} size="sm" />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm text-ink truncate">{m.profile.display_name}</p>
+                    <p className="text-xs text-ink-muted truncate">{m.role_label}</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => moveFeatured(m.user_id, -1)}
+                    disabled={i === 0 || reorderFeatured.isPending}
+                    aria-label={`Move ${m.profile.display_name} earlier`}
+                    className="p-2 text-ink-muted disabled:opacity-30"
+                  >
+                    <ArrowUp size={16} />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => moveFeatured(m.user_id, 1)}
+                    disabled={i === featuredMembers.length - 1 || reorderFeatured.isPending}
+                    aria-label={`Move ${m.profile.display_name} later`}
+                    className="p-2 text-ink-muted disabled:opacity-30"
+                  >
+                    <ArrowDown size={16} />
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+
         <p className="text-xs font-medium text-ink-muted uppercase tracking-wide mb-2 px-1">
           Team ({active.length})
         </p>
@@ -360,6 +438,20 @@ export function PageTeam() {
                   </button>
                 </div>
               )}
+            </div>
+            <div className="px-4 pb-3 -mt-1">
+              <button
+                type="button"
+                onClick={() => toggleFeatured(m)}
+                disabled={setFeatured.isPending || (!m.show_on_page && featuredFull)}
+                aria-pressed={!!m.show_on_page}
+                className={`flex items-center gap-1.5 text-xs disabled:opacity-40 ${
+                  m.show_on_page ? "text-accent font-medium" : "text-ink-muted"
+                }`}
+              >
+                {m.show_on_page ? <Eye size={13} /> : <EyeOff size={13} />}
+                {m.show_on_page ? "Shown on page" : "Show on page"}
+              </button>
             </div>
             {m.user_id !== user?.id && <MemberPermissions pageId={page.id} member={m} />}
             </div>

@@ -7,15 +7,17 @@ interface ToggleSwitchProps {
   checked: boolean;
   onChange: (checked: boolean) => void;
   disabled?: boolean;
+  ariaLabel?: string;
 }
 
-export function ToggleSwitch({ checked, onChange, disabled }: ToggleSwitchProps) {
+export function ToggleSwitch({ checked, onChange, disabled, ariaLabel }: ToggleSwitchProps) {
   return (
     <button
       type="button"
       onClick={() => onChange(!checked)}
       disabled={disabled}
       aria-pressed={checked}
+      aria-label={ariaLabel}
       className={`w-11 h-6 rounded-full transition-colors relative flex-shrink-0 overflow-hidden disabled:opacity-50 ${
         checked ? "bg-accent" : "bg-border"
       }`}

@@ -1,29 +1,54 @@
 // src/pages/PagePage.tsx
-import { ProfilePageSkeleton } from "../components/ProfileSkeletons";
 import { useEffect, useRef, useState } from "react";
 import { useParams, Link, useNavigate } from "react-router-dom";
 import { useSmartBack } from "../hooks/useSmartBack";
-import { ArrowLeft, ArrowLeftRight, Building2, Globe, MoreHorizontal, Pencil, Plus, Redo2, Users, UserCog } from "lucide-react";
+import {
+  ArrowLeft,
+  ArrowLeftRight,
+  Building2,
+  Eye,
+  Layers,
+  LayoutGrid,
+  Link2,
+  MoreHorizontal,
+  Pencil,
+  Plus,
+  Redo2,
+  Share2,
+  Sparkles,
+  UserMinus,
+  UserPlus,
+  UserCog,
+  X,
+  type LucideIcon,
+} from "lucide-react";
 import { useAuth } from "../hooks/useAuth";
-import { useChangePulse } from "../hooks/useChangePulse";
 import { useIsRestricted } from "../hooks/useAccountAccess";
 import { useMyProfile } from "../hooks/useProfile";
 import { Avatar } from "../components/Avatar";
 import { VerifiedBadge } from "../components/VerifiedBadge";
 import { PostCard } from "../components/PostCard";
 import { BottomNav } from "../components/BottomNav";
+import { DropdownMenu, type DropdownMenuItem } from "../components/DropdownMenu";
+import { MediaViewer } from "../components/MediaViewer";
+import { SwipeableTabs } from "../components/SwipeableTabs";
+import { SlidingTabBar } from "../components/SlidingTabBar";
+import { PageHero } from "../components/PageHero";
+import { PageTeamShowcase } from "../components/PageTeamShowcase";
+import { PostListSkeleton, ProjectMiniGridSkeleton } from "../components/ProfileSkeletons";
+import { useToast } from "../components/Toast";
 import {
   usePageByUsername,
   useIsFollowingPage,
   useMyPagePermissions,
   useTogglePageFollow,
-  usePageMembers,
   usePageSubsidiaries,
   useMyPages,
   useActiveIdentity,
   useSwitchActiveMode,
   usePageById,
 } from "../hooks/usePages";
+import { usePageFeaturedMembers, usePageHeroSlides } from "../hooks/usePageLanding";
 import { usePagePosts } from "../hooks/usePosts";
 import { usePageProjects } from "../hooks/useProjects";
 import { useTabState } from "../hooks/useTabState";
@@ -31,6 +56,8 @@ import { ProjectMiniGrid } from "../components/ProjectMiniCard";
 import { pageModeLabel } from "../lib/pageRoles";
 import { useFeatureFlag } from "../hooks/useFeatureFlags";
 import { APP_URL } from "../lib/appUrl";
+import { useChangePulse } from "../hooks/useChangePulse";
+import { useHidePageScrollbar } from "../lib/useHidePageScrollbar";
 
 function getWebsiteHref(url: string): string {
   return /^https?:\/\//i.test(url) ? url : `https://${url}`;
@@ -44,101 +71,104 @@ function getWebsiteDomain(url: string): string {
   }
 }
 
-// /page/:username — a page's public profile. Its feed is simply every
-// post posted_as_page_id = this page (see usePagePosts), which is
-// what naturally gives "cumulative activity of everyone managing it"
-// without any separate aggregation.
+type PageTab = "projects" | "posts";
+
+// Height of the sticky top bar. The tab bar docks right under it (top-14 === 56px).
+const TOP_BAR_PX = 56;
+
+const GLASS_BTN = "w-10 h-10 shrink-0 flex items-center justify-center rounded-full transition-colors";
+
+function EmptyNote({ icon: Icon, children }: { icon: LucideIcon; children: React.ReactNode }) {
+  return (
+    <div className="flex flex-col items-center text-center py-14 px-6">
+      <div className="w-14 h-14 rounded-full bg-accent-soft flex items-center justify-center mb-3">
+        <Icon size={22} className="text-accent" />
+      </div>
+      <p className="text-ink-muted text-sm max-w-xs">{children}</p>
+    </div>
+  );
+}
+
+// /page/:username — a page's public landing view: banner, identity, hero slideshow, about,
+// the team members its admins chose to show, then its projects and posts. Its feed is simply
+// every post posted_as_page_id = this page (see usePagePosts), which is what naturally gives
+// "cumulative activity of everyone managing it" without any separate aggregation.
 export function PagePage() {
+  // The page height changes a lot between the Projects and Posts tabs; keep the page scrollbar from popping in and out.
+  useHidePageScrollbar();
   const { username } = useParams<{ username: string }>();
   const navigate = useNavigate();
   const smartBack = useSmartBack();
   const restricted = useIsRestricted();
+  const toast = useToast();
   const [menuOpen, setMenuOpen] = useState(false);
-  const menuRef = useRef<HTMLDivElement>(null);
-  // Separate from the "…" menu above — tapping the page's own NAME
-  // opens a quick switcher across every page you run (not just
-  // same-type ones anymore), the way tapping your handle in IG/TikTok
-  // pops up "Switch accounts". Own open state + outside-tap ref, same
-  // pattern as the "…" menu just above.
+  const menuButtonRef = useRef<HTMLButtonElement>(null);
+  // Tapping the page's own NAME opens a quick switcher across every page you run.
   const [nameMenuOpen, setNameMenuOpen] = useState(false);
-  const nameMenuRef = useRef<HTMLDivElement>(null);
+  const nameButtonRef = useRef<HTMLButtonElement>(null);
+  const [previewingAsVisitor, setPreviewingAsVisitor] = useState(false);
+  const [viewer, setViewer] = useState<"avatar" | "banner" | null>(null);
+  // The top bar starts see-through over the banner and turns solid (with the page name)
+  // once you've scrolled past the identity block.
+  const [scrolled, setScrolled] = useState(false);
+  const [tabProgress, setTabProgress] = useState(0);
+  const [tabDragging, setTabDragging] = useState(false);
 
   const { user } = useAuth();
   const { data: me } = useMyProfile();
   const { data: page, isLoading } = usePageByUsername(username!);
-  const { data: members } = usePageMembers(page?.id ?? "");
   // Restricted (consumer-only) accounts see a Page's projects only — never its posts.
-  const { data: posts } = usePagePosts(restricted ? "" : page?.id ?? "");
+  const { data: posts, isLoading: postsLoading } = usePagePosts(restricted ? "" : page?.id ?? "");
   const { data: projects, isLoading: projectsLoading } = usePageProjects(page?.id);
-  // ?tab=projects survives refresh and is what CreateProject lands on
-  // after publishing as this page (see useTabState).
-  const [activeTab, setActiveTab] = useTabState<"posts" | "projects">(["posts", "projects"], restricted ? "projects" : "posts");
+  const tabIds: PageTab[] = restricted ? ["projects"] : ["projects", "posts"];
+  const [activeTab, setActiveTab] = useTabState<PageTab>(tabIds, "projects");
   const { data: myPages } = useMyPages();
   const { data: identity } = useActiveIdentity();
   const switchMode = useSwitchActiveMode();
   const isFollowingQuery = useIsFollowingPage(page?.id ?? "");
   const toggleFollow = useTogglePageFollow(page?.id ?? "");
-  // "A Subsidiary of {name}" line, and this page's own Subsidiaries
-  // rail — see ako_pages_v2_subsidiaries.sql for what actually governs
-  // this relationship server-side.
   const { data: parentPage } = usePageById(page?.parent_organization_id ?? "", !!page?.parent_organization_id);
   const { data: subsidiaries } = usePageSubsidiaries(page?.id);
   const subsidiariesEnabled = useFeatureFlag("subsidiaries_enabled");
+  const { data: slides } = usePageHeroSlides(page?.id);
+  // Only the members an admin chose to show — a visitor's page load never fetches the full roster.
+  const { data: featured } = usePageFeaturedMembers(page?.id);
 
   const isFollowing = !!isFollowingQuery.data;
-  const followPulse = useChangePulse(isFollowing);
-  const myMembership = members?.find((m) => m.user_id === user?.id && m.status === "active");
-  const isMember = !!myMembership;
-  const isAdmin = !!myMembership?.is_admin;
+  // The follower count ticks in quietly when it changes (index.css .ako-count-tick).
+  const followersPulse = useChangePulse(page?.follower_count);
+  // My own relationship to this page (membership, admin, permissions) comes from one small
+  // query about ME — so nothing here needs the whole team list.
+  const { data: myPagePerms, isLoading: permsLoading } = useMyPagePermissions(page?.id);
+  const isMember = !!myPagePerms?.isMember;
+  const isAdmin = !!myPagePerms?.isAdmin;
   // Admins can always edit; other members only if an admin granted "edit page details".
-  const { data: myPagePerms } = useMyPagePermissions(page?.id);
   const canEditPage = isAdmin || !!myPagePerms?.permissions.edit_page;
-  // Following is something a PERSON does to a page. Never offered to the
-  // page's own team (you'd be following yourself), and never while acting as
-  // a page — pages don't follow pages.
-  const canFollowPage = !isMember && identity?.mode !== "page";
-  const activeMembers = (members ?? []).filter((m) => m.status === "active");
+  // Editors see the setup hints and management shortcuts; "View as visitor" turns them off.
+  const editorView = canEditPage && !previewingAsVisitor;
+  // Following is something a PERSON does to a page. Never offered to the page's own team
+  // (you'd be following yourself), and never while acting as a page — pages don't follow pages.
+  const canFollowPage = !isMember && identity?.mode !== "page" && !(!!user && permsLoading);
+  // Once you follow, the Follow/Following button is gone entirely — Unfollow lives in "…".
+  const showFollowButton = canFollowPage && !isFollowing;
 
-  // Am I currently acting AS this page? Drives whether the menu offers
-  // "switch to it" or "switch back to personal/elsewhere".
   const isActiveHere = identity?.mode === "page" && identity.page.id === page?.id;
-  // Every page I run (any type) plus this one — what tapping the NAME
-  // switches between, the same way tapping your own display name in
-  // personal mode would offer every account you have. Switching
-  // between pages happens exclusively here now, not as a separate
-  // "Switch to X" list in the "…" menu above.
   const switchablePages = (myPages ?? []).filter((p) => p.id !== page?.id);
   const canSwitchByName = isMember && switchablePages.length > 0;
 
   useEffect(() => {
-    if (!menuOpen) return;
-    function handleOutside(e: MouseEvent | TouchEvent) {
-      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
-        setMenuOpen(false);
-      }
+    function onScroll() {
+      setScrolled(window.scrollY > 150);
     }
-    document.addEventListener("mousedown", handleOutside);
-    document.addEventListener("touchstart", handleOutside);
-    return () => {
-      document.removeEventListener("mousedown", handleOutside);
-      document.removeEventListener("touchstart", handleOutside);
-    };
-  }, [menuOpen]);
+    onScroll();
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, []);
 
+  const activeIndex = Math.max(tabIds.indexOf(activeTab), 0);
   useEffect(() => {
-    if (!nameMenuOpen) return;
-    function handleOutside(e: MouseEvent | TouchEvent) {
-      if (nameMenuRef.current && !nameMenuRef.current.contains(e.target as Node)) {
-        setNameMenuOpen(false);
-      }
-    }
-    document.addEventListener("mousedown", handleOutside);
-    document.addEventListener("touchstart", handleOutside);
-    return () => {
-      document.removeEventListener("mousedown", handleOutside);
-      document.removeEventListener("touchstart", handleOutside);
-    };
-  }, [nameMenuOpen]);
+    setTabProgress(activeIndex);
+  }, [activeIndex]);
 
   async function sharePage() {
     if (!page) return;
@@ -151,12 +181,8 @@ export function PagePage() {
       }
     } else {
       await navigator.clipboard.writeText(url);
+      toast("Link copied.", { variant: "success" });
     }
-  }
-
-  function handleShare() {
-    setMenuOpen(false);
-    void sharePage();
   }
 
   function handleSwitchTo(pageId: string | null, destination: string) {
@@ -165,7 +191,35 @@ export function PagePage() {
     switchMode.mutate(pageId, { onSuccess: () => navigate(destination) });
   }
 
-  if (isLoading) return <ProfilePageSkeleton />;
+  // Following is instant (the hook updates the screen first, plays the sound and reports a failure itself),
+  // so there's nothing to wait on or announce here — the Follow button simply gives way.
+  function handleFollow() {
+    if (!page) return;
+    if (!user) {
+      navigate(`/login?redirect=/page/${page.username}`);
+      return;
+    }
+    toggleFollow.mutate(false);
+  }
+
+  function handleUnfollow() {
+    toggleFollow.mutate(true);
+  }
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-canvas pb-24">
+        <div className="max-w-xl md:max-w-3xl mx-auto">
+          <div className="aspect-[8/3] w-full bg-surface animate-pulse" />
+          <div className="px-4">
+            <div className="-mt-12 h-28 w-28 rounded-full bg-border ring-4 ring-canvas animate-pulse" />
+            <div className="mt-4 h-7 w-48 rounded-lg bg-surface animate-pulse" />
+            <div className="mt-2 h-4 w-32 rounded-lg bg-surface animate-pulse" />
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   if (!page) {
     return (
@@ -175,278 +229,421 @@ export function PagePage() {
     );
   }
 
+  const menuItems: (DropdownMenuItem | "divider")[] = [
+    {
+      key: "share",
+      label: `Share ${pageModeLabel(page.page_type).toLowerCase()}`,
+      icon: <Redo2 />,
+      onSelect: () => void sharePage(),
+    },
+    ...(isMember && isActiveHere
+      ? ([
+          {
+            key: "switch-personal",
+            label: `Switch to ${me?.display_name ?? "personal"}`,
+            icon: <ArrowLeftRight />,
+            onSelect: () => handleSwitchTo(null, me ? `/profile/${me.username}` : "/feed"),
+          },
+        ] satisfies DropdownMenuItem[])
+      : []),
+    ...(isMember && !isActiveHere
+      ? ([
+          {
+            key: "switch-page",
+            label: `Switch to ${page.name}`,
+            icon: <ArrowLeftRight />,
+            onSelect: () => handleSwitchTo(page.id, `/page/${page.username}`),
+          },
+        ] satisfies DropdownMenuItem[])
+      : []),
+    ...(canEditPage
+      ? ([
+          {
+            key: "edit",
+            label: "Edit page",
+            icon: <Pencil />,
+            onSelect: () => navigate(`/page/${page.username}/edit`),
+          },
+          {
+            key: "preview",
+            label: previewingAsVisitor ? "Exit visitor view" : "View as visitor",
+            icon: <Eye />,
+            onSelect: () => setPreviewingAsVisitor((v) => !v),
+          },
+        ] satisfies DropdownMenuItem[])
+      : []),
+    ...(isAdmin
+      ? ([
+          {
+            key: "team",
+            label: "Manage team",
+            icon: <UserCog />,
+            onSelect: () => navigate(`/page/${page.username}/team`),
+          },
+        ] satisfies DropdownMenuItem[])
+      : []),
+    ...(isAdmin && subsidiariesEnabled && !restricted
+      ? ([
+          {
+            key: "subsidiary",
+            label: "Add Subsidiary",
+            icon: <Building2 />,
+            onSelect: () => navigate(`/pages/new?parent=${page.id}`),
+          },
+        ] satisfies DropdownMenuItem[])
+      : []),
+    // Following has no button of its own once you follow — this is where it lives.
+    ...(canFollowPage && isFollowing
+      ? (["divider", {
+          key: "unfollow",
+          label: "Unfollow",
+          icon: <UserMinus />,
+          variant: "danger",
+          onSelect: handleUnfollow,
+        }] satisfies (DropdownMenuItem | "divider")[])
+      : []),
+  ];
+
+  const hasSlides = (slides?.length ?? 0) > 0;
+  const hasFeatured = (featured?.length ?? 0) > 0;
+  // What an editor could still add to make the page feel finished.
+  const setupSteps = [
+    !page.cover_url && { key: "banner", label: "Add a banner", to: `/page/${page.username}/edit` },
+    !hasSlides && { key: "hero", label: "Add hero slides", to: `/page/${page.username}/edit` },
+    isAdmin && !hasFeatured && { key: "team", label: "Choose who appears in “Meet the team”", to: `/page/${page.username}/team` },
+  ].filter(Boolean) as { key: string; label: string; to: string }[];
+
+  const topBtn = scrolled ? "text-ink hover:bg-ink/5" : "bg-black/35 text-white backdrop-blur-md";
+
   return (
     <div className="min-h-screen bg-canvas pb-24">
-      <div className="max-w-md mx-auto">
-        <div className="flex items-center justify-between px-4 pt-4">
-          <button onClick={smartBack} className="text-ink-muted">
+      {/* Top bar — floats over the banner, then solidifies and shows the page name. It stays
+          reachable all the way down because "…" is where Unfollow (and the team's tools) live. */}
+      <div
+        className={`sticky top-0 z-chrome -mb-14 h-14 transition-[background-color,border-color,backdrop-filter] duration-200 border-b ${
+          scrolled ? "bg-canvas/90 backdrop-blur-md border-border" : "bg-transparent border-transparent"
+        }`}
+      >
+        <div className="max-w-xl md:max-w-3xl mx-auto h-full px-3 flex items-center gap-1">
+          <button onClick={smartBack} aria-label="Back" className={`${GLASS_BTN} ${topBtn}`}>
             <ArrowLeft size={22} />
           </button>
 
-          <div className="flex items-center gap-1">
-            {/* Only while actually ACTING as this page — a member who
-                hasn't switched into it yet posts as themselves, so this
-                button living here (rather than always-on for any
-                member) keeps "what I create next" matched to "who I'm
-                posting as right now". Reuses the same /create sheet as
-                Feed/personal profile — Compose.tsx and CreateProject.tsx
-                already attribute the result to the active page identity
-                on their own (posted_as_page_id), so nothing else here
-                needs to know this is a page. */}
-            {isActiveHere && !restricted && (
-              <Link to="/create" aria-label="Create" className="p-2 text-ink-muted">
-                <Plus size={22} />
-              </Link>
-            )}
-
-            {/* Mode-aware "…" — content depends on the viewer's relationship
-                to this specific page (visitor / member / currently acting as
-                it), not a fixed set of options. */}
-            <div ref={menuRef} className="relative">
-              <button
-                onClick={() => setMenuOpen((o) => !o)}
-                className="p-2 text-ink-muted"
-                aria-label="Page options"
-              >
-                <MoreHorizontal size={20} />
-              </button>
-
-              {menuOpen && (
-                <div className="absolute top-full right-0 mt-1 bg-canvas border border-border rounded-xl shadow-lg py-1 w-60 z-10">
-                  <button
-                    onClick={handleShare}
-                  className="w-full flex items-center gap-2.5 text-left px-4 py-2.5 text-sm text-ink hover:bg-surface"
-                >
-                  <Redo2 size={16} />
-                  Share {pageModeLabel(page.page_type).toLowerCase()}
-                </button>
-
-                {isMember && isActiveHere && (
-                  <button
-                    onClick={() => handleSwitchTo(null, me ? `/profile/${me.username}` : "/feed")}
-                    className="w-full flex items-center gap-2.5 text-left px-4 py-2.5 text-sm text-ink hover:bg-surface"
-                  >
-                    <ArrowLeftRight size={16} />
-                    Switch to {me?.display_name ?? "personal"}
-                  </button>
-                )}
-
-                {isMember && !isActiveHere && (
-                  <button
-                    onClick={() => handleSwitchTo(page.id, `/page/${page.username}`)}
-                    className="w-full flex items-center gap-2.5 text-left px-4 py-2.5 text-sm text-ink hover:bg-surface"
-                  >
-                    <ArrowLeftRight size={16} />
-                    Switch to {page.name}
-                  </button>
-                )}
-
-                {canEditPage && (
-                  <Link
-                    to={`/page/${page.username}/edit`}
-                    onClick={() => setMenuOpen(false)}
-                    className="flex items-center gap-2.5 px-4 py-2.5 text-sm text-ink hover:bg-surface"
-                  >
-                    <Pencil size={16} />
-                    Edit page
-                  </Link>
-                )}
-
-                {isAdmin && (
-                  <Link
-                    to={`/page/${page.username}/team`}
-                    onClick={() => setMenuOpen(false)}
-                    className="flex items-center gap-2.5 px-4 py-2.5 text-sm text-ink hover:bg-surface"
-                  >
-                    <UserCog size={16} />
-                    Manage team
-                  </Link>
-                )}
-
-                {isAdmin && subsidiariesEnabled && !restricted && (
-                  <Link
-                    to={`/pages/new?parent=${page.id}`}
-                    onClick={() => setMenuOpen(false)}
-                    className="flex items-center gap-2.5 px-4 py-2.5 text-sm text-ink hover:bg-surface"
-                  >
-                    <Building2 size={16} />
-                    Add Subsidiary
-                  </Link>
-                )}
-              </div>
-            )}
-          </div>
-          </div>
-        </div>
-
-        <div className="px-4 pt-3 pb-4">
-          <div className="flex items-start gap-4">
-            <Avatar src={page.avatar_url} name={page.name} size="xl" />
-            <div className="flex-1 min-w-0 pt-1">
-              <div ref={nameMenuRef} className="relative inline-block max-w-full">
-                <button
-                  type="button"
-                  onClick={() => canSwitchByName && setNameMenuOpen((o) => !o)}
-                  disabled={!canSwitchByName}
-                  className="flex items-center gap-1.5 max-w-full"
-                >
-                  <h1 className="font-display text-lg text-ink truncate">{page.name}</h1>
-                </button>
-
-                {/* Every other page you run — tapping a row switches
-                    straight into it, the same way tapping your own name
-                    in personal mode offers every account you have. No
-                    chevron here, matching personal mode's name, which
-                    isn't marked with one either. */}
-                {nameMenuOpen && (
-                  <div className="absolute top-full left-0 mt-1 bg-canvas border border-border rounded-xl shadow-lg py-1 w-56 z-10">
-                    {switchablePages.map((p) => (
-                      <button
-                        key={p.id}
-                        onClick={() => handleSwitchTo(p.id, `/page/${p.username}`)}
-                        className="w-full flex items-center gap-2.5 text-left px-4 py-2.5 text-sm text-ink hover:bg-surface"
-                      >
-                        <Avatar src={p.avatar_url} name={p.name} size="sm" />
-                        <span className="flex-1 min-w-0 truncate">{p.name}</span>
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </div>
-              {page.is_verified && <VerifiedBadge size={15} label className="mt-1" />}
-              <p className="text-xs text-ink-muted mt-1">
-                {pageModeLabel(page.page_type)} · @{page.username}
-              </p>
-              {page.tagline && <p className="text-sm text-ink mt-1">{page.tagline}</p>}
-              {parentPage && (
-                <p className="text-xs text-ink-muted mt-1">
-                  A Subsidiary of{" "}
-                  <Link to={`/page/${parentPage.username}`} className="text-accent font-medium">
-                    {parentPage.name}
-                  </Link>
-                </p>
-              )}
-            </div>
+          <div
+            className={`flex-1 min-w-0 flex items-center gap-2 px-1 transition-opacity duration-200 ${
+              scrolled ? "opacity-100" : "opacity-0 pointer-events-none"
+            }`}
+            aria-hidden={!scrolled}
+          >
+            <Avatar src={page.avatar_url} name={page.name} size="sm" />
+            <span className="truncate text-sm font-semibold text-ink">{page.name}</span>
           </div>
 
-          {page.bio && <p className="text-sm text-ink mt-3 whitespace-pre-wrap">{page.bio}</p>}
-
-          {page.website_url && (
-            <a
-              href={getWebsiteHref(page.website_url)}
-              target="_blank"
-              rel="noreferrer"
-              className="inline-flex items-center gap-1.5 text-sm text-accent mt-2"
-            >
-              <Globe size={14} />
-              {getWebsiteDomain(page.website_url)}
-            </a>
-          )}
-
-          <div className="flex items-center gap-4 mt-3 text-sm">
-            <span className="text-ink">
-              <strong>{page.follower_count}</strong> <span className="text-ink-muted">followers</span>
-            </span>
-            <Link to={`/page/${page.username}/team`} className="flex items-center gap-1 text-ink-muted">
-              <Users size={14} />
-              {activeMembers.length} on the team
+          {/* Only while actually ACTING as this page — a member who hasn't switched into it yet
+              posts as themselves, so this living here keeps "what I create next" matched to
+              "who I'm posting as right now". */}
+          {isActiveHere && !restricted && (
+            <Link to="/create" aria-label="Create" className={`${GLASS_BTN} ${topBtn}`}>
+              <Plus size={22} />
             </Link>
-          </div>
-
-          {canFollowPage && (
-            <button
-              type="button"
-              onClick={() => (user ? toggleFollow.mutate(isFollowing) : navigate(`/login?redirect=/page/${page.username}`))}
-              className={`w-full mt-4 rounded-xl py-2.5 text-sm font-medium active:scale-[0.98] transition-transform ${
-                isFollowing ? "bg-surface text-ink" : "bg-accent text-canvas"
-              } ${followPulse ? "ako-follow-swap" : ""}`}
-            >
-              {isFollowing ? "Following" : "Follow"}
-            </button>
           )}
-
-          {activeMembers.length > 0 && (
-            <div className="mt-5">
-              <p className="text-xs font-medium text-ink-muted uppercase tracking-wide mb-2">Team</p>
-              <div className="flex gap-3 overflow-x-auto no-scrollbar">
-                {activeMembers.slice(0, 8).map((m) => (
-                  <Link
-                    key={m.id}
-                    to={`/profile/${m.profile.username}`}
-                    className="flex flex-col items-center gap-1 flex-shrink-0 w-16 text-center"
-                  >
-                    <Avatar src={m.profile.avatar_url} name={m.profile.display_name} size="md" />
-                    <span className="text-[11px] text-ink-muted truncate w-full">{m.role_label}</span>
-                  </Link>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {subsidiaries && subsidiaries.length > 0 && (
-            <div className="mt-5">
-              <p className="text-xs font-medium text-ink-muted uppercase tracking-wide mb-2">Subsidiaries</p>
-              <div className="flex gap-3 overflow-x-auto no-scrollbar">
-                {subsidiaries.map((s) => (
-                  <Link
-                    key={s.id}
-                    to={`/page/${s.username}`}
-                    className="flex flex-col items-center gap-1 flex-shrink-0 w-16 text-center"
-                  >
-                    <Avatar src={s.avatar_url} name={s.name} size="md" />
-                    <span className="text-[11px] text-ink-muted truncate w-full">{s.name}</span>
-                  </Link>
-                ))}
-              </div>
-            </div>
-          )}
-        </div>
-
-        <div role="tablist" aria-label={`${page.name} content`} className="flex gap-6 px-4 border-t border-border">
-          {((restricted ? ["projects"] : ["posts", "projects"]) as ("posts" | "projects")[]).map((t) => (
-            <button
-              key={t}
-              role="tab"
-              aria-selected={activeTab === t}
-              onClick={() => setActiveTab(t)}
-              className={`text-sm font-medium py-3 border-b-2 -mb-px transition-colors ${
-                activeTab === t ? "text-accent border-accent" : "text-ink-muted border-transparent"
-              }`}
-            >
-              {t === "posts" ? "Posts" : "Projects"}
-              {t === "projects" && projects && projects.length > 0 && (
-                <span className="ml-1.5 text-xs text-ink-muted">{projects.length}</span>
-              )}
-            </button>
-          ))}
-        </div>
-
-        <div role="tabpanel" className="border-t border-border">
-          {activeTab === "posts" && !restricted ? (
-            !posts || posts.length === 0 ? (
-              <p className="text-ink-muted text-center py-14 text-sm">
-                {page.name} hasn't posted anything yet.
-              </p>
-            ) : (
-              posts.map((post) => <PostCard key={post.id} post={post} />)
-            )
-          ) : projectsLoading ? (
-            <p className="text-ink-muted text-center py-14 text-sm">Loading…</p>
-          ) : !projects || projects.length === 0 ? (
-            <p className="text-ink-muted text-center py-14 text-sm px-6">
-              {isMember
-                ? `No projects yet — switch to ${page.name} and tap + to publish the first one.`
-                : `${page.name} hasn't published any projects yet.`}
-            </p>
-          ) : (
-            <div className="p-4">
-              <ProjectMiniGrid projects={projects} showStatus={isMember} />
-            </div>
+          <button
+            ref={menuButtonRef}
+            onClick={() => setMenuOpen((o) => !o)}
+            aria-label="Page options"
+            className={`${GLASS_BTN} ${topBtn}`}
+          >
+            <MoreHorizontal size={22} />
+          </button>
+          {menuOpen && (
+            <DropdownMenu title={page.name} anchorRef={menuButtonRef} onClose={() => setMenuOpen(false)} items={menuItems} />
           )}
         </div>
       </div>
 
+      <div className="max-w-xl md:max-w-3xl mx-auto">
+        {/* Banner */}
+        <div className="relative aspect-[8/3] w-full overflow-hidden bg-accent-soft md:rounded-b-3xl">
+          {page.cover_url ? (
+            <button
+              type="button"
+              onClick={() => setViewer("banner")}
+              aria-label="View banner"
+              className="block h-full w-full"
+            >
+              <img src={page.cover_url} alt="" className="h-full w-full object-cover" />
+            </button>
+          ) : (
+            <div
+              aria-hidden
+              className="h-full w-full"
+              style={{
+                background:
+                  "radial-gradient(120% 140% at 85% 0%, color-mix(in srgb, var(--color-brand-orange) 28%, transparent), transparent 60%), linear-gradient(135deg, var(--color-accent-soft), var(--color-canvas))",
+              }}
+            />
+          )}
+          {/* Keeps the white top-bar buttons legible on any banner image. */}
+          <div className="pointer-events-none absolute inset-x-0 top-0 h-24 bg-gradient-to-b from-black/35 to-transparent" />
+        </div>
+
+        {previewingAsVisitor && canEditPage && (
+          <div className="mx-4 mt-3 flex items-center justify-between gap-2 rounded-xl bg-accent-soft px-4 py-2.5 text-sm text-accent">
+            <span className="flex items-center gap-1.5">
+              <Eye size={14} />
+              Viewing as a visitor sees it
+            </span>
+            <button
+              onClick={() => setPreviewingAsVisitor(false)}
+              className="flex items-center gap-1 font-medium"
+              aria-label="Exit visitor view"
+            >
+              <X size={14} />
+              Exit
+            </button>
+          </div>
+        )}
+
+        {/* Identity */}
+        <div className="px-4">
+          <div className="-mt-12 flex items-end justify-between gap-3">
+            {page.avatar_url ? (
+              <button
+                type="button"
+                onClick={() => setViewer("avatar")}
+                aria-label="View page photo"
+                className="relative block rounded-full bg-canvas ring-4 ring-canvas"
+              >
+                <Avatar src={page.avatar_url} name={page.name} size="2xl" />
+              </button>
+            ) : (
+              <span className="relative block rounded-full bg-canvas ring-4 ring-canvas">
+                <Avatar src={page.avatar_url} name={page.name} size="2xl" />
+              </span>
+            )}
+
+            <div className="flex items-center gap-2 pb-1">
+              {showFollowButton && (
+                <button
+                  type="button"
+                  onClick={handleFollow}
+                  className="ako-follow-swap inline-flex h-11 items-center gap-2 rounded-full bg-cta px-6 text-[15px] font-semibold text-white transition-transform active:scale-[0.97]"
+                >
+                  <UserPlus size={18} />
+                  Follow
+                </button>
+              )}
+              {editorView && (
+                <Link
+                  to={`/page/${page.username}/edit`}
+                  className="inline-flex h-11 items-center gap-2 rounded-full border border-border bg-surface px-5 text-[15px] font-semibold text-ink transition-transform active:scale-[0.97]"
+                >
+                  <Pencil size={16} />
+                  Edit page
+                </Link>
+              )}
+              <button
+                type="button"
+                onClick={() => void sharePage()}
+                aria-label="Share"
+                title="Share"
+                className="flex h-11 w-11 items-center justify-center rounded-full border border-border bg-surface text-ink transition-transform active:scale-[0.95]"
+              >
+                <Share2 size={19} />
+              </button>
+            </div>
+          </div>
+
+          <div className="mt-3 relative">
+            <button
+              ref={nameButtonRef}
+              type="button"
+              onClick={() => canSwitchByName && setNameMenuOpen((o) => !o)}
+              disabled={!canSwitchByName}
+              className="flex max-w-full items-center gap-2 text-left"
+            >
+              <h1 className="font-display text-[1.75rem] font-semibold leading-tight tracking-tight text-ink break-words">
+                {page.name}
+              </h1>
+            </button>
+            {nameMenuOpen && (
+              <DropdownMenu
+                title="Switch page"
+                anchorRef={nameButtonRef}
+                onClose={() => setNameMenuOpen(false)}
+                items={switchablePages.map((p) => ({
+                  key: p.id,
+                  label: p.name,
+                  icon: <Avatar src={p.avatar_url} name={p.name} size="sm" />,
+                  onSelect: () => handleSwitchTo(p.id, `/page/${p.username}`),
+                }))}
+              />
+            )}
+          </div>
+          {page.is_verified && <VerifiedBadge size={15} label className="mt-1" />}
+          <p className="mt-1 text-sm text-ink-muted">
+            {pageModeLabel(page.page_type)} · @{page.username}
+          </p>
+          {page.tagline && <p className="mt-2 text-base leading-snug text-ink">{page.tagline}</p>}
+          {parentPage && (
+            <p className="mt-1.5 text-xs text-ink-muted">
+              A Subsidiary of{" "}
+              <Link to={`/page/${parentPage.username}`} className="font-medium text-accent">
+                {parentPage.name}
+              </Link>
+            </p>
+          )}
+
+          <div className="mt-4 flex flex-wrap items-center gap-x-5 gap-y-2">
+            <span className="text-sm text-ink">
+              <strong className="tabular-nums"><span className={followersPulse ? "ako-count-tick" : ""}>{page.follower_count}</span></strong>{" "}
+              <span className="text-ink-muted">{page.follower_count === 1 ? "follower" : "followers"}</span>
+            </span>
+            {page.website_url && (
+              <a
+                href={getWebsiteHref(page.website_url)}
+                target="_blank"
+                rel="noopener noreferrer"
+                title={page.website_url}
+                className="inline-flex max-w-full items-center gap-1.5 rounded-full bg-accent-soft px-3 py-1.5 text-sm font-medium text-accent"
+              >
+                <Link2 size={14} className="shrink-0" />
+                <span className="truncate">{getWebsiteDomain(page.website_url)}</span>
+              </a>
+            )}
+          </div>
+        </div>
+
+        {/* Landing sections */}
+        <div className="mt-8 space-y-9 px-4">
+          {editorView && setupSteps.length > 0 && (
+            <div className="rounded-2xl border border-dashed border-border bg-surface p-4">
+              <p className="flex items-center gap-2 text-sm font-semibold text-ink">
+                <Sparkles size={16} className="text-brand-orange" />
+                Make your page stand out
+              </p>
+              <p className="mt-1 text-xs text-ink-muted">Only your team sees this. Visitors see the finished page.</p>
+              <div className="mt-3 flex flex-wrap gap-2">
+                {setupSteps.map((s) => (
+                  <Link
+                    key={s.key}
+                    to={s.to}
+                    className="rounded-full bg-accent-soft px-3.5 py-2 text-sm font-medium text-accent"
+                  >
+                    {s.label}
+                  </Link>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {hasSlides && (
+            <PageHero
+              slides={slides!}
+              autoplay={page.hero_autoplay ?? true}
+              intervalSeconds={page.hero_interval_seconds ?? 5}
+              direction={page.hero_direction ?? "forward"}
+              pageName={page.name}
+            />
+          )}
+
+          {page.bio && (
+            <section aria-labelledby="page-about-heading">
+              <h2 id="page-about-heading" className="font-display text-xl font-semibold tracking-tight text-ink">
+                About
+              </h2>
+              <p className="mt-2 whitespace-pre-wrap break-words text-[15px] leading-relaxed text-ink">{page.bio}</p>
+            </section>
+          )}
+
+          {hasFeatured && <PageTeamShowcase members={featured!} />}
+
+          {subsidiaries && subsidiaries.length > 0 && (
+            <section aria-labelledby="page-subs-heading">
+              <h2 id="page-subs-heading" className="font-display text-xl font-semibold tracking-tight text-ink">
+                Subsidiaries
+              </h2>
+              <div className="no-scrollbar -mx-4 mt-3 flex gap-3 overflow-x-auto px-4">
+                {subsidiaries.map((s) => (
+                  <Link
+                    key={s.id}
+                    to={`/page/${s.username}`}
+                    className="flex w-20 shrink-0 flex-col items-center gap-1.5 text-center"
+                  >
+                    <Avatar src={s.avatar_url} name={s.name} size="vn" />
+                    <span className="w-full truncate text-xs text-ink-muted">{s.name}</span>
+                  </Link>
+                ))}
+              </div>
+            </section>
+          )}
+        </div>
+
+        {/* Projects / Posts — icon-led tabs with a sliding indicator, same as a personal profile. */}
+        <div className="mt-8">
+          <div className="sticky z-subchrome bg-canvas px-4" style={{ top: TOP_BAR_PX }}>
+            <SlidingTabBar
+              tabs={tabIds.map((t) => ({ id: t, label: t === "posts" ? "Posts" : "Projects" }))}
+              activeIndex={activeIndex}
+              progress={tabProgress}
+              dragging={tabDragging}
+              onSelect={(i) => setActiveTab(tabIds[i])}
+              ariaLabel={`${page.name} content`}
+            />
+          </div>
+
+          <div className="mt-3 px-4">
+            <SwipeableTabs
+              // A tab change must never move the page (same as the profile).
+              restoreScroll={false}
+              index={activeIndex}
+              onIndexChange={(i) => setActiveTab(tabIds[i])}
+              onProgress={(progress, dragging) => {
+                setTabProgress(progress);
+                setTabDragging(dragging);
+              }}
+            >
+              {tabIds.map((t) =>
+                t === "projects" ? (
+                  <div key="projects">
+                    {projectsLoading ? (
+                      <ProjectMiniGridSkeleton />
+                    ) : !projects || projects.length === 0 ? (
+                      <EmptyNote icon={Layers}>
+                        {isMember
+                          ? `No projects yet — switch to ${page.name} and tap + to publish the first one.`
+                          : `${page.name} hasn't published any projects yet.`}
+                      </EmptyNote>
+                    ) : (
+                      <ProjectMiniGrid projects={projects} showStatus={isMember} />
+                    )}
+                  </div>
+                ) : (
+                  <div key="posts" className="-mx-4">
+                    {postsLoading ? (
+                      <PostListSkeleton />
+                    ) : !posts || posts.length === 0 ? (
+                      <EmptyNote icon={LayoutGrid}>{page.name} hasn't posted anything yet.</EmptyNote>
+                    ) : (
+                      posts.map((post) => <PostCard key={post.id} post={post} />)
+                    )}
+                  </div>
+                )
+              )}
+            </SwipeableTabs>
+          </div>
+        </div>
+      </div>
+
       <BottomNav />
+
+      {viewer === "avatar" && page.avatar_url && (
+        <MediaViewer mediaUrls={[page.avatar_url]} startIndex={0} onClose={() => setViewer(null)} />
+      )}
+      {viewer === "banner" && page.cover_url && (
+        <MediaViewer mediaUrls={[page.cover_url]} startIndex={0} onClose={() => setViewer(null)} />
+      )}
+
     </div>
   );
 }

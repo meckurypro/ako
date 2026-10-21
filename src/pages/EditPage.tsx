@@ -20,9 +20,12 @@ import { TopicPicker, MAX_TOPICS } from "../components/TopicPicker";
 import { useUploadAvatar } from "../hooks/useUploadAvatar";
 import { Avatar } from "../components/Avatar";
 import { MentionTextarea } from "../components/MentionTextarea";
+import { PageHeroEditor } from "../components/PageHeroEditor";
+import { BANNER_ASPECT, normalizeWebsite } from "../hooks/usePageLanding";
+import { cropToAspect } from "../lib/cropImage";
 
 // /page/:username/edit — admin-only. Everything a page can change about
-// itself: name, tagline, bio, avatar, cover, website, category. Reuses
+// itself: name, tagline, bio, avatar, banner, website, topics, hero slides. Reuses
 // useUpdatePage (already existed, nothing called it yet) and
 // useUploadAvatar for both avatar and cover — there's no separate
 // "page media" bucket, and the storage RLS policy keys off the
@@ -119,7 +122,8 @@ export function EditPage() {
     setError(null);
     setUploadingCover(true);
     try {
-      setCoverUrl(await uploadAvatar.mutateAsync(file));
+      // Cropped to the banner's shape first, so what's previewed here is what visitors see.
+      setCoverUrl(await uploadAvatar.mutateAsync(await cropToAspect(file, BANNER_ASPECT, { maxWidth: 1600 })));
     } catch (err) {
       setError(err instanceof Error ? err.message : "Upload failed.");
     } finally {
@@ -138,16 +142,23 @@ export function EditPage() {
       return;
     }
 
+    // A page has exactly one website. Blank clears it; anything else must be a real address.
+    const website = normalizeWebsite(websiteUrl);
+    if (websiteUrl.trim() && !website) {
+      setError("That website address doesn't look right. Try something like yourwebsite.com.");
+      return;
+    }
+
     try {
       await updatePage.mutateAsync({
         page_id: page.id,
         name: name.trim(),
-        tagline: tagline.trim() || undefined,
-        bio: bio.trim() || undefined,
-        website_url: websiteUrl.trim() || undefined,
+        tagline: tagline.trim() || null,
+        bio: bio.trim() || null,
+        website_url: website,
         topic_ids: Array.from(topicIds),
         avatar_url: avatarUrl ?? undefined,
-        cover_url: coverUrl ?? undefined,
+        cover_url: coverUrl,
       });
       toast("Page updated.", { variant: "success" });
       await returnAfterSave({ fallback: `/page/${page.username}` });
@@ -184,23 +195,39 @@ export function EditPage() {
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-5">
-          {/* Cover */}
-          <button
-            type="button"
-            onClick={() => coverInputRef.current?.click()}
-            className="w-full aspect-[3/1] bg-surface rounded-2xl flex items-center justify-center overflow-hidden relative"
-          >
-            {coverUrl ? (
-              <img src={coverUrl} alt="" className="w-full h-full object-cover" />
-            ) : (
-              <span className="text-xs text-ink-muted">
-                {uploadingCover ? "Uploading…" : "Add a cover photo"}
+          {/* Banner — like a YouTube / Facebook cover: a wide image across the top of the page. */}
+          <div>
+            <div className="mb-1 flex items-center justify-between">
+              <label className="block text-xs font-medium text-ink-muted">Banner</label>
+              {coverUrl && (
+                <button
+                  type="button"
+                  onClick={() => setCoverUrl(null)}
+                  className="flex items-center gap-1 text-xs text-danger"
+                >
+                  <Trash2 size={12} />
+                  Remove
+                </button>
+              )}
+            </div>
+            <button
+              type="button"
+              onClick={() => coverInputRef.current?.click()}
+              className="w-full aspect-[8/3] bg-surface rounded-2xl flex items-center justify-center overflow-hidden relative"
+            >
+              {coverUrl ? (
+                <img src={coverUrl} alt="" className="w-full h-full object-cover" />
+              ) : (
+                <span className="text-xs text-ink-muted">
+                  {uploadingCover ? "Uploading…" : "Add a banner"}
+                </span>
+              )}
+              <span className="absolute bottom-2 right-2 w-8 h-8 rounded-full bg-canvas/80 flex items-center justify-center">
+                <Camera size={14} className="text-ink" />
               </span>
-            )}
-            <span className="absolute bottom-2 right-2 w-8 h-8 rounded-full bg-canvas/80 flex items-center justify-center">
-              <Camera size={14} className="text-ink" />
-            </span>
-          </button>
+            </button>
+            <p className="mt-1 text-xs text-ink-muted">Wide image, cropped to fit. Around 1600 × 600 works best.</p>
+          </div>
           <input
             ref={coverInputRef}
             type="file"
@@ -209,7 +236,7 @@ export function EditPage() {
             className="hidden"
           />
 
-          {/* Avatar — overlaps the cover slightly, same idea as most
+          {/* Avatar — overlaps the banner slightly, same idea as most
               social apps' page/profile edit screens. */}
           <div className="-mt-12 ml-1">
             <button type="button" onClick={() => avatarInputRef.current?.click()} className="relative inline-block">
@@ -264,6 +291,9 @@ export function EditPage() {
             <input
               value={websiteUrl}
               onChange={(e) => setWebsiteUrl(e.target.value)}
+              inputMode="url"
+              autoCapitalize="none"
+              autoCorrect="off"
               placeholder="yourwebsite.com"
               className="w-full bg-surface rounded-xl px-4 py-3 text-sm text-ink placeholder:text-ink-muted"
             />
@@ -281,6 +311,12 @@ export function EditPage() {
             {updatePage.isPending ? "Saving…" : "Save changes"}
           </button>
         </form>
+
+        {/* Outside the form on purpose: every change here saves by itself, and Enter in a
+            slide's title must not submit the page details above. */}
+        <div className="mt-8 border-t border-border pt-6">
+          <PageHeroEditor page={page} />
+        </div>
 
         {isOwnerOfPage && (
           <div className="mt-12 pt-6 border-t border-border">
