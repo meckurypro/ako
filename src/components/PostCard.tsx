@@ -64,6 +64,7 @@ import {
   canEditPost,
 } from "../hooks/usePosts";
 import { formatPostTime, formatPostDate, formatCompactCount } from "../lib/formatStats";
+import { isPublished } from "../lib/postStatus";
 import { isPlainReshare, isQuote, type PostWithAuthor, type Stance } from "../types/database";
 import { timeAgo } from "../lib/timeAgo";
 import { APP_URL } from "../lib/appUrl";
@@ -290,6 +291,7 @@ export function PostCard({
   }
 
   async function handleShare() {
+    if (!isPublished(post)) return; // never hand out a link to a post nobody else can open
     const url = `${APP_URL}/post/${post.id}`;
     if (navigator.share) {
       try {
@@ -455,6 +457,8 @@ export function PostCard({
   const order: SecondaryActionKey[] = (
     engagementOrder ?? ["support", "reshare", "share", "gift", "save", "disagree", "pushback", "dislike"]
   ).filter((k) => {
+    // A draft/scheduled post has no public page yet: nothing to share, reshare or gift.
+    if (!isPublished(post) && (k === "share" || k === "reshare" || k === "gift")) return false;
     if (isOwner && HIDDEN_FOR_OWNER.includes(k)) return false;
     if (k === "reshare" && (isOwner || hasReshared)) return false;
     if (k === "gift" && viewingAsPage) return false;

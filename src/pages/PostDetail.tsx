@@ -11,6 +11,8 @@ import { StanceComposer } from "../components/StanceComposer";
 import { BottomNav } from "../components/BottomNav";
 import { UnavailableNotice } from "../components/UnavailableNotice";
 import { RestrictedPostNotice } from "../components/RestrictedPostNotice";
+import { PostStatusBanner } from "../components/PostStatusBanner";
+import { isPublished } from "../lib/postStatus";
 import { useIsRestricted } from "../hooks/useAccountAccess";
 import { CommentEngagementProvider } from "../components/comments/CommentEngagement";
 import { CommentReplies } from "../components/comments/CommentReplies";
@@ -55,7 +57,8 @@ export function PostDetail() {
   const removedByViewer = !!user && post?.deleted_by === user.id;
   const removerName = post?.remover?.display_name || post?.remover?.username;
 
-  const showThread = !!post && !post.is_deleted && !(post.is_archived && !isOwnPost);
+  // No replies on a draft or scheduled post — it isn't live, so there is no conversation to join yet.
+  const showThread = !!post && !post.is_deleted && !(post.is_archived && !isOwnPost) && isPublished(post);
 
   return (
     <div className="min-h-screen bg-canvas px-4 pt-4 pb-24">
@@ -84,6 +87,8 @@ export function PostDetail() {
                 Only you can see this — you archived it.
               </p>
             )}
+
+            <PostStatusBanner post={post} isOwnPost={isOwnPost} />
 
             <PostCard
               post={post}
