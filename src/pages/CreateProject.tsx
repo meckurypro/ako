@@ -664,7 +664,6 @@ export function CreateProject() {
           {projectType === "file" ? (
             <div className="w-full mb-4 rounded-xl border border-border bg-surface overflow-hidden">
               <FileFolderHero />
-              <p className="text-xs text-ink-muted text-center px-4 pb-3">Files use a folder icon — no thumbnail needed.</p>
             </div>
           ) : (
             <>
