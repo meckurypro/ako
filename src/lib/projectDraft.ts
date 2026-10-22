@@ -12,7 +12,7 @@
 // One draft per account per acting identity (personal vs. each Page), keyed by user id so another account on the
 // same browser never sees it. Uploaded files/images are already in storage — only their URLs are kept here.
 import type { ProjectType } from "../hooks/useProjects";
-import { EMPTY_FILE_FIELDS, type FileFieldsValue } from "../components/project-types/FileFields";
+import { fileFieldsHaveProgress, normalizeFileFields, type FileFieldsValue } from "../components/project-types/FileFields";
 import { EMPTY_URL_FIELDS, type UrlFieldsValue } from "../components/project-types/UrlFields";
 import { EMPTY_MEDIA_FIELDS, type MediaFieldsValue } from "../components/project-types/MediaFields";
 import { EMPTY_EVENT_FIELDS, type EventFieldsValue } from "../components/project-types/EventFields";
@@ -63,7 +63,8 @@ export function readProjectDraft(key: string): { data: ProjectDraftData; savedAt
     if (!raw) return null;
     const parsed = JSON.parse(raw) as StoredDraft;
     if (!parsed || parsed.v !== VERSION || !parsed.data || typeof parsed.data.title !== "string") return null;
-    return { data: parsed.data, savedAt: parsed.savedAt };
+    // A draft saved before File projects could hold several files stored one { file_path, file_name }.
+    return { data: { ...parsed.data, fileFields: normalizeFileFields(parsed.data.fileFields) }, savedAt: parsed.savedAt };
   } catch {
     return null;
   }
@@ -110,7 +111,7 @@ export function projectDraftHasProgress(d: ProjectDraftData): boolean {
     d.priceUsd !== "0" ||
     d.promoPriceUsd.trim() !== "" ||
     d.isPrivate ||
-    differs(d.fileFields, EMPTY_FILE_FIELDS) ||
+    fileFieldsHaveProgress(d.fileFields) ||
     differs(d.urlFields, EMPTY_URL_FIELDS) ||
     differs(d.mediaFields, EMPTY_MEDIA_FIELDS) ||
     differs(d.eventFields, EMPTY_EVENT_FIELDS) ||

@@ -79,6 +79,8 @@ import { ProjectImageCarousel } from "./ProjectImageCarousel";
 import { MAX_THUMB_HEIGHT_VH, thumbnailLayout } from "../lib/thumbnailFit";
 import { FileFolderHero } from "./FileFolderArt";
 import { useDownloadProjectFile, DownloadCancelledError } from "../hooks/useDownloadProjectFile";
+import { useProjectFiles, type ProjectFile } from "../hooks/useProjectFiles";
+import { ProjectFilesList } from "./ProjectFilesList";
 import { projectGalleryImages } from "../lib/projectImages";
 import { loginPathFor, returnPathOf } from "../lib/authRedirect";
 import { APP_URL } from "../lib/appUrl";
@@ -497,6 +499,15 @@ export function ProjectCard({
   // it in here keeps every hasAccess-gated surface (external links,
   // media preview, unlocked content) closed to guests in one place.
   const hasAccess = !!user && !privacyBlocked && (isOwner || hasPurchased || (isFree && !isRoom));
+
+  // File projects can hold several files. The list is what names each saved copy (the uploaded file's own name unless
+  // the creator typed one), so it's loaded for anyone who can download, and on the project's own page for everyone.
+  const isFileProject = project.project_type === "file";
+  const { data: projectFiles } = useProjectFiles(project.id, isFileProject && (hasAccess || !!isDetailView));
+  // file_count rides along on the project row; some lists select explicit columns without it, so trust the loaded
+  // list too — otherwise a multi-file project could look like a one-file one and download only its first file.
+  const fileCount = Math.max(project.file_count ?? 0, projectFiles?.length ?? 0);
+  const isMultiFile = isFileProject && fileCount > 1;
   const isSaved = !!isSavedQuery.data;
 
   // Outside-click / back-dismiss for the kebab menu is handled
@@ -655,7 +666,7 @@ export function ProjectCard({
     }
   }
 
-  async function handleOpenFile() {
+  async function handleOpenFile(file?: ProjectFile) {
     if (!user) {
       goToLogin();
       return;
@@ -664,7 +675,15 @@ export function ProjectCard({
     try {
       // Streams the file in-app so the download only counts (and the creator is only notified) once every byte
       // has arrived — see useDownloadProjectFile.
-      await downloadProjectFile.mutateAsync({ projectId: project.id, title: project.title, filePath: project.file_path });
+      // A specific file from the list, or the project's first (a one-file project).
+      const target = file ?? projectFiles?.[0] ?? null;
+      await downloadProjectFile.mutateAsync({
+        projectId: project.id,
+        fileId: target?.id ?? null,
+        fileName: target?.download_name ?? null,
+        title: project.title,
+        filePath: project.file_path,
+      });
       logFreeAccessIfNeeded("download");
     } catch (err) {
       if (err instanceof DownloadCancelledError) return;
@@ -1157,10 +1176,11 @@ export function ProjectCard({
       };
     }
   } else if (project.project_type === "file") {
-    detailCta = {
+    // Several files: each has its own Download button in the list, so there's no single primary action.
+    detailCta = isMultiFile ? null : {
       label: downloadProjectFile.isPending ? (downloadProjectFile.progress != null ? `Downloading ${downloadProjectFile.progress}%` : "Preparing…") : "Download",
       icon: <Download size={18} />,
-      onClick: handleOpenFile,
+      onClick: () => void handleOpenFile(),
       disabled: downloadProjectFile.isPending,
     };
   } else if (project.project_type === "url") {
@@ -1431,6 +1451,17 @@ export function ProjectCard({
           </p>
         )}
 
+        {isDetailView && isMultiFile && projectFiles && projectFiles.length > 0 && (
+          <ProjectFilesList
+            files={projectFiles}
+            hasAccess={hasAccess}
+            busy={downloadProjectFile.isPending}
+            activeFileId={downloadProjectFile.isPending ? downloadProjectFile.variables?.fileId ?? null : null}
+            progress={downloadProjectFile.progress}
+            onDownload={(file) => void handleOpenFile(file)}
+          />
+        )}
+
         {/* Goal-progress bar — informational only, per the
             keep-what-you-raise decision: hitting or missing
             goal_amount_usd changes nothing about what the creator can
@@ -1633,9 +1664,14 @@ export function ProjectCard({
         <div className="flex items-center gap-2 mt-3">
           {/* File — hosted download, no external link ever stored. */}
           {project.project_type === "file" &&
-            (hasAccess ? (
+            (hasAccess && isMultiFile ? (
+              <span className="flex items-center gap-1.5 text-sm text-accent font-medium">
+                <Download size={15} />
+                {fileCount} files
+              </span>
+            ) : hasAccess ? (
               <button
-                onClick={handleOpenFile}
+                onClick={() => void handleOpenFile()}
                 disabled={downloadProjectFile.isPending}
                 className="flex items-center gap-1.5 text-sm text-accent font-medium disabled:opacity-50"
               >

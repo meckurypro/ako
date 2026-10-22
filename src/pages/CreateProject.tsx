@@ -41,7 +41,15 @@ import { EventFields, EMPTY_EVENT_FIELDS, type EventFieldsValue } from "../compo
 import { MeetingFields, EMPTY_MEETING_FIELDS, type MeetingFieldsValue } from "../components/project-types/MeetingFields";
 import { RoomFields, EMPTY_ROOM_FIELDS, type RoomFieldsValue } from "../components/project-types/RoomFields";
 import { CourseFields } from "../components/project-types/CourseFields";
-import { FileFields, EMPTY_FILE_FIELDS, type FileFieldsValue } from "../components/project-types/FileFields";
+import {
+  FileFields,
+  EMPTY_FILE_FIELDS,
+  fileFieldsError,
+  fileFieldsToInputs,
+  type FileFieldsValue,
+} from "../components/project-types/FileFields";
+import { useIsRestricted } from "../hooks/useAccountAccess";
+import { maxProjectFiles } from "../lib/fileProject";
 import { UrlFields, EMPTY_URL_FIELDS, type UrlFieldsValue } from "../components/project-types/UrlFields";
 import {
   MediaFields,
@@ -98,6 +106,9 @@ export function CreateProject() {
 
   const { data: identity } = useActiveIdentity();
   const { data: me } = useMyProfile();
+  // One file for most accounts; up to six for verified, unrestricted ones (the database enforces it too).
+  const restricted = useIsRestricted();
+  const maxFiles = maxProjectFiles(!!me?.is_verified && !restricted);
   // Same reasoning as Compose.tsx: read once at mount, not editable
   // from here — switch mode first via /pages, then create, so there's
   // no chance of a type picked for one identity ending up attributed
@@ -331,8 +342,9 @@ export function CreateProject() {
     if (projectType === "book" && thumbnailUrl && thumbnailRatio && !isBookCoverRatio(thumbnailRatio.width, thumbnailRatio.height)) {
       return BOOK_COVER_ERROR;
     }
-    if (projectType === "file" && !fileFields.file_path) {
-      return "Upload a file to continue.";
+    if (projectType === "file") {
+      const fileError = fileFieldsError(fileFields);
+      if (fileError) return fileError;
     }
     if (projectType === "url" && !urlFields.url.trim()) {
       return "Add the link you're sharing access to.";
@@ -485,7 +497,9 @@ export function CreateProject() {
         // Media doesn't use either base column at all, it lives
         // entirely in media_details below.
         external_url: projectType === "url" ? urlFields.url.trim() : undefined,
-        file_path: projectType === "file" ? fileFields.file_path ?? undefined : undefined,
+        // File: the first file's path is mirrored here (older app builds read it); the full list goes in file_details.
+        file_path: projectType === "file" ? fileFieldsToInputs(fileFields)[0]?.file_path : undefined,
+        file_details: projectType === "file" ? { files: fileFieldsToInputs(fileFields) } : undefined,
         thumbnail_url: projectType === "file" ? undefined : thumbnailUrl ?? undefined,
         thumbnail_width: projectType === "file" ? undefined : thumbnailRatio?.width,
         thumbnail_height: projectType === "file" ? undefined : thumbnailRatio?.height,
@@ -824,7 +838,7 @@ export function CreateProject() {
             <MediaFields value={mediaFields} onChange={setMediaFields} onError={setError} />
           )}
           {projectType === "file" && (
-            <FileFields value={fileFields} onChange={setFileFields} onError={setError} />
+            <FileFields value={fileFields} onChange={setFileFields} onError={setError} maxFiles={maxFiles} />
           )}
           {projectType === "url" && <UrlFields value={urlFields} onChange={setUrlFields} />}
           {projectType === "event" && <EventFields value={eventFields} onChange={setEventFields} />}

@@ -32,7 +32,18 @@ import { FormatToolbar } from "../components/FormatToolbar";
 import { CONTENT_LIMIT, contentCounterClass } from "../lib/textLimits";
 import { EventFields, EMPTY_EVENT_FIELDS, type EventFieldsValue } from "../components/project-types/EventFields";
 import { MeetingFields, EMPTY_MEETING_FIELDS, type MeetingFieldsValue } from "../components/project-types/MeetingFields";
-import { FileFields, EMPTY_FILE_FIELDS, type FileFieldsValue } from "../components/project-types/FileFields";
+import {
+  FileFields,
+  EMPTY_FILE_FIELDS,
+  fileFieldsError,
+  fileFieldsFromProjectFiles,
+  fileFieldsToInputs,
+  type FileFieldsValue,
+} from "../components/project-types/FileFields";
+import { useIsRestricted } from "../hooks/useAccountAccess";
+import { useMyProfile } from "../hooks/useProfile";
+import { useProjectFiles, useSaveProjectFiles } from "../hooks/useProjectFiles";
+import { maxProjectFiles } from "../lib/fileProject";
 import { UrlFields, EMPTY_URL_FIELDS, type UrlFieldsValue } from "../components/project-types/UrlFields";
 import {
   MediaFields,
@@ -54,6 +65,12 @@ export function EditProject() {
   const toast = useToast();
 
   const { data: project, isLoading } = useProject(projectId);
+  // File projects: the saved files (one slot each), and how many this account may hold (1, or 6 if verified).
+  const { data: me } = useMyProfile();
+  const restricted = useIsRestricted();
+  const maxFiles = maxProjectFiles(!!me?.is_verified && !restricted);
+  const { data: existingFiles } = useProjectFiles(projectId, project?.project_type === "file");
+  const saveProjectFiles = useSaveProjectFiles();
   const ownership = useProjectOwnership();
   const [manageAccessOpen, setManageAccessOpen] = useState(false);
   const [affiliateSheetOpen, setAffiliateSheetOpen] = useState(false);
@@ -155,9 +172,6 @@ export function EditProject() {
       setSupportingImageUrls(project.supporting_image_urls ?? []);
       if (project.thumbnail_width && project.thumbnail_height) {
         setThumbnailRatio({ width: project.thumbnail_width, height: project.thumbnail_height });
-      }
-      if (project.project_type === "file") {
-        setFileFields({ file_path: project.file_path, file_name: null });
       }
       if (project.project_type === "url") {
         setUrlFields({ url: project.external_url ?? "" });
@@ -262,7 +276,10 @@ export function EditProject() {
         source_credit: existingBookDetails?.source_credit ?? "",
       });
       setTypeDetailsHydrated(true);
-    } else if (!["event", "meeting", "media", "gig", "pitch", "room", "book"].includes(project.project_type)) {
+    } else if (project.project_type === "file" && existingFiles) {
+      setFileFields(fileFieldsFromProjectFiles(existingFiles));
+      setTypeDetailsHydrated(true);
+    } else if (!["event", "meeting", "media", "gig", "pitch", "room", "book", "file"].includes(project.project_type)) {
       setTypeDetailsHydrated(true);
     }
   }, [
@@ -275,6 +292,7 @@ export function EditProject() {
     existingPitchDetails,
     existingRoomDetails,
     existingBookDetails,
+    existingFiles,
     typeDetailsHydrated,
   ]);
 
@@ -301,8 +319,9 @@ export function EditProject() {
     ) {
       return BOOK_COVER_ERROR;
     }
-    if (project.project_type === "file" && !fileFields.file_path) {
-      return "Upload a file to continue.";
+    if (project.project_type === "file") {
+      const fileError = fileFieldsError(fileFields);
+      if (fileError) return fileError;
     }
     if (project.project_type === "url" && !urlFields.url.trim()) {
       return "Add the link you're sharing access to.";
@@ -394,13 +413,18 @@ export function EditProject() {
     }
 
     try {
+      // Files first: it's the part the database can refuse (limit, ownership), so if it does, nothing else changes.
+      if (project.project_type === "file") {
+        await saveProjectFiles.mutateAsync({ projectId, files: fileFieldsToInputs(fileFields) });
+      }
       await updateProject.mutateAsync({
         id: projectId,
         title: title.trim(),
         description: description.trim() || null,
         project_type: project.project_type, // fixed — see note near the type display below
         external_url: project.project_type === "url" ? urlFields.url.trim() || null : project.external_url,
-        file_path: project.project_type === "file" ? fileFields.file_path : project.file_path,
+        // File projects: the files are saved by set_project_files below, which also keeps file_path in step.
+        file_path: project.project_type === "file" ? undefined : project.file_path,
         // File projects never carry a thumbnail (the folder icon stands in) — editing one clears any old one.
         thumbnail_url: project.project_type === "file" ? null : thumbnailUrl,
         thumbnail_width: project.project_type === "file" ? null : thumbnailRatio?.width ?? null,
@@ -679,7 +703,7 @@ export function EditProject() {
             <MediaFields value={mediaFields} onChange={setMediaFields} onError={setError} />
           )}
           {project.project_type === "file" && (
-            <FileFields value={fileFields} onChange={setFileFields} onError={setError} />
+            <FileFields value={fileFields} onChange={setFileFields} onError={setError} maxFiles={maxFiles} />
           )}
           {project.project_type === "url" && <UrlFields value={urlFields} onChange={setUrlFields} />}
           {project.project_type === "event" && <EventFields value={eventFields} onChange={setEventFields} />}

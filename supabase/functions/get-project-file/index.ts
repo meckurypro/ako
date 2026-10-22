@@ -8,7 +8,10 @@
 // has a purchases row, or the project is free.
 //
 // `kind` selects which file path column to resolve:
-//  - "file"  (default) → projects.file_path
+//  - "file"  (default) → project_files (a File project can hold several files). `file_id` picks one; without it
+//              the FIRST file is used, which is exactly what older app builds expect. The response carries
+//              `file_name`: the name the saved copy should bear (the uploaded file's own name unless the creator
+//              typed a title for that slot). Falls back to projects.file_path if a project somehow has no rows.
 //  - "audio" → project_media_details.audio_file_path
 //  - "video" → project_media_details.video_file_path
 //  - "image" → project_media_details.image_file_path
@@ -17,7 +20,7 @@
 //              allow_read_in_app.
 //
 // For kind "file" this also opens a download attempt row
-// (project_file_downloads) and returns its id as `download_id`. The
+// (project_file_downloads, remembering which file) and returns its id as `download_id`. The
 // client reports the attempt finished via the complete_file_download
 // RPC once the whole file has arrived — that is what bumps the
 // project's download_count and notifies the creator.
@@ -49,7 +52,11 @@ interface FileRequest {
   project_id: string;
   kind?: FileKind;
   action?: FileAction;
+  /** kind "file" only: which of the project's files. Omit for the first. */
+  file_id?: string;
 }
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -78,10 +85,13 @@ serve(async (req) => {
   const admin = createClient(SUPABASE_URL, SERVICE_ROLE_KEY);
 
   try {
-    const { project_id, kind = "file", action = "download" }: FileRequest = await req.json();
+    const { project_id, kind = "file", action = "download", file_id }: FileRequest = await req.json();
 
     if (!project_id) {
       return jsonResponse({ error: "project_id is required" }, 400);
+    }
+    if (file_id !== undefined && file_id !== null && !UUID_RE.test(file_id)) {
+      return jsonResponse({ error: "file_id is not valid" }, 400);
     }
 
     const { data: project, error: projectError } = await admin
@@ -114,9 +124,32 @@ serve(async (req) => {
     }
 
     let filePath: string | null = null;
+    let fileRowId: string | null = null;
+    let fileName: string | null = null;
 
     if (kind === "file") {
-      filePath = project.file_path;
+      // Access was already decided above, at the PROJECT level (price/purchase) — files inherit it.
+      const { data: fileRows, error: fileError } = file_id
+        ? await admin
+            .from("project_files")
+            .select("id, file_path, download_name")
+            .eq("project_id", project_id)
+            .eq("id", file_id)
+            .limit(1)
+        : await admin
+            .from("project_files")
+            .select("id, file_path, download_name")
+            .eq("project_id", project_id)
+            .order("position", { ascending: true })
+            .limit(1);
+      if (fileError) throw fileError;
+      const fileRow = fileRows?.[0] ?? null;
+      if (file_id && !fileRow) {
+        return jsonResponse({ error: "File not found" }, 404);
+      }
+      filePath = fileRow?.file_path ?? project.file_path;
+      fileRowId = fileRow?.id ?? null;
+      fileName = fileRow?.download_name ?? null;
     } else if (kind === "audio" || kind === "video" || kind === "image") {
       const { data: media, error: mediaError } = await admin
         .from("project_media_details")
@@ -172,7 +205,7 @@ serve(async (req) => {
     if (kind === "file") {
       const { data: attempt, error: attemptError } = await admin
         .from("project_file_downloads")
-        .insert({ project_id, user_id: user.id })
+        .insert({ project_id, user_id: user.id, file_id: fileRowId })
         .select("id")
         .single();
       if (attemptError) {
@@ -183,7 +216,13 @@ serve(async (req) => {
     }
 
     return jsonResponse(
-      { url: signedUrlData.signedUrl, expires_in: SIGNED_URL_EXPIRY_SECONDS, download_id: downloadId },
+      {
+        url: signedUrlData.signedUrl,
+        expires_in: SIGNED_URL_EXPIRY_SECONDS,
+        download_id: downloadId,
+        file_id: fileRowId,
+        file_name: fileName,
+      },
       200,
     );
 

@@ -12,7 +12,15 @@ import { supabase } from "../lib/supabase";
 
 interface DownloadArgs {
   projectId: string;
-  /** Used to name the saved file (title + the stored file's extension). */
+  /** Which of the project's files (project_files.id). Omit for the first — what older callers always meant. */
+  fileId?: string | null;
+  /**
+   * What the saved copy is called (project_files.download_name): the uploaded file's own name unless the creator
+   * typed a title for it. The browser's "save as" box must open BEFORE the request goes out, so it has to be
+   * known up front; when it isn't, the box is skipped and the server's name is used instead.
+   */
+  fileName?: string | null;
+  /** Last-resort naming only (project title + stored extension) if neither of the above is available. */
   title: string;
   filePath: string | null;
 }
@@ -40,17 +48,16 @@ export function useDownloadProjectFile() {
   const [progress, setProgress] = useState<number | null>(null);
 
   const mutation = useMutation({
-    mutationFn: async ({ projectId, title, filePath }: DownloadArgs): Promise<number | null> => {
-      const fileName = suggestedFileName(title, filePath);
+    mutationFn: async ({ projectId, fileId, fileName: knownName, title, filePath }: DownloadArgs): Promise<number | null> => {
 
       // Must happen inside the click's user-activation window, i.e. BEFORE any await.
       const picker = (window as unknown as {
         showSaveFilePicker?: (o: { suggestedName: string }) => Promise<SaveHandle>;
       }).showSaveFilePicker;
       let saveHandle: SaveHandle | null = null;
-      if (picker) {
+      if (picker && knownName) {
         try {
-          saveHandle = await picker({ suggestedName: fileName });
+          saveHandle = await picker({ suggestedName: knownName });
         } catch (err) {
           if ((err as DOMException)?.name === "AbortError") throw new DownloadCancelledError();
           saveHandle = null; // picker unavailable here (iframe etc.) — use the Blob path
@@ -60,12 +67,14 @@ export function useDownloadProjectFile() {
       setProgress(0);
       try {
         const { data, error } = await supabase.functions.invoke("get-project-file", {
-          body: { project_id: projectId, kind: "file", action: "download" },
+          body: { project_id: projectId, kind: "file", action: "download", ...(fileId ? { file_id: fileId } : {}) },
         });
         if (error) throw error;
         if (data?.error) throw new Error(data.error);
         const url: string = data.url;
         const downloadId: string | null = data.download_id ?? null;
+        // The server's name wins for the in-browser save (it is what the project says the file is called).
+        const fileName: string = (typeof data.file_name === "string" && data.file_name) || knownName || suggestedFileName(title, filePath);
 
         const response = await fetch(url);
         if (!response.ok) throw new Error(`Download failed (${response.status}).`);
