@@ -4,7 +4,7 @@ import { useAuth } from "../hooks/useAuth";
 import { useOnboardingStatus } from "../hooks/useOnboarding";
 import { useAccountAccess } from "../hooks/useAccountAccess";
 import { AccountUnderReview } from "../pages/AccountUnderReview";
-import { loginPathFor, returnPathOf } from "../lib/authRedirect";
+import { justSignedOut, loginPathFor, returnPathOf } from "../lib/authRedirect";
 
 interface RequireAuthProps {
   children: ReactNode;
@@ -42,8 +42,9 @@ export function RequireAuth({ children, skipOnboardingCheck = false }: RequireAu
   }
 
   if (!user) {
-    // Remember where they were headed so login lands them back there.
-    return <Navigate to={loginPathFor(returnPathOf(location))} replace />;
+    // Remember where they were headed so login lands them back there — unless they just logged out on purpose,
+    // in which case there is nothing to go back to: the next login starts fresh on the Feed.
+    return <Navigate to={justSignedOut() ? "/login" : loginPathFor(returnPathOf(location))} replace />;
   }
 
   // Fail CLOSED: if we couldn't verify access at all (network/DB

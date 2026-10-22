@@ -16,6 +16,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "../lib/supabase";
 import { useAuth } from "./useAuth";
+import { markSignedOut } from "../lib/authRedirect";
 
 export type AccountStatus = "pending" | "approved" | "declined" | "suspended";
 
@@ -137,6 +138,7 @@ export function useSignOut() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async () => {
+      markSignedOut();
       const { error } = await supabase.auth.signOut();
       if (error) throw error;
     },

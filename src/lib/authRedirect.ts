@@ -19,10 +19,18 @@
 // — so a crafted ?redirect= can't turn login into an open redirect.
 
 const STORAGE_KEY = "ako.return_to.v1";
+const SIGNED_OUT_KEY = "ako.signed_out_at.v1";
+/** How long after an intentional sign-out the "bounced to /login" redirect must not remember the page we left. */
+const SIGNED_OUT_WINDOW_MS = 15_000;
 
 // Pages that must never be a "return" target (we'd loop straight back
 // into the auth flow).
 const AUTH_PATHS = ["/login", "/signup", "/verify-email", "/reset-password", "/auth/"];
+
+// Account-management screens are never somewhere a login should drop you: the place you log OUT from is exactly
+// where the session disappears, and coming back to it after logging in again reads as a bug. Logging in lands on
+// the Feed (the Discover home for restricted accounts), not here.
+const NEVER_RETURN_PATHS = ["/settings"];
 
 export function safeReturnPath(raw: string | null | undefined): string | null {
   if (!raw) return null;
@@ -30,7 +38,33 @@ export function safeReturnPath(raw: string | null | undefined): string | null {
   if (AUTH_PATHS.some((p) => raw === p || raw.startsWith(`${p}?`) || raw.startsWith(`${p}/`) || (p.endsWith("/") && raw.startsWith(p)))) {
     return null;
   }
+  if (NEVER_RETURN_PATHS.some((p) => raw === p || raw.startsWith(`${p}/`) || raw.startsWith(`${p}?`))) return null;
   return raw;
+}
+
+/**
+ * Call right before an intentional sign-out (Log out, Deactivate). Signing out drops the session while the user is
+ * still on a protected page, which makes RequireAuth bounce them to /login — and it used to carry that page along as
+ * ?redirect=, so the next login "returned" them to wherever they logged out from. For a short window after this call
+ * the bounce goes to a plain /login instead, so every fresh login lands on the Feed (Discover for restricted users).
+ */
+export function markSignedOut(): void {
+  try {
+    sessionStorage.setItem(SIGNED_OUT_KEY, String(Date.now()));
+    sessionStorage.removeItem(STORAGE_KEY);
+  } catch {
+    // ignore — the /settings guard above still covers the case that mattered most
+  }
+}
+
+/** True for a moment after markSignedOut() — see above. Safe to call during render. */
+export function justSignedOut(): boolean {
+  try {
+    const at = Number(sessionStorage.getItem(SIGNED_OUT_KEY));
+    return !!at && Date.now() - at < SIGNED_OUT_WINDOW_MS;
+  } catch {
+    return false;
+  }
 }
 
 /** `/login?redirect=…` for a given destination (falls back to plain /login). */

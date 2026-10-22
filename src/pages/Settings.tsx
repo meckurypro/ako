@@ -24,7 +24,6 @@ import {
   SlidersHorizontal,
   AlertTriangle,
   LogOut,
-  Eye,
   ShieldCheck,
   Smartphone,
   Download,
@@ -36,8 +35,8 @@ import { useIsAdmin } from "../hooks/useAdmin";
 import { useIsRestricted } from "../hooks/useAccountAccess";
 import { WebsiteUrlsField, MAX_WEBSITES } from "../components/WebsiteUrlsField";
 import { removeSavedAccount } from "../lib/accountSessions";
+import { markSignedOut } from "../lib/authRedirect";
 import { useUpdateProfile, useUpdateProfileRoles } from "../hooks/useProfile";
-import { useProfileVisitCount } from "../hooks/useProfileVisits";
 import { useUploadAvatar } from "../hooks/useUploadAvatar";
 import { useRoles } from "../hooks/useRoles";
 import { PROFILE_ROLES_SELECT } from "../lib/profileRoles";
@@ -200,10 +199,9 @@ export function Settings() {
   const { user } = useAuth();
   const { data: isAdmin } = useIsAdmin();
 
-  // Accordion: exactly one section open at a time. "profile" starts open
-  // since it's the one people land on and edit most; opening another
-  // section closes whichever was open, clicking the open one closes it.
-  const [openSection, setOpenSection] = useState<SectionId | null>("profile");
+  // Accordion: exactly one section open at a time, and every section — Profile included — starts collapsed.
+  // Opening one closes whichever was open; clicking the open one closes it.
+  const [openSection, setOpenSection] = useState<SectionId | null>(null);
   function toggleSection(id: SectionId) {
     setOpenSection((current) => (current === id ? null : id));
   }
@@ -213,12 +211,6 @@ export function Settings() {
 
   // ---- Profile ----
   const { data: profile, isLoading: profileLoading } = useOwnProfile();
-  // Moved here from ProfilePage — a stat about the account, for the
-  // owner only, so it belongs among the rest of the account's own
-  // settings rather than mixed into the Following/Followers row a
-  // visitor also sees. Always enabled: this page is only ever the
-  // signed-in user's own settings, never someone else's.
-  const { data: visitCount } = useProfileVisitCount(profile?.id, !!profile?.id);
   const updateProfile = useUpdateProfile();
   const updateProfileRoles = useUpdateProfileRoles();
   const uploadAvatar = useUploadAvatar();
@@ -456,6 +448,7 @@ export function Settings() {
     try {
       await deactivate.mutateAsync();
       if (user) removeSavedAccount(user.id);
+      markSignedOut();
       await supabase.auth.signOut();
       navigate("/login");
       toast("Account deactivated.", { variant: "success" });
@@ -468,6 +461,7 @@ export function Settings() {
   async function handleLogout() {
     setLoggingOut(true);
     if (user) removeSavedAccount(user.id);
+    markSignedOut();
     await supabase.auth.signOut();
     navigate("/login");
   }
@@ -494,72 +488,35 @@ export function Settings() {
           <h2 className="font-bold text-lg tracking-tight text-ink">Settings</h2>
         </div>
 
-        {/* Hero — same shape as the top of the profile page: big name + handle + stacked stats on the
-            left, large ringed avatar on the right with a round change-photo badge. */}
-        <div className="mb-6">
-          <div className="flex items-start justify-between gap-4">
-            <div className="flex-1 min-w-0 pt-1">
-              <h1 className="font-bold text-[1.75rem] leading-tight tracking-tight text-ink break-words">
-                {profile?.display_name}
-              </h1>
-              <p className="text-base text-ink-muted mt-0.5 truncate">@{profile?.username}</p>
-              {uploadError && <p className="text-danger text-sm mt-2">{uploadError}</p>}
-              {avatarUrl !== (profile?.avatar_url ?? "") && (
-                <p className="text-accent text-sm mt-2">New photo selected — save your changes to apply it.</p>
-              )}
-            </div>
-
-            <div className="relative shrink-0">
-              <span className="block rounded-full ring-2 ring-border ring-offset-2 ring-offset-canvas">
-                <Avatar src={avatarUrl} name={displayName || profile?.display_name || "?"} size="2xl" />
-              </span>
-              <button
-                type="button"
-                onClick={() => fileInputRef.current?.click()}
-                disabled={uploadAvatar.isPending}
-                aria-label="Change profile photo"
-                title="Change profile photo"
-                className="absolute -bottom-1 -right-1 w-9 h-9 rounded-full bg-cta text-white border-[3px] border-canvas flex items-center justify-center shadow-sm active:scale-95 transition-transform disabled:opacity-70"
-              >
-                {uploadAvatar.isPending ? <Loader2 size={16} className="animate-spin" /> : <Camera size={16} />}
-              </button>
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept="image/jpeg,image/png,image/webp,image/gif"
-                onChange={handleFileSelect}
-                className="hidden"
-              />
-            </div>
+        {/* Hero — just the avatar, centred, with the round change-photo badge. The name, handle and follower /
+            visit stats live on the profile itself; repeating them here was redundant. */}
+        <div className="mb-6 flex flex-col items-center">
+          <div className="relative shrink-0">
+            <span className="block rounded-full ring-2 ring-border ring-offset-2 ring-offset-canvas">
+              <Avatar src={avatarUrl} name={displayName || profile?.display_name || "?"} size="2xl" />
+            </span>
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={uploadAvatar.isPending}
+              aria-label="Change profile photo"
+              title="Change profile photo"
+              className="absolute -bottom-1 -right-1 w-9 h-9 rounded-full bg-cta text-white border-[3px] border-canvas flex items-center justify-center shadow-sm active:scale-95 transition-transform disabled:opacity-70"
+            >
+              {uploadAvatar.isPending ? <Loader2 size={16} className="animate-spin" /> : <Camera size={16} />}
+            </button>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/jpeg,image/png,image/webp,image/gif"
+              onChange={handleFileSelect}
+              className="hidden"
+            />
           </div>
-
-          {/* Stats — owner-only visit count (moved here from the profile's Following/Followers row)
-              next to the follow counts, in the profile's stacked number-over-label style. */}
-          <div className="flex items-center gap-7 mt-5">
-            {typeof profile?.following_count === "number" && (
-              <div>
-                <span className="block text-xl font-semibold leading-none text-ink tabular-nums">
-                  {profile.following_count}
-                </span>
-                <span className="block text-sm text-ink-muted mt-1.5">Following</span>
-              </div>
-            )}
-            {typeof profile?.follower_count === "number" && (
-              <div>
-                <span className="block text-xl font-semibold leading-none text-ink tabular-nums">
-                  {profile.follower_count}
-                </span>
-                <span className="block text-sm text-ink-muted mt-1.5">Followers</span>
-              </div>
-            )}
-            <div title="Only visible to you">
-              <span className="flex items-center gap-1.5 text-xl font-semibold leading-none text-ink tabular-nums">
-                {visitCount ?? 0}
-                <Eye size={15} className="text-ink-muted" />
-              </span>
-              <span className="block text-sm text-ink-muted mt-1.5">Visits · 30 days</span>
-            </div>
-          </div>
+          {uploadError && <p className="text-danger text-sm mt-3 text-center">{uploadError}</p>}
+          {avatarUrl !== (profile?.avatar_url ?? "") && (
+            <p className="text-accent text-sm mt-3 text-center">New photo selected — save your changes to apply it.</p>
+          )}
         </div>
 
         <div className="flex flex-col gap-3">
@@ -591,8 +548,7 @@ export function Settings() {
             </span>
           </button>
 
-          {/* Profile — the section people open most often, so it's the one
-              expanded by default; everything else starts collapsed. */}
+          {/* Profile — collapsed like every other section until tapped. */}
           <SettingsSection
             icon={<UserCircle2 size={18} />}
             title="Profile"
