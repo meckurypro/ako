@@ -82,7 +82,7 @@ type NotifRow = {
 // Top-level stance comments (notify_on_comment stores the stance as the notification type). "comment" is the neutral
 // stance and is worded by COPY. "disagree" only exists on old rows: it was merged into pushback.
 const STANCE_ON_POST: Record<string, string> = {
-  support: "supported your post",
+  support: "added to your post",
   pushback: "pushed back on your post",
   disagree: "pushed back on your post",
   question: "asked a question on your post",

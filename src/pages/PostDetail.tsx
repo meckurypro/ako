@@ -102,7 +102,7 @@ export function PostDetail() {
           <CommentEngagementProvider key={post.id} postId={post.id}>
             <div ref={repliesRef} className="scroll-mt-16">
               <ReplyBar
-                placeholder="Add your reasoning…"
+                placeholder="What's your take?"
                 // The post's own author can only build on their own post (and comment); no questioning or pushing back.
                 stances={isOwnPost ? ["support"] : undefined}
                 onOpen={setComposeStance}

@@ -16,7 +16,7 @@ interface ReactionTrayProps {
   leftActions: EngagementAction[];
   /** Top-ranked (most-used) secondary actions — fill the remaining
    *  visible slots (5 total, minus however many leftActions/rightActions
-   *  take). Ranking comes from useEngagementOrder; see PostCard. */
+   *  take). Order is fixed: see lib/engagementActions. */
   middleActions: EngagementAction[];
   /** Fixed-right actions — the "···" more button lives here for both
    *  PostCard and ProjectCard now (see each card's rightActions), so it

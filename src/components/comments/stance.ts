@@ -13,7 +13,7 @@ import type { Stance } from "../../types/database";
 export const STANCE_TONE: Record<
   Stance,
   {
-    /** Tiny label on a reply row: "Supports" */
+    /** Tiny label on a reply row: "Adds" */
     label: string;
     /** Filter chip / count label: "Support" */
     noun: string;
@@ -23,8 +23,8 @@ export const STANCE_TONE: Record<
   }
 > = {
   support: {
-    label: "Supports",
-    noun: "Support",
+    label: "Adds",
+    noun: "Add",
     rail: "bg-stance-support/50",
     text: "text-stance-support",
     underline: "border-stance-support",

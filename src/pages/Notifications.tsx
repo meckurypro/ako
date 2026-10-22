@@ -3,7 +3,7 @@ import { Link, useNavigate } from "react-router-dom";
 import {
   Heart,
   ThumbsDown,
-  Handshake,
+  MessageSquarePlus,
   Hand,
   HelpCircle,
   UserPlus,
@@ -54,7 +54,7 @@ const TYPE_CONFIG: Record<string, { icon: typeof Heart; verb: string }> = {
   // default; verbFor() below swaps in "project" when target_type is.
   like: { icon: Heart, verb: "liked your post" },
   dislike: { icon: ThumbsDown, verb: "disliked your post" },
-  support: { icon: Handshake, verb: "supported your post" },
+  support: { icon: MessageSquarePlus, verb: "added to your post" },
   disagree: { icon: Hand, verb: "pushed back on your post" }, // legacy rows; migrated to pushback
   pushback: { icon: Hand, verb: "pushed back on your post" },
   question: { icon: HelpCircle, verb: "asked a question on your post" },
