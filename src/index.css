@@ -930,3 +930,24 @@ html[data-kb-open] .ako-keyboard-aware > *:not([data-anchored-panel]) {
     transform: scaleX(1);
   }
 }
+
+
+/* Gift Vault — Legendary artifacts get a slow gold sweep so they catch the eye (and the screenshot). */
+.vault-shimmer { position: relative; overflow: visible; }
+.vault-shimmer::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  background: linear-gradient(115deg, transparent 35%, rgba(246, 217, 140, 0.35) 50%, transparent 65%);
+  background-size: 250% 100%;
+  animation: vault-sweep 3.6s ease-in-out infinite;
+}
+@keyframes vault-sweep {
+  0% { background-position: 150% 0; }
+  60%, 100% { background-position: -50% 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .vault-shimmer::after { animation: none; }
+}

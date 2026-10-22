@@ -49,6 +49,7 @@ import { PageTeam } from "./pages/PageTeam";
 import { EditPage } from "./pages/EditPage";
 
 import { WalletPage } from "./pages/Wallet";
+import { GiftVaultPage } from "./pages/GiftVault";
 import { FundWallet } from "./pages/FundWallet";
 import { Withdraw } from "./pages/Withdraw";
 import { DepositCallback } from "./pages/DepositCallback";
@@ -443,6 +444,14 @@ function AppRoutes() {
               element={
                 <RequireAuth>
                   <WalletPage />
+                </RequireAuth>
+              }
+            />
+            <Route
+              path="/wallet/gifts"
+              element={
+                <RequireAuth>
+                  <GiftVaultPage />
                 </RequireAuth>
               }
             />

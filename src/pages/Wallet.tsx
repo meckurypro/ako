@@ -10,6 +10,7 @@ import {
   Heart,
   Sparkles,
   Wallet,
+  Gem,
   type LucideIcon,
 } from "lucide-react";
 import { useWallet, useWalletTransactions } from "../hooks/useWallet";
@@ -155,6 +156,12 @@ export function WalletPage() {
                 <span className="text-xs font-medium text-canvas">Withdraw</span>
               </Link>
             )}
+            <Link to="/wallet/gifts" className="flex flex-col items-center gap-1.5">
+              <span className="w-11 h-11 rounded-full bg-canvas/15 flex items-center justify-center text-canvas">
+                <Gem size={20} />
+              </span>
+              <span className="text-xs font-medium text-canvas">Vault</span>
+            </Link>
             {affiliateEnabled && (
               <Link to="/wallet/affiliate-links" className="flex flex-col items-center gap-1.5">
                 <span className="w-11 h-11 rounded-full bg-canvas/15 flex items-center justify-center text-canvas">
