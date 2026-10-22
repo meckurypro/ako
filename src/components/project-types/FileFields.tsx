@@ -187,7 +187,9 @@ export function FileFields({ value, onChange, onError, maxFiles }: FileFieldsPro
       )}
 
       <p className="text-xs text-ink-muted mt-2">
-        Up to {MAX_PROJECT_FILE_LABEL} per file.
+        Up to {MAX_PROJECT_FILE_LABEL}
+        {maxFiles > 1 ? " per file" : ""}. Hosted here — no external link is stored. Visitors with access download it with
+        one tap.
         {maxFiles > 1
           ? " Downloads are named after the uploaded file unless you type a name."
           : ` Verified accounts can add up to ${MAX_PROJECT_FILES_VERIFIED} files.`}
