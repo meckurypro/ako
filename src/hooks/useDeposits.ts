@@ -10,6 +10,7 @@ import { useAuth } from "./useAuth";
 interface InitiateDepositResult {
   deposit_id: string;
   authorization_url: string;
+  access_code: string;
   reference: string;
   amount_usd: number;
   amount_ngn: number;
@@ -18,10 +19,9 @@ interface InitiateDepositResult {
 
 /**
  * Calls initiate-deposit, which creates a 'pending' deposits row
- * and starts a Paystack Standard Checkout transaction. On success,
- * redirect the browser to authorization_url — Paystack handles the
- * actual card/bank-transfer UI, then redirects back to
- * /wallet/deposit/callback.
+ * and starts a Paystack transaction. On web, open it in Paystack's Inline
+ * popup with access_code (the user never leaves the app); authorization_url
+ * is only a redirect fallback if the popup can't load.
  */
 export function useInitiateDeposit() {
   return useMutation({

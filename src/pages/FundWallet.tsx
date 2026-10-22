@@ -1,5 +1,7 @@
 // src/pages/FundWallet.tsx
 import { useState, useMemo } from "react";
+import { useNavigate } from "react-router-dom";
+import PaystackPop from "@paystack/inline-js";
 import { ArrowLeft, AlertCircle, Loader2 } from "lucide-react";
 import { useSmartBack } from "../hooks/useSmartBack";
 import { useExchangeRates } from "../hooks/useWalletRates";
@@ -18,6 +20,7 @@ const MINIMUM_DEPOSIT_USD = 1;
 
 export function FundWallet() {
   const smartBack = useSmartBack();
+  const navigate = useNavigate();
   const { data: rates } = useExchangeRates();
   const initiateDeposit = useInitiateDeposit();
   const depositsEnabled = useFeatureFlag("deposits_enabled");
@@ -25,6 +28,7 @@ export function FundWallet() {
   const [selectedPreset, setSelectedPreset] = useState<number | null>(10);
   const [customAmount, setCustomAmount] = useState("");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [checkoutOpen, setCheckoutOpen] = useState(false);
 
   const amountUsd = customAmount ? Number(customAmount) : selectedPreset ?? 0;
 
@@ -62,10 +66,38 @@ export function FundWallet() {
 
     try {
       const result = await initiateDeposit.mutateAsync(amountUsd);
-      // Paystack's hosted checkout — handles card / bank transfer /
-      // USSD itself, then redirects back to /wallet/deposit/callback.
-      window.location.href = result.authorization_url;
+      const goToCallback = () =>
+        navigate(`/wallet/deposit/callback?reference=${encodeURIComponent(result.reference)}`, { replace: true });
+      const redirectFallback = () => {
+        window.location.href = result.authorization_url;
+      };
+
+      if (!result.access_code) {
+        redirectFallback();
+        return;
+      }
+
+      // Paystack Inline popup: checkout opens on top of the app (same page, no
+      // navigation), so the user can always close it and the app never gets
+      // stranded on Paystack's hosted page. onSuccess hands off to the callback
+      // page, which confirms via verify-deposit.
+      setCheckoutOpen(true);
+      new PaystackPop().resumeTransaction(result.access_code, {
+        onSuccess: () => {
+          setCheckoutOpen(false);
+          goToCallback();
+        },
+        onCancel: () => {
+          setCheckoutOpen(false);
+          setErrorMessage("Payment cancelled. No money was taken.");
+        },
+        onError: () => {
+          setCheckoutOpen(false);
+          redirectFallback();
+        },
+      });
     } catch (err) {
+      setCheckoutOpen(false);
       setErrorMessage(err instanceof Error ? err.message : "Couldn't start payment.");
     }
   }
@@ -178,13 +210,13 @@ export function FundWallet() {
 
         <button
           onClick={handleContinue}
-          disabled={initiateDeposit.isPending || !amountUsd}
+          disabled={initiateDeposit.isPending || checkoutOpen || !amountUsd}
           className="w-full bg-accent text-canvas font-medium rounded-xl py-3.5 disabled:opacity-50 flex items-center justify-center gap-2"
         >
-          {initiateDeposit.isPending ? (
+          {initiateDeposit.isPending || checkoutOpen ? (
             <>
               <Loader2 size={18} className="animate-spin" />
-              Starting payment…
+              {checkoutOpen ? "Complete payment…" : "Starting payment…"}
             </>
           ) : (
             "Continue to payment"

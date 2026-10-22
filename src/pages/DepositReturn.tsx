@@ -13,6 +13,7 @@ import { useEffect } from "react";
 import { Loader2 } from "lucide-react";
 
 const APP_DEEP_LINK = "ako://wallet/deposit/callback";
+const ANDROID_PACKAGE = "com.meckurypro.ako";
 
 export function DepositReturn() {
   const params = new URLSearchParams(window.location.search);
@@ -21,10 +22,18 @@ export function DepositReturn() {
     ? `${APP_DEEP_LINK}?reference=${encodeURIComponent(reference)}`
     : APP_DEEP_LINK;
 
+  // Android Chrome / Custom Tabs often ignore a scripted custom-scheme redirect;
+  // an intent:// URL is the form they honour.
+  const isAndroid = /android/i.test(navigator.userAgent);
+  const androidIntent =
+    `intent://wallet/deposit/callback${reference ? `?reference=${encodeURIComponent(reference)}` : ""}` +
+    `#Intent;scheme=ako;package=${ANDROID_PACKAGE};end`;
+  const handoff = isAndroid ? androidIntent : target;
+
   useEffect(() => {
     // Immediate hand-off; the button below covers browsers that block it.
-    window.location.replace(target);
-  }, [target]);
+    window.location.replace(handoff);
+  }, [handoff]);
 
   return (
     <div className="min-h-screen bg-canvas flex items-center justify-center px-4">
@@ -35,7 +44,7 @@ export function DepositReturn() {
           Your payment is being confirmed. Your wallet will update in the app.
         </p>
         <a
-          href={target}
+          href={handoff}
           className="inline-block bg-accent text-canvas font-medium rounded-xl px-6 py-3"
         >
           Open the Akọ app
