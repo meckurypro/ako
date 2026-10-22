@@ -1,3 +1,4 @@
+import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import {
   ArrowDownCircle,
@@ -11,12 +12,15 @@ import {
   Sparkles,
   Wallet,
   Gem,
+  Clock,
   type LucideIcon,
 } from "lucide-react";
 import { useWallet, useWalletTransactions } from "../hooks/useWallet";
 import { BottomNav } from "../components/BottomNav";
 import { Wordmark } from "../components/Wordmark";
 import { useFeatureFlag } from "../hooks/useFeatureFlags";
+import { useWithdrawalEligibility } from "../hooks/useWalletRates";
+import { useWithdrawals } from "../hooks/usePayout";
 import { formatUsd } from "../lib/money";
 
 // Each transaction type gets its own label, icon, and icon tint —
@@ -39,15 +43,43 @@ const TXN_META: Record<string, { label: string; icon: LucideIcon; tint: string }
   give_back_reversal: { label: "Give Back reward reversed", icon: RotateCcw, tint: "text-ink-muted bg-ink/5" },
 };
 
-function txnDate(dateString: string): string {
+// Activity is grouped under day headings ("Today", "Yesterday", "Oct 18") —
+// the same calm, label-then-rows rhythm as Library and Discover — instead of
+// repeating a date on every line.
+function dayLabel(dateString: string): string {
   const d = new Date(dateString);
   const now = new Date();
-  const sameYear = d.getFullYear() === now.getFullYear();
+  const startOf = (x: Date) => new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime();
+  const diffDays = Math.round((startOf(now) - startOf(d)) / 86_400_000);
+  if (diffDays === 0) return "Today";
+  if (diffDays === 1) return "Yesterday";
   return d.toLocaleDateString(undefined, {
     month: "short",
     day: "numeric",
-    year: sameYear ? undefined : "numeric",
+    year: d.getFullYear() === now.getFullYear() ? undefined : "numeric",
   });
+}
+
+function txnTime(dateString: string): string {
+  return new Date(dateString).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
+}
+
+type ActivityFilter = "all" | "in" | "out";
+const FILTERS: { id: ActivityFilter; label: string }[] = [
+  { id: "all", label: "All" },
+  { id: "in", label: "Money in" },
+  { id: "out", label: "Money out" },
+];
+
+function BalanceAction({ to, icon: Icon, label }: { to: string; icon: LucideIcon; label: string }) {
+  return (
+    <Link to={to} className="flex flex-col items-center gap-1.5 rounded-2xl py-2 transition-colors hover:bg-canvas/10 active:bg-canvas/15">
+      <span className="w-11 h-11 rounded-full bg-canvas/15 flex items-center justify-center text-canvas">
+        <Icon size={20} />
+      </span>
+      <span className="text-xs font-medium text-canvas">{label}</span>
+    </Link>
+  );
 }
 
 /**
@@ -74,6 +106,29 @@ export function WalletPage() {
   const depositsEnabled = useFeatureFlag("deposits_enabled");
   const withdrawalsEnabled = useFeatureFlag("withdrawals_enabled");
   const affiliateEnabled = useFeatureFlag("affiliate_programs_enabled");
+  const { data: eligibility } = useWithdrawalEligibility();
+  const { data: withdrawals } = useWithdrawals();
+  const [filter, setFilter] = useState<ActivityFilter>("all");
+
+  // Requests that have left the wallet but not yet reached the bank.
+  const inReviewUsd = (withdrawals ?? [])
+    .filter((w) => w.status === "pending" || w.status === "processing")
+    .reduce((sum, w) => sum + Number(w.amount_usd), 0);
+
+  const groups = useMemo(() => {
+    const rows = ((transactions as any[] | undefined) ?? []).filter((t) => {
+      const amt = Number(t.amount);
+      return filter === "all" ? true : filter === "in" ? amt >= 0 : amt < 0;
+    });
+    const out: { label: string; rows: any[] }[] = [];
+    for (const t of rows) {
+      const label = dayLabel(t.created_at);
+      const last = out[out.length - 1];
+      if (last && last.label === label) last.rows.push(t);
+      else out.push({ label, rows: [t] });
+    }
+    return out;
+  }, [transactions, filter]);
 
   // The main entry point into this page (ProfilePage's owner menu) is
   // already hidden when this is off — this is the defensive layer for
@@ -139,37 +194,11 @@ export function WalletPage() {
             {isLoading ? "…" : formatUsd(wallet?.balance ?? 0)}
           </p>
 
-          <div className="relative flex items-center gap-6">
-            {depositsEnabled && (
-              <Link to="/wallet/fund" className="flex flex-col items-center gap-1.5">
-                <span className="w-11 h-11 rounded-full bg-canvas/15 flex items-center justify-center text-canvas">
-                  <ArrowDownCircle size={20} />
-                </span>
-                <span className="text-xs font-medium text-canvas">Fund</span>
-              </Link>
-            )}
-            {withdrawalsEnabled && (
-              <Link to="/wallet/withdraw" className="flex flex-col items-center gap-1.5">
-                <span className="w-11 h-11 rounded-full bg-canvas/15 flex items-center justify-center text-canvas">
-                  <ArrowUpCircle size={20} />
-                </span>
-                <span className="text-xs font-medium text-canvas">Withdraw</span>
-              </Link>
-            )}
-            <Link to="/wallet/gifts" className="flex flex-col items-center gap-1.5">
-              <span className="w-11 h-11 rounded-full bg-canvas/15 flex items-center justify-center text-canvas">
-                <Gem size={20} />
-              </span>
-              <span className="text-xs font-medium text-canvas">Vault</span>
-            </Link>
-            {affiliateEnabled && (
-              <Link to="/wallet/affiliate-links" className="flex flex-col items-center gap-1.5">
-                <span className="w-11 h-11 rounded-full bg-canvas/15 flex items-center justify-center text-canvas">
-                  <TrendingUp size={20} />
-                </span>
-                <span className="text-xs font-medium text-canvas">Affiliate</span>
-              </Link>
-            )}
+          <div className="relative grid grid-cols-4 gap-2">
+            {depositsEnabled && <BalanceAction to="/wallet/fund" icon={ArrowDownCircle} label="Fund" />}
+            {withdrawalsEnabled && <BalanceAction to="/wallet/withdraw" icon={ArrowUpCircle} label="Withdraw" />}
+            <BalanceAction to="/wallet/gifts" icon={Gem} label="Vault" />
+            {affiliateEnabled && <BalanceAction to="/wallet/affiliate-links" icon={TrendingUp} label="Affiliate" />}
           </div>
 
           {!depositsEnabled && !withdrawalsEnabled && (
@@ -177,38 +206,87 @@ export function WalletPage() {
           )}
         </div>
 
-        <div>
-        <h3 className="font-display text-lg text-ink mt-8 md:mt-0 mb-3">Recent activity</h3>
-
-        {!transactions || transactions.length === 0 ? (
-          <div className="text-center py-10">
-            <p className="text-ink-muted text-sm">No transactions yet.</p>
-            <p className="text-ink-muted text-xs mt-1">Everything you fund, spend, and earn will show up here.</p>
-          </div>
-        ) : (
-          <div className="bg-surface dark:bg-[#121114] rounded-2xl border border-border divide-y divide-border overflow-hidden">
-            {transactions.map((txn: any) => {
-              const meta = TXN_META[txn.type] ?? { label: txn.type, icon: Receipt, tint: "text-ink-muted bg-ink/5" };
-              const Icon = meta.icon;
-              const amount = Number(txn.amount);
-              return (
-                <div key={txn.id} className="flex items-center gap-3 px-4 py-3.5">
-                  <span className={`w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0 ${meta.tint}`}>
-                    <Icon size={16} />
-                  </span>
-                  <div className="min-w-0 flex-1">
-                    <p className="text-sm text-ink truncate">{meta.label}</p>
-                    <p className="text-xs text-ink-muted">{txnDate(txn.created_at)}</p>
-                  </div>
-                  <p className={`text-sm font-medium tabular-nums flex-shrink-0 ${amount >= 0 ? "text-accent" : "text-ink"}`}>
-                    {amount >= 0 ? "+" : "-"}
-                    {formatUsd(Math.abs(amount))}
-                  </p>
-                </div>
-              );
-            })}
+        {/* Withdrawal position — the two numbers people check before asking for money out. */}
+        {withdrawalsEnabled && (eligibility || inReviewUsd > 0) && (
+          <div className="mt-4 grid grid-cols-2 gap-3 md:col-start-1">
+            <div className="rounded-2xl border border-border bg-surface px-4 py-3">
+              <p className="text-[11px] uppercase tracking-wide text-ink-muted">Can withdraw</p>
+              <p className="font-display text-xl text-ink tabular-nums mt-0.5">
+                {formatUsd(eligibility?.available_to_request ?? 0)}
+              </p>
+              <p className="text-[11px] text-ink-muted mt-0.5">this week</p>
+            </div>
+            <div className="rounded-2xl border border-border bg-surface px-4 py-3">
+              <p className="text-[11px] uppercase tracking-wide text-ink-muted flex items-center gap-1">
+                <Clock size={11} aria-hidden="true" /> In review
+              </p>
+              <p className="font-display text-xl text-ink tabular-nums mt-0.5">{formatUsd(inReviewUsd)}</p>
+              <p className="text-[11px] text-ink-muted mt-0.5">on its way to your bank</p>
+            </div>
           </div>
         )}
+
+        <div className="md:row-span-2 md:col-start-2 md:row-start-1">
+          <h3 className="font-display text-lg text-ink mt-8 md:mt-0 mb-3">Activity</h3>
+
+          <div className="-mx-4 px-4 mb-4 overflow-x-auto no-scrollbar">
+            <div className="flex gap-2 w-max" role="tablist" aria-label="Filter activity">
+              {FILTERS.map((f) => (
+                <button
+                  key={f.id}
+                  role="tab"
+                  aria-selected={filter === f.id}
+                  onClick={() => setFilter(f.id)}
+                  className={`shrink-0 px-3.5 py-2 rounded-full text-sm border transition-colors ${
+                    filter === f.id
+                      ? "bg-accent text-canvas border-accent"
+                      : "bg-surface text-ink border-border hover:border-accent/50"
+                  }`}
+                >
+                  {f.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {groups.length === 0 ? (
+            <div className="text-center py-10">
+              <p className="text-ink-muted text-sm">
+                {transactions && transactions.length > 0 ? "Nothing here for this filter." : "No transactions yet."}
+              </p>
+              {(!transactions || transactions.length === 0) && (
+                <p className="text-ink-muted text-xs mt-1">Everything you fund, spend, and earn will show up here.</p>
+              )}
+            </div>
+          ) : (
+            groups.map((g) => (
+              <section key={g.label} className="mb-5">
+                <h4 className="text-xs font-semibold uppercase tracking-wide text-ink-muted mb-2 px-1">{g.label}</h4>
+                <div className="bg-surface dark:bg-[#121114] rounded-2xl border border-border divide-y divide-border overflow-hidden">
+                  {g.rows.map((txn: any) => {
+                    const meta = TXN_META[txn.type] ?? { label: txn.type, icon: Receipt, tint: "text-ink-muted bg-ink/5" };
+                    const Icon = meta.icon;
+                    const amount = Number(txn.amount);
+                    return (
+                      <div key={txn.id} className="flex items-center gap-3 px-4 py-3.5">
+                        <span className={`w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0 ${meta.tint}`}>
+                          <Icon size={16} />
+                        </span>
+                        <div className="min-w-0 flex-1">
+                          <p className="text-sm text-ink truncate">{meta.label}</p>
+                          <p className="text-xs text-ink-muted">{txnTime(txn.created_at)}</p>
+                        </div>
+                        <p className={`text-sm font-medium tabular-nums flex-shrink-0 ${amount >= 0 ? "text-accent" : "text-ink"}`}>
+                          {amount >= 0 ? "+" : "-"}
+                          {formatUsd(Math.abs(amount))}
+                        </p>
+                      </div>
+                    );
+                  })}
+                </div>
+              </section>
+            ))
+          )}
         </div>
       </div>
 
