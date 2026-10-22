@@ -10,13 +10,13 @@ import {
   Megaphone,
   Heart,
   Sparkles,
-  Wallet,
   Gem,
-  Clock,
+  ChevronRight,
   type LucideIcon,
 } from "lucide-react";
 import { useWallet, useWalletTransactions } from "../hooks/useWallet";
 import { BottomNav } from "../components/BottomNav";
+import { BrandCard } from "../components/BrandCard";
 import { Wordmark } from "../components/Wordmark";
 import { useFeatureFlag } from "../hooks/useFeatureFlags";
 import { useWithdrawalEligibility } from "../hooks/useWalletRates";
@@ -71,13 +71,40 @@ const FILTERS: { id: ActivityFilter; label: string }[] = [
   { id: "out", label: "Money out" },
 ];
 
-function BalanceAction({ to, icon: Icon, label }: { to: string; icon: LucideIcon; label: string }) {
+// Fund is the primary action: a solid white pill with deep-green text (a light button on a dark brand
+// surface, so contrast holds in light, dark and page themes). Withdraw is its quieter translucent twin.
+function CardPill({ to, icon: Icon, label, primary }: { to: string; icon: LucideIcon; label: string; primary?: boolean }) {
   return (
-    <Link to={to} className="flex flex-col items-center gap-1.5 rounded-2xl py-2 transition-colors hover:bg-canvas/10 active:bg-canvas/15">
-      <span className="w-11 h-11 rounded-full bg-canvas/15 flex items-center justify-center text-canvas">
-        <Icon size={20} />
+    <Link
+      to={to}
+      className={`flex-1 h-11 rounded-full inline-flex items-center justify-center gap-2 text-sm font-semibold transition-[transform,background-color] active:scale-[0.98] ${
+        primary
+          ? "bg-white text-cta shadow-[0_6px_16px_-8px_rgba(0,0,0,0.5)] hover:bg-white/95"
+          : "bg-white/15 text-white ring-1 ring-inset ring-white/25 hover:bg-white/20"
+      }`}
+    >
+      <Icon size={18} />
+      {label}
+    </Link>
+  );
+}
+
+// Secondary destinations sit under the card as quiet surface tiles — same bordered, rounded-2xl,
+// accent-soft icon-chip language as the Profile's rows.
+function ShortcutTile({ to, icon: Icon, title, hint }: { to: string; icon: LucideIcon; title: string; hint: string }) {
+  return (
+    <Link
+      to={to}
+      className="group flex items-center gap-3 rounded-2xl border border-border bg-surface px-3.5 py-3 transition-colors hover:border-accent/40"
+    >
+      <span className="w-10 h-10 rounded-full bg-accent-soft text-accent flex items-center justify-center shrink-0">
+        <Icon size={18} />
       </span>
-      <span className="text-xs font-medium text-canvas">{label}</span>
+      <span className="min-w-0 flex-1">
+        <span className="block text-sm font-medium text-ink">{title}</span>
+        <span className="block text-xs text-ink-muted truncate">{hint}</span>
+      </span>
+      <ChevronRight size={16} className="text-ink-muted transition-transform group-hover:translate-x-0.5" aria-hidden="true" />
     </Link>
   );
 }
@@ -166,65 +193,55 @@ export function WalletPage() {
           Feed. Mobile keeps the original single stacked column. */}
       <div className="max-w-xl md:max-w-5xl mx-auto px-4 md:px-8 pt-6 md:pt-10 md:grid md:grid-cols-[360px_1fr] md:gap-10 md:items-start">
         {/* ── Balance card — the one bold element on the page ── */}
-        <div
-          className="relative overflow-hidden rounded-[28px] p-6 pt-7 md:sticky md:top-10"
-          style={{
-            background: "linear-gradient(135deg, var(--color-accent) 0%, var(--color-accent-hover) 100%)",
-            boxShadow:
-              "0 0 0 1px rgba(var(--shadow-ink-rgb), 0.07), 0 20px 40px -12px rgba(var(--shadow-ink-rgb), 0.35)",
-          }}
-        >
-          {/* Faint oversized icon watermarked into the corner — purely
-              decorative, aria-hidden, and clipped by the card's own
-              overflow-hidden so it never interferes with the real content
-              stacked above it. */}
-          <Wallet
-            size={140}
-            strokeWidth={1}
-            className="absolute -right-6 -top-6 text-canvas opacity-[0.12] pointer-events-none"
-            aria-hidden="true"
-          />
+        <div className="md:sticky md:top-10">
+          <BrandCard className="p-6 pt-6">
+            <div className="flex items-center justify-between">
+              <p className="text-[11px] font-medium uppercase tracking-[0.16em] text-white">Available balance</p>
+              <span className="rounded-full bg-white/15 px-2.5 py-0.5 text-[11px] font-medium tracking-wide text-white ring-1 ring-inset ring-white/20">
+                USD
+              </span>
+            </div>
 
-          <div className="relative flex items-center justify-between">
-            <p className="text-xs font-medium uppercase tracking-[0.14em] text-canvas/70">Available balance</p>
-            <Wallet size={18} className="text-canvas/70" aria-hidden="true" />
+            <p className="font-display text-5xl text-white mt-3 mb-6 tabular-nums">
+              {isLoading ? "…" : formatUsd(wallet?.balance ?? 0)}
+            </p>
+
+            {(depositsEnabled || withdrawalsEnabled) && (
+              <div className="flex gap-3">
+                {depositsEnabled && <CardPill to="/wallet/fund" icon={ArrowDownCircle} label="Fund" primary />}
+                {withdrawalsEnabled && <CardPill to="/wallet/withdraw" icon={ArrowUpCircle} label="Withdraw" primary={!depositsEnabled} />}
+              </div>
+            )}
+            {!depositsEnabled && !withdrawalsEnabled && (
+              <p className="text-xs text-white/90">Funding and withdrawals are temporarily unavailable.</p>
+            )}
+
+            {/* Withdrawal position — the two numbers people check before asking for money out. */}
+            {withdrawalsEnabled && (eligibility || inReviewUsd > 0) && (
+              <div className="mt-6 grid grid-cols-2 gap-4 border-t border-white/15 pt-4">
+                <div>
+                  <p className="text-[11px] uppercase tracking-wide text-white/90">Can withdraw</p>
+                  <p className="font-display text-xl text-white tabular-nums mt-0.5">
+                    {formatUsd(eligibility?.available_to_request ?? 0)}
+                  </p>
+                  <p className="text-[11px] text-white/90">this week</p>
+                </div>
+                <div>
+                  <p className="text-[11px] uppercase tracking-wide text-white/90">In review</p>
+                  <p className="font-display text-xl text-white tabular-nums mt-0.5">{formatUsd(inReviewUsd)}</p>
+                  <p className="text-[11px] text-white/90">on its way to your bank</p>
+                </div>
+              </div>
+            )}
+          </BrandCard>
+
+          <div className={`mt-3 grid gap-3 ${affiliateEnabled ? "grid-cols-2 md:grid-cols-1" : "grid-cols-1"}`}>
+            <ShortcutTile to="/wallet/gifts" icon={Gem} title="Gift Vault" hint="Gifts you've received" />
+            {affiliateEnabled && (
+              <ShortcutTile to="/wallet/affiliate-links" icon={TrendingUp} title="Affiliate" hint="Links & earnings" />
+            )}
           </div>
-
-          <p className="relative font-display text-5xl text-canvas mt-3 mb-8 tabular-nums">
-            {isLoading ? "…" : formatUsd(wallet?.balance ?? 0)}
-          </p>
-
-          <div className="relative grid grid-cols-4 gap-2">
-            {depositsEnabled && <BalanceAction to="/wallet/fund" icon={ArrowDownCircle} label="Fund" />}
-            {withdrawalsEnabled && <BalanceAction to="/wallet/withdraw" icon={ArrowUpCircle} label="Withdraw" />}
-            <BalanceAction to="/wallet/gifts" icon={Gem} label="Vault" />
-            {affiliateEnabled && <BalanceAction to="/wallet/affiliate-links" icon={TrendingUp} label="Affiliate" />}
-          </div>
-
-          {!depositsEnabled && !withdrawalsEnabled && (
-            <p className="relative text-xs text-canvas/70 mt-5">Funding and withdrawals are temporarily unavailable.</p>
-          )}
         </div>
-
-        {/* Withdrawal position — the two numbers people check before asking for money out. */}
-        {withdrawalsEnabled && (eligibility || inReviewUsd > 0) && (
-          <div className="mt-4 grid grid-cols-2 gap-3 md:col-start-1">
-            <div className="rounded-2xl border border-border bg-surface px-4 py-3">
-              <p className="text-[11px] uppercase tracking-wide text-ink-muted">Can withdraw</p>
-              <p className="font-display text-xl text-ink tabular-nums mt-0.5">
-                {formatUsd(eligibility?.available_to_request ?? 0)}
-              </p>
-              <p className="text-[11px] text-ink-muted mt-0.5">this week</p>
-            </div>
-            <div className="rounded-2xl border border-border bg-surface px-4 py-3">
-              <p className="text-[11px] uppercase tracking-wide text-ink-muted flex items-center gap-1">
-                <Clock size={11} aria-hidden="true" /> In review
-              </p>
-              <p className="font-display text-xl text-ink tabular-nums mt-0.5">{formatUsd(inReviewUsd)}</p>
-              <p className="text-[11px] text-ink-muted mt-0.5">on its way to your bank</p>
-            </div>
-          </div>
-        )}
 
         <div className="md:row-span-2 md:col-start-2 md:row-start-1">
           <h3 className="font-display text-lg text-ink mt-8 md:mt-0 mb-3">Activity</h3>
@@ -239,7 +256,7 @@ export function WalletPage() {
                   onClick={() => setFilter(f.id)}
                   className={`shrink-0 px-3.5 py-2 rounded-full text-sm border transition-colors ${
                     filter === f.id
-                      ? "bg-accent text-canvas border-accent"
+                      ? "bg-cta text-white border-cta"
                       : "bg-surface text-ink border-border hover:border-accent/50"
                   }`}
                 >

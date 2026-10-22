@@ -17,6 +17,7 @@ import { formatUsd } from "../lib/money";
 import { getEffectivePrice } from "../hooks/useProjects";
 import { getProjectUrl } from "../lib/projectLinks";
 import { APP_URL } from "../lib/appUrl";
+import { BrandCard } from "../components/BrandCard";
 
 export function AffiliateLinkRow({ relationship }: { relationship: AffiliateRelationshipWithProject }) {
   const toast = useToast();
@@ -110,11 +111,11 @@ function MiniStat({ label, value }: { label: string; value: string }) {
 
 function SummaryStat({ icon: Icon, label, value }: { icon: typeof Clock; label: string; value: string }) {
   return (
-    <div className="rounded-2xl bg-canvas/15 px-3 py-3">
-      <p className="text-[11px] uppercase tracking-wide text-canvas/70 flex items-center gap-1">
+    <div className="min-w-0">
+      <p className="text-[11px] uppercase tracking-wide text-white/90 flex items-center gap-1">
         <Icon size={11} aria-hidden="true" /> {label}
       </p>
-      <p className="font-display text-xl text-canvas tabular-nums mt-0.5 truncate">{value}</p>
+      <p className="font-display text-xl text-white tabular-nums mt-0.5 truncate">{value}</p>
     </div>
   );
 }
@@ -153,31 +154,19 @@ export function MyAffiliateLinks() {
           </div>
         ) : (
           <>
-            {/* One bold card for the whole picture, like the Wallet balance. */}
-            <div
-              className="relative overflow-hidden rounded-[28px] p-5 mb-6"
-              style={{
-                background: "linear-gradient(135deg, var(--color-accent) 0%, var(--color-accent-hover) 100%)",
-                boxShadow: "0 0 0 1px rgba(var(--shadow-ink-rgb), 0.07), 0 20px 40px -12px rgba(var(--shadow-ink-rgb), 0.35)",
-              }}
-            >
-              <TrendingUp
-                size={120}
-                strokeWidth={1}
-                className="absolute -right-5 -top-5 text-canvas opacity-[0.12] pointer-events-none"
-                aria-hidden="true"
-              />
-              <p className="relative text-xs font-medium uppercase tracking-[0.14em] text-canvas/70">Earned from referrals</p>
-              <p className="relative font-display text-4xl text-canvas tabular-nums mt-2 mb-4">
+            {/* One bold card for the whole picture, same surface as the Wallet balance. */}
+            <BrandCard className="p-5 mb-6">
+              <p className="text-[11px] font-medium uppercase tracking-[0.16em] text-white">Earned from referrals</p>
+              <p className="font-display text-4xl text-white tabular-nums mt-2 mb-5">
                 {totals.loading ? "…" : formatUsd(totals.paid + totals.pending)}
               </p>
-              <div className="relative grid grid-cols-2 md:grid-cols-4 gap-2">
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-x-4 gap-y-4 border-t border-white/15 pt-4">
                 <SummaryStat icon={MousePointerClick} label="Clicks" value={String(totals.clicks)} />
                 <SummaryStat icon={ShoppingBag} label="Sales" value={String(totals.sales)} />
                 <SummaryStat icon={Clock} label="Pending" value={formatUsd(totals.pending)} />
                 <SummaryStat icon={Banknote} label="Paid" value={formatUsd(totals.paid)} />
               </div>
-            </div>
+            </BrandCard>
 
             {active.length > 0 && (
               <section className="mb-6">
