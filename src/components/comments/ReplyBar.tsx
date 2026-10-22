@@ -5,14 +5,18 @@ import { useActiveIdentity } from "../../hooks/usePages";
 import { STANCE_ORDER, STANCE_TONE } from "./stance";
 import type { Stance } from "../../types/database";
 
+/** The quick words beside the field; the field itself is the neutral Comment. */
+const QUICK_STANCES: Stance[] = STANCE_ORDER.filter((s) => s !== "comment");
+
 /**
  * The always-visible "say something" row under a post or an opened comment. Tapping the field opens the
- * composer on Support; the three small words open it straight on that stance. `stances` narrows what's offered
- * (a post's own author can only add to their own post, so they only get Support).
+ * neutral Comment composer; the small words open it on that stance. There is no switching once it's open: the
+ * stance picked here is the stance posted. `stances` narrows the small words (a post's own author can only build
+ * on their own post, so they only get Support).
  */
 export function ReplyBar({
   placeholder,
-  stances = STANCE_ORDER,
+  stances = QUICK_STANCES,
   onOpen,
 }: {
   placeholder: string;
@@ -29,11 +33,11 @@ export function ReplyBar({
     <div className="flex items-center gap-3 py-3 border-b border-border">
       <Avatar src={avatar} name={name || "You"} size="sm" />
       <div className="flex-1 min-w-0">
-        <button onClick={() => onOpen(stances[0])} className="w-full text-left text-[15px] text-ink-muted truncate py-1">
+        <button onClick={() => onOpen("comment")} className="w-full text-left text-[15px] text-ink-muted truncate py-1">
           {placeholder}
         </button>
       </div>
-      {stances.length > 1 && (
+      {stances.length > 0 && (
         <div className="flex items-center gap-3 flex-shrink-0">
           {stances.map((s) => (
             <button

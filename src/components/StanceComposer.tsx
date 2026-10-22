@@ -1,5 +1,5 @@
 // src/components/StanceComposer.tsx
-import { useRef, useState } from "react";
+import { useState } from "react";
 import { useCreateComment } from "../hooks/useComments";
 import { useBackDismiss } from "../hooks/useBackDismiss";
 import { useScrollLock } from "../hooks/useScrollLock";
@@ -9,20 +9,20 @@ import type { Stance } from "../types/database";
 import { MentionTextarea } from "./MentionTextarea";
 import { CONTENT_LIMIT, contentCounterClass } from "../lib/textLimits";
 
-const STANCES: Stance[] = ["support", "disagree", "pushback"];
-
 // ─── Shared colour system ─────────────────────────────────────────────────────
 // Single source of truth for stance colours. Imported by:
-//   • StanceComposer  — tabs, top border, textarea ring, submit button
+//   • StanceComposer  — stance chip, top border, textarea ring, submit button
 //   • PostCard        — tray icon stroke colour
 //   • comments/*      — replies use the subtler STANCE_TONE (comments/stance.ts)
+// "comment" is the neutral stance and deliberately carries no colour: ink on canvas.
 export const STANCE_COLORS: Record<
   Stance,
   {
     label: string;
+    submitLabel: string;    // what the post button says
     prompt: string;
     iconClass: string;      // text-* class for tray icon stroke
-    tabActive: string;      // classes for the active tab button
+    chipClass: string;      // the fixed stance label at the top of the composer
     topBorderClass: string; // coloured top border on the modal card
     ringClass: string;      // textarea focus ring
     submitClass: string;    // submit button bg + text
@@ -31,78 +31,74 @@ export const STANCE_COLORS: Record<
 > = {
   support: {
     label: "Support",
+    submitLabel: "Support",
     prompt: "Add your reasoning or build on the argument.",
     iconClass: "text-ink",
-    tabActive: "text-accent border-b-2 border-accent bg-accent-soft",
+    chipClass: "text-accent bg-accent-soft",
     topBorderClass: "border-t-4 border-accent",
     ringClass: "focus:ring-accent/40 focus:border-accent",
     submitClass: "bg-accent text-canvas",
     pillClass: "text-accent bg-accent-soft",
   },
-  disagree: {
-    label: "Disagree",
-    prompt: "Explain your position.",
+  question: {
+    label: "Question",
+    submitLabel: "Ask",
+    prompt: "What would you like to know?",
     iconClass: "text-ink",
-    tabActive: "text-danger border-b-2 border-danger bg-danger/10",
-    topBorderClass: "border-t-4 border-danger",
-    ringClass: "focus:ring-danger/40 focus:border-danger",
-    submitClass: "bg-danger text-canvas",
-    pillClass: "text-danger bg-danger/10",
+    chipClass: "text-stance-question bg-stance-question/10",
+    topBorderClass: "border-t-4 border-stance-question",
+    ringClass: "focus:ring-stance-question/40 focus:border-stance-question",
+    submitClass: "bg-stance-question text-canvas",
+    pillClass: "text-stance-question bg-stance-question/10",
   },
   pushback: {
     label: "Pushback",
-    prompt: "What would you question, qualify, or add?",
+    submitLabel: "Push back",
+    prompt: "Say where you disagree, or what you'd question or qualify.",
     iconClass: "text-ink",
-    tabActive: "text-pushback border-b-2 border-pushback bg-pushback/10",
+    chipClass: "text-pushback bg-pushback/10",
     topBorderClass: "border-t-4 border-pushback",
     ringClass: "focus:ring-pushback/40 focus:border-pushback",
     submitClass: "bg-pushback text-canvas",
     pillClass: "text-pushback bg-pushback/10",
   },
+  comment: {
+    label: "Comment",
+    submitLabel: "Comment",
+    prompt: "Say something.",
+    iconClass: "text-ink",
+    chipClass: "text-ink-muted bg-surface",
+    topBorderClass: "border-t-4 border-border",
+    ringClass: "focus:ring-ink/15 focus:border-ink-muted",
+    submitClass: "bg-ink text-canvas",
+    pillClass: "text-ink-muted bg-surface",
+  },
 };
 
 interface StanceComposerProps {
   postId: string;
-  /** Which tab opens first. The user can switch freely inside the modal. */
+  /** The stance this comment is posted with. Fixed for the life of the composer: to change it, close and pick
+   *  another. */
   stance: Stance;
   onClose: () => void;
   /** Set when replying to a specific comment rather than the post itself. */
   parentCommentId?: string;
-  /** Stances offered as tabs. Defaults to all three; pass a shorter list
-   *  (e.g. just ["support"] for the post's own author) to restrict what's
-   *  choosable. The tab row itself is hidden when only one is offered. */
-  stances?: Stance[];
 }
 
 export function StanceComposer({
   postId,
-  stance: initialStance,
+  stance,
   onClose,
   parentCommentId,
-  stances = STANCES,
 }: StanceComposerProps) {
   useBackDismiss(onClose);
   useScrollLock();
-  const [activeStance, setActiveStance] = useState<Stance>(initialStance);
-  // Single content state shared across tabs — text is retained when
-  // the user switches stance so they never lose what they typed.
   const [content, setContent] = useState("");
-  const contentRef = useRef<HTMLTextAreaElement>(null);
   const [error, setError] = useState<string | null>(null);
   const createComment = useCreateComment(postId);
   const toast = useToast();
 
-  const colors = STANCE_COLORS[activeStance];
-
-  // Switch stance WITHOUT losing keyboard focus:
-  //   • onMouseDown preventDefault stops the browser from moving focus
-  //     away from the textarea on pointer-driven events (desktop/tablet).
-  //   • setTimeout(0) refocuses after the touch event cycle completes on
-  //     mobile, where preventDefault alone isn't always enough.
-  function switchStance(s: Stance) {
-    setActiveStance(s);
-    setTimeout(() => contentRef.current?.focus(), 0);
-  }
+  const colors = STANCE_COLORS[stance];
 
   async function handleSubmit() {
     if (!content.trim()) return;
@@ -111,7 +107,7 @@ export function StanceComposer({
       await createComment.mutateAsync({
         post_id: postId,
         content,
-        stance: activeStance,
+        stance,
         parent_comment_id: parentCommentId,
       });
       setContent("");
@@ -132,37 +128,17 @@ export function StanceComposer({
   return (
     <Portal>
     <div className="fixed inset-0 ako-keyboard-aware bg-canvas/70 backdrop-blur-overlay flex items-end sm:items-center justify-center z-50 px-4">
-      {/* Top border colour changes with the active stance */}
+      {/* Top border colour follows the stance */}
       <div className={`bg-canvas rounded-2xl w-full max-w-md mb-safe overflow-hidden ${colors.topBorderClass}`}>
-
-        {/* ── Stance tabs — only shown when there's more than one choice ── */}
-        {stances.length > 1 && (
-          <div className="flex border-b border-border">
-            {stances.map((s) => (
-              <button
-                key={s}
-                // preventDefault on mousedown keeps focus on the textarea
-                // (prevents the browser moving focus to this button).
-                onMouseDown={(e) => e.preventDefault()}
-                onClick={() => switchStance(s)}
-                className={`flex-1 py-3 text-sm font-medium transition-colors ${
-                  activeStance === s
-                    ? STANCE_COLORS[s].tabActive
-                    : "text-ink-muted hover:text-ink"
-                }`}
-              >
-                {STANCE_COLORS[s].label}
-              </button>
-            ))}
-          </div>
-        )}
 
         {/* ── Body ── */}
         <div className="p-5">
-          <p className="text-sm text-ink-muted mb-3">{colors.prompt}</p>
+          {/* The stance is fixed once the composer is open: shown, not switchable. */}
+          <span className={`inline-block mb-3 px-3 py-1 rounded-full text-xs font-semibold ${colors.chipClass}`}>
+            {colors.label}
+          </span>
 
           <MentionTextarea
-            ref={contentRef}
             value={content}
             onChange={setContent}
             maxLength={CONTENT_LIMIT}
@@ -187,7 +163,7 @@ export function StanceComposer({
               className={`px-5 py-2 rounded-full text-sm font-medium
                 disabled:opacity-50 transition-colors duration-150 ${colors.submitClass}`}
             >
-              {createComment.isPending ? "Posting…" : colors.label}
+              {createComment.isPending ? "Posting…" : colors.submitLabel}
             </button>
           </div>
 

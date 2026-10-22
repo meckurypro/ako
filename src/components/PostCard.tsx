@@ -8,7 +8,8 @@ import {
   Redo2,
   Bookmark,
   Handshake,
-  Frown,
+  HelpCircle,
+  MessageCircle,
   Hand,
   Gift as GiftIcon,
   Globe,
@@ -51,7 +52,13 @@ import { useIsBookmarked, useToggleBookmark } from "../hooks/useBookmarks";
 import { useMyReaction, useReactionOverlay, useToggleReaction } from "../hooks/useReactions";
 import { useLivePost } from "../hooks/useLiveCounts";
 import { recordProfileVisitFromPost } from "../hooks/useProfileVisits";
-import { useEngagementOrder, type SecondaryActionKey } from "../hooks/useEngagementOrder";
+import {
+  DEFAULT_TRAY_ORDER,
+  MORE_ORDER,
+  TRAY_CANDIDATES,
+  useEngagementOrder,
+  type SecondaryActionKey,
+} from "../hooks/useEngagementOrder";
 import { useCollaborators } from "../hooks/useCollaboration";
 import { useRecordPostView } from "../hooks/useRecordPostView";
 import {
@@ -163,7 +170,7 @@ export function PostCard({
   // post), so they're hidden from the tray entirely rather than just
   // disabled.
   const isOwner = isOwnerView || user?.id === post.author.id;
-  const HIDDEN_FOR_OWNER: SecondaryActionKey[] = ["disagree", "pushback", "gift", "dislike"];
+  const HIDDEN_FOR_OWNER: SecondaryActionKey[] = ["question", "pushback", "gift", "dislike"];
 
   // Pages can't send gifts (enforced server-side too, in process_gift —
   // this is the UI half, not the only guard) — checked against the
@@ -371,7 +378,7 @@ export function PostCard({
     });
   }
 
-  // ─── Secondary action definitions (all 7, passed to scrollable tray) ──────
+  // ─── Secondary action definitions (everything except Like and Comment, which are fixed) ─────
   // Stance icons carry STANCE_COLORS.iconClass so they stay in sync with
   // StanceComposer tabs.
 
@@ -383,12 +390,12 @@ export function PostCard({
       count: post.support_count,
       onAction: () => handleStance("support"),
     },
-    disagree: {
-      key: "disagree",
-      label: "Disagree",
-      icon: <Frown size={24} className={STANCE_COLORS.disagree.iconClass} />,
-      count: post.disagree_count,
-      onAction: () => handleStance("disagree"),
+    question: {
+      key: "question",
+      label: "Question",
+      icon: <HelpCircle size={24} className={STANCE_COLORS.question.iconClass} />,
+      count: post.question_count,
+      onAction: () => handleStance("question"),
     },
     pushback: {
       key: "pushback",
@@ -454,9 +461,8 @@ export function PostCard({
   // own exclusion rule below rather than living in HIDDEN_FOR_OWNER, since
   // it's hidden not just for owners but also once you've already reshared
   // this post — the same condition that used to gate it out of leftActions.
-  const order: SecondaryActionKey[] = (
-    engagementOrder ?? ["support", "reshare", "share", "gift", "save", "disagree", "pushback", "dislike"]
-  ).filter((k) => {
+  // Which actions are available at all on this post (same rules as before).
+  const isAvailable = (k: SecondaryActionKey) => {
     // A draft/scheduled post has no public page yet: nothing to share, reshare or gift.
     if (!isPublished(post) && (k === "share" || k === "reshare" || k === "gift")) return false;
     if (isOwner && HIDDEN_FOR_OWNER.includes(k)) return false;
@@ -464,7 +470,17 @@ export function PostCard({
     if (k === "gift" && viewingAsPage) return false;
     if (k === "gift" && hasTaggedProject) return false;
     return true;
-  });
+  };
+
+  // The tray: Like and Comment are fixed; the next two are whichever of Save / Reshare / Share / Pushback this
+  // person uses most. Gift, Dislike, Question and Support never appear there — they live in "More".
+  const trayKeys = (engagementOrder ?? DEFAULT_TRAY_ORDER)
+    .filter((k) => TRAY_CANDIDATES.includes(k) && isAvailable(k))
+    .slice(0, 2);
+
+  // The "More" list is a fixed order, not a ranked one, so it never shuffles under the thumb:
+  // Support first, then Question, then the rest, with the negative one (Dislike) last.
+  const moreOrder = MORE_ORDER.filter(isAvailable);
 
   // Edit eligibility is always about this row (the reshare/quote/normal
   // post belonging to the viewer). A plain reshare has no content of its
@@ -492,6 +508,19 @@ export function PostCard({
       // enqueue the same intent twice (harmless); a genuine second tap after a re-render flips it back, in order.
       onClick: () => toggleLike.mutate(isLiked),
     },
+    // Fixed second slot: opens the neutral (uncoloured) comment composer. The "Comments: N" label under it still
+    // goes to the conversation.
+    ...(isPublished(post)
+      ? [
+          {
+            key: "comment",
+            label: "Comment",
+            icon: <MessageCircle size={24} className="text-ink" />,
+            count: null,
+            onClick: () => handleStance("comment"),
+          } satisfies EngagementAction,
+        ]
+      : []),
   ];
 
   // ─── Right: nothing pinned anymore — Share used to live here fixed,
@@ -516,14 +545,16 @@ export function PostCard({
   // here instead of a separate "…" sheet. This is the full pool; only
   // the top 2 (by usage) get a permanent visible slot (see
   // `middleActions` below) — the rest are still one long-press away.
+  const toAction = (k: SecondaryActionKey): EngagementAction => ({
+    key: secondaryDefs[k].key,
+    label: secondaryDefs[k].label,
+    icon: secondaryDefs[k].icon,
+    count: secondaryDefs[k].count,
+    onClick: () => secondaryDefs[k].onAction(),
+  });
+
   const moreActions: EngagementAction[] = [
-    ...order.map((k): EngagementAction => ({
-      key: secondaryDefs[k].key,
-      label: secondaryDefs[k].label,
-      icon: secondaryDefs[k].icon,
-      count: secondaryDefs[k].count,
-      onClick: () => secondaryDefs[k].onAction(),
-    })),
+    ...moreOrder.map(toAction),
     ...(isOwner
       ? ([
           {
@@ -593,10 +624,9 @@ export function PostCard({
       : []),
   ];
 
-  // ─── Middle (fixed, 3 slots): top 3 of moreActions — the row is 4
-  // icons total (Like + 3), no swiping, nothing pinned right anymore.
-  // Long-pressing any of the 4 opens the sheet above with the rest.
-  const middleActions: EngagementAction[] = moreActions.slice(0, 3);
+  // ─── Middle (2 slots): the two most-used of Save / Reshare / Share / Pushback (see trayKeys). With Like and
+  // Comment fixed beside them the row is still four icons plus "···"; long-pressing any opens the full sheet.
+  const middleActions: EngagementAction[] = trayKeys.map(toAction);
 
   function handleReshareTap() {
     if (plainReshare && originalGone) return; // nothing valid left to reshare
@@ -886,7 +916,6 @@ export function PostCard({
         <StanceComposer
           postId={post.id}
           stance={activeStance}
-          stances={isOwner ? ["support"] : undefined}
           onClose={() => setActiveStance(null)}
         />
       )}

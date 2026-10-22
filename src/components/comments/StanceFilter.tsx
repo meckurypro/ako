@@ -7,7 +7,7 @@ import { STANCE_ORDER, STANCE_TONE } from "./stance";
 export type StanceCounts = Record<Stance, number>;
 
 /**
- * "All · Support 4 · Disagree 1 · Pushback 2" — plain text tabs, the active one underlined in its own stance
+ * "All · Support 4 · Question 1 · Pushback 2 · Comment 3" — plain text tabs, the active one underlined in its own stance
  * colour. Only offered when at least two stances have replies; with one there's nothing to filter between.
  */
 export function StanceFilterBar({

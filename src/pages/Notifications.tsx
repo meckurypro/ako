@@ -4,7 +4,8 @@ import {
   Heart,
   ThumbsDown,
   Handshake,
-  XCircle,
+  Hand,
+  HelpCircle,
   UserPlus,
   Gift,
   MessageCircle,
@@ -49,13 +50,15 @@ import { timeAgo } from "../lib/timeAgo";
 const TYPE_CONFIG: Record<string, { icon: typeof Heart; verb: string }> = {
   // like/dislike/share can target a post OR a project (see
   // notify_on_reaction — projects only ever get like/dislike/share,
-  // never support/disagree/pushback) — verb here is the post-target
+  // never support/pushback/question) — verb here is the post-target
   // default; verbFor() below swaps in "project" when target_type is.
   like: { icon: Heart, verb: "liked your post" },
   dislike: { icon: ThumbsDown, verb: "disliked your post" },
   support: { icon: Handshake, verb: "supported your post" },
-  disagree: { icon: XCircle, verb: "disagreed with your post" },
-  pushback: { icon: Handshake, verb: "pushed back on your post" },
+  disagree: { icon: Hand, verb: "pushed back on your post" }, // legacy rows; migrated to pushback
+  pushback: { icon: Hand, verb: "pushed back on your post" },
+  question: { icon: HelpCircle, verb: "asked a question on your post" },
+  comment: { icon: MessageCircle, verb: "commented on your post" },
   reshare: { icon: Repeat2, verb: "reposted your post" },
   quote: { icon: Quote, verb: "quoted your post" },
   share: { icon: Redo2, verb: "shared your post" },

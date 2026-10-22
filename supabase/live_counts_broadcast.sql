@@ -39,7 +39,9 @@ begin
         'comment_count', new.comment_count,
         'support_count', new.support_count,
         'disagree_count', new.disagree_count,
-        'pushback_count', new.pushback_count
+        'pushback_count', new.pushback_count,
+        'question_count', new.question_count,
+        'neutral_count', new.neutral_count
       ),
       'counts',
       'post-counts:' || new.id::text,
@@ -65,6 +67,8 @@ when (
   or old.support_count is distinct from new.support_count
   or old.disagree_count is distinct from new.disagree_count
   or old.pushback_count is distinct from new.pushback_count
+  or old.question_count is distinct from new.question_count
+  or old.neutral_count is distinct from new.neutral_count
 )
 execute function public.broadcast_post_counts();
 
@@ -105,7 +109,9 @@ begin
           'reply_count', new.reply_count,
           'support_count', new.support_count,
           'disagree_count', new.disagree_count,
-          'pushback_count', new.pushback_count
+          'pushback_count', new.pushback_count,
+          'question_count', new.question_count,
+          'neutral_count', new.neutral_count
         ),
         'comment_counts',
         'thread:' || new.post_id::text,
@@ -136,6 +142,8 @@ when (
   or old.support_count is distinct from new.support_count
   or old.disagree_count is distinct from new.disagree_count
   or old.pushback_count is distinct from new.pushback_count
+  or old.question_count is distinct from new.question_count
+  or old.neutral_count is distinct from new.neutral_count
   or old.is_deleted is distinct from new.is_deleted
 )
 execute function public.broadcast_comment_event();

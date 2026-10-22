@@ -8,6 +8,7 @@ import type { Stance } from "../../types/database";
  *
  * Deliberately subtle: a 2px rail down the row's edge and a tiny label — never a fill, pill or border box.
  * Tokens live in index.css (--color-stance-*) so page mode's orange accent never recolours "supports".
+ * "comment" is the neutral stance and has no colour of its own.
  */
 export const STANCE_TONE: Record<
   Stance,
@@ -28,12 +29,12 @@ export const STANCE_TONE: Record<
     text: "text-stance-support",
     underline: "border-stance-support",
   },
-  disagree: {
-    label: "Disagrees",
-    noun: "Disagree",
-    rail: "bg-stance-disagree/50",
-    text: "text-stance-disagree",
-    underline: "border-stance-disagree",
+  question: {
+    label: "Asks",
+    noun: "Question",
+    rail: "bg-stance-question/50",
+    text: "text-stance-question",
+    underline: "border-stance-question",
   },
   pushback: {
     label: "Pushes back",
@@ -42,9 +43,18 @@ export const STANCE_TONE: Record<
     text: "text-stance-pushback",
     underline: "border-stance-pushback",
   },
+  // The neutral stance: deliberately no colour. Reply rows draw no rail or label for it (see CommentRow).
+  comment: {
+    label: "Comments",
+    noun: "Comment",
+    rail: "bg-ink-muted/25",
+    text: "text-ink-muted",
+    underline: "border-ink-muted",
+  },
 };
 
-export const STANCE_ORDER: Stance[] = ["support", "disagree", "pushback"];
+/** Display order everywhere stances are listed (filter chips, quick-reply words). */
+export const STANCE_ORDER: Stance[] = ["support", "question", "pushback", "comment"];
 
 /** "now" / "5m" / "2h" / "3d" / "2w" — compact, for dense reply rows. */
 export function timeAgoCompact(dateString: string): string {

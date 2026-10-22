@@ -35,7 +35,7 @@ const COPY: Record<string, Copy> = {
   follow_request_accepted: { body: "accepted your follow request" },
   comment: { body: "commented on your post", social: true },
   comment_reply: { body: "replied to your comment", social: true },
-  // like / support / disagree / pushback / comment_like / share / post_comment_activity depend on what they
+  // like / support / pushback / question / comment_like / share / post_comment_activity depend on what they
   // were done to, so they are worded by resolveCopy() below, not listed here.
   mention: { body: "mentioned you", social: true },
   gift_received: { body: "gifted you", social: true },
@@ -79,16 +79,19 @@ type NotifRow = {
   previewText: string | null;
 };
 
-const POST_REACTION_VERB: Record<string, string> = {
-  support: "supported",
-  disagree: "disagreed with",
-  pushback: "pushed back on",
+// Top-level stance comments (notify_on_comment stores the stance as the notification type). "comment" is the neutral
+// stance and is worded by COPY. "disagree" only exists on old rows: it was merged into pushback.
+const STANCE_ON_POST: Record<string, string> = {
+  support: "supported your post",
+  pushback: "pushed back on your post",
+  disagree: "pushed back on your post",
+  question: "asked a question on your post",
 };
 
 // Words the notification for what it actually is. Returns null for anything that isn't pushed.
 // Rows differ by what they were done to, which the `type` alone doesn't say:
-//  - support / disagree / pushback on a POST with preview_text is a top-level comment (notify_on_comment
-//    stores the stance as the type); without preview_text it's a plain reaction (notify_on_reaction).
+//  - support / pushback / question on a POST are top-level stance comments (notify_on_comment stores the stance as
+//    the type), so they are worded as the stance, not as a generic "commented".
 //  - post_comment_activity goes to the POST's author when someone replies to, reacts to or gifts a
 //    comment under their post, so it is resolved from the comment's own side effects.
 async function resolveCopy(admin: ReturnType<typeof createClient>, n: NotifRow): Promise<Copy | null> {
@@ -109,8 +112,8 @@ async function resolveCopy(admin: ReturnType<typeof createClient>, n: NotifRow):
     case "support":
     case "disagree":
     case "pushback":
-      if (n.targetType === "post" && n.previewText) return { body: "commented on your post", social: true };
-      return { body: `${POST_REACTION_VERB[n.type]} your ${thing}`, social: true };
+    case "question":
+      return { body: STANCE_ON_POST[n.type], social: true };
     case "post_comment_activity": {
       if (!n.targetId || !n.actorId) return { body: "engaged with a comment on your post", social: true };
       if (n.previewText) return { body: "replied to a comment on your post", social: true };
@@ -121,7 +124,6 @@ async function resolveCopy(admin: ReturnType<typeof createClient>, n: NotifRow):
         .from("reactions").select("type").eq("user_id", n.actorId).eq("comment_id", n.targetId).limit(1).maybeSingle();
       const rt = (reaction as { type?: string } | null)?.type;
       if (rt === "like") return { body: "liked a comment on your post", social: true };
-      if (rt && POST_REACTION_VERB[rt]) return { body: `${POST_REACTION_VERB[rt]} a comment on your post`, social: true };
       if (rt === "dislike") return null;
       return { body: "engaged with a comment on your post", social: true };
     }

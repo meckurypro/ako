@@ -15,7 +15,8 @@ import { STANCE_TONE, timeAgoCompact } from "./stance";
  */
 export function CommentRow({ comment, tinted = true }: { comment: CommentWithAuthor; tinted?: boolean }) {
   const navigate = useNavigate();
-  const tone = tinted && comment.stance ? STANCE_TONE[comment.stance] : null;
+  // The neutral "comment" stance draws nothing: no rail, no label.
+  const tone = tinted && comment.stance && comment.stance !== "comment" ? STANCE_TONE[comment.stance] : null;
   const href = `/post/${comment.post_id}/comment/${comment.id}`;
 
   function open(e: React.MouseEvent) {

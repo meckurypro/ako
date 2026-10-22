@@ -103,7 +103,7 @@ export function PostDetail() {
             <div ref={repliesRef} className="scroll-mt-16">
               <ReplyBar
                 placeholder="Add your reasoning…"
-                // The post's own author can only build on their own post.
+                // The post's own author can only build on their own post (and comment); no questioning or pushing back.
                 stances={isOwnPost ? ["support"] : undefined}
                 onOpen={setComposeStance}
               />
@@ -113,8 +113,9 @@ export function PostDetail() {
                 total={post.comment_count}
                 counts={{
                   support: post.support_count,
-                  disagree: post.disagree_count,
+                  question: post.question_count,
                   pushback: post.pushback_count,
+                  comment: post.neutral_count,
                 }}
               />
             </div>
@@ -123,7 +124,6 @@ export function PostDetail() {
               <StanceComposer
                 postId={post.id}
                 stance={composeStance}
-                stances={isOwnPost ? ["support"] : undefined}
                 onClose={() => setComposeStance(null)}
               />
             )}
