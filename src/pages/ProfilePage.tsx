@@ -263,6 +263,9 @@ export function ProfilePage() {
   const relationshipMenuButtonRef = useRef<HTMLButtonElement>(null);
 
   const [previewingAsVisitor, setPreviewingAsVisitor] = useState(false);
+  // Owner quick actions (share / view as visitor / activity) stay tucked away until the chevron under the
+  // Pages icon is tapped.
+  const [actionsOpen, setActionsOpen] = useState(false);
   const [avatarOpen, setAvatarOpen] = useState(false);
   // Visitor's consolidated "…" sheet (see ShareProfileSheet — Report/
   // Block/Customise name/QR now; relationship actions moved out to the
@@ -870,6 +873,70 @@ export function ProfilePage() {
           <p className="text-[15px] leading-relaxed text-ink mt-5 whitespace-pre-line break-words">{profile.bio}</p>
         )}
 
+        {showOwnerView ? (
+          <>
+            {/* Websites on the left, the chevron on the right: same horizontal axis as the first website, centred
+                under the Pages icon. */}
+            <div className="flex items-start justify-between gap-3 mt-3">
+              <div className="flex flex-wrap gap-2 min-w-0">
+            {websites.map((url) => (
+              <a
+                key={url}
+                href={getWebsiteHref(url)}
+                target="_blank"
+                rel="noopener noreferrer"
+                title={url}
+                className="inline-flex items-center gap-1.5 max-w-full rounded-full bg-accent-soft text-accent text-sm font-medium px-3 py-1.5"
+              >
+                <Link2 size={14} className="shrink-0" />
+                <span className="truncate">{getWebsiteDomain(url)}</span>
+              </a>
+            ))}
+              </div>
+              <button
+                type="button"
+                onClick={() => setActionsOpen((o) => !o)}
+                aria-expanded={actionsOpen}
+                aria-controls="owner-quick-actions"
+                aria-label={actionsOpen ? "Hide quick actions" : "Show quick actions"}
+                title={actionsOpen ? "Hide quick actions" : "Show quick actions"}
+                className="shrink-0 ml-auto mr-1 w-11 h-8 flex items-center justify-center text-ink-muted active:scale-95 transition-transform"
+              >
+                <ChevronDown size={18} className={`transition-transform duration-300 ease-out motion-reduce:transition-none ${actionsOpen ? "rotate-180" : ""}`} />
+              </button>
+            </div>
+
+            {/* Push down / push up: the row's height animates open (grid 0fr -> 1fr) so everything below slides with
+                it, while the icons ease in from just above their final spot. Hidden from focus and AT when closed. */}
+            <div
+              id="owner-quick-actions"
+              inert={!actionsOpen}
+              aria-hidden={!actionsOpen}
+              className={`grid mb-4 transition-[grid-template-rows,opacity] duration-300 ease-out motion-reduce:transition-none ${
+                actionsOpen ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0"
+              }`}
+            >
+              <div className="min-h-0 overflow-hidden">
+                <div
+                  className={`flex items-center gap-2 pt-4 transition-transform duration-300 ease-out motion-reduce:transition-none ${
+                    actionsOpen ? "translate-y-0" : "-translate-y-3"
+                  }`}
+                >
+                  <button type="button" onClick={() => setQrShareOpen(true)} className={ACTION_ICON_BTN_FLEX} aria-label="Share profile" title="Share profile">
+                    <Share2 size={20} />
+                  </button>
+                  <button type="button" onClick={() => setPreviewingAsVisitor(true)} className={ACTION_ICON_BTN_FLEX} aria-label="View as visitor" title="View as visitor">
+                    <Eye size={20} />
+                  </button>
+                  <Link to="/activity" className={ACTION_ICON_BTN_FLEX} aria-label="Activity" title="Activity">
+                    <ActivityIcon size={20} />
+                  </Link>
+                </div>
+              </div>
+            </div>
+          </>
+        ) : (
+          <>
         {websites.length > 0 && (
           <div className="flex flex-wrap gap-2 mt-3">
             {websites.map((url) => (
@@ -888,35 +955,12 @@ export function ProfilePage() {
           </div>
         )}
 
+
         {/* Action row — icon-led. The owner gets quick actions; a visitor
             gets the one follow control that matches the relationship
             (follow / follow back / requested / following) plus message. */}
         <div className="flex items-center gap-2 mt-5 mb-4">
-          {showOwnerView ? (
-            <>
-              <button
-                type="button"
-                onClick={() => setQrShareOpen(true)}
-                className={ACTION_ICON_BTN_FLEX}
-                aria-label="Share profile"
-                title="Share profile"
-              >
-                <Share2 size={20} />
-              </button>
-              <button
-                type="button"
-                onClick={() => setPreviewingAsVisitor(true)}
-                className={ACTION_ICON_BTN_FLEX}
-                aria-label="View as visitor"
-                title="View as visitor"
-              >
-                <Eye size={20} />
-              </button>
-              <Link to="/activity" className={ACTION_ICON_BTN_FLEX} aria-label="Activity" title="Activity">
-                <ActivityIcon size={20} />
-              </Link>
-            </>
-          ) : isOwnProfile ? null : (
+          {isOwnProfile ? null : (
             <>
               {isFollowing ? (
                 <button
@@ -985,6 +1029,8 @@ export function ProfilePage() {
             </>
           )}
         </div>
+          </>
+        )}
       </div>
 
       {/* Tier 2 — the icon tab bar. Its own sticky element, docking under
