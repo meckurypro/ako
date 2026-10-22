@@ -8,7 +8,7 @@ import { AuthPattern } from "../../components/AuthPattern";
 import { FormField } from "../../components/FormField";
 import { PasswordField } from "../../components/PasswordField";
 import { Button } from "../../components/Button";
-import { GoogleAuthButton } from "../../components/GoogleAuthButton";
+import { AuthOrDivider, GoogleAuthButton } from "../../components/GoogleAuthButton";
 import { loginPathFor, rememberReturnTo, safeReturnPath } from "../../lib/authRedirect";
 
 type UsernameStatus = "idle" | "checking" | "available" | "taken" | "error";
@@ -45,6 +45,10 @@ export function SignUp() {
   const [displayName, setDisplayName] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  // Google is the primary way in; the email form is the secondary option
+  // (always visible in add-account mode, which has no Google button).
+  const [showEmail, setShowEmail] = useState(false);
+  const emailVisible = addMode || showEmail;
 
   const [usernameStatus, setUsernameStatus] = useState<UsernameStatus>("idle");
   const usernameCheckId = useRef(0);
@@ -211,7 +215,25 @@ export function SignUp() {
           </p>
         )}
 
-        <form onSubmit={handleSubmit}>
+        {!addMode && (
+          <>
+            <GoogleAuthButton returnTo={returnTo} label="Sign up with Google" />
+            <AuthOrDivider />
+          </>
+        )}
+
+        {!emailVisible && (
+          <button
+            type="button"
+            onClick={() => setShowEmail(true)}
+            className="w-full h-12 px-6 rounded-xl border border-border bg-surface text-ink font-body font-medium transition-colors hover:bg-accent-soft/50"
+          >
+            Sign up with email
+          </button>
+        )}
+
+        {emailVisible && (
+        <form onSubmit={handleSubmit} className="animate-ako-fade-up">
           <FormField
             id="display_name"
             label="Display name"
@@ -270,9 +292,9 @@ export function SignUp() {
             Create account
           </Button>
         </form>
+        )}
 
-        {/* Add-account mode: see the note in Login.tsx. */}
-        {!addMode && <GoogleAuthButton returnTo={returnTo} />}
+        {/* Add-account mode has no Google button: see the note in Login.tsx. */}
 
         <p className="text-center text-sm text-ink-muted mt-6">
           Already have an account?{" "}

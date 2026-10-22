@@ -9,7 +9,7 @@ import { AuthPattern } from "../../components/AuthPattern";
 import { FormField } from "../../components/FormField";
 import { PasswordField } from "../../components/PasswordField";
 import { Button } from "../../components/Button";
-import { GoogleAuthButton } from "../../components/GoogleAuthButton";
+import { AuthOrDivider, GoogleAuthButton } from "../../components/GoogleAuthButton";
 import { safeReturnPath, signupPathFor } from "../../lib/authRedirect";
 
 export function Login() {
@@ -33,6 +33,11 @@ export function Login() {
   const [loading, setLoading] = useState(false);
   const [resending, setResending] = useState(false);
   const [resent, setResent] = useState(false);
+  // Google is the primary way in; the email form is a secondary option the
+  // visitor opens on purpose. Add-account mode has no Google button (see the
+  // note below), so there the form is simply always visible.
+  const [showEmail, setShowEmail] = useState(false);
+  const emailVisible = addMode || showEmail;
 
   // Already signed in — most commonly hit via the browser's back
   // button: /login sits behind a primary page in history once the
@@ -128,7 +133,25 @@ export function Login() {
           </p>
         )}
 
-        <form onSubmit={handleSubmit}>
+        {!addMode && (
+          <>
+            <GoogleAuthButton returnTo={returnTo} />
+            <AuthOrDivider />
+          </>
+        )}
+
+        {!emailVisible && (
+          <button
+            type="button"
+            onClick={() => setShowEmail(true)}
+            className="w-full h-12 px-6 rounded-xl border border-border bg-surface text-ink font-body font-medium transition-colors hover:bg-accent-soft/50"
+          >
+            Continue with email
+          </button>
+        )}
+
+        {emailVisible && (
+        <form onSubmit={handleSubmit} className="animate-ako-fade-up">
           <FormField
             id="email"
             label="Email"
@@ -136,7 +159,7 @@ export function Login() {
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             required
-            autoFocus
+            autoFocus={!addMode}
           />
           <PasswordField
             id="password"
@@ -176,11 +199,11 @@ export function Login() {
             </Link>
           )}
         </form>
+        )}
 
         {/* Add-account mode swaps the active session; the Google redirect
             can't carry the "previous account" snapshot that needs, so it's
-            email/password only there. */}
-        {!addMode && <GoogleAuthButton returnTo={returnTo} />}
+            email/password only there (no Google button above). */}
 
         <p className="text-center text-sm text-ink-muted mt-6">
           New to Akọ?{" "}
