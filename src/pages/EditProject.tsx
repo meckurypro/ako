@@ -26,6 +26,7 @@ import { PrivacyToggle } from "../components/PrivacyToggle";
 import { ManageAccessSheet } from "../components/ManageAccessSheet";
 import { AffiliateProgramSheet } from "../components/AffiliateProgramSheet";
 import { ProjectLinkSheet } from "../components/ProjectLinkSheet";
+import { GuestPassSheet } from "../components/GuestPassSheet";
 import { TopicPicker, MAX_TOPICS } from "../components/TopicPicker";
 import { FormatToolbar } from "../components/FormatToolbar";
 import { CONTENT_LIMIT, contentCounterClass } from "../lib/textLimits";
@@ -57,6 +58,7 @@ export function EditProject() {
   const [manageAccessOpen, setManageAccessOpen] = useState(false);
   const [affiliateSheetOpen, setAffiliateSheetOpen] = useState(false);
   const [linkSheetOpen, setLinkSheetOpen] = useState(false);
+  const [guestPassOpen, setGuestPassOpen] = useState(false);
   // Only used to decide whether to still surface the entry point for a
   // project that's currently free — see the price===0 branch below.
   const { data: affiliateProgram } = useAffiliateProgram(
@@ -829,6 +831,16 @@ export function EditProject() {
             </button>
           )}
 
+          {projectId && project?.status === "active" && (
+            <button
+              type="button"
+              onClick={() => setGuestPassOpen(true)}
+              className="w-full text-left text-sm font-medium text-accent px-1 mb-6"
+            >
+              Guest Pass — a 6-hour link anyone can open →
+            </button>
+          )}
+
           <PrivacyToggle checked={isPrivate} onChange={setIsPrivate} />
 
           {isPrivate && projectId && (
@@ -871,6 +883,16 @@ export function EditProject() {
       )}
 
       {linkSheetOpen && project && <ProjectLinkSheet project={project} onClose={() => setLinkSheetOpen(false)} />}
+
+      {guestPassOpen && projectId && project && (
+        <GuestPassSheet
+          projectId={projectId}
+          projectTitle={project.title}
+          isPrivate={project.is_private}
+          isPaid={(parseFloat(priceUsd) || 0) > 0}
+          onClose={() => setGuestPassOpen(false)}
+        />
+      )}
     </div>
   );
 }

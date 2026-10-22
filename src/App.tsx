@@ -101,6 +101,7 @@ import { CreateProject } from "./pages/CreateProject";
 import { EditProject } from "./pages/EditProject";
 import { ProjectDetail } from "./pages/ProjectDetail";
 import { ProjectBySlug } from "./pages/ProjectBySlug";
+import { GuestPass } from "./pages/GuestPass";
 import { Room } from "./pages/Room";
 import { Course } from "./pages/Course";
 import { Book, BookEdit } from "./pages/Book";
@@ -879,6 +880,9 @@ function AppRoutes() {
                 logged-out visitor. Buy/Download inside ProjectCard
                 gate themselves and send an unauthenticated visitor to
                 /login?redirect=... instead of failing silently. */}
+            {/* Public — a Guest Pass link (creator-minted, 6 hours, works for private projects). The token in the URL is
+                the credential; no RequireAuth on purpose. See pages/GuestPass.tsx. */}
+            <Route path="/pass/:token" element={<GuestPass />} />
             <Route path="/projects/:projectId" element={<ProjectDetail />} />
             <Route
               path="/projects/:projectId/edit"

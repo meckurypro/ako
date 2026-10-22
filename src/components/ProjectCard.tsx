@@ -28,6 +28,7 @@ import {
   Check,
   Heart,
   Megaphone,
+  KeyRound,
   Play,
   Pause,
   Loader2,
@@ -68,6 +69,7 @@ import { GiftPicker } from "./GiftPicker";
 import { ReactionMoreSheet } from "./ReactionMoreSheet";
 import { DropdownMenu, type DropdownMenuItem } from "./DropdownMenu";
 import { ManageAccessSheet } from "./ManageAccessSheet";
+import { GuestPassSheet } from "./GuestPassSheet";
 import { SupportPitchSheet } from "./SupportPitchSheet";
 import { PrivateProjectNotice } from "./PrivateProjectNotice";
 import { useToast } from "./Toast";
@@ -444,6 +446,7 @@ export function ProjectCard({
   const [showGiftPicker, setShowGiftPicker] = useState(false);
   const menuButtonRef = useRef<HTMLButtonElement>(null);
   const [manageAccessOpen, setManageAccessOpen] = useState(false);
+  const [guestPassOpen, setGuestPassOpen] = useState(false);
   const [supportSheetOpen, setSupportSheetOpen] = useState(false);
   const [affiliateShareOpen, setAffiliateShareOpen] = useState(false);
   // Same gate as ProjectDetail's "Share & earn" button — pitches never
@@ -988,6 +991,14 @@ export function ProjectCard({
       label: "Manage access",
       icon: <Users />,
       onSelect: () => setManageAccessOpen(true),
+    });
+  }
+  if (project.status === "active") {
+    menuItems.push({
+      key: "guest-pass",
+      label: "Guest Pass",
+      icon: <KeyRound />,
+      onSelect: () => setGuestPassOpen(true),
     });
   }
   if (project.status !== "active" && project.status !== "cancelled") {
@@ -1900,6 +1911,16 @@ export function ProjectCard({
           projectId={project.id}
           projectTitle={project.title}
           onClose={() => setManageAccessOpen(false)}
+        />
+      )}
+
+      {guestPassOpen && (
+        <GuestPassSheet
+          projectId={project.id}
+          projectTitle={project.title}
+          isPrivate={project.is_private}
+          isPaid={Number(project.price_usd) > 0}
+          onClose={() => setGuestPassOpen(false)}
         />
       )}
 
