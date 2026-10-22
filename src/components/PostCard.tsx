@@ -856,7 +856,7 @@ export function PostCard({
           post.tagged_project needs to be selected alongside the post
           (see usePosts.ts — FEED_SELECT needs the join added) for
           this to ever be non-null. */}
-      <TaggedProjectEmbed project={taggedProject} />
+      <TaggedProjectEmbed project={taggedProject} refToken={(post as any).tagged_project_ref} />
 
       {/* Time · date · views — only on the expanded (comments-visible) post,
           matching X's post-detail formatting. Feed cards don't show this. */}

@@ -597,7 +597,7 @@ export function ProjectDetail({ resolvedProjectId }: { resolvedProjectId?: strin
                 className="w-full flex items-center justify-center gap-2 bg-accent-soft text-accent py-3 rounded-2xl font-semibold text-sm -mt-2 mb-4 transition-transform active:scale-[0.98]"
               >
                 <TrendingUp size={16} />
-                Share & earn a commission
+                Fork & earn
               </button>
             )}
 

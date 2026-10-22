@@ -4,7 +4,7 @@ import { FileFolderIcon } from "../components/FileFolderArt";
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import { useSmartBack } from "../hooks/useSmartBack";
-import { ArrowLeft, TrendingUp, Copy, Check, ImageIcon, Share2, MousePointerClick, ShoppingBag, Clock, Banknote } from "lucide-react";
+import { ArrowLeft, GitFork, Copy, Check, ImageIcon, Share2, MousePointerClick, ShoppingBag, Clock, Banknote } from "lucide-react";
 import {
   useMyAffiliateRelationships,
   useAffiliateDashboard,
@@ -73,7 +73,7 @@ export function AffiliateLinkRow({ relationship }: { relationship: AffiliateRela
           </Link>
           <p className="text-xs text-ink-muted">
             {formatUsd(getEffectivePrice(relationship.project))}
-            {revoked ? " · Link revoked" : ""}
+            {revoked ? " · Revoked" : ""}
           </p>
         </div>
       </div>
@@ -92,7 +92,7 @@ export function AffiliateLinkRow({ relationship }: { relationship: AffiliateRela
             className="mt-3 w-full flex items-center justify-center gap-2 rounded-full bg-accent-soft text-accent text-sm font-medium py-2.5 transition-colors hover:bg-accent-soft/70"
           >
             {copied ? <Check size={16} /> : canShare ? <Share2 size={16} /> : <Copy size={16} />}
-            {copied ? "Copied" : canShare ? "Share link" : "Copy link"}
+            {copied ? "Copied" : canShare ? "Share affiliate link" : "Copy affiliate link"}
           </button>
         </>
       )}
@@ -137,20 +137,17 @@ export function MyAffiliateLinks() {
         </button>
 
         <h2 className="font-bold text-[1.75rem] leading-tight tracking-tight text-ink mb-1 flex items-center gap-2.5">
-          <TrendingUp size={24} className="text-accent" />
-          Affiliate links
+          <GitFork size={24} className="text-accent" />
+          Forked projects
         </h2>
-        <p className="text-sm text-ink-muted mb-5">Share a project, earn a commission on every sale you bring in.</p>
+        <p className="text-sm text-ink-muted mb-5">Each fork has your affiliate link. Share it, earn on every sale.</p>
 
         {isLoading ? (
           <p className="text-ink-muted text-sm">Loading…</p>
         ) : visible.length === 0 ? (
           <div className="flex flex-col items-center text-center gap-2 mt-16 text-ink-muted">
-            <TrendingUp size={24} />
-            <p className="text-sm">
-              Projects you fork to earn a commission on will show up here — look for "Share & earn" on any project
-              that has affiliate forking turned on.
-            </p>
+            <GitFork size={24} />
+            <p className="text-sm">No forked projects yet. Tap "Fork & earn" on a project to start.</p>
           </div>
         ) : (
           <>
@@ -170,7 +167,7 @@ export function MyAffiliateLinks() {
 
             {active.length > 0 && (
               <section className="mb-6">
-                <h3 className="font-display text-lg text-ink mb-3">Active links</h3>
+                <h3 className="font-display text-lg text-ink mb-3">Active</h3>
                 <div className="md:grid md:grid-cols-2 md:gap-x-3">
                   {active.map((r) => (
                     <AffiliateLinkRow key={r.id} relationship={r} />

@@ -8,10 +8,13 @@ import { useBackDismiss } from "../hooks/useBackDismiss";
 import { useScrollLock } from "../hooks/useScrollLock";
 import { useUserProjects } from "../hooks/useProjects";
 import { PROJECT_TYPE_LABELS } from "../hooks/useProjects";
+import { useMyTaggableForkedProjects } from "../hooks/useAffiliates";
 
 /**
- * Item 10's project picker for Compose — deliberately scoped to the
- * poster's OWN active, public projects (useUserProjects(userId, false),
+ * Item 10's project picker for Compose — scoped to the poster's OWN active, public projects, plus
+ * public projects they have forked (see useMyTaggableForkedProjects). The original scope note follows:
+ *
+ * Own projects (useUserProjects(userId, false),
  * same "active + not private" filter the profile's own Projects tab
  * uses for visitors). Two reasons for that scope, not a technical
  * limitation:
@@ -37,7 +40,15 @@ export function TagProjectPicker({
 }) {
   useBackDismiss(onClose);
   useScrollLock();
-  const { data: projects, isLoading } = useUserProjects(userId, false);
+  const { data: ownProjects, isLoading: loadingOwn } = useUserProjects(userId, false);
+  const { data: forked, isLoading: loadingForked } = useMyTaggableForkedProjects();
+  const isLoading = loadingOwn || loadingForked;
+  // Own projects first, then forked ones (create-post accepts both; forks carry the poster's affiliate link).
+  const ownIds = new Set((ownProjects ?? []).map((p) => p.id));
+  const projects = [
+    ...(ownProjects ?? []).map((p) => ({ ...p, isFork: false })),
+    ...(forked ?? []).filter((p) => !ownIds.has(p.id)).map((p) => ({ ...p, isFork: true })),
+  ] as Array<{ id: string; title: string; thumbnail_url: string | null; project_type: keyof typeof PROJECT_TYPE_LABELS; isFork: boolean }>;
 
   return (
     <Portal>
@@ -54,13 +65,13 @@ export function TagProjectPicker({
           <div className="overflow-y-auto flex-1">
             {isLoading && <p className="text-sm text-ink-muted text-center py-6">Loading…</p>}
 
-            {!isLoading && (!projects || projects.length === 0) && (
+            {!isLoading && projects.length === 0 && (
               <p className="text-sm text-ink-muted text-center py-6 px-4">
-                You don't have any published projects to tag yet.
+                No projects to tag yet.
               </p>
             )}
 
-            {projects?.map((project) => (
+            {projects.map((project) => (
               <button
                 key={project.id}
                 onClick={() => onSelect(project.id, project.title)}
@@ -78,6 +89,7 @@ export function TagProjectPicker({
                 <div className="min-w-0 flex-1">
                   <p className="text-[10px] uppercase tracking-wide text-ink-muted font-medium">
                     {PROJECT_TYPE_LABELS[project.project_type]}
+                    {project.isFork ? " · Forked" : ""}
                   </p>
                   <p className="text-sm font-medium text-ink truncate">{project.title}</p>
                 </div>

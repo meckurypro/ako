@@ -1887,7 +1887,7 @@ export function ProjectCard({
             className="w-full flex items-center justify-center gap-2 bg-accent-soft text-accent py-2.5 rounded-2xl font-semibold text-sm mb-2 transition-transform active:scale-[0.98]"
           >
             <TrendingUp size={15} />
-            Share & earn a commission
+            Fork & earn
           </button>
         )}
 

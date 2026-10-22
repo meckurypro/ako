@@ -4,6 +4,7 @@ import { Link } from "react-router-dom";
 import { ImageIcon } from "lucide-react";
 import { type ProjectType } from "../hooks/useProjects";
 import { getProjectPath } from "../lib/projectLinks";
+import { affiliateLinkFor } from "../hooks/useAffiliates";
 import { isFileType } from "../lib/fileProject";
 import { FileFolderIcon } from "./FileFolderArt";
 
@@ -57,7 +58,14 @@ export interface TaggedProjectSummary {
  * is meant to surface the project, not its price; price only shows
  * once the viewer opens the project itself.
  */
-export function TaggedProjectEmbed({ project }: { project: TaggedProjectSummary | null | undefined }) {
+export function TaggedProjectEmbed({
+  project,
+  refToken,
+}: {
+  project: TaggedProjectSummary | null | undefined;
+  // Set when the poster tagged a project they forked: the link carries their affiliate ref.
+  refToken?: string | null;
+}) {
   if (!project) return null;
 
   if (project.status !== "active") {
@@ -77,7 +85,7 @@ export function TaggedProjectEmbed({ project }: { project: TaggedProjectSummary 
 
   return (
     <Link
-      to={getProjectPath(project)}
+      to={refToken ? affiliateLinkFor(getProjectPath(project), refToken) : getProjectPath(project)}
       onClick={(e) => e.stopPropagation()}
       className="group relative mt-3 flex items-center"
       style={{ height: thumbH + 8 }}

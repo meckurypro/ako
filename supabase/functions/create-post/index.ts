@@ -6,7 +6,7 @@
 //
 // Gates: probational partial access (fn_can_access_feature('probational_post_enabled')), fail-closed.
 // Also handles: draft/scheduled status, heading_color, optional catalogue music, tagged_project_id
-// (verified: caller's own, active, non-private project).
+// (verified: active, non-private, and either the caller's own or one the caller has an active affiliate fork of).
 //
 // Content length is tiered: 450 characters for everyone, 1,200 for users whose profiles.is_verified
 // is true. is_verified is the permanent admin-assigned status, NOT badge_visible — a verified user
@@ -185,22 +185,33 @@ serve(async (req) => {
       }
     }
 
-    // Tagged project — mirrors TagProjectPicker.tsx's own scope (the caller's own project,
-    // published/active, not private) so the server-side check can never diverge from what the
-    // picker offered. A stale pill is rejected rather than silently posted without its tag.
+    // Tagged project — mirrors TagProjectPicker.tsx's own scope so the server-side check can never diverge
+    // from what the picker offered: a published (active), non-private project that is either the caller's
+    // own or one the caller has an ACTIVE affiliate fork of. A fork's referral token is stored on the post
+    // so the tagged-project card links with ?ref= and sales through it are attributed to the forker.
+    // A stale pill is rejected rather than silently posted without its tag.
+    let taggedProjectRef: string | null = null;
     if (taggedProjectId) {
       const { data: taggedProject } = await admin
         .from("projects")
         .select("id, owner_id, status, is_private")
         .eq("id", taggedProjectId)
         .maybeSingle();
-      if (
-        !taggedProject ||
-        taggedProject.owner_id !== user.id ||
-        taggedProject.status !== "active" ||
-        taggedProject.is_private
-      ) {
+      if (!taggedProject || taggedProject.status !== "active" || taggedProject.is_private) {
         return jsonResponse({ error: "That project can't be tagged right now." }, 400);
+      }
+      if (taggedProject.owner_id !== user.id) {
+        const { data: fork } = await admin
+          .from("affiliate_relationships")
+          .select("referral_token")
+          .eq("project_id", taggedProjectId)
+          .eq("affiliate_user_id", user.id)
+          .eq("status", "active")
+          .maybeSingle();
+        if (!fork) {
+          return jsonResponse({ error: "That project can't be tagged right now." }, 400);
+        }
+        taggedProjectRef = fork.referral_token;
       }
     }
 
@@ -242,6 +253,7 @@ serve(async (req) => {
         scheduled_for: scheduledForDate ? scheduledForDate.toISOString() : null,
         music_catalogue_id: musicCatalogueId,
         tagged_project_id: taggedProjectId,
+        tagged_project_ref: taggedProjectRef,
         client_request_id: clientRequestId,
       })
       .select()

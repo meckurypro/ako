@@ -1,7 +1,7 @@
 // src/pages/Connect.tsx
 //
 // Bottom-nav home for everything you attend or earn from outside the
-// feed: Events, Meetings, Rooms and Affiliates. Replaces the old
+// feed: Events, Meetings, Rooms and Forked projects. Replaces the old
 // "Events & meetings" and "Affiliates" rows in the Activity hub, and the
 // Messages tab (messages now live behind the floating chat button).
 import { useState, type ReactNode } from "react";
@@ -24,7 +24,7 @@ const TAB_LABEL: Record<ConnectTab, string> = {
   events: "Events",
   meetings: "Meetings",
   rooms: "Rooms",
-  affiliates: "Affiliates",
+  affiliates: "Forked",
 };
 
 const KIND_FOR_TAB: Record<Exclude<ConnectTab, "affiliates">, ActivityItem["kind"]> = {
@@ -50,7 +50,7 @@ const EMPTY_COPY: Record<ConnectTab, string> = {
   meetings: "Meetings you've joined or bought access to will show up here.",
   rooms: "Room meetings for rooms you're a member of will show up here.",
   affiliates:
-    "Projects you fork to earn a commission on will show up here — look for \"Share & earn\" on any project that has affiliate forking turned on.",
+    "Projects you fork show up here. Tap \"Fork & earn\" on a project to start.",
 };
 
 function ActivityRow({ item }: { item: ActivityItem }) {

@@ -1,9 +1,10 @@
 // src/pages/Activity.tsx
 import { useNavigate } from "react-router-dom";
 import { useSmartBack } from "../hooks/useSmartBack";
-import { ArrowLeft, Bookmark, Heart, History, ChevronRight, FileEdit, Send, Tag } from "lucide-react";
+import { ArrowLeft, Bookmark, Heart, History, ChevronRight, FileEdit, Send, Tag, GitFork } from "lucide-react";
 import { BottomNav } from "../components/BottomNav";
 import { useMyDraftPosts, useMyScheduledPosts } from "../hooks/usePosts";
+import { useMyAffiliateRelationships } from "../hooks/useAffiliates";
 
 const ROWS = [
   {
@@ -41,6 +42,14 @@ const ROWS = [
     description: "Bundle your paid projects at a special price",
   },
   {
+    to: "/wallet/affiliate-links",
+    icon: GitFork,
+    label: "Forked projects",
+    description: "Projects you forked, with your affiliate links",
+    // Only listed once the user has forked something — see forkedOnly in the render below.
+    forkedOnly: true,
+  },
+  {
     to: "/activity/history",
     icon: History,
     label: "History",
@@ -59,6 +68,8 @@ export function Activity() {
   // destination page runs its own full query when actually opened.
   const { data: drafts } = useMyDraftPosts();
   const { data: scheduled } = useMyScheduledPosts();
+  const { data: forks } = useMyAffiliateRelationships();
+  const hasForks = (forks ?? []).some((r) => !!r.project);
 
   const countFor = (hook: "drafts" | "scheduled" | undefined) => {
     if (hook === "drafts") return drafts?.length ?? 0;
@@ -76,7 +87,7 @@ export function Activity() {
       </header>
 
       <div className="max-w-xl mx-auto px-4 pt-2">
-        {ROWS.map(({ to, icon: Icon, label, description, ...rest }) => {
+        {ROWS.filter((row) => !("forkedOnly" in row) || hasForks).map(({ to, icon: Icon, label, description, ...rest }) => {
           const count = "countHook" in rest ? countFor(rest.countHook) : 0;
           return (
             <button
