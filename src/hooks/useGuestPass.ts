@@ -45,7 +45,6 @@ export interface GuestPassView {
   page?: GuestPassPage | null;
   project?: GuestPassProject;
   // Type-specific payload — shape depends on project.project_type (see get_guest_pass_view).
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   detail?: Record<string, any>;
   // Present on non-valid answers for PUBLIC projects only.
   project_title?: string | null;
@@ -87,11 +86,13 @@ export function useGuestPassView(token: string | undefined) {
  * server_now) so a wrong device clock can't make a live pass look expired, or an expired one look live.
  */
 export function usePassDeadline(view: GuestPassView | undefined, fetchedAt: number | undefined): string | null {
+  const expiresAt = view?.expires_at;
+  const serverNow = view?.server_now;
   return useMemo(() => {
-    if (!view?.expires_at || !view.server_now || !fetchedAt) return null;
-    const remaining = new Date(view.expires_at).getTime() - new Date(view.server_now).getTime();
+    if (!expiresAt || !serverNow || !fetchedAt) return null;
+    const remaining = new Date(expiresAt).getTime() - new Date(serverNow).getTime();
     return new Date(fetchedAt + remaining).toISOString();
-  }, [view?.expires_at, view?.server_now, fetchedAt]);
+  }, [expiresAt, serverNow, fetchedAt]);
 }
 
 export interface GuestPassFile {
