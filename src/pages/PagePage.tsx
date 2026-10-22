@@ -15,7 +15,6 @@ import {
   Plus,
   Redo2,
   Share2,
-  Sparkles,
   UserMinus,
   UserPlus,
   UserCog,
@@ -387,23 +386,6 @@ export function PagePage() {
           <div className="pointer-events-none absolute inset-x-0 top-0 h-24 bg-gradient-to-b from-black/35 to-transparent" />
         </div>
 
-        {previewingAsVisitor && canEditPage && (
-          <div className="mx-4 mt-3 flex items-center justify-between gap-2 rounded-xl bg-accent-soft px-4 py-2.5 text-sm text-accent">
-            <span className="flex items-center gap-1.5">
-              <Eye size={14} />
-              Viewing as a visitor sees it
-            </span>
-            <button
-              onClick={() => setPreviewingAsVisitor(false)}
-              className="flex items-center gap-1 font-medium"
-              aria-label="Exit visitor view"
-            >
-              <X size={14} />
-              Exit
-            </button>
-          </div>
-        )}
-
         {/* Identity */}
         <div className="px-4">
           <div className="-mt-12 flex items-end justify-between gap-3">
@@ -516,12 +498,26 @@ export function PagePage() {
 
         {/* Landing sections */}
         <div className="mt-8 space-y-9 px-4">
+          {previewingAsVisitor && canEditPage && (
+            <div className="flex items-center justify-between gap-3 rounded-xl bg-accent-soft px-4 py-2.5 text-sm text-accent">
+              <span className="flex items-center gap-1.5">
+                <Eye size={14} className="shrink-0" />
+                You're viewing this page as a visitor.
+              </span>
+              <button
+                onClick={() => setPreviewingAsVisitor(false)}
+                className="flex shrink-0 items-center gap-1 font-medium"
+                aria-label="Exit visitor view"
+              >
+                <X size={14} />
+                Exit
+              </button>
+            </div>
+          )}
+
           {editorView && setupSteps.length > 0 && (
             <div className="rounded-2xl border border-dashed border-border bg-surface p-4">
-              <p className="flex items-center gap-2 text-sm font-semibold text-ink">
-                <Sparkles size={16} className="text-brand-orange" />
-                Make your page stand out
-              </p>
+              <p className="text-sm font-semibold text-ink">Make your page stand out</p>
               <p className="mt-1 text-xs text-ink-muted">Only your team sees this. Visitors see the finished page.</p>
               <div className="mt-3 flex flex-wrap gap-2">
                 {setupSteps.map((s) => (

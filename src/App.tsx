@@ -11,6 +11,7 @@ import { PathHistoryTracker } from "./components/PathHistoryTracker";
 import { ExternalLinkGuard } from "./components/ExternalLinkGuard";
 import { LoadingOverlay } from "./components/LoadingOverlay";
 import { usePageThemeSync } from "./hooks/usePageThemeSync";
+import { useIdentityRouteSync } from "./hooks/useIdentityRouteSync";
 import { ToastProvider } from "./components/Toast";
 import { AppShell } from "./components/AppShell";
 import { ProfilePrefetch } from "./components/ProfilePrefetch";
@@ -198,6 +199,7 @@ function AppRoutes() {
   const location = useLocation();
   const backgroundLocation = (location.state as { background?: Location } | null)?.background;
   usePageThemeSync();
+  useIdentityRouteSync();
 
   return (
     <AppShell>
