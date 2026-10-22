@@ -4,10 +4,11 @@ import { FileFolderIcon } from "../components/FileFolderArt";
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import { useSmartBack } from "../hooks/useSmartBack";
-import { ArrowLeft, TrendingUp, Copy, Check, ImageIcon } from "lucide-react";
+import { ArrowLeft, TrendingUp, Copy, Check, ImageIcon, Share2, MousePointerClick, ShoppingBag, Clock, Banknote } from "lucide-react";
 import {
   useMyAffiliateRelationships,
   useAffiliateDashboard,
+  useAffiliateTotals,
   affiliateLinkFor,
   type AffiliateRelationshipWithProject,
 } from "../hooks/useAffiliates";
@@ -47,9 +48,12 @@ export function AffiliateLinkRow({ relationship }: { relationship: AffiliateRela
   // relationship row does — don't render a broken link into nowhere.
   if (!relationship.project) return null;
 
+  const revoked = relationship.status === "revoked";
+  const canShare = typeof navigator !== "undefined" && typeof navigator.share === "function";
+
   return (
-    <div className="bg-surface rounded-2xl border border-border p-4 mb-3">
-      <div className="flex items-center gap-3 mb-3">
+    <div className={`bg-surface rounded-2xl border border-border p-4 mb-3 ${revoked ? "opacity-70" : ""}`}>
+      <div className="flex items-center gap-3">
         <Link
           to={`/projects/${relationship.project_id}`}
           className={`w-12 ${relationship.project.project_type === "book" ? "h-[72px]" : "h-12"} rounded-xl bg-canvas overflow-hidden flex items-center justify-center shrink-0`}
@@ -66,24 +70,30 @@ export function AffiliateLinkRow({ relationship }: { relationship: AffiliateRela
           <Link to={`/projects/${relationship.project_id}`} className="text-sm font-medium text-ink truncate block">
             {relationship.project.title}
           </Link>
-          <p className="text-xs text-ink-muted">{formatUsd(getEffectivePrice(relationship.project))}</p>
+          <p className="text-xs text-ink-muted">
+            {formatUsd(getEffectivePrice(relationship.project))}
+            {revoked ? " · Link revoked" : ""}
+          </p>
         </div>
-        {relationship.status === "revoked" ? (
-          <span className="text-xs text-ink-muted shrink-0">Revoked</span>
-        ) : (
-          <button onClick={() => void handleCopy()} className="shrink-0 p-1.5 text-accent" aria-label="Copy link">
-            {copied ? <Check size={16} /> : <Copy size={16} />}
-          </button>
-        )}
       </div>
 
-      {relationship.status === "active" && (
-        <div className="grid grid-cols-4 gap-2">
-          <MiniStat label="Clicks" value={String(dashboard?.clicks ?? 0)} />
-          <MiniStat label="Sales" value={String(dashboard?.completed_sales ?? 0)} />
-          <MiniStat label="Pending" value={formatUsd(dashboard?.pending_commission ?? 0)} />
-          <MiniStat label="Paid" value={formatUsd(dashboard?.paid_commission ?? 0)} />
-        </div>
+      {!revoked && (
+        <>
+          <div className="grid grid-cols-4 gap-2 mt-4 rounded-xl bg-canvas px-2 py-3">
+            <MiniStat label="Clicks" value={String(dashboard?.clicks ?? 0)} />
+            <MiniStat label="Sales" value={String(dashboard?.completed_sales ?? 0)} />
+            <MiniStat label="Pending" value={formatUsd(dashboard?.pending_commission ?? 0)} />
+            <MiniStat label="Paid" value={formatUsd(dashboard?.paid_commission ?? 0)} />
+          </div>
+
+          <button
+            onClick={() => void handleCopy()}
+            className="mt-3 w-full flex items-center justify-center gap-2 rounded-full bg-accent-soft text-accent text-sm font-medium py-2.5 transition-colors hover:bg-accent-soft/70"
+          >
+            {copied ? <Check size={16} /> : canShare ? <Share2 size={16} /> : <Copy size={16} />}
+            {copied ? "Copied" : canShare ? "Share link" : "Copy link"}
+          </button>
+        </>
       )}
     </div>
   );
@@ -98,22 +108,42 @@ function MiniStat({ label, value }: { label: string; value: string }) {
   );
 }
 
+function SummaryStat({ icon: Icon, label, value }: { icon: typeof Clock; label: string; value: string }) {
+  return (
+    <div className="rounded-2xl bg-canvas/15 px-3 py-3">
+      <p className="text-[11px] uppercase tracking-wide text-canvas/70 flex items-center gap-1">
+        <Icon size={11} aria-hidden="true" /> {label}
+      </p>
+      <p className="font-display text-xl text-canvas tabular-nums mt-0.5 truncate">{value}</p>
+    </div>
+  );
+}
+
 export function MyAffiliateLinks() {
   const smartBack = useSmartBack();
   const { data: relationships, isLoading } = useMyAffiliateRelationships();
 
+  const visible = (relationships ?? []).filter((r) => !!r.project);
+  const active = visible.filter((r) => r.status !== "revoked");
+  const revoked = visible.filter((r) => r.status === "revoked");
+  const totals = useAffiliateTotals(active.map((r) => r.id));
+
   return (
-    <div className="min-h-screen bg-canvas px-4 pt-4 pb-10">
-      <div className="max-w-xl mx-auto">
-        <button onClick={smartBack} className="text-ink-muted mb-4">
+    <div className="min-h-screen bg-canvas px-4 md:px-8 pt-4 md:pt-10 pb-10">
+      <div className="max-w-xl md:max-w-3xl mx-auto">
+        <button onClick={smartBack} className="text-ink-muted mb-4" aria-label="Back">
           <ArrowLeft size={22} />
         </button>
 
-        <h2 className="font-display text-2xl text-ink mb-6">My affiliate links</h2>
+        <h2 className="font-bold text-[1.75rem] leading-tight tracking-tight text-ink mb-1 flex items-center gap-2.5">
+          <TrendingUp size={24} className="text-accent" />
+          Affiliate links
+        </h2>
+        <p className="text-sm text-ink-muted mb-5">Share a project, earn a commission on every sale you bring in.</p>
 
         {isLoading ? (
           <p className="text-ink-muted text-sm">Loading…</p>
-        ) : (relationships ?? []).length === 0 ? (
+        ) : visible.length === 0 ? (
           <div className="flex flex-col items-center text-center gap-2 mt-16 text-ink-muted">
             <TrendingUp size={24} />
             <p className="text-sm">
@@ -122,7 +152,55 @@ export function MyAffiliateLinks() {
             </p>
           </div>
         ) : (
-          relationships!.map((r) => <AffiliateLinkRow key={r.id} relationship={r} />)
+          <>
+            {/* One bold card for the whole picture, like the Wallet balance. */}
+            <div
+              className="relative overflow-hidden rounded-[28px] p-5 mb-6"
+              style={{
+                background: "linear-gradient(135deg, var(--color-accent) 0%, var(--color-accent-hover) 100%)",
+                boxShadow: "0 0 0 1px rgba(var(--shadow-ink-rgb), 0.07), 0 20px 40px -12px rgba(var(--shadow-ink-rgb), 0.35)",
+              }}
+            >
+              <TrendingUp
+                size={120}
+                strokeWidth={1}
+                className="absolute -right-5 -top-5 text-canvas opacity-[0.12] pointer-events-none"
+                aria-hidden="true"
+              />
+              <p className="relative text-xs font-medium uppercase tracking-[0.14em] text-canvas/70">Earned from referrals</p>
+              <p className="relative font-display text-4xl text-canvas tabular-nums mt-2 mb-4">
+                {totals.loading ? "…" : formatUsd(totals.paid + totals.pending)}
+              </p>
+              <div className="relative grid grid-cols-2 md:grid-cols-4 gap-2">
+                <SummaryStat icon={MousePointerClick} label="Clicks" value={String(totals.clicks)} />
+                <SummaryStat icon={ShoppingBag} label="Sales" value={String(totals.sales)} />
+                <SummaryStat icon={Clock} label="Pending" value={formatUsd(totals.pending)} />
+                <SummaryStat icon={Banknote} label="Paid" value={formatUsd(totals.paid)} />
+              </div>
+            </div>
+
+            {active.length > 0 && (
+              <section className="mb-6">
+                <h3 className="font-display text-lg text-ink mb-3">Active links</h3>
+                <div className="md:grid md:grid-cols-2 md:gap-x-3">
+                  {active.map((r) => (
+                    <AffiliateLinkRow key={r.id} relationship={r} />
+                  ))}
+                </div>
+              </section>
+            )}
+
+            {revoked.length > 0 && (
+              <section>
+                <h3 className="font-display text-lg text-ink mb-3">Revoked</h3>
+                <div className="md:grid md:grid-cols-2 md:gap-x-3">
+                  {revoked.map((r) => (
+                    <AffiliateLinkRow key={r.id} relationship={r} />
+                  ))}
+                </div>
+              </section>
+            )}
+          </>
         )}
       </div>
     </div>

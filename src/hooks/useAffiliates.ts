@@ -12,7 +12,7 @@
 // commission math itself lives entirely in process_project_purchase()
 // on the database side, same as platform_fee already did before this
 // feature existed. This file only ever reads/reports.
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient, useQueries } from "@tanstack/react-query";
 import { useEffect, useRef } from "react";
 import { supabase } from "../lib/supabase";
 import { useAuth } from "./useAuth";
@@ -272,6 +272,33 @@ export function useAffiliateDashboard(relationshipId: string | undefined) {
 
 // All of the current user's affiliate relationships, across every
 // project they've forked — backs the "My affiliate links" hub.
+/**
+ * Totals across all of a person's active affiliate links, for the summary card
+ * on "My affiliate links". Uses the same query key as useAffiliateDashboard, so
+ * each link's numbers are fetched once and shared with its row.
+ */
+export function useAffiliateTotals(relationshipIds: string[]) {
+  const results = useQueries({
+    queries: relationshipIds.map((id) => ({
+      queryKey: ["affiliate-dashboard", id],
+      queryFn: async (): Promise<AffiliateDashboard> => {
+        const { data, error } = await supabase.rpc("get_affiliate_dashboard", { p_relationship_id: id });
+        if (error) throw error;
+        return data;
+      },
+      staleTime: 15_000,
+    })),
+  });
+  const rows = results.map((r) => r.data).filter((d): d is AffiliateDashboard => !!d);
+  return {
+    loading: results.some((r) => r.isLoading),
+    clicks: rows.reduce((n, d) => n + Number(d.clicks ?? 0), 0),
+    sales: rows.reduce((n, d) => n + Number(d.completed_sales ?? 0), 0),
+    pending: rows.reduce((n, d) => n + Number(d.pending_commission ?? 0), 0),
+    paid: rows.reduce((n, d) => n + Number(d.paid_commission ?? 0), 0),
+  };
+}
+
 export function useMyAffiliateRelationships() {
   const { user } = useAuth();
 
