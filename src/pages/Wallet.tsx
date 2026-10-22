@@ -22,6 +22,7 @@ import { useFeatureFlag } from "../hooks/useFeatureFlags";
 import { useWithdrawalEligibility } from "../hooks/useWalletRates";
 import { useWithdrawals } from "../hooks/usePayout";
 import { formatUsd } from "../lib/money";
+import { WALLET_PERIODS, inPeriod, type WalletPeriod } from "../lib/walletPeriod";
 
 // Each transaction type gets its own label, icon, and icon tint —
 // scanning a long history by icon shape/color is faster than reading
@@ -136,14 +137,32 @@ export function WalletPage() {
   const { data: eligibility } = useWithdrawalEligibility();
   const { data: withdrawals } = useWithdrawals();
   const [filter, setFilter] = useState<ActivityFilter>("all");
+  const [period, setPeriod] = useState<WalletPeriod>("all");
 
   // Requests that have left the wallet but not yet reached the bank.
   const inReviewUsd = (withdrawals ?? [])
     .filter((w) => w.status === "pending" || w.status === "processing")
     .reduce((sum, w) => sum + Number(w.amount_usd), 0);
 
+  // Period first, so the in/out summary reflects the chosen range regardless of the In/Out filter.
+  const periodRows = useMemo(
+    () => ((transactions as any[] | undefined) ?? []).filter((t) => inPeriod(t.created_at, period)),
+    [transactions, period],
+  );
+
+  const summary = useMemo(() => {
+    let moneyIn = 0;
+    let moneyOut = 0;
+    for (const t of periodRows) {
+      const amt = Number(t.amount);
+      if (amt >= 0) moneyIn += amt;
+      else moneyOut += -amt;
+    }
+    return { moneyIn, moneyOut };
+  }, [periodRows]);
+
   const groups = useMemo(() => {
-    const rows = ((transactions as any[] | undefined) ?? []).filter((t) => {
+    const rows = periodRows.filter((t) => {
       const amt = Number(t.amount);
       return filter === "all" ? true : filter === "in" ? amt >= 0 : amt < 0;
     });
@@ -155,7 +174,7 @@ export function WalletPage() {
       else out.push({ label, rows: [t] });
     }
     return out;
-  }, [transactions, filter]);
+  }, [periodRows, filter]);
 
   // The main entry point into this page (ProfilePage's owner menu) is
   // already hidden when this is off — this is the defensive layer for
@@ -182,7 +201,7 @@ export function WalletPage() {
   return (
     <div className="min-h-screen bg-canvas pb-24">
       <div className="md:hidden">
-        <header className="px-4 pt-6 pb-3 sticky top-0 bg-canvas z-chrome border-b border-border">
+        <header className="px-4 pt-6 pb-3 sticky top-0 bg-canvas z-chrome border-b border-border h-[73px] box-border flex items-end justify-center">
           <Wordmark size="sm" />
         </header>
       </div>
@@ -193,7 +212,11 @@ export function WalletPage() {
           Feed. Mobile keeps the original single stacked column. */}
       <div className="max-w-xl md:max-w-5xl mx-auto px-4 md:px-8 pt-6 md:pt-10 md:grid md:grid-cols-[360px_1fr] md:gap-10 md:items-start">
         {/* ── Balance card — the one bold element on the page ── */}
-        <div className="md:sticky md:top-10">
+        {/* Mobile: this wrapper vanishes (contents) so the balance card is a direct child of the page column and
+            can stay pinned under the header while the activity list scrolls beneath it. Desktop: the whole
+            left rail (card + shortcuts) is the sticky element. */}
+        <div className="contents md:block md:sticky md:top-10">
+          <div className="sticky top-[73px] z-20 bg-canvas -mx-4 px-4 pt-3 pb-3 -mt-6 md:static md:z-auto md:mx-0 md:px-0 md:pt-0 md:pb-0 md:mt-0 md:bg-transparent">
           <BrandCard className="p-6 pt-6">
             <div className="flex items-center justify-between">
               <p className="text-[11px] font-medium uppercase tracking-[0.16em] text-white">Available balance</p>
@@ -234,8 +257,9 @@ export function WalletPage() {
               </div>
             )}
           </BrandCard>
+          </div>
 
-          <div className={`mt-3 grid gap-3 ${affiliateEnabled ? "grid-cols-2 md:grid-cols-1" : "grid-cols-1"}`}>
+          <div className={`mt-1 md:mt-3 grid gap-3 ${affiliateEnabled ? "grid-cols-2 md:grid-cols-1" : "grid-cols-1"}`}>
             <ShortcutTile to="/wallet/gifts" icon={Gem} title="Gift Vault" hint="Gifts you've received" />
             {affiliateEnabled && (
               <ShortcutTile to="/wallet/affiliate-links" icon={TrendingUp} title="Affiliate" hint="Links & earnings" />
@@ -265,6 +289,34 @@ export function WalletPage() {
               ))}
             </div>
           </div>
+
+          <div className="-mx-4 px-4 mb-3 overflow-x-auto no-scrollbar">
+            <div className="flex gap-2 w-max" role="tablist" aria-label="Filter by time">
+              {WALLET_PERIODS.map((p) => (
+                <button
+                  key={p.id}
+                  role="tab"
+                  aria-selected={period === p.id}
+                  onClick={() => setPeriod(p.id)}
+                  className={`shrink-0 px-3 py-1.5 rounded-full text-xs border transition-colors ${
+                    period === p.id
+                      ? "bg-accent-soft text-accent border-accent/40 font-medium"
+                      : "bg-transparent text-ink-muted border-border hover:border-accent/50"
+                  }`}
+                >
+                  {p.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {periodRows.length > 0 && (
+            <p className="text-xs text-ink-muted mb-4 px-1 tabular-nums">
+              In <span className="text-accent font-medium">+{formatUsd(summary.moneyIn)}</span> · Out{" "}
+              <span className="text-ink font-medium">-{formatUsd(summary.moneyOut)}</span>
+              {period !== "all" && <> · {WALLET_PERIODS.find((p) => p.id === period)!.label.toLowerCase()}</>}
+            </p>
+          )}
 
           {groups.length === 0 ? (
             <div className="text-center py-10">

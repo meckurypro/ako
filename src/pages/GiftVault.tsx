@@ -1,13 +1,13 @@
 // src/pages/GiftVault.tsx
 //
 // The Gift Vault: a trophy cabinet for every gift the user has received.
-//   • Header plaque — total worth, gifts, artifacts, with a Share button for show-offs.
+//   • Header plaque — total worth, gifts, artifacts and your prized piece.
 //   • Latest — newest gifts first (artwork, sender, date/time, price), filterable All / Today / This week.
 //   • Artifacts — one tile per gift type with an ×count badge; tapping opens that artifact's full history.
 // Rarity (Everyday → Legendary) is driven by the price of a single gift.
 import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import { ArrowLeft, Share2, Crown, Gem, Sparkles } from "lucide-react";
+import { ArrowLeft, Crown, Gem, Sparkles } from "lucide-react";
 import { useGiftVault } from "../hooks/useGiftVault";
 import { useAuth } from "../hooks/useAuth";
 import { BottomNav } from "../components/BottomNav";
@@ -74,26 +74,7 @@ export function GiftVaultPage() {
   const filtered = useMemo(() => filterByRange(gifts ?? [], range), [gifts, range]);
   const artifacts = useMemo(() => groupArtifacts(filtered), [filtered]);
   const totals = useMemo(() => vaultTotals(filtered), [filtered]);
-  const allTimeTotals = useMemo(() => vaultTotals(gifts ?? []), [gifts]);
   const latest = showAll ? filtered : filtered.slice(0, LATEST_PAGE);
-
-  async function share() {
-    const text =
-      allTimeTotals.giftCount > 0
-        ? `My Akọ Gift Vault: ${allTimeTotals.giftCount} gifts, ${allTimeTotals.artifactCount} treasures, worth ${formatUsd(allTimeTotals.totalWorth)}${
-            allTimeTotals.topArtifact ? ` — prized piece: ${allTimeTotals.topArtifact.name}` : ""
-          }.`
-        : "I'm building my Gift Vault on Akọ.";
-    try {
-      if (navigator.share) {
-        await navigator.share({ title: "My Akọ Gift Vault", text, url: window.location.origin });
-      } else {
-        await navigator.clipboard.writeText(`${text} ${window.location.origin}`);
-      }
-    } catch {
-      // Share sheet dismissed — nothing to do.
-    }
-  }
 
   const rangeLabel = RANGES.find((r) => r.id === range)!.label.toLowerCase();
 
@@ -130,15 +111,6 @@ export function GiftVaultPage() {
                   Gift Vault
                 </h1>
               </div>
-              <button
-                onClick={share}
-                aria-label="Share my vault"
-                className="flex items-center gap-1.5 rounded-full px-3.5 py-2 text-xs font-medium"
-                style={{ background: "rgba(217,168,87,0.16)", color: "#F6E7C1", border: "1px solid rgba(217,168,87,0.5)" }}
-              >
-                <Share2 size={14} />
-                Show off
-              </button>
             </div>
 
             <p className="font-display text-5xl mt-6 tabular-nums" style={{ color: "#F6E7C1" }}>
