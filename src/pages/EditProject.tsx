@@ -44,16 +44,7 @@ import { RoomFields, EMPTY_ROOM_FIELDS, type RoomFieldsValue } from "../componen
 import { PitchFields, EMPTY_PITCH_FIELDS, type PitchFieldsValue } from "../components/project-types/PitchFields";
 import { BookFields, EMPTY_BOOK_FIELDS, type BookFieldsValue } from "../components/project-types/BookFields";
 import { SupportingImagesField } from "../components/SupportingImagesField";
-
-// 'cancelled' is deliberately not offered here — it only happens
-// through the (not-yet-built) Event/Meeting cancellation flow, which
-// also handles the host's per-cancellation refund choice. Exposing
-// it as a plain status radio here would skip that entirely.
-const STATUS_OPTIONS: { value: ProjectStatus; label: string; hint: string }[] = [
-  { value: "active", label: "Published", hint: "Visible to everyone" },
-  { value: "draft", label: "Draft", hint: "Only visible to you, not published yet" },
-  { value: "archived", label: "Archived", hint: "Hidden — was published before" },
-];
+import { ProjectStatusSelect } from "../components/ProjectStatusSelect";
 
 export function EditProject() {
   const { projectId } = useParams<{ projectId: string }>();
@@ -594,29 +585,7 @@ export function EditProject() {
         <form onSubmit={handleSubmit}>
           <div className="mb-6">
             <label className="block text-sm font-medium text-ink-muted mb-1.5">Status</label>
-            <div className="flex flex-col gap-2">
-              {STATUS_OPTIONS.map((opt) => (
-                <label
-                  key={opt.value}
-                  className={`flex items-center gap-3 px-4 py-3 rounded-xl border cursor-pointer ${
-                    status === opt.value ? "border-accent bg-accent-soft" : "border-border bg-canvas"
-                  }`}
-                >
-                  <input
-                    type="radio"
-                    name="status"
-                    value={opt.value}
-                    checked={status === opt.value}
-                    onChange={() => setStatus(opt.value)}
-                    className="accent-current"
-                  />
-                  <span>
-                    <span className="block text-sm font-medium text-ink">{opt.label}</span>
-                    <span className="block text-xs text-ink-muted">{opt.hint}</span>
-                  </span>
-                </label>
-              ))}
-            </div>
+            <ProjectStatusSelect value={status} onChange={setStatus} />
           </div>
 
           {project?.project_type === "file" ? (
