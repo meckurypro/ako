@@ -15,6 +15,7 @@ import { ToastProvider } from "./components/Toast";
 import { AppShell } from "./components/AppShell";
 import { ProfilePrefetch } from "./components/ProfilePrefetch";
 import { usePostRealtime } from "./hooks/usePostRealtime";
+import { usePrefetchGifting } from "./hooks/useWallet";
 
 import { SignUp } from "./pages/auth/SignUp";
 import { Login } from "./pages/auth/Login";
@@ -127,6 +128,7 @@ import { registerOfflineMutations } from "./lib/offlineMutations";
 /** Live post edits (see usePostRealtime) — needs the signed-in user, so it lives inside AuthProvider. */
 function PostRealtime() {
   usePostRealtime();
+  usePrefetchGifting(); // gift catalogue ready before the first Gift tap
   return null;
 }
 

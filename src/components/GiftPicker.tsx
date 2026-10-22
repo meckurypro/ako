@@ -55,9 +55,11 @@ export function GiftPicker({
   // dismissible full-screen notice instead of advancing to confirm.
   const [insufficientGift, setInsufficientGift] = useState<GiftType | null>(null);
 
-  const { data: giftTypes, isLoading: loadingGifts } = useGiftTypes();
+  const { data: giftTypes, isLoading: loadingTypes } = useGiftTypes();
   const { data: wallet } = useWallet();
-  const { data: topGiftTypeIds } = useTopGiftTypeIds(6);
+  const { data: topGiftTypeIds, isLoading: loadingTop } = useTopGiftTypeIds(6);
+  // Wait for the "most used" order too, so the grid never reshuffles after it appears.
+  const loadingGifts = loadingTypes || loadingTop;
   const sendGift = useSendGift();
   const sendMediaGift = useSendMediaGift();
   const giftingEnabled = useFeatureFlag("gifting_enabled");
@@ -171,7 +173,10 @@ export function GiftPicker({
                   Gifting is temporarily unavailable. Check back later.
                 </p>
               ) : loadingGifts ? (
-                <p className="text-ink-muted text-sm text-center py-10">Loading gifts…</p>
+                // Reserve roughly the finished card's height so the modal opens at its real size, not small.
+                <div className="min-h-[45dvh] flex items-center justify-center">
+                  <p className="text-ink-muted text-sm text-center">Loading gifts…</p>
+                </div>
               ) : !sortedGiftTypes || sortedGiftTypes.length === 0 ? (
                 <p className="text-ink-muted text-sm text-center py-10">No gifts available right now.</p>
               ) : (

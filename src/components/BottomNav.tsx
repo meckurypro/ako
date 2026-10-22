@@ -112,7 +112,9 @@ export function BottomNav() {
 
   // The chat button points at the messages list, so it's redundant (and
   // would sit on top of the conversation list) while already in messaging.
-  const showChatFab = !isMessagesActive;
+  // Also hidden on a post and its comment pages — nothing should sit over the conversation.
+  const postMatch = useMatch("/post/*");
+  const showChatFab = !isMessagesActive && !postMatch;
   const inboxHref = activePageId ? "/page-inbox" : "/inbox";
 
   const navList = restricted ? restrictedNavItems : fullNavItems;

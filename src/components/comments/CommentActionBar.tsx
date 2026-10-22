@@ -7,7 +7,7 @@ import { AnimatedCount } from "../AnimatedCount";
 import { canEditComment, type CommentWithAuthor } from "../../hooks/useComments";
 import { useCommentEngagement } from "./CommentEngagement";
 
-/** "…" menu for one comment: share; for your own — edit (until anyone engages) and delete; for others' — report. */
+/** "…" menu for one comment: share; for your own — edit (until anyone engages) and delete; for others' — gift and report. */
 export function CommentMoreMenu({ comment, iconSize = 16 }: { comment: CommentWithAuthor; iconSize?: number }) {
   const eng = useCommentEngagement();
   const [open, setOpen] = useState(false);
@@ -16,6 +16,7 @@ export function CommentMoreMenu({ comment, iconSize = 16 }: { comment: CommentWi
 
   const items: DropdownMenuItem[] = [
     { key: "share", label: "Share", icon: <Share2 />, onSelect: () => eng.share(comment) },
+    ...(!isMine ? [{ key: "gift", label: "Gift", icon: <GiftIcon />, onSelect: () => eng.gift(comment) }] : []),
     ...(isMine
       ? [
           // Editable only until anyone engages; deletable any time.
@@ -50,9 +51,9 @@ export function CommentMoreMenu({ comment, iconSize = 16 }: { comment: CommentWi
 }
 
 /**
- * The row under a reply: like · dislike · share · report (or edit / delete on your own) · gift on the far right
- * (others' comments only). There's no "…" menu and no reply button — opening a comment is how you reply (see
- * ReplyBar in CommentDetail). Counts are hidden at zero.
+ * The row under a reply: like · dislike, with a "…" on the right that holds everything else (share, gift, report;
+ * edit / delete on your own). There's no reply button — opening a comment is how you reply (see ReplyBar in
+ * CommentDetail). Counts are hidden at zero.
  */
 export function CommentActionBar({ comment }: { comment: CommentWithAuthor }) {
   const eng = useCommentEngagement();
@@ -65,13 +66,11 @@ export function CommentActionBar({ comment }: { comment: CommentWithAuthor }) {
 
   const icon = 17;
   const btn = "flex items-center gap-1.5 p-1.5 transition-colors";
-  const quiet = `${btn} text-ink-muted hover:text-ink`;
 
   const stop = (e: MouseEvent) => e.stopPropagation();
-  const isMine = !!eng.currentUserId && comment.author.id === eng.currentUserId;
 
   return (
-    <div className="flex items-center gap-4 -ml-1.5 mt-1" onClick={stop}>
+    <div className="flex items-center gap-7 -ml-1.5 mt-1" onClick={stop}>
       <button
         onClick={() => eng.toggleReaction({ commentId: comment.id, type: "like", currentlyActive: liked })}
         className={`${btn} ${liked ? "text-danger" : "text-ink-muted hover:text-ink"}`}
@@ -92,31 +91,9 @@ export function CommentActionBar({ comment }: { comment: CommentWithAuthor }) {
         <AnimatedCount value={dislikeCount} className="text-xs" />
       </button>
 
-      <button onClick={() => eng.share(comment)} className={quiet} aria-label="Share">
-        <Share2 size={icon} />
-      </button>
-
-      {isMine ? (
-        <>
-          {canEditComment(comment) && (
-            <button onClick={() => eng.edit(comment)} className={quiet} aria-label="Edit">
-              <Pencil size={icon} />
-            </button>
-          )}
-          <button onClick={() => eng.remove(comment)} className={`${btn} text-ink-muted hover:text-danger`} aria-label="Delete">
-            <Trash2 size={icon} />
-          </button>
-        </>
-      ) : (
-        <>
-          <button onClick={() => eng.report(comment)} className={`${btn} text-ink-muted hover:text-danger`} aria-label="Report">
-            <Flag size={icon} />
-          </button>
-          <button onClick={() => eng.gift(comment)} className={`${quiet} ml-auto`} aria-label="Send a gift">
-            <GiftIcon size={icon} />
-          </button>
-        </>
-      )}
+      <div className="ml-auto">
+        <CommentMoreMenu comment={comment} />
+      </div>
     </div>
   );
 }
