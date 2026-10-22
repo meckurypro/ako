@@ -1,13 +1,13 @@
 // src/components/comments/CommentActionBar.tsx
 import { useRef, useState, type MouseEvent } from "react";
-import { Flag, Gift as GiftIcon, MessageCircle, MoreHorizontal, Pencil, Share2, ThumbsDown, Trash2 } from "lucide-react";
+import { Flag, Gift as GiftIcon, MoreHorizontal, Pencil, Share2, ThumbsDown, Trash2 } from "lucide-react";
 import { LikeHeart } from "../LikeHeart";
 import { DropdownMenu, type DropdownMenuItem } from "../DropdownMenu";
 import { AnimatedCount } from "../AnimatedCount";
 import { canEditComment, type CommentWithAuthor } from "../../hooks/useComments";
 import { useCommentEngagement } from "./CommentEngagement";
 
-/** "…" menu for one comment: share; for your own — edit (until anyone engages) and delete; for others' — gift and report. */
+/** "…" menu for one comment: share; for your own — edit (until anyone engages) and delete; for others' — report. */
 export function CommentMoreMenu({ comment, iconSize = 16 }: { comment: CommentWithAuthor; iconSize?: number }) {
   const eng = useCommentEngagement();
   const [open, setOpen] = useState(false);
@@ -25,7 +25,6 @@ export function CommentMoreMenu({ comment, iconSize = 16 }: { comment: CommentWi
           { key: "delete", label: "Delete", icon: <Trash2 />, variant: "danger" as const, onSelect: () => eng.remove(comment) },
         ]
       : [
-          { key: "gift", label: "Send a gift", icon: <GiftIcon />, onSelect: () => eng.gift(comment) },
           { key: "report", label: "Report", icon: <Flag />, variant: "danger" as const, onSelect: () => eng.report(comment) },
         ]),
   ];
@@ -51,8 +50,9 @@ export function CommentMoreMenu({ comment, iconSize = 16 }: { comment: CommentWi
 }
 
 /**
- * Reply · like · dislike for one comment, each with its own count (hidden at zero). `sm` is the compact row
- * under a reply; `lg` is the spaced-out bar under an opened comment.
+ * Like · dislike · gift for one comment (counts hidden at zero), gift on the right and only on others' comments.
+ * There's no reply button: opening a comment is how you reply (see ReplyBar in CommentDetail). `sm` is the
+ * compact row under a reply; `lg` is the spaced-out bar under an opened comment.
  */
 export function CommentActionBar({ comment, size = "sm" }: { comment: CommentWithAuthor; size?: "sm" | "lg" }) {
   const eng = useCommentEngagement();
@@ -69,14 +69,10 @@ export function CommentActionBar({ comment, size = "sm" }: { comment: CommentWit
   const btn = "flex items-center gap-1.5 p-1.5 transition-colors";
 
   const stop = (e: MouseEvent) => e.stopPropagation();
+  const isMine = !!eng.currentUserId && comment.author.id === eng.currentUserId;
 
   return (
     <div className={wrapperClass} onClick={stop}>
-      <button onClick={() => eng.reply(comment)} className={`${btn} text-ink-muted hover:text-ink`} aria-label="Reply">
-        <MessageCircle size={icon} />
-        <AnimatedCount value={comment.reply_count} className={countClass} />
-      </button>
-
       <button
         onClick={() => eng.toggleReaction({ commentId: comment.id, type: "like", currentlyActive: liked })}
         className={`${btn} ${liked ? "text-danger" : "text-ink-muted hover:text-ink"}`}
@@ -100,6 +96,16 @@ export function CommentActionBar({ comment, size = "sm" }: { comment: CommentWit
       {size === "lg" && (
         <button onClick={() => eng.share(comment)} className={`${btn} text-ink-muted hover:text-ink`} aria-label="Share">
           <Share2 size={icon} />
+        </button>
+      )}
+
+      {!isMine && (
+        <button
+          onClick={() => eng.gift(comment)}
+          className={`${btn} text-ink-muted hover:text-ink ${size === "sm" ? "ml-auto" : ""}`}
+          aria-label="Send a gift"
+        >
+          <GiftIcon size={icon} />
         </button>
       )}
     </div>
