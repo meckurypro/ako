@@ -220,7 +220,7 @@ export function Sidebar({ collapsed, onToggleCollapsed }: SidebarProps) {
       onBlur={(e) => {
         if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setIsKeyboardFocused(false);
       }}
-      className={`hidden md:flex md:flex-col fixed left-0 top-0 h-screen z-sidebar border-r border-border bg-surface transition-[width] duration-150 ${
+      className={`hidden md:flex md:flex-col fixed left-0 top-0 h-screen h-dvh z-sidebar border-r border-border bg-surface transition-[width] duration-150 ${
         showLabels ? "w-64" : "w-[76px]"
       } ${
         // Only a flyout (collapsed rail temporarily open) floats over
@@ -233,10 +233,15 @@ export function Sidebar({ collapsed, onToggleCollapsed }: SidebarProps) {
           so pairing it with a separate text label was pure redundancy.
           Sized up from the old 26px so it reads as a real brand mark,
           not an afterthought, in this persistent rail. */}
-      <div className={`flex items-center px-4 pt-6 pb-4 ${!showLabels ? "justify-center px-0" : ""}`}>
+      <div className={`flex shrink-0 items-center px-4 pt-6 pb-4 ${!showLabels ? "justify-center px-0" : ""}`}>
         <AkoMark size={36} />
       </div>
 
+      {/* Middle region: takes whatever height is left and scrolls on short
+          viewports, so expanding the rail (labels + the "Your Akọ" heading add
+          height) can never push the bottom block — Settings, profile, the pin
+          toggle — off the end of the screen. */}
+      <div className="flex min-h-0 flex-1 flex-col overflow-y-auto overflow-x-hidden no-scrollbar">
       {/* Primary destinations */}
       <nav className="flex flex-col gap-1 px-3">
         {!restricted && <NavItem to="/feed" icon={FeedIcon} label="Feed" collapsed={!showLabels} />}
@@ -271,11 +276,15 @@ export function Sidebar({ collapsed, onToggleCollapsed }: SidebarProps) {
 
       {/* Your Akọ */}
       <div className="px-3 pt-5">
-        {showLabels && (
-          <div className="px-3 pb-1.5 text-[11px] font-semibold uppercase tracking-wide text-ink-muted/70">
-            Your Akọ
-          </div>
-        )}
+        {/* Same height in both states (a hairline when collapsed) so hovering
+            the rail open doesn't shift everything below it downward. */}
+        <div className="h-6 px-3 pb-1.5 text-[11px] font-semibold uppercase tracking-wide text-ink-muted/70">
+          {showLabels ? (
+            "Your Akọ"
+          ) : (
+            <div aria-hidden className="mx-1 mt-2.5 h-px bg-border" />
+          )}
+        </div>
         <nav className="flex flex-col gap-1">
           <NavItem to={profileHref} icon={User} label="Profile" isActive={isOwnProfileActive} collapsed={!showLabels} />
           <button
@@ -296,7 +305,9 @@ export function Sidebar({ collapsed, onToggleCollapsed }: SidebarProps) {
         </nav>
       </div>
 
-      <div className="mt-auto px-3 pb-4">
+      </div>
+
+      <div className="shrink-0 px-3 pb-4 pt-2">
         <nav className="flex flex-col gap-1">
           <NavItem to="/settings" icon={SettingsIcon} label="Settings" collapsed={!showLabels} />
           {isAdmin && <NavItem to="/admin" icon={SettingsIcon} label="Admin" collapsed={!showLabels} />}
