@@ -12,6 +12,9 @@
 //              the FIRST file is used, which is exactly what older app builds expect. The response carries
 //              `file_name`: the name the saved copy should bear (the uploaded file's own name unless the creator
 //              typed a title for that slot). Falls back to projects.file_path if a project somehow has no rows.
+//              `all: true` is the batch form ("download all" — as a zip or one by one): ONE call returns every
+//              file as `files: [{ file_id, url, file_name, size_bytes }]` (names made unique, in slot order) under
+//              ONE download attempt, so the whole batch counts as a single download.
 //  - "audio" → project_media_details.audio_file_path
 //  - "video" → project_media_details.video_file_path
 //  - "image" → project_media_details.image_file_path
@@ -20,9 +23,9 @@
 //              allow_read_in_app.
 //
 // For kind "file" this also opens a download attempt row
-// (project_file_downloads, remembering which file) and returns its id as `download_id`. The
+// (project_file_downloads, remembering which file — null for a batch) and returns its id as `download_id`. The
 // client reports the attempt finished via the complete_file_download
-// RPC once the whole file has arrived — that is what bumps the
+// RPC once the whole file (or the whole batch) has arrived — that is what bumps the
 // project's download_count and notifies the creator.
 //
 // Deploy: supabase functions deploy get-project-file
@@ -42,7 +45,8 @@ const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY")!;
 
-// Long enough to start a download of a large (up to 1GB) file on a slow connection.
+// Long enough to start a download of a large (up to 1GB) file on a slow connection — and, for a batch, long enough
+// to work through every file in turn.
 const SIGNED_URL_EXPIRY_SECONDS = 60 * 60;
 
 type FileKind = "file" | "audio" | "video" | "image" | "book";
@@ -54,9 +58,24 @@ interface FileRequest {
   action?: FileAction;
   /** kind "file" only: which of the project's files. Omit for the first. */
   file_id?: string;
+  /** kind "file" only: every file of the project in one go (see header). Ignored when file_id is given. */
+  all?: boolean;
 }
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/** "Song.wav", "Song.wav" → "Song.wav", "Song (2).wav" — two slots may legitimately end up with the same name. */
+function uniqueNames(names: string[]): string[] {
+  const seen = new Map<string, number>();
+  return names.map((name) => {
+    const key = name.toLowerCase();
+    const n = (seen.get(key) ?? 0) + 1;
+    seen.set(key, n);
+    if (n === 1) return name;
+    const dot = name.lastIndexOf(".");
+    return dot > 0 ? `${name.slice(0, dot)} (${n})${name.slice(dot)}` : `${name} (${n})`;
+  });
+}
 
 serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -85,7 +104,7 @@ serve(async (req) => {
   const admin = createClient(SUPABASE_URL, SERVICE_ROLE_KEY);
 
   try {
-    const { project_id, kind = "file", action = "download", file_id }: FileRequest = await req.json();
+    const { project_id, kind = "file", action = "download", file_id, all }: FileRequest = await req.json();
 
     if (!project_id) {
       return jsonResponse({ error: "project_id is required" }, 400);
@@ -121,6 +140,60 @@ serve(async (req) => {
 
     if (!isOwner && !isFree && !hasPurchased) {
       return jsonResponse({ error: "Purchase required to access this file" }, 403);
+    }
+
+    // ── Batch: every file of a File project, one attempt ──
+    if (kind === "file" && all && !file_id) {
+      const { data: rows, error: rowsError } = await admin
+        .from("project_files")
+        .select("id, file_path, download_name, size_bytes")
+        .eq("project_id", project_id)
+        .order("position", { ascending: true });
+      if (rowsError) throw rowsError;
+
+      let list: { id: string | null; file_path: string; download_name: string; size_bytes: number | null }[] = rows ?? [];
+      if (list.length === 0 && project.file_path) {
+        // A project with no project_files rows yet: its legacy single file is the whole batch.
+        const tail = String(project.file_path).split("/").pop() ?? "download";
+        list = [{ id: null, file_path: project.file_path, download_name: tail, size_bytes: null }];
+      }
+      if (list.length === 0) {
+        return jsonResponse({ error: "This project has no hosted file" }, 404);
+      }
+
+      const { data: signed, error: signManyError } = await admin.storage
+        .from("private-content")
+        .createSignedUrls(list.map((f) => f.file_path), SIGNED_URL_EXPIRY_SECONDS);
+      if (signManyError || !signed || signed.length !== list.length || signed.some((s) => !s.signedUrl)) {
+        throw signManyError ?? new Error("Failed to sign URLs");
+      }
+
+      let batchDownloadId: string | null = null;
+      const { data: batchAttempt, error: batchAttemptError } = await admin
+        .from("project_file_downloads")
+        .insert({ project_id, user_id: user.id, file_id: null })
+        .select("id")
+        .single();
+      if (batchAttemptError) {
+        console.error("get-project-file: could not log batch download attempt:", batchAttemptError);
+      } else {
+        batchDownloadId = batchAttempt.id;
+      }
+
+      const names = uniqueNames(list.map((f) => f.download_name));
+      return jsonResponse(
+        {
+          download_id: batchDownloadId,
+          expires_in: SIGNED_URL_EXPIRY_SECONDS,
+          files: list.map((f, i) => ({
+            file_id: f.id,
+            url: signed[i].signedUrl,
+            file_name: names[i],
+            size_bytes: f.size_bytes,
+          })),
+        },
+        200,
+      );
     }
 
     let filePath: string | null = null;

@@ -29,6 +29,7 @@ import {
   Heart,
   Megaphone,
   KeyRound,
+  FileArchive,
   Play,
   Pause,
   Loader2,
@@ -80,6 +81,9 @@ import { MAX_THUMB_HEIGHT_VH, thumbnailLayout } from "../lib/thumbnailFit";
 import { FileFolderHero } from "./FileFolderArt";
 import { useDownloadProjectFile, DownloadCancelledError } from "../hooks/useDownloadProjectFile";
 import { useProjectFiles, type ProjectFile } from "../hooks/useProjectFiles";
+import { useDownloadAllProjectFiles, type DownloadAllMode } from "../hooks/useDownloadAllProjectFiles";
+import { OptionsModal } from "./OptionsModal";
+import { canZipFiles, formatFileSize } from "../lib/fileProject";
 import { ProjectFilesList } from "./ProjectFilesList";
 import { projectGalleryImages } from "../lib/projectImages";
 import { loginPathFor, returnPathOf } from "../lib/authRedirect";
@@ -413,6 +417,8 @@ export function ProjectCard({
   const buyBusy = purchaseProject.isPending || offerNudge.checking;
   const bookGig = useBookGig();
   const downloadProjectFile = useDownloadProjectFile();
+  const downloadAllFiles = useDownloadAllProjectFiles();
+  const [downloadAllOpen, setDownloadAllOpen] = useState(false);
   const getAudioStream = useGetProjectFile();
   const getVideoStream = useGetProjectFile();
   const getImageStream = useGetProjectFile();
@@ -688,6 +694,22 @@ export function ProjectCard({
     } catch (err) {
       if (err instanceof DownloadCancelledError) return;
       setError(await resolveFunctionErrorMessage(err, "Couldn't download the file."));
+    }
+  }
+
+  // "Download all" for a multi-file project: as one zip, or one file after another. The whole batch counts as one download.
+  async function handleDownloadAll(mode: DownloadAllMode) {
+    if (!user) {
+      goToLogin();
+      return;
+    }
+    setError(null);
+    try {
+      await downloadAllFiles.mutateAsync({ projectId: project.id, title: project.title, mode });
+      logFreeAccessIfNeeded("download");
+    } catch (err) {
+      if (err instanceof DownloadCancelledError) return;
+      setError(await resolveFunctionErrorMessage(err, "Couldn't download the files."));
     }
   }
 
@@ -1176,8 +1198,16 @@ export function ProjectCard({
       };
     }
   } else if (project.project_type === "file") {
-    // Several files: each has its own Download button in the list, so there's no single primary action.
-    detailCta = isMultiFile ? null : {
+    // Several files: "Download all" (zip, or one by one) is the primary action; each file in the list also has its own
+    // Download button for taking just one.
+    detailCta = isMultiFile ? {
+      label: downloadAllFiles.isPending
+        ? `${downloadAllFiles.status ?? "Preparing…"}${downloadAllFiles.progress != null ? ` · ${downloadAllFiles.progress}%` : ""}`
+        : "Download all",
+      icon: <Download size={18} />,
+      onClick: () => setDownloadAllOpen(true),
+      disabled: downloadAllFiles.isPending || downloadProjectFile.isPending,
+    } : {
       label: downloadProjectFile.isPending ? (downloadProjectFile.progress != null ? `Downloading ${downloadProjectFile.progress}%` : "Preparing…") : "Download",
       icon: <Download size={18} />,
       onClick: () => void handleOpenFile(),
@@ -1455,7 +1485,7 @@ export function ProjectCard({
           <ProjectFilesList
             files={projectFiles}
             hasAccess={hasAccess}
-            busy={downloadProjectFile.isPending}
+            busy={downloadProjectFile.isPending || downloadAllFiles.isPending}
             activeFileId={downloadProjectFile.isPending ? downloadProjectFile.variables?.fileId ?? null : null}
             progress={downloadProjectFile.progress}
             onDownload={(file) => void handleOpenFile(file)}
@@ -1665,10 +1695,17 @@ export function ProjectCard({
           {/* File — hosted download, no external link ever stored. */}
           {project.project_type === "file" &&
             (hasAccess && isMultiFile ? (
-              <span className="flex items-center gap-1.5 text-sm text-accent font-medium">
+              <button
+                type="button"
+                onClick={() => setDownloadAllOpen(true)}
+                disabled={downloadAllFiles.isPending || downloadProjectFile.isPending}
+                className="flex items-center gap-1.5 text-sm text-accent font-medium disabled:opacity-50"
+              >
                 <Download size={15} />
-                {fileCount} files
-              </span>
+                {downloadAllFiles.isPending
+                  ? `${downloadAllFiles.status ?? "Preparing…"}${downloadAllFiles.progress != null ? ` · ${downloadAllFiles.progress}%` : ""}`
+                  : `Download all (${fileCount} files)`}
+              </button>
             ) : hasAccess ? (
               <button
                 onClick={() => void handleOpenFile()}
@@ -1947,6 +1984,34 @@ export function ProjectCard({
           projectId={project.id}
           projectTitle={project.title}
           onClose={() => setManageAccessOpen(false)}
+        />
+      )}
+
+      {downloadAllOpen && isMultiFile && (
+        <OptionsModal
+          title={`Download all (${fileCount} files)`}
+          onClose={() => setDownloadAllOpen(false)}
+          items={[
+            {
+              key: "zip",
+              label: "As one zip",
+              icon: <FileArchive />,
+              description: canZipFiles(projectFiles ?? [])
+                ? "A single .zip with every file inside"
+                : "Too big for one zip (over 4 GB). Use one by one",
+              disabled: !canZipFiles(projectFiles ?? []),
+              onSelect: () => void handleDownloadAll("zip"),
+            },
+            {
+              key: "each",
+              label: "One by one",
+              icon: <Download />,
+              description: `Saves ${fileCount} separate files${
+                projectFiles && projectFiles.every((f) => f.size_bytes) ? ` (${formatFileSize(projectFiles.reduce((s, f) => s + (f.size_bytes ?? 0), 0))})` : ""
+              }`,
+              onSelect: () => void handleDownloadAll("each"),
+            },
+          ]}
         />
       )}
 
