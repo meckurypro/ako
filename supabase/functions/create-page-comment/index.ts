@@ -30,8 +30,8 @@
 // regardless of which function performed it, so nothing extra is
 // needed here for that.
 //
-// UPDATED — stances are support | pushback | question | comment. A comment with no stance is stored as the neutral
-// "comment"; "disagree" (sent by older app builds) is stored as "pushback".
+// UPDATED — stances are support | pushback | question. A comment with no stance (or the retired "comment") is stored
+// as "support" (Add); "disagree" (sent by older app builds) is stored as "pushback".
 //
 // CORS: called directly from the browser/app
 // (useComments.ts -> supabase.functions.invoke("create-page-comment")),
@@ -55,7 +55,7 @@ const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY")!;
 
-const VALID_STANCES = ["support", "pushback", "question", "comment"];
+const VALID_STANCES = ["support", "pushback", "question"];
 const MAX_CONTENT_LENGTH = 2000; // matches comments.content's CHECK constraint
 
 interface CreatePageCommentRequest {
@@ -63,12 +63,13 @@ interface CreatePageCommentRequest {
   post_id: string;
   parent_comment_id?: string; // present when replying to another comment
   content: string;
-  stance?: string; // absent = the neutral "comment"
+  stance?: string; // absent = "support" (Add)
 }
 
-/** Absent -> the neutral "comment"; the retired "disagree" -> "pushback"; anything else must be a known stance. */
+/** Absent or the retired "comment" -> "support" (Add); the retired "disagree" -> "pushback"; anything else must be a known stance. */
 function resolveStance(raw: unknown): { stance: string } | { error: string } {
-  if (raw === undefined || raw === null || raw === "") return { stance: "comment" };
+  if (raw === undefined || raw === null || raw === "") return { stance: "support" };
+  if (raw === "comment") return { stance: "support" };
   if (raw === "disagree") return { stance: "pushback" };
   if (typeof raw === "string" && VALID_STANCES.includes(raw)) return { stance: raw };
   return { error: `stance must be one of: ${VALID_STANCES.join(", ")}` };

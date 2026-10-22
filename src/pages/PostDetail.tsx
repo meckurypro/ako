@@ -112,10 +112,10 @@ export function PostDetail() {
                 parentCommentId={null}
                 total={post.comment_count}
                 counts={{
-                  support: post.support_count,
+                  support: post.support_count + post.neutral_count,
                   question: post.question_count,
                   pushback: post.pushback_count,
-                  comment: post.neutral_count,
+                  comment: 0,
                 }}
               />
             </div>

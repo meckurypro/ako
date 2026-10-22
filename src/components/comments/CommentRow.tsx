@@ -3,7 +3,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { Avatar } from "../Avatar";
 import { renderFormattedText } from "../../lib/formatText";
 import type { CommentWithAuthor } from "../../hooks/useComments";
-import { CommentActionBar, CommentMoreMenu } from "./CommentActionBar";
+import { CommentActionBar } from "./CommentActionBar";
 import { STANCE_TONE, timeAgoCompact } from "./stance";
 
 /**
@@ -53,16 +53,13 @@ export function CommentRow({ comment, tinted = true }: { comment: CommentWithAut
           <span className="text-xs text-ink-muted flex-shrink-0">· {timeAgoCompact(comment.created_at)}</span>
           {comment.edited_at && <span className="text-xs text-ink-muted flex-shrink-0">· edited</span>}
           {tone && <span className={`text-[11px] font-medium flex-shrink-0 ${tone.text}`}>· {tone.label}</span>}
-          <div className="ml-auto pl-2 flex-shrink-0">
-            <CommentMoreMenu comment={comment} />
-          </div>
         </div>
 
         <p className="text-[15px] leading-snug text-ink mt-0.5 whitespace-pre-wrap break-words">
           {renderFormattedText(comment.content, "c")}
         </p>
 
-        <CommentActionBar comment={comment} size="sm" />
+        <CommentActionBar comment={comment} />
       </div>
     </article>
   );

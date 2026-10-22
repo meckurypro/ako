@@ -1,6 +1,8 @@
 // src/components/comments/CommentEngagement.tsx
 import { createContext, useCallback, useContext, useMemo, useRef, useState, type ReactNode } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
+import { useQueryClient } from "@tanstack/react-query";
+import { supabase } from "../../lib/supabase";
 import { useAuth } from "../../hooks/useAuth";
 import { useLiveThread } from "../../hooks/useLiveCounts";
 import {
@@ -102,21 +104,32 @@ export function CommentEngagementProvider({ postId, children }: { postId: string
     }
   }
 
+  const queryClient = useQueryClient();
   const share = useCallback(
     async (comment: CommentWithAuthor) => {
       const url = commentUrl(postId, comment.id);
+      let shared = false;
       if (navigator.share) {
         try {
           await navigator.share({ title: "A comment on Akọ", url });
+          shared = true;
         } catch {
           // Native share sheet dismissed — nothing to do.
         }
       } else {
         await navigator.clipboard.writeText(url);
         toast("Link copied.", { variant: "success" });
+        shared = true;
+      }
+      if (!shared) return;
+      // Count it once per person, then refresh the comment so the number on the Share button moves.
+      const { error } = await supabase.rpc("record_comment_share", { p_comment_id: comment.id });
+      if (!error) {
+        void queryClient.invalidateQueries({ queryKey: ["comment", comment.id] });
+        void queryClient.invalidateQueries({ queryKey: ["comment-list"] });
       }
     },
-    [postId, toast]
+    [postId, toast, queryClient]
   );
 
   const value = useMemo<CommentEngagementCtx>(

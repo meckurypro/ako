@@ -20,8 +20,8 @@
 // the loser gets 23505 and returns the winner's row. Requests without the field behave exactly as
 // before.
 //
-// UPDATED — stances are support | pushback | question | comment. A comment with no stance is stored as the neutral
-// "comment"; "disagree" (sent by older app builds) is stored as "pushback". See supabase/ako_stances_question_comment.sql.
+// UPDATED — stances are support | pushback | question. A comment with no stance (or the retired "comment") is stored
+// as "support" (Add); "disagree" (sent by older app builds) is stored as "pushback". See supabase/ako_stances_question_comment.sql.
 //
 // Deploy: supabase functions deploy create-comment
 // Secrets required: SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, SUPABASE_ANON_KEY
@@ -40,7 +40,7 @@ const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY")!;
 
-const VALID_STANCES = ["support", "pushback", "question", "comment"];
+const VALID_STANCES = ["support", "pushback", "question"];
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 interface CreateCommentRequest {
@@ -51,9 +51,10 @@ interface CreateCommentRequest {
   client_request_id?: string | null;
 }
 
-/** Absent -> the neutral "comment"; the retired "disagree" -> "pushback"; anything else must be a known stance. */
+/** Absent or the retired "comment" -> "support" (Add); the retired "disagree" -> "pushback"; anything else must be a known stance. */
 function resolveStance(raw: unknown): { stance: string } | { error: string } {
-  if (raw === undefined || raw === null || raw === "") return { stance: "comment" };
+  if (raw === undefined || raw === null || raw === "") return { stance: "support" };
+  if (raw === "comment") return { stance: "support" };
   if (raw === "disagree") return { stance: "pushback" };
   if (typeof raw === "string" && VALID_STANCES.includes(raw)) return { stance: raw };
   return { error: `stance must be one of: ${VALID_STANCES.join(", ")}` };
