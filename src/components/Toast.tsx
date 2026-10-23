@@ -8,10 +8,10 @@
 // that shows up the same way everywhere: bottom-anchored, stacked,
 // auto-dismissing, above everything including modals.
 import { createContext, useCallback, useContext, useRef, useState, type ReactNode } from "react";
-import { CheckCircle2, XCircle, Info } from "lucide-react";
+import { CheckCircle2, XCircle, Info, Loader2 } from "lucide-react";
 import { Portal } from "./Portal";
 
-type ToastVariant = "default" | "success" | "error";
+type ToastVariant = "default" | "success" | "error" | "loading";
 
 interface ToastItem {
   id: number;
@@ -28,16 +28,25 @@ interface ToastOptions {
   duration?: number;
 }
 
-type ToastFn = (message: string, options?: ToastOptions) => void;
+/** Returned by every toast call: lets a "loading" toast be replaced by the real outcome the moment it is known. */
+export interface ToastHandle {
+  dismiss: () => void;
+}
+
+type ToastFn = (message: string, options?: ToastOptions) => ToastHandle;
 
 const ToastContext = createContext<ToastFn | null>(null);
 
 const DEFAULT_DURATION_MS = 2000;
+// A loading toast stays until whoever raised it dismisses it; this is only the safety net so a forgotten one can't
+// stay on screen forever.
+const LOADING_MAX_MS = 30000;
 
 const ICON_FOR: Record<ToastVariant, ReactNode> = {
   default: <Info size={18} className="text-ink-muted shrink-0" />,
   success: <CheckCircle2 size={18} className="text-accent shrink-0" />,
   error: <XCircle size={18} className="text-danger shrink-0" />,
+  loading: <Loader2 size={18} className="text-accent shrink-0 animate-spin" />,
 };
 
 export function ToastProvider({ children }: { children: ReactNode }) {
@@ -48,9 +57,18 @@ export function ToastProvider({ children }: { children: ReactNode }) {
     const id = nextId.current++;
     const variant = options?.variant ?? "default";
     setToasts((prev) => [...prev, { id, message, variant }]);
-    window.setTimeout(() => {
-      setToasts((prev) => prev.filter((t) => t.id !== id));
-    }, options?.duration ?? DEFAULT_DURATION_MS);
+    const timer = window.setTimeout(
+      () => {
+        setToasts((prev) => prev.filter((t) => t.id !== id));
+      },
+      options?.duration ?? (variant === "loading" ? LOADING_MAX_MS : DEFAULT_DURATION_MS)
+    );
+    return {
+      dismiss: () => {
+        window.clearTimeout(timer);
+        setToasts((prev) => prev.filter((t) => t.id !== id));
+      },
+    };
   }, []);
 
   return (
