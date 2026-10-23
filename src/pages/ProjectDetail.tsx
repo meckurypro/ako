@@ -61,6 +61,7 @@ import { Wordmark } from "../components/Wordmark";
 import { ForewordsSheet } from "../components/ForewordsSheet";
 import { ForewordInviteModal } from "../components/ForewordInviteModal";
 import { isForewordSupportedType, isInviteOpen, useMyForeword, useProjectForewords } from "../hooks/useForewords";
+import { SafeAudio } from "../components/MediaPlaceholder";
 
 function ProjectRail({ title, projects }: { title: string; projects: Project[] }) {
   if (projects.length === 0) return null;
@@ -104,7 +105,7 @@ function HighlightTile({
       {highlight.media_type === "audio" && (
         <div className="p-3 flex items-center gap-2">
           <Music size={16} className="text-ink-muted flex-shrink-0" />
-          <audio src={highlight.file_url} controls className="w-full h-9" />
+          <SafeAudio src={highlight.file_url} className="w-full h-9" />
         </div>
       )}
       {highlight.caption && (

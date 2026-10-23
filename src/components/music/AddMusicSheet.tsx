@@ -8,7 +8,8 @@
 // rather than creating another clip-selection system here.
 
 import { useEffect, useRef, useState } from "react";
-import { Search, X, Play, Pause, Music as MusicIcon } from "lucide-react";
+import { Search, X, Play, Pause } from "lucide-react";
+import { SafeCover } from "../MediaPlaceholder";
 import { Portal } from "../Portal";
 import { useBackDismiss } from "../../hooks/useBackDismiss";
 import { useScrollLock } from "../../hooks/useScrollLock";
@@ -84,19 +85,13 @@ export function AddMusicSheet({ onSelect, onClose }: AddMusicSheetProps) {
                 <div key={song.id} className="w-full flex items-center gap-3 py-2 px-1 rounded-xl hover:bg-canvas">
                   <button
                     onClick={() => togglePreview(song)}
-                    className="relative w-9 h-9 rounded-full bg-accent-soft flex items-center justify-center flex-shrink-0 overflow-hidden"
-                    style={song.cover_url ? { backgroundImage: `url(${song.cover_url})`, backgroundSize: "cover" } : undefined}
+                    className="relative w-9 h-9 rounded-full flex-shrink-0 overflow-hidden"
                     aria-label={playingId === song.id ? "Pause preview" : "Preview"}
                   >
-                    {song.cover_url ? (
-                      <span className="absolute inset-0 bg-canvas/40 flex items-center justify-center">
-                        {playingId === song.id ? <Pause size={13} className="text-canvas" /> : <Play size={13} className="text-canvas" />}
-                      </span>
-                    ) : playingId === song.id ? (
-                      <Pause size={14} className="text-accent" />
-                    ) : (
-                      <MusicIcon size={14} className="text-accent" />
-                    )}
+                    <SafeCover src={song.cover_url} seed={song.id} className="absolute inset-0" iconSize={14} />
+                    <span className="absolute inset-0 bg-canvas/40 flex items-center justify-center">
+                      {playingId === song.id ? <Pause size={13} className="text-canvas" /> : <Play size={13} className="text-canvas" />}
+                    </span>
                   </button>
                   <button onClick={() => onSelect(song)} className="min-w-0 flex-1 text-left">
                     <p className="text-sm font-medium text-ink truncate">{song.title}</p>

@@ -70,6 +70,7 @@ import {
   useReviewSubmission,
   type RoomMeeting,
 } from "../hooks/useRoom";
+import { SafeAudio } from "../components/MediaPlaceholder";
 
 type Tab = "classroom" | "chat" | "meetings" | "assignments";
 
@@ -386,7 +387,7 @@ function ClassroomTab({ projectId, isHost }: { projectId: string; isHost: boolea
               )}
               {p.type === "video" && p.media_url && <video src={p.media_url} controls className="w-full rounded-lg max-h-72 mt-1" />}
               {p.type === "image" && p.media_url && <img src={p.media_url} alt="" className="w-full rounded-lg mt-1" />}
-              {p.type === "audio" && p.media_url && !voiceNote && <audio src={p.media_url} controls className="w-full h-9 mt-1" />}
+              {p.type === "audio" && p.media_url && !voiceNote && <SafeAudio src={p.media_url} className="w-full h-9 mt-1" />}
               <p className="text-xs text-ink-muted mt-1.5">{new Date(p.created_at).toLocaleString()}</p>
             </div>
           );
@@ -579,7 +580,7 @@ function SubmissionReview({ assignmentId }: { assignmentId: string }) {
           {s.content && <p className="text-sm text-ink mb-1">{s.content}</p>}
           {s.media_url && s.format === "video" && <video src={s.media_url} controls className="w-full rounded-lg max-h-56 mb-1" />}
           {s.media_url && s.format === "image" && <img src={s.media_url} alt="" className="w-full rounded-lg mb-1" />}
-          {s.media_url && s.format === "audio" && <audio src={s.media_url} controls className="w-full h-9 mb-1" />}
+          {s.media_url && s.format === "audio" && <SafeAudio src={s.media_url} className="w-full h-9 mb-1" />}
           {s.feedback && <p className="text-xs text-ink-muted italic mb-1">Feedback: {s.feedback}</p>}
           {s.status === "pending" && (
             <div className="flex flex-col gap-1.5 mt-1">

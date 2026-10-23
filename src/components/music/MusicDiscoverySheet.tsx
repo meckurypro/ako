@@ -7,7 +7,8 @@
 // rather than inventing a separate musician-account surface.
 
 import { useNavigate } from "react-router-dom";
-import { Music as MusicIcon, X } from "lucide-react";
+import { X } from "lucide-react";
+import { SafeCover } from "../MediaPlaceholder";
 import { Portal } from "../Portal";
 import { Avatar } from "../Avatar";
 import { useBackDismiss } from "../../hooks/useBackDismiss";
@@ -66,12 +67,7 @@ export function MusicDiscoverySheet({ catalogueId, onClose }: MusicDiscoveryShee
 
           <div className="px-4 py-5">
             <div className="flex items-center gap-3 mb-5">
-              <div
-                className="w-14 h-14 rounded-xl bg-accent-soft flex items-center justify-center flex-shrink-0 overflow-hidden"
-                style={entry.cover_url ? { backgroundImage: `url(${entry.cover_url})`, backgroundSize: "cover" } : undefined}
-              >
-                {!entry.cover_url && <MusicIcon size={20} className="text-accent" />}
-              </div>
+              <SafeCover src={entry.cover_url} seed={entry.title} className="w-14 h-14 rounded-xl flex-shrink-0" iconSize={20} />
               <div className="min-w-0">
                 <p className="text-base font-medium text-ink truncate">{entry.title}</p>
                 <p className="text-sm text-ink-muted truncate">

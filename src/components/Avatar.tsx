@@ -1,3 +1,6 @@
+import { useEffect, useState } from "react";
+import { gradientFor } from "../lib/mediaFallback";
+
 interface AvatarProps {
   src?: string | null;
   name: string;
@@ -16,6 +19,9 @@ const sizeClasses = {
 };
 
 export function Avatar({ src, name, size = "md" }: AvatarProps) {
+  const [failed, setFailed] = useState(false);
+  useEffect(() => setFailed(false), [src]);
+
   const initials = name
     .split(" ")
     .map((w) => w[0])
@@ -23,20 +29,26 @@ export function Avatar({ src, name, size = "md" }: AvatarProps) {
     .join("")
     .toUpperCase();
 
-  if (src) {
+  if (src && !failed) {
     return (
       <img
         src={src}
         alt={name}
+        data-no-fallback
+        onError={() => setFailed(true)}
         className={`${sizeClasses[size]} rounded-full object-cover flex-shrink-0`}
       />
     );
   }
 
+  // Missing/broken photo → initials on a gradient seeded by name (stable per person).
+  const [a, b] = gradientFor(name);
   return (
     <div
-      className={`${sizeClasses[size]} rounded-full bg-accent-soft text-accent font-medium
-        flex items-center justify-center flex-shrink-0`}
+      style={src ? { background: `linear-gradient(135deg, ${a}, ${b})` } : undefined}
+      className={`${sizeClasses[size]} rounded-full font-medium flex items-center justify-center flex-shrink-0 ${
+        src ? "text-white" : "bg-accent-soft text-accent"
+      }`}
     >
       {initials}
     </div>

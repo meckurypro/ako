@@ -111,6 +111,8 @@ export function VoiceMessageBubble({
   // needs a signed URL fetched first — the bucket is private, so
   // there's nothing playable to point <audio> at until this resolves.
   const [resolvedUrl, setResolvedUrl] = useState<string | null>(url ?? null);
+  // File missing from storage (e.g. exists in another Supabase project only) → show a placeholder instead of a dead player.
+  const [unavailable, setUnavailable] = useState(false);
 
   useEffect(() => {
     if (url) {
@@ -120,7 +122,9 @@ export function VoiceMessageBubble({
     if (!path) return;
     let cancelled = false;
     getSignedAudioUrl(path).then((signed) => {
-      if (!cancelled) setResolvedUrl(signed);
+      if (cancelled) return;
+      setResolvedUrl(signed);
+      setUnavailable(!signed);
     });
     return () => {
       cancelled = true;
@@ -291,6 +295,15 @@ export function VoiceMessageBubble({
     );
   }
 
+  if (unavailable) {
+    return (
+      <div className={`flex items-center gap-2 py-1 text-sm italic ${isMine ? "text-white/70" : "text-ink-muted"}`}>
+        <Mic size={15} className="flex-shrink-0" />
+        <span>Voice message unavailable</span>
+      </div>
+    );
+  }
+
   const showSpeed = playing || elapsed > 0;
   const shownProgress = scrub ?? progress;
   const shownElapsed = scrub !== null ? scrub * durationOf(audioRef.current, durationSec) : elapsed;
@@ -318,7 +331,7 @@ export function VoiceMessageBubble({
   return (
     <div className="flex items-center gap-2 w-[264px] max-w-full py-1">
       {/* eslint-disable-next-line jsx-a11y/media-has-caption */}
-      {resolvedUrl && <audio ref={audioRef} src={resolvedUrl} preload="metadata" className="hidden" />}
+      {resolvedUrl && <audio ref={audioRef} src={resolvedUrl} preload="metadata" className="hidden" data-no-fallback onError={() => setUnavailable(true)} />}
       {isMine && photoSlot}
       <button
         type="button"

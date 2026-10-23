@@ -26,6 +26,7 @@ import { Avatar } from "../components/Avatar";
 import { BookRichText } from "../components/BookRichText";
 import { parseBook } from "../lib/bookFormat";
 import { useToast } from "../components/Toast";
+import { SafeAudio } from "../components/MediaPlaceholder";
 
 // A link is only ever opened if it is plain http(s) — never javascript:/data: from a database column.
 function safeHref(url: string | null | undefined): string | null {
@@ -222,7 +223,7 @@ function HostedMedia({
     );
   }
   if (kind === "image") return <img src={src} alt="" className="w-full rounded-2xl border border-border" />;
-  if (kind === "audio") return <audio src={src} controls autoPlay className="w-full" />;
+  if (kind === "audio") return <SafeAudio src={src} autoPlay className="w-full" />;
   return <video src={src} controls autoPlay playsInline className="w-full rounded-2xl bg-black" />;
 }
 
