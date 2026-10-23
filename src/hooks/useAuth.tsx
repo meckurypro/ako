@@ -26,10 +26,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     // Get the current session on load
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-      setLoading(false);
-    });
+    // Never leave the app stuck on "Loading…": if reading the stored session fails (blocked storage, Safari privacy
+    // modes, a hung lock) treat it as signed-out and let the login page render.
+    supabase.auth
+      .getSession()
+      .then(({ data: { session } }) => setSession(session))
+      .catch((err) => console.error("getSession failed:", err))
+      .finally(() => setLoading(false));
 
     // Subscribe to auth changes (sign in, sign out, token refresh)
     const {

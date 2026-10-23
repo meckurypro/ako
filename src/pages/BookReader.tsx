@@ -1,7 +1,8 @@
 // src/pages/BookReader.tsx
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import * as pdfjsLib from "pdfjs-dist";
+// Legacy build: self-polyfills Promise.withResolvers / URL.parse etc., so it also runs on iOS < 18.
+import * as pdfjsLib from "pdfjs-dist/legacy/build/pdf.mjs";
 import type { PDFDocumentProxy } from "pdfjs-dist";
 import { ArrowLeft, ChevronLeft, ChevronRight, Sun, Settings2, X } from "lucide-react";
 import { useProject, useHasPurchased, isProjectFree, useGetProjectFile } from "../hooks/useProjects";
@@ -19,7 +20,7 @@ import { Book } from "./Book";
 import { useBookChapters, useExtractBookPdf, bookOcrMessage, useBookOcrJob, useStartBookOcr } from "../hooks/useBookBuilder";
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
-  "pdfjs-dist/build/pdf.worker.min.mjs",
+  "pdfjs-dist/legacy/build/pdf.worker.min.mjs",
   import.meta.url
 ).href;
 

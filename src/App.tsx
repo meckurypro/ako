@@ -1,4 +1,5 @@
 // src/App.tsx
+import { lazy, Suspense } from "react";
 import { createBrowserRouter, RouterProvider, Routes, Route, Navigate, useLocation, type Location } from "react-router-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { AuthProvider } from "./hooks/useAuth";
@@ -52,7 +53,6 @@ import { EditPage } from "./pages/EditPage";
 
 import { WalletPage } from "./pages/Wallet";
 import { GiftVaultPage } from "./pages/GiftVault";
-import { FundWallet } from "./pages/FundWallet";
 import { Withdraw } from "./pages/Withdraw";
 import { DepositCallback } from "./pages/DepositCallback";
 import { DepositReturn } from "./pages/DepositReturn";
@@ -105,13 +105,8 @@ import { EditProject } from "./pages/EditProject";
 import { ProjectDetail } from "./pages/ProjectDetail";
 import { ProjectBySlug } from "./pages/ProjectBySlug";
 import { GuestPass } from "./pages/GuestPass";
-import { Room } from "./pages/Room";
 import { Course } from "./pages/Course";
 import { Book, BookEdit } from "./pages/Book";
-import { BookReader } from "./pages/BookReader";
-import { MeetingRoom } from "./pages/MeetingRoom";
-import { TicketView } from "./pages/TicketView";
-import { EventCheckIn } from "./pages/EventCheckIn";
 import { Activity } from "./pages/Activity";
 import { DraftPosts } from "./pages/DraftPosts";
 import { ScheduledPosts } from "./pages/ScheduledPosts";
@@ -125,6 +120,25 @@ import { MyGigs } from "./pages/MyGigs";
 import { Offers } from "./pages/Offers";
 import { HistoryActivity } from "./pages/HistoryActivity";
 import { registerOfflineMutations } from "./lib/offlineMutations";
+
+// Heavy, rarely-needed screens are code-split so their libraries (pdf.js, LiveKit, QR/Paystack) are NOT part of
+// the startup bundle. A static import of pdf.js used to run its module-level code on every page load; on older
+// iPhones that throws before React mounts and leaves a blank page. Lazy-loaded, a failure here can only affect
+// the one screen (the ErrorBoundary catches it) and never login/signup.
+const FundWallet = lazy(() => import("./pages/FundWallet").then((m) => ({ default: m.FundWallet })));
+const Room = lazy(() => import("./pages/Room").then((m) => ({ default: m.Room })));
+const BookReader = lazy(() => import("./pages/BookReader").then((m) => ({ default: m.BookReader })));
+const MeetingRoom = lazy(() => import("./pages/MeetingRoom").then((m) => ({ default: m.MeetingRoom })));
+const TicketView = lazy(() => import("./pages/TicketView").then((m) => ({ default: m.TicketView })));
+const EventCheckIn = lazy(() => import("./pages/EventCheckIn").then((m) => ({ default: m.EventCheckIn })));
+
+function RouteFallback() {
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-canvas">
+      <p className="text-ink-muted">Loading…</p>
+    </div>
+  );
+}
 
 /** Live post edits (see usePostRealtime) — needs the signed-in user, so it lives inside AuthProvider. */
 function PostRealtime() {
@@ -203,6 +217,7 @@ function AppRoutes() {
 
   return (
     <AppShell>
+      <Suspense fallback={<RouteFallback />}>
       <Routes location={backgroundLocation ?? location}>
             <Route
               path="/"
@@ -1109,6 +1124,7 @@ function AppRoutes() {
                 heading, no nav, no recovery path. */}
             <Route path="*" element={<NotFound />} />
       </Routes>
+      </Suspense>
 
       {backgroundLocation && (
         <Routes>

@@ -106,6 +106,47 @@
   </head>
   <body>
     <div id="root"></div>
+    <!--
+      Boot guard. If the app bundle fails before React mounts (a script that won't parse/run on an older browser,
+      a blocked request, a module that throws on load) the React ErrorBoundary can't help — it doesn't exist yet —
+      and the visitor is left staring at an empty page. This shows a plain, recoverable message instead, using
+      only ES5 so it runs everywhere. It does nothing once #root has content.
+    -->
+    <script>
+      (function () {
+        var shown = false;
+        function mounted() {
+          var r = document.getElementById("root");
+          return !!(r && r.childElementCount);
+        }
+        function show() {
+          if (shown || mounted()) return;
+          shown = true;
+          var d = document.createElement("div");
+          d.setAttribute("role", "alert");
+          d.style.cssText =
+            "position:fixed;top:0;right:0;bottom:0;left:0;z-index:99999;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:24px;text-align:center;font:15px/1.5 -apple-system,BlinkMacSystemFont,sans-serif;background:#131311;color:#e8e6df";
+          d.innerHTML =
+            '<p style="margin:0 0 6px;font-size:17px;font-weight:600">Akọ didn\u2019t finish loading</p>' +
+            '<p style="margin:0 0 18px;max-width:300px;opacity:.7">Please check your connection and try again. If it keeps happening, update your browser or turn off content blockers for this site.</p>' +
+            '<button style="padding:10px 22px;border:0;border-radius:999px;font:inherit;font-weight:600;background:#e8e6df;color:#131311" onclick="location.reload()">Reload</button>';
+          document.body.appendChild(d);
+        }
+        // `true` = capture phase, so failed <script> loads (which don't bubble) are caught too.
+        window.addEventListener("error", function () { setTimeout(show, 0); }, true);
+        window.addEventListener("unhandledrejection", function () { setTimeout(show, 0); });
+        // Last resort: nothing mounted after 10s (hung request, blocked script).
+        setTimeout(show, 10000);
+        // If the app mounts late, remove the message.
+        var t = setInterval(function () {
+          if (mounted()) {
+            clearInterval(t);
+            var a = document.querySelector('body > div[role="alert"]');
+            if (a) a.parentNode.removeChild(a);
+          }
+        }, 500);
+      })();
+    </script>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
