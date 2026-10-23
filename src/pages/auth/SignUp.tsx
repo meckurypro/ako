@@ -46,7 +46,7 @@ export function SignUp() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   // Google is the primary way in; the email form is the secondary option
-  // (always visible in add-account mode, which has no Google button).
+  // (always visible in add-account mode, under the Google button).
   const [showEmail, setShowEmail] = useState(false);
   const emailVisible = addMode || showEmail;
 
@@ -215,12 +215,8 @@ export function SignUp() {
           </p>
         )}
 
-        {!addMode && (
-          <>
-            <GoogleAuthButton returnTo={returnTo} label="Sign up with Google" />
-            <AuthOrDivider />
-          </>
-        )}
+        <GoogleAuthButton returnTo={returnTo} label="Sign up with Google" addAccount={addMode} />
+        <AuthOrDivider />
 
         {!emailVisible && (
           <button
@@ -293,20 +289,6 @@ export function SignUp() {
           </Button>
         </form>
         )}
-
-        {/* Add-account mode has no Google button: see the note in Login.tsx. */}
-
-        <p className="text-center text-xs text-ink-muted mt-5">
-          By continuing, you agree to our{" "}
-          <a href="/terms" target="_blank" rel="noopener noreferrer" className="text-accent hover:underline">
-            Terms of Service
-          </a>{" "}
-          and{" "}
-          <a href="/privacy" target="_blank" rel="noopener noreferrer" className="text-accent hover:underline">
-            Privacy Policy
-          </a>
-          .
-        </p>
 
         <p className="text-center text-sm text-ink-muted mt-6">
           Already have an account?{" "}

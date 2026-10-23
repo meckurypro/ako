@@ -18,6 +18,7 @@ export function AkoMark({
    * Cast a soft shadow from the artwork's own shape (the letters), not from the image box. A box-shadow
    * outlines the whole rectangle and reads as a white card on light surfaces; drop-shadow follows the
    * transparent PNG's alpha, so only the "akọ" lettering casts onto the background.
+   * Dark theme only: on light surfaces the (green) shadow read as a smudge, so light renders the plain icon.
    */
   shadow?: boolean;
 }) {
@@ -35,13 +36,8 @@ export function AkoMark({
       height={size}
       className={`inline-block rounded-[4px] align-text-bottom flex-shrink-0 ${className}`}
       style={
-        shadow
-          ? {
-              filter:
-                resolvedTheme === "dark"
-                  ? "drop-shadow(0 6px 10px rgba(0, 0, 0, 0.55))"
-                  : "drop-shadow(0 6px 9px rgba(20, 70, 48, 0.30))",
-            }
+        shadow && resolvedTheme === "dark"
+          ? { filter: "drop-shadow(0 6px 10px rgba(0, 0, 0, 0.55))" }
           : undefined
       }
     />

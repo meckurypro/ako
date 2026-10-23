@@ -7,23 +7,53 @@
 //                      APK, the modal also shows a direct "Download APK" button (that is the "or
 //                      download it directly" the toast points at). iPhone has no equivalent file, so
 //                      iPhone users are told to keep using the web app until the App Store link is live.
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import { ChevronRight, Download, Loader2 } from "lucide-react";
 import { Modal } from "./Modal";
 import { AkoMark } from "./AkoMark";
 import { AppStoreGlyph, PlayStoreGlyph } from "./BrandIcons";
 import { useToast } from "./Toast";
-import {
-  formatApkSize,
-  getApkDownloadUrl,
-  useAppDownloadSettings,
-} from "../hooks/useAppDownload";
+import { getApkDownloadUrl, useAppDownloadSettings } from "../hooks/useAppDownload";
 
 // These messages need longer than the app's usual 2 s toast to actually be read.
 const MESSAGE_MS = 4500;
 
 function openStore(url: string) {
   window.open(url, "_blank", "noopener,noreferrer");
+}
+
+// Long enough that the spinner is actually seen when the server answers instantly.
+const MIN_LOADING_MS = 500;
+// If the server never answers, stop waiting and hand the link to the browser anyway.
+const PREFLIGHT_TIMEOUT_MS = 8000;
+
+/**
+ * A plain <a download> gives no signal at all — the tap looks like nothing happened until the browser's own
+ * download UI appears. So the file is asked for first with a one-byte ranged request: the moment the server
+ * answers, the real download is handed to the browser (the link carries ?download=, so storage replies with a
+ * Content-Disposition: attachment and the browser saves it instead of navigating). That answer is the "download
+ * has begun" moment the spinner and the toast key off. The one-byte request never pulls the 100+ MB into memory.
+ */
+async function waitForServer(url: string): Promise<void> {
+  const controller = new AbortController();
+  const timer = window.setTimeout(() => controller.abort(), PREFLIGHT_TIMEOUT_MS);
+  try {
+    const res = await fetch(url, { headers: { Range: "bytes=0-0" }, signal: controller.signal });
+    if (!res.ok && res.status !== 206) throw new Error(`Download link returned ${res.status}`);
+  } finally {
+    window.clearTimeout(timer);
+  }
+}
+
+function startBrowserDownload(url: string) {
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = "Ako.apk";
+  a.rel = "noopener";
+  a.style.display = "none";
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
 }
 
 function StoreButton({
@@ -76,6 +106,35 @@ export function DownloadAppModal({ onClose }: { onClose: () => void }) {
   // The APK is the stand-in for a Play Store listing that doesn't exist yet — once the store link is
   // live, only the store is offered.
   const showApk = !androidUrl && !!apkUrl;
+  const [apkStarting, setApkStarting] = useState(false);
+
+  async function handleApkDownload() {
+    if (!apkUrl || apkStarting) return;
+    setApkStarting(true);
+    const startedAt = Date.now();
+    try {
+      await waitForServer(apkUrl);
+    } catch (err) {
+      // A server that answered with an error is a real failure. A blocked/aborted preflight (CORS quirk, slow
+      // network) isn't proof the file is missing, so in that case the browser is still given the link to try.
+      if (err instanceof Error && err.message.startsWith("Download link returned")) {
+        setApkStarting(false);
+        toast("Couldn't start the download. Please try again in a moment.", {
+          variant: "error",
+          duration: MESSAGE_MS,
+        });
+        return;
+      }
+    }
+    const remaining = MIN_LOADING_MS - (Date.now() - startedAt);
+    if (remaining > 0) await new Promise((resolve) => window.setTimeout(resolve, remaining));
+    startBrowserDownload(apkUrl);
+    setApkStarting(false);
+    toast("Download started. Open the file when it finishes to install.", {
+      variant: "success",
+      duration: MESSAGE_MS,
+    });
+  }
 
   function handleAndroid() {
     if (androidUrl) return openStore(androidUrl);
@@ -138,17 +197,16 @@ export function DownloadAppModal({ onClose }: { onClose: () => void }) {
       )}
 
       {showApk && (
-        <a
-          href={apkUrl!}
-          download="Ako.apk"
-          className="mt-4 flex items-center justify-center gap-2 rounded-xl bg-accent py-3 text-sm font-medium text-canvas hover:bg-accent-hover transition-colors"
+        <button
+          type="button"
+          onClick={handleApkDownload}
+          disabled={apkStarting}
+          aria-busy={apkStarting}
+          className="mt-4 w-full flex items-center justify-center gap-2 rounded-xl bg-accent py-3 text-sm font-medium text-canvas hover:bg-accent-hover transition-colors disabled:opacity-80 disabled:cursor-wait"
         >
-          <Download size={16} />
-          Download Android APK
-          {settings?.apk_size_bytes ? (
-            <span className="opacity-75">· {formatApkSize(settings.apk_size_bytes)}</span>
-          ) : null}
-        </a>
+          {apkStarting ? <Loader2 size={16} className="animate-spin" /> : <Download size={16} />}
+          {apkStarting ? "Starting download…" : "Download Android APK"}
+        </button>
       )}
       {showApk && (
         <p className="text-[11px] text-ink-muted text-center mt-2 leading-snug">

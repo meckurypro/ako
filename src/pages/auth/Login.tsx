@@ -6,6 +6,7 @@ import { supabase } from "../../lib/supabase";
 import { useAddAccount } from "../../hooks/useAccountSwitcher";
 import { Wordmark } from "../../components/Wordmark";
 import { AuthPattern } from "../../components/AuthPattern";
+import { useToast } from "../../components/Toast";
 import { FormField } from "../../components/FormField";
 import { PasswordField } from "../../components/PasswordField";
 import { Button } from "../../components/Button";
@@ -26,6 +27,7 @@ export function Login() {
   // signed in already is the whole point) and what submit does.
   const addMode = searchParams.get("add") === "1";
   const addAccount = useAddAccount();
+  const toast = useToast();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -34,8 +36,8 @@ export function Login() {
   const [resending, setResending] = useState(false);
   const [resent, setResent] = useState(false);
   // Google is the primary way in; the email form is a secondary option the
-  // visitor opens on purpose. Add-account mode has no Google button (see the
-  // note below), so there the form is simply always visible.
+  // visitor opens on purpose. Add-account mode keeps the form always visible
+  // (under the Google button) since email/password is its original path.
   const [showEmail, setShowEmail] = useState(false);
   const emailVisible = addMode || showEmail;
 
@@ -101,6 +103,7 @@ export function Login() {
     // back to the login form (even though they're still authenticated),
     // since this route has no other guard against direct visits.
     navigate(redirectTo, { replace: true });
+    toast("Welcome to Akọ.", { variant: "success" });
   }
 
   async function handleResend() {
@@ -133,12 +136,8 @@ export function Login() {
           </p>
         )}
 
-        {!addMode && (
-          <>
-            <GoogleAuthButton returnTo={returnTo} />
-            <AuthOrDivider />
-          </>
-        )}
+        <GoogleAuthButton returnTo={returnTo} addAccount={addMode} />
+        <AuthOrDivider />
 
         {!emailVisible && (
           <button
@@ -201,30 +200,12 @@ export function Login() {
         </form>
         )}
 
-        {/* Add-account mode swaps the active session; the Google redirect
-            can't carry the "previous account" snapshot that needs, so it's
-            email/password only there (no Google button above). */}
-
         <p className="text-center text-sm text-ink-muted mt-6">
           New to Akọ?{" "}
           <Link to={addMode ? "/signup?add=1" : signupPathFor(returnTo)} className="text-accent font-medium hover:underline">
             Create an account
           </Link>
         </p>
-
-        {!addMode && (
-          <p className="text-center text-xs text-ink-muted mt-5">
-            By continuing, you agree to our{" "}
-            <a href="/terms" target="_blank" rel="noopener noreferrer" className="text-accent hover:underline">
-              Terms of Service
-            </a>{" "}
-            and{" "}
-            <a href="/privacy" target="_blank" rel="noopener noreferrer" className="text-accent hover:underline">
-              Privacy Policy
-            </a>
-            .
-          </p>
-        )}
       </div>
     </div>
   );

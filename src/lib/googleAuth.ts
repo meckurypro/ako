@@ -13,10 +13,40 @@
 // Google Cloud console OAuth client) is documented in docs/GOOGLE_AUTH_SETUP.md.
 import { supabase } from "./supabase";
 import { rememberReturnTo } from "./authRedirect";
+import { setPendingAddAccount } from "./accountSessions";
+
+/**
+ * "Add account" via Google: the redirect unloads the page, and the new session replaces the live one when it
+ * comes back — so the account that is active right now is parked first (same hand-off the email sign-up path
+ * uses). AuthCallback picks it up on SIGNED_IN, keeps both accounts in the switcher and links them.
+ */
+async function parkCurrentAccountForAdd(): Promise<void> {
+  const { data: sessionData } = await supabase.auth.getSession();
+  const previousSession = sessionData.session;
+  if (!previousSession) return;
+  const { data: previousProfile } = await supabase
+    .from("profiles")
+    .select("id, username, display_name, avatar_url")
+    .eq("id", previousSession.user.id)
+    .single();
+  if (!previousProfile) return;
+  setPendingAddAccount({
+    user_id: previousProfile.id,
+    username: previousProfile.username,
+    display_name: previousProfile.display_name,
+    avatar_url: previousProfile.avatar_url,
+    access_token: previousSession.access_token,
+    refresh_token: previousSession.refresh_token,
+  });
+}
 
 /** Starts the Google redirect. Resolves to an error message, or null when the browser is navigating away. */
-export async function signInWithGoogle(returnTo?: string | null): Promise<string | null> {
+export async function signInWithGoogle(
+  returnTo?: string | null,
+  options?: { addAccount?: boolean }
+): Promise<string | null> {
   rememberReturnTo(returnTo);
+  if (options?.addAccount) await parkCurrentAccountForAdd();
 
   const { error } = await supabase.auth.signInWithOAuth({
     provider: "google",

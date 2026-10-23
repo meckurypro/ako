@@ -18,6 +18,8 @@ interface GoogleAuthButtonProps {
   returnTo?: string | null;
   /** "Continue with Google" on sign-up pages reads "Sign up with Google". */
   label?: string;
+  /** Adding a second account from the switcher: keep the account that is signed in now alongside the new one. */
+  addAccount?: boolean;
 }
 
 /**
@@ -25,14 +27,14 @@ interface GoogleAuthButtonProps {
  * and SignUp; email is the quieter alternative below it (see AuthOrDivider and
  * the "Continue with email" reveal in those pages).
  */
-export function GoogleAuthButton({ returnTo, label = "Continue with Google" }: GoogleAuthButtonProps) {
+export function GoogleAuthButton({ returnTo, label = "Continue with Google", addAccount = false }: GoogleAuthButtonProps) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   async function handleClick() {
     setError(null);
     setLoading(true);
-    const message = await signInWithGoogle(returnTo);
+    const message = await signInWithGoogle(returnTo, { addAccount });
     // On success the browser is already navigating away — only a failure returns here.
     if (message) {
       setLoading(false);

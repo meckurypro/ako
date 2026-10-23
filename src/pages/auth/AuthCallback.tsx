@@ -7,6 +7,7 @@ import { saveAccount, takePendingAddAccount } from "../../lib/accountSessions";
 import { Wordmark } from "../../components/Wordmark";
 import { Button } from "../../components/Button";
 import { AuthPattern } from "../../components/AuthPattern";
+import { useToast } from "../../components/Toast";
 import { takeReturnTo } from "../../lib/authRedirect";
 
 // Lands here from the link in the signup-confirmation or password-reset
@@ -22,6 +23,7 @@ import { takeReturnTo } from "../../lib/authRedirect";
 export function AuthCallback() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const toast = useToast();
   const [status, setStatus] = useState<"waiting" | "error">("waiting");
 
   useEffect(() => {
@@ -57,6 +59,9 @@ export function AuthCallback() {
         // and best-effort link them server-side, same as the
         // login-path add-account flow.
         const pending = takePendingAddAccount();
+        // Google's account chooser can hand back the account that is already signed in.
+        const sameAsCurrent = !!pending && pending.user_id === session.user.id;
+        const addedAccount = !!pending && !sameAsCurrent;
         if (pending && pending.user_id !== session.user.id) {
           saveAccount(pending);
           void (async () => {
@@ -95,12 +100,21 @@ export function AuthCallback() {
         void (async () => {
           const { data: profileRow } = await supabase
             .from("profiles")
-            .select("onboarding_completed, profile_setup_completed")
+            .select("onboarding_completed, profile_setup_completed, username")
             .eq("id", session.user.id)
             .single();
 
+          toast(sameAsCurrent ? "That's already your current account." : "Welcome to Akọ.", {
+            variant: sameAsCurrent ? "default" : "success",
+          });
+
           if (profileRow?.onboarding_completed) {
-            navigate(takeReturnTo() ?? "/feed", { replace: true });
+            // Added from the account switcher: land on the new account's own profile, like the email path does.
+            if (addedAccount && profileRow.username) {
+              navigate(`/profile/${profileRow.username}`, { replace: true });
+            } else {
+              navigate(takeReturnTo() ?? "/feed", { replace: true });
+            }
           } else if (profileRow?.profile_setup_completed === false) {
             // New Google account: pick a username + name first.
             navigate("/onboarding/profile", { replace: true });
@@ -121,7 +135,7 @@ export function AuthCallback() {
       subscription.unsubscribe();
       clearTimeout(timeout);
     };
-  }, [navigate]);
+  }, [navigate, queryClient, toast]);
 
   return (
     <div className="relative min-h-screen flex flex-col items-center justify-center px-6 bg-canvas overflow-hidden">
