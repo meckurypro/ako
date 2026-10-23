@@ -131,7 +131,7 @@ export function LibraryActivity() {
   }
 
   return (
-    <div className="min-h-screen bg-canvas px-4 md:px-8 pt-6 md:pt-10 pb-24">
+    <div className="min-h-screen bg-canvas px-4 md:px-8 pt-6 md:pt-10 pb-28">
       <div className="max-w-xl md:max-w-4xl mx-auto">
         <h2 className="font-bold text-[1.75rem] leading-tight tracking-tight text-ink mb-5 flex items-center gap-2.5">
           <LibraryBig size={24} className="text-brand-orange" />
@@ -148,8 +148,12 @@ export function LibraryActivity() {
           className="mb-5"
         />
 
-        {/* Swipe left/right to change tab — same carousel as Feed and Profile. */}
+        {/* Swipe left/right to change tab — same carousel as Feed, Profile and Connect. fillViewport stretches the
+            swipe area to the bottom of the screen: without it the carousel is only as tall as the active tab's
+            list, so on a short or empty tab (and anywhere below the last row) a swipe started outside it and
+            Library felt like it didn't swipe, unlike Connect. */}
         <SwipeableTabs
+          fillViewport
           index={activeIndex}
           onIndexChange={(i) => setTab(TABS[i])}
           onProgress={(progress, dragging) => {

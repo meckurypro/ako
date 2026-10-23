@@ -29,6 +29,7 @@ import {
   Lock,
   PenLine,
   Download,
+  GitFork,
 } from "lucide-react";
 import { useNotifications, useMarkNotificationRead, useMarkAllRead } from "../hooks/useNotifications";
 import {
@@ -98,6 +99,12 @@ const TYPE_CONFIG: Record<string, { icon: typeof Heart; verb: string }> = {
   // Someone finished downloading your File project (complete_file_download). target_type "project",
   // preview_text = project title; routes via the generic project case.
   file_downloaded: { icon: Download, verb: "downloaded your file" },
+  // Someone forked (or re-forked) your project as an affiliate — ako_notification_fixes_forks.sql. target_type
+  // "project", preview_text = project title; routes via the generic project case.
+  project_forked: { icon: GitFork, verb: "forked your project" },
+  // A forker tagged the project they forked in a post. target_type "post" (the post that carries the tag),
+  // preview_text = project title; routes via the generic post case.
+  forked_project_tagged: { icon: Tag, verb: "tagged your project in a post" },
   collaboration_invite: { icon: Users, verb: "invited you to collaborate" },
   collaboration_accepted: { icon: UserCheck, verb: "accepted your collaboration invite" },
   collaboration_declined: { icon: UserX, verb: "declined your collaboration invite" },

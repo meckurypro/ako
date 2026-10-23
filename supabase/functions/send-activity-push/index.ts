@@ -43,6 +43,8 @@ const COPY: Record<string, Copy> = {
   quote: { body: "quoted your post", social: true },
   post_tagged: { body: "tagged you in a post", social: true },
   project_tagged: { body: "Your project was tagged in a post", systemTitle: true },
+  project_forked: { body: "forked your project" },
+  forked_project_tagged: { body: "tagged your project in a post", social: true },
   project_access_granted: { body: "gave you access to a private project" },
   file_downloaded: { body: "downloaded your file" },
   collaboration_invite: { body: "invited you to collaborate" },
