@@ -7,6 +7,7 @@ import {
   ArrowLeftRight,
   Building2,
   Eye,
+  Images,
   Layers,
   LayoutGrid,
   Link2,
@@ -132,6 +133,8 @@ export function PagePage() {
   const { data: slides } = usePageHeroSlides(page?.id);
   // Only the members an admin chose to show — a visitor's page load never fetches the full roster.
   const { data: featured } = usePageFeaturedMembers(page?.id);
+  const hasSlides = (slides?.length ?? 0) > 0;
+  const hasFeatured = (featured?.length ?? 0) > 0;
 
   const isFollowing = !!isFollowingQuery.data;
   // The follower count ticks in quietly when it changes (index.css .ako-count-tick).
@@ -264,6 +267,12 @@ export function PagePage() {
             onSelect: () => navigate(`/page/${page.username}/edit`),
           },
           {
+            key: "hero",
+            label: hasSlides ? "Hero slides" : "Add hero slides",
+            icon: <Images />,
+            onSelect: () => navigate(`/page/${page.username}/edit#hero`),
+          },
+          {
             key: "preview",
             label: previewingAsVisitor ? "Exit visitor view" : "View as visitor",
             icon: <Eye />,
@@ -275,7 +284,7 @@ export function PagePage() {
       ? ([
           {
             key: "team",
-            label: "Manage team",
+            label: hasFeatured ? "Manage team" : "Add team to page",
             icon: <UserCog />,
             onSelect: () => navigate(`/page/${page.username}/team`),
           },
@@ -303,15 +312,7 @@ export function PagePage() {
       : []),
   ];
 
-  const hasSlides = (slides?.length ?? 0) > 0;
-  const hasFeatured = (featured?.length ?? 0) > 0;
   // What an editor could still add to make the page feel finished.
-  const setupSteps = [
-    !page.cover_url && { key: "banner", label: "Add a banner", to: `/page/${page.username}/edit` },
-    !hasSlides && { key: "hero", label: "Add hero slides", to: `/page/${page.username}/edit` },
-    isAdmin && !hasFeatured && { key: "team", label: "Choose who appears in “Meet the team”", to: `/page/${page.username}/team` },
-  ].filter(Boolean) as { key: string; label: string; to: string }[];
-
   const topBtn = scrolled ? "text-ink hover:bg-ink/5" : "bg-black/35 text-white backdrop-blur-md";
 
   return (
@@ -512,24 +513,6 @@ export function PagePage() {
                 <X size={14} />
                 Exit
               </button>
-            </div>
-          )}
-
-          {editorView && setupSteps.length > 0 && (
-            <div className="rounded-2xl border border-dashed border-border bg-surface p-4">
-              <p className="text-sm font-semibold text-ink">Make your page stand out</p>
-              <p className="mt-1 text-xs text-ink-muted">Only your team sees this. Visitors see the finished page.</p>
-              <div className="mt-3 flex flex-wrap gap-2">
-                {setupSteps.map((s) => (
-                  <Link
-                    key={s.key}
-                    to={s.to}
-                    className="rounded-full bg-accent-soft px-3.5 py-2 text-sm font-medium text-accent"
-                  >
-                    {s.label}
-                  </Link>
-                ))}
-              </div>
             </div>
           )}
 

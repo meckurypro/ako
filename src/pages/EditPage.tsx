@@ -1,10 +1,10 @@
 // src/pages/EditPage.tsx
 import { useEffect, useRef, useState, type FormEvent } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { useReturnAfterSave } from "../hooks/useReturnAfterSave";
 import { useToast } from "../components/Toast";
 import { useSmartBack } from "../hooks/useSmartBack";
-import { ArrowLeft, Camera, Trash2 } from "lucide-react";
+import { ArrowLeft, Camera, MoreHorizontal, Trash2 } from "lucide-react";
 import { useAuth } from "../hooks/useAuth";
 import {
   usePageByUsername,
@@ -16,6 +16,7 @@ import {
   useDeletePage,
 } from "../hooks/usePages";
 import { ConfirmDialog } from "../components/ConfirmDialog";
+import { DropdownMenu } from "../components/DropdownMenu";
 import { TopicPicker, MAX_TOPICS } from "../components/TopicPicker";
 import { useUploadAvatar } from "../hooks/useUploadAvatar";
 import { Avatar } from "../components/Avatar";
@@ -71,6 +72,10 @@ export function EditPage() {
   const isOwnerOfPage = isAdmin && !!user && pageOwnerId === user.id;
   const deletePage = useDeletePage();
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const menuButtonRef = useRef<HTMLButtonElement>(null);
+  const heroRef = useRef<HTMLDivElement>(null);
+  const { hash } = useLocation();
 
   useEffect(() => {
     if (page && !hydrated) {
@@ -167,6 +172,12 @@ export function EditPage() {
     }
   }
 
+  // Arrived from the page's "…" menu → "Hero slides": bring that section into view.
+  const pageLoaded = !!page;
+  useEffect(() => {
+    if (hash === "#hero" && pageLoaded) heroRef.current?.scrollIntoView({ block: "start" });
+  }, [hash, pageLoaded]);
+
   if (isLoading || !page) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-canvas">
@@ -185,16 +196,46 @@ export function EditPage() {
   }
 
   return (
-    <div className="min-h-screen bg-canvas px-4 pt-4 pb-10">
+    <div className="min-h-screen bg-canvas px-4 pt-4 pb-32">
       <div className="max-w-md mx-auto">
         <div className="flex items-center gap-3 mb-6">
-          <button onClick={smartBack} className="text-ink-muted">
+          <button onClick={smartBack} className="text-ink-muted" aria-label="Back">
             <ArrowLeft size={22} />
           </button>
-          <h2 className="font-display text-xl text-ink">Edit page</h2>
+          <h2 className="font-display text-xl text-ink flex-1">Edit page</h2>
+          {/* Destructive actions live behind this, not on the page — nobody should hit Delete while looking for Save. */}
+          {isOwnerOfPage && (
+            <>
+              <button
+                ref={menuButtonRef}
+                type="button"
+                onClick={() => setMenuOpen((o) => !o)}
+                aria-label="More options"
+                className="flex h-9 w-9 items-center justify-center rounded-full text-ink-muted hover:bg-ink/5"
+              >
+                <MoreHorizontal size={22} />
+              </button>
+              {menuOpen && (
+                <DropdownMenu
+                  title="More options"
+                  anchorRef={menuButtonRef}
+                  onClose={() => setMenuOpen(false)}
+                  items={[
+                    {
+                      key: "delete",
+                      label: "Delete page",
+                      icon: <Trash2 />,
+                      variant: "danger",
+                      onSelect: () => setShowDeleteConfirm(true),
+                    },
+                  ]}
+                />
+              )}
+            </>
+          )}
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-5">
+        <form id="edit-page-form" onSubmit={handleSubmit} className="space-y-5">
           {/* Banner — like a YouTube / Facebook cover: a wide image across the top of the page. */}
           <div>
             <div className="mb-1 flex items-center justify-between">
@@ -302,39 +343,27 @@ export function EditPage() {
           <TopicPicker selected={topicIds} onToggle={toggleTopic} />
 
           {error && <p className="text-sm text-danger">{error}</p>}
-
-          <button
-            type="submit"
-            disabled={updatePage.isPending || uploadingAvatar || uploadingCover}
-            className="w-full bg-accent text-canvas rounded-xl py-3 text-sm font-medium disabled:opacity-60"
-          >
-            {updatePage.isPending ? "Saving…" : "Save changes"}
-          </button>
         </form>
 
         {/* Outside the form on purpose: every change here saves by itself, and Enter in a
             slide's title must not submit the page details above. */}
-        <div className="mt-8 border-t border-border pt-6">
+        <div id="hero" ref={heroRef} className="mt-8 scroll-mt-4 border-t border-border pt-6">
           <PageHeroEditor page={page} />
         </div>
+      </div>
 
-        {isOwnerOfPage && (
-          <div className="mt-12 pt-6 border-t border-border">
-            <h3 className="text-xs font-medium text-ink-muted uppercase tracking-wide mb-1">Danger zone</h3>
-            <p className="text-xs text-ink-muted mb-3">
-              Deleting {page.name} removes it from search and everyone's feed.
-            </p>
-            <button
-              type="button"
-              onClick={() => setShowDeleteConfirm(true)}
-              disabled={deletePage.isPending}
-              className="w-full flex items-center justify-center gap-2 rounded-xl border border-danger/40 text-danger py-3 text-sm font-medium disabled:opacity-60"
-            >
-              <Trash2 size={16} />
-              Delete page
-            </button>
-          </div>
-        )}
+      {/* Save — always at the bottom, always in reach. Submits the details form above. */}
+      <div className="fixed inset-x-0 bottom-0 z-chrome border-t border-border bg-canvas/95 px-4 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-3 backdrop-blur">
+        <div className="mx-auto max-w-md">
+          <button
+            type="submit"
+            form="edit-page-form"
+            disabled={updatePage.isPending || uploadingAvatar || uploadingCover}
+            className="w-full rounded-xl bg-accent py-3 text-sm font-medium text-canvas disabled:opacity-60"
+          >
+            {updatePage.isPending ? "Saving…" : "Save changes"}
+          </button>
+        </div>
       </div>
 
       {showDeleteConfirm && (

@@ -5,7 +5,11 @@
 // page's admin chose. It pauses whenever it shouldn't be moving — a finger or pointer
 // on it, keyboard focus inside it, the tab hidden, it scrolled off-screen, "reduce
 // motion" on, or the visitor pressing pause.
-import { useCallback, useEffect, useRef, useState } from "react";
+//
+// It loops forever with no seam: the last slide glides into the first the same way any slide glides into the
+// next (and the first back into the last when going backward). That is done with a cloned slide at each end —
+// [last, 1, 2, …, N, first] — and, once a glide lands on a clone, a silent jump to the identical real slide.
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { ChevronLeft, ChevronRight, Pause, Play } from "lucide-react";
 import type { HeroDirection, PageHeroSlide } from "../types/database";
 
@@ -34,65 +38,80 @@ function usePrefersReducedMotion(): boolean {
 
 export function PageHero({ slides, autoplay, intervalSeconds, direction, pageName }: PageHeroProps) {
   const count = slides.length;
+  const loop = count > 1;
+  // Extended strip: a clone of the last slide in front, a clone of the first slide behind.
+  const strip = loop ? [slides[count - 1], ...slides, slides[0]] : slides;
+  const realOf = useCallback((pos: number) => (loop ? (((pos - 1) % count) + count) % count : pos), [loop, count]);
+  const posOf = useCallback((real: number) => (loop ? real + 1 : real), [loop]);
+
   const scrollerRef = useRef<HTMLDivElement>(null);
   const rootRef = useRef<HTMLElement>(null);
-  const [index, setIndex] = useState(0);
-  const [fading, setFading] = useState(false);
+  const [index, setIndex] = useState(0); // real slide, 0..count-1
+  const posRef = useRef(0); // position in the extended strip
   const [userPaused, setUserPaused] = useState(false);
   const [interacting, setInteracting] = useState(false);
   const [offscreen, setOffscreen] = useState(false);
   const [tabHidden, setTabHidden] = useState(false);
   const reducedMotion = usePrefersReducedMotion();
-  // While a programmatic scroll is animating we ignore the scroll listener, so the
+  // While a programmatic scroll or a silent jump is happening we ignore the scroll listener, so the
   // slides it passes through don't flicker the segments or restart the timer.
   const lockRef = useRef(false);
   const lockTimer = useRef<number | undefined>(undefined);
+  const settleTimer = useRef<number | undefined>(undefined);
   const touchResume = useRef<number | undefined>(undefined);
 
   const canAutoplay = autoplay && count > 1 && !reducedMotion;
   const running = canAutoplay && !userPaused && !interacting && !offscreen && !tabHidden;
 
-  // A slide removed while someone is looking at the last one.
-  useEffect(() => {
-    if (index > count - 1) setIndex(Math.max(count - 1, 0));
-  }, [count, index]);
+  // Instantly put the scroller at an extended position (no animation, no listener noise).
+  const place = useCallback((pos: number) => {
+    const el = scrollerRef.current;
+    if (!el) return;
+    lockRef.current = true;
+    window.clearTimeout(lockTimer.current);
+    posRef.current = pos;
+    el.scrollTo({ left: pos * el.clientWidth, behavior: "auto" });
+    lockTimer.current = window.setTimeout(() => (lockRef.current = false), 60);
+  }, []);
 
-  const goTo = useCallback(
-    (target: number, { wrap = false }: { wrap?: boolean } = {}) => {
+  // Landed on a clone? Jump to the identical real slide — invisible, because they look the same.
+  const normalize = useCallback(() => {
+    if (!loop) return;
+    if (posRef.current === 0) place(count);
+    else if (posRef.current === count + 1) place(1);
+  }, [loop, count, place]);
+
+  // Initial placement, and whenever the number of slides changes (one added or removed).
+  useLayoutEffect(() => {
+    const real = Math.min(index, Math.max(count - 1, 0));
+    if (real !== index) setIndex(real);
+    place(posOf(real));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [count]);
+
+  const moveTo = useCallback(
+    (pos: number) => {
       const el = scrollerRef.current;
       if (!el || count === 0) return;
-      const next = ((target % count) + count) % count;
-      const left = next * el.clientWidth;
-
       lockRef.current = true;
       window.clearTimeout(lockTimer.current);
-
-      if (wrap && !reducedMotion) {
-        // Rewinding smoothly would whip past every slide; dip out, jump, and fade back in.
-        setFading(true);
-        window.setTimeout(() => {
-          el.scrollTo({ left, behavior: "auto" });
-          setIndex(next);
-          setFading(false);
-          lockTimer.current = window.setTimeout(() => (lockRef.current = false), 80);
-        }, 180);
-        return;
-      }
-
-      setIndex(next);
-      el.scrollTo({ left, behavior: reducedMotion ? "auto" : "smooth" });
-      lockTimer.current = window.setTimeout(() => (lockRef.current = false), SETTLE_MS);
+      window.clearTimeout(settleTimer.current);
+      posRef.current = pos;
+      setIndex(realOf(pos));
+      el.scrollTo({ left: pos * el.clientWidth, behavior: reducedMotion ? "auto" : "smooth" });
+      lockTimer.current = window.setTimeout(
+        () => {
+          lockRef.current = false;
+          normalize();
+        },
+        reducedMotion ? 0 : SETTLE_MS
+      );
     },
-    [count, reducedMotion]
+    [count, realOf, reducedMotion, normalize]
   );
 
-  const step = useCallback(
-    (delta: 1 | -1) => {
-      const target = index + delta;
-      goTo(target, { wrap: target < 0 || target > count - 1 });
-    },
-    [count, goTo, index]
-  );
+  const goTo = useCallback((real: number) => moveTo(posOf(((real % count) + count) % count)), [count, moveTo, posOf]);
+  const step = useCallback((delta: 1 | -1) => moveTo(posRef.current + delta), [moveTo]);
 
   // Autoplay: one timer per slide. Anything that changes `index` (including the
   // visitor swiping) restarts it, so a manual swipe always gets a full interval.
@@ -102,7 +121,7 @@ export function PageHero({ slides, autoplay, intervalSeconds, direction, pageNam
     return () => window.clearTimeout(t);
   }, [running, index, direction, intervalSeconds, step]);
 
-  // Follow the visitor's own swipes.
+  // Follow the visitor's own swipes, and silently wrap when they swipe onto a clone.
   useEffect(() => {
     const el = scrollerRef.current;
     if (!el) return;
@@ -111,8 +130,14 @@ export function PageHero({ slides, autoplay, intervalSeconds, direction, pageNam
       if (lockRef.current) return;
       cancelAnimationFrame(raf);
       raf = requestAnimationFrame(() => {
-        const i = Math.round(el!.scrollLeft / Math.max(el!.clientWidth, 1));
-        setIndex((prev) => (prev === i ? prev : Math.min(Math.max(i, 0), count - 1)));
+        const pos = Math.round(el!.scrollLeft / Math.max(el!.clientWidth, 1));
+        posRef.current = pos;
+        setIndex((prev) => {
+          const real = realOf(pos);
+          return prev === real ? prev : real;
+        });
+        window.clearTimeout(settleTimer.current);
+        settleTimer.current = window.setTimeout(normalize, 140);
       });
     }
     el.addEventListener("scroll", onScroll, { passive: true });
@@ -120,18 +145,18 @@ export function PageHero({ slides, autoplay, intervalSeconds, direction, pageNam
       el.removeEventListener("scroll", onScroll);
       cancelAnimationFrame(raf);
     };
-  }, [count]);
+  }, [realOf, normalize]);
 
   // Keep the frame aligned if the container is resized (rotation, desktop window).
   useEffect(() => {
     const el = scrollerRef.current;
     if (!el || typeof ResizeObserver === "undefined") return;
     const ro = new ResizeObserver(() => {
-      if (!lockRef.current) el.scrollTo({ left: index * el.clientWidth, behavior: "auto" });
+      if (!lockRef.current) el.scrollTo({ left: posRef.current * el.clientWidth, behavior: "auto" });
     });
     ro.observe(el);
     return () => ro.disconnect();
-  }, [index]);
+  }, []);
 
   // Don't animate what nobody can see.
   useEffect(() => {
@@ -151,6 +176,7 @@ export function PageHero({ slides, autoplay, intervalSeconds, direction, pageNam
   useEffect(
     () => () => {
       window.clearTimeout(lockTimer.current);
+      window.clearTimeout(settleTimer.current);
       window.clearTimeout(touchResume.current);
     },
     []
@@ -184,24 +210,26 @@ export function PageHero({ slides, autoplay, intervalSeconds, direction, pageNam
       <div className="relative aspect-[16/9] overflow-hidden rounded-3xl bg-surface shadow-[0_10px_40px_-18px_rgba(var(--shadow-ink-rgb),0.45)]">
         <div
           ref={scrollerRef}
-          className={`no-scrollbar flex h-full snap-x snap-mandatory overflow-x-auto overscroll-x-contain transition-opacity duration-200 ${
-            fading ? "opacity-0" : "opacity-100"
-          }`}
+          className="no-scrollbar flex h-full snap-x snap-mandatory overflow-x-auto overscroll-x-contain"
           tabIndex={0}
         >
-          {slides.map((slide, i) => (
+          {strip.map((slide, pos) => {
+            const clone = loop && (pos === 0 || pos === count + 1);
+            const i = realOf(pos);
+            return (
             <figure
-              key={slide.id}
+              key={clone ? `${slide.id}-${pos === 0 ? "pre" : "post"}` : slide.id}
               role="group"
               aria-roledescription="slide"
               aria-label={`${i + 1} of ${count}`}
+              aria-hidden={clone || undefined}
               className="relative m-0 h-full w-full shrink-0 snap-center"
             >
               <img
                 src={slide.image_url}
-                alt={slide.title ?? ""}
+                alt={clone ? "" : (slide.title ?? "")}
                 draggable={false}
-                loading={i === 0 ? "eager" : "lazy"}
+                loading={pos <= 1 || clone ? "eager" : "lazy"}
                 decoding="async"
                 className="h-full w-full select-none object-cover"
               />
@@ -221,7 +249,8 @@ export function PageHero({ slides, autoplay, intervalSeconds, direction, pageNam
                 </>
               )}
             </figure>
-          ))}
+            );
+          })}
         </div>
 
         {count > 1 && (
