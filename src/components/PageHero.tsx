@@ -21,6 +21,8 @@ interface PageHeroProps {
   pageName: string;
   /** Width / height of the frame — set by the first slide. Defaults to 16:9. */
   aspect?: number;
+  /** How the frame is dressed: rounded card (default), edge-to-edge, or a quiet bordered inset. */
+  frame?: "card" | "bleed" | "inset";
 }
 
 const SETTLE_MS = 650; // how long a programmatic smooth scroll is allowed to run
@@ -38,7 +40,7 @@ function usePrefersReducedMotion(): boolean {
   return reduced;
 }
 
-export function PageHero({ slides, autoplay, intervalSeconds, direction, pageName, aspect = 16 / 9 }: PageHeroProps) {
+export function PageHero({ slides, autoplay, intervalSeconds, direction, pageName, aspect = 16 / 9, frame = "card" }: PageHeroProps) {
   const count = slides.length;
   const loop = count > 1;
   // Extended strip: a clone of the last slide in front, a clone of the first slide behind.
@@ -210,7 +212,13 @@ export function PageHero({ slides, autoplay, intervalSeconds, direction, pageNam
       }}
     >
       <div
-        className="relative mx-auto overflow-hidden rounded-3xl bg-surface shadow-[0_10px_40px_-18px_rgba(var(--shadow-ink-rgb),0.45)]"
+        className={`relative mx-auto overflow-hidden bg-surface ${
+          frame === "bleed"
+            ? "rounded-none"
+            : frame === "inset"
+              ? "rounded-2xl border border-border"
+              : "rounded-3xl shadow-[0_10px_40px_-18px_rgba(var(--shadow-ink-rgb),0.45)]"
+        }`}
         // Tall frames are capped to ~75% of the screen height so a 9:16 hero never swallows the page.
         style={{ aspectRatio: aspect, width: `min(100%, calc(75vh * ${aspect}))` }}
       >

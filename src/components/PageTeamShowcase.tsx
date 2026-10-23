@@ -6,14 +6,23 @@ import { Link } from "react-router-dom";
 import { Avatar } from "./Avatar";
 import type { PageMemberWithProfile } from "../types/database";
 
-export function PageTeamShowcase({ members }: { members: PageMemberWithProfile[] }) {
+export function PageTeamShowcase({
+  members,
+  heading,
+}: {
+  members: PageMemberWithProfile[];
+  /** Replaces the default heading (a page template styles its own section titles). */
+  heading?: React.ReactNode;
+}) {
   if (members.length === 0) return null;
 
   return (
     <section aria-labelledby="page-team-heading">
-      <h2 id="page-team-heading" className="font-display text-xl font-semibold tracking-tight text-ink">
-        Meet the team
-      </h2>
+      {heading ?? (
+        <h2 id="page-team-heading" className="font-display text-xl font-semibold tracking-tight text-ink">
+          Meet the team
+        </h2>
+      )}
 
       {/* Phones: a swipeable row that peeks the next card. Larger screens: a grid. */}
       <ul className="no-scrollbar -mx-4 mt-4 flex snap-x snap-mandatory gap-3 overflow-x-auto px-4 pb-1 md:mx-0 md:grid md:grid-cols-3 md:overflow-visible md:px-0">

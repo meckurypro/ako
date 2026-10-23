@@ -74,9 +74,20 @@ export function ProjectMiniCard({
 // Grid layout for a full tab's worth of mini cards (the profile's
 // Projects tab) — as opposed to the horizontal-scroll rail the same
 // card is used in elsewhere (ProjectRail in ProjectDetail).
-export function ProjectMiniGrid({ projects, showStatus = false }: { projects: Project[]; showStatus?: boolean }) {
+export function ProjectMiniGrid({
+  projects,
+  showStatus = false,
+  columns = 2,
+  tight = false,
+}: {
+  projects: Project[];
+  showStatus?: boolean;
+  /** 3 = denser wall of covers (used by a few page templates). */
+  columns?: 2 | 3;
+  tight?: boolean;
+}) {
   return (
-    <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 items-start">
+    <div className={`grid ${columns === 3 ? "grid-cols-3" : "grid-cols-2 sm:grid-cols-3"} ${tight ? "gap-2" : columns === 3 ? "gap-3" : "gap-4"} items-start`}>
       {projects.map((project) => (
         <ProjectMiniCard key={project.id} project={project} showStatus={showStatus} fluid />
       ))}

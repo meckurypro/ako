@@ -8,6 +8,7 @@ import {
   Building2,
   Eye,
   Images,
+  LayoutTemplate,
   Layers,
   LayoutGrid,
   Link2,
@@ -34,6 +35,8 @@ import { MediaViewer } from "../components/MediaViewer";
 import { SwipeableTabs } from "../components/SwipeableTabs";
 import { SlidingTabBar } from "../components/SlidingTabBar";
 import { PageHero } from "../components/PageHero";
+import { PageTemplateLayout } from "../components/pageTemplate/PageTemplateLayout";
+import { getPageTemplate, resolveTemplateConfig, type ActionsMode } from "../lib/pageTemplates";
 import { PageTeamShowcase } from "../components/PageTeamShowcase";
 import { PostListSkeleton, ProjectMiniGridSkeleton } from "../components/ProfileSkeletons";
 import { useToast } from "../components/Toast";
@@ -136,6 +139,8 @@ export function PagePage() {
   const { data: featured } = usePageFeaturedMembers(page?.id);
   const hasSlides = (slides?.length ?? 0) > 0;
   const hasFeatured = (featured?.length ?? 0) > 0;
+  const template = getPageTemplate(page?.page_template);
+  const cfg = resolveTemplateConfig(template, hasSlides);
 
   const isFollowing = !!isFollowingQuery.data;
   // The follower count ticks in quietly when it changes (index.css .ako-count-tick).
@@ -274,6 +279,12 @@ export function PagePage() {
             onSelect: () => navigate(`/page/${page.username}/edit#hero`),
           },
           {
+            key: "template",
+            label: "Change template",
+            icon: <LayoutTemplate />,
+            onSelect: () => navigate(`/page/${page.username}/edit#template`),
+          },
+          {
             key: "preview",
             label: previewingAsVisitor ? "Exit visitor view" : "View as visitor",
             icon: <Eye />,
@@ -313,8 +324,56 @@ export function PagePage() {
       : []),
   ];
 
+  // Follow / Edit / Share, dressed for wherever the template puts them (on the image, stacked, as text…).
+  function renderActions(tone: "normal" | "overlay", layout: ActionsMode) {
+    const overlay = tone === "overlay";
+    const text = layout === "text";
+    const stack = layout === "stack";
+    const row = layout === "row";
+    const fill = stack ? "w-full justify-center" : row ? "flex-1 justify-center sm:flex-none" : "";
+    const follow = text
+      ? "inline-flex items-center gap-1.5 text-[15px] font-semibold text-accent hover:underline"
+      : overlay
+        ? `inline-flex h-11 items-center gap-2 rounded-full bg-white px-6 text-[15px] font-semibold text-black ${fill}`
+        : `ako-follow-swap inline-flex h-11 items-center gap-2 rounded-full bg-cta px-6 text-[15px] font-semibold text-white transition-transform active:scale-[0.97] ${fill}`;
+    const secondary = text
+      ? "inline-flex items-center gap-1.5 text-[15px] font-medium text-ink-muted hover:text-ink"
+      : overlay
+        ? `inline-flex h-11 items-center gap-2 rounded-full bg-white/20 px-5 text-[15px] font-semibold text-white backdrop-blur ${fill}`
+        : `inline-flex h-11 items-center gap-2 rounded-full border border-border bg-surface px-5 text-[15px] font-semibold text-ink transition-transform active:scale-[0.97] ${fill}`;
+    const shareCls = text
+      ? secondary
+      : overlay
+        ? "flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-white/20 text-white backdrop-blur"
+        : stack
+          ? `${secondary}`
+          : "flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-border bg-surface text-ink transition-transform active:scale-[0.95]";
+    return (
+      <div className={`flex items-center gap-2 ${stack ? "flex-col items-stretch" : text ? "gap-5" : ""} ${row ? "w-full sm:w-auto" : ""}`}>
+        {showFollowButton && (
+          <button type="button" onClick={handleFollow} className={follow}>
+            <UserPlus size={text ? 16 : 18} />
+            Follow
+          </button>
+        )}
+        {editorView && (
+          <Link to={`/page/${page!.username}/edit`} className={secondary}>
+            <Pencil size={16} />
+            Edit page
+          </Link>
+        )}
+        <button type="button" onClick={() => void sharePage()} aria-label="Share" title="Share" className={shareCls}>
+          <Share2 size={text || stack ? 16 : 19} />
+          {(text || stack) && "Share"}
+        </button>
+      </div>
+    );
+  }
+
   // What an editor could still add to make the page feel finished.
-  const topBtn = scrolled ? "text-ink hover:bg-ink/5" : "bg-black/35 text-white backdrop-blur-md";
+  // White glass buttons only work over an image; templates without one at the top use plain ink buttons.
+  const darkTop = cfg.banner === "standard" || cfg.banner === "tall" || cfg.banner === "strip" || cfg.heroFirst;
+  const topBtn = scrolled || !darkTop ? "text-ink hover:bg-ink/5" : "bg-black/35 text-white backdrop-blur-md";
 
   return (
     <div className="min-h-screen bg-canvas pb-24">
@@ -363,127 +422,86 @@ export function PagePage() {
       </div>
 
       <div className="max-w-xl md:max-w-3xl mx-auto">
-        {/* Banner */}
-        <div className="relative aspect-[8/3] w-full overflow-hidden bg-accent-soft md:rounded-b-3xl">
-          {page.cover_url ? (
-            <button
-              type="button"
-              onClick={() => setViewer("banner")}
-              aria-label="View banner"
-              className="block h-full w-full"
-            >
-              <img src={page.cover_url} alt="" className="h-full w-full object-cover" />
-            </button>
-          ) : (
-            <div
-              aria-hidden
-              className="h-full w-full"
-              style={{
-                background:
-                  "radial-gradient(120% 140% at 85% 0%, color-mix(in srgb, var(--color-brand-orange) 28%, transparent), transparent 60%), linear-gradient(135deg, var(--color-accent-soft), var(--color-canvas))",
-              }}
-            />
-          )}
-          {/* Keeps the white top-bar buttons legible on any banner image. */}
-          <div className="pointer-events-none absolute inset-x-0 top-0 h-24 bg-gradient-to-b from-black/35 to-transparent" />
-        </div>
-
-        {/* Identity */}
-        <div className="px-4">
-          <div className="-mt-12 flex items-end justify-between gap-3">
-            {page.avatar_url ? (
+        <PageTemplateLayout
+          page={page}
+          cfg={cfg}
+          hasSlides={hasSlides}
+          bannerContent={
+            page.cover_url ? (
               <button
                 type="button"
-                onClick={() => setViewer("avatar")}
-                aria-label="View page photo"
-                className="relative block rounded-full bg-canvas ring-4 ring-canvas"
+                onClick={() => setViewer("banner")}
+                aria-label="View banner"
+                className="block h-full w-full"
               >
-                <Avatar src={page.avatar_url} name={page.name} size="2xl" />
+                <img src={page.cover_url} alt="" className="h-full w-full object-cover" />
               </button>
             ) : (
-              <span className="relative block rounded-full bg-canvas ring-4 ring-canvas">
-                <Avatar src={page.avatar_url} name={page.name} size="2xl" />
-              </span>
-            )}
-
-            <div className="flex items-center gap-2 pb-1">
-              {showFollowButton && (
-                <button
-                  type="button"
-                  onClick={handleFollow}
-                  className="ako-follow-swap inline-flex h-11 items-center gap-2 rounded-full bg-cta px-6 text-[15px] font-semibold text-white transition-transform active:scale-[0.97]"
-                >
-                  <UserPlus size={18} />
-                  Follow
-                </button>
-              )}
-              {editorView && (
-                <Link
-                  to={`/page/${page.username}/edit`}
-                  className="inline-flex h-11 items-center gap-2 rounded-full border border-border bg-surface px-5 text-[15px] font-semibold text-ink transition-transform active:scale-[0.97]"
-                >
-                  <Pencil size={16} />
-                  Edit page
-                </Link>
-              )}
-              <button
-                type="button"
-                onClick={() => void sharePage()}
-                aria-label="Share"
-                title="Share"
-                className="flex h-11 w-11 items-center justify-center rounded-full border border-border bg-surface text-ink transition-transform active:scale-[0.95]"
-              >
-                <Share2 size={19} />
-              </button>
-            </div>
-          </div>
-
-          <div className="mt-3 relative">
-            <button
-              ref={nameButtonRef}
-              type="button"
-              onClick={() => canSwitchByName && setNameMenuOpen((o) => !o)}
-              disabled={!canSwitchByName}
-              className="flex max-w-full items-center gap-2 text-left"
-            >
-              <h1 className="font-display text-[1.75rem] font-semibold leading-tight tracking-tight text-ink break-words">
-                {page.name}
-              </h1>
-            </button>
-            {nameMenuOpen && (
-              <DropdownMenu
-                title="Switch page"
-                anchorRef={nameButtonRef}
-                onClose={() => setNameMenuOpen(false)}
-                items={switchablePages.map((p) => ({
-                  key: p.id,
-                  label: p.name,
-                  icon: <Avatar src={p.avatar_url} name={p.name} size="sm" />,
-                  onSelect: () => handleSwitchTo(p.id, `/page/${p.username}`),
-                }))}
+              <div
+                aria-hidden
+                className="h-full w-full"
+                style={{
+                  background:
+                    "radial-gradient(120% 140% at 85% 0%, color-mix(in srgb, var(--color-brand-orange) 28%, transparent), transparent 60%), linear-gradient(135deg, var(--color-accent-soft), var(--color-canvas))",
+                }}
               />
-            )}
-          </div>
-          {page.is_verified && <VerifiedBadge size={15} label className="mt-1" />}
-          <p className="mt-1 text-sm text-ink-muted">
-            {pageModeLabel(page.page_type)} · @{page.username}
-          </p>
-          {page.tagline && <p className="mt-2 text-base leading-snug text-ink">{page.tagline}</p>}
-          {parentPage && (
-            <p className="mt-1.5 text-xs text-ink-muted">
-              A Subsidiary of{" "}
-              <Link to={`/page/${parentPage.username}`} className="font-medium text-accent">
-                {parentPage.name}
-              </Link>
-            </p>
+            )
+          }
+          onViewAvatar={() => setViewer("avatar")}
+          renderName={(className) => (
+            <div className="relative">
+              <button
+                ref={nameButtonRef}
+                type="button"
+                onClick={() => canSwitchByName && setNameMenuOpen((o) => !o)}
+                disabled={!canSwitchByName}
+                className="flex max-w-full items-center gap-2 text-left"
+              >
+                <h1 className={className}>{page.name}</h1>
+              </button>
+              {nameMenuOpen && (
+                <DropdownMenu
+                  title="Switch page"
+                  anchorRef={nameButtonRef}
+                  onClose={() => setNameMenuOpen(false)}
+                  items={switchablePages.map((p) => ({
+                    key: p.id,
+                    label: p.name,
+                    icon: <Avatar src={p.avatar_url} name={p.name} size="sm" />,
+                    onSelect: () => handleSwitchTo(p.id, `/page/${p.username}`),
+                  }))}
+                />
+              )}
+            </div>
           )}
-
-          <div className="mt-4 flex flex-wrap items-center gap-x-5 gap-y-2">
+          renderActions={renderActions}
+          verified={page.is_verified ? <VerifiedBadge size={15} label /> : null}
+          handleLine={
+            <>
+              {pageModeLabel(page.page_type)} · @{page.username}
+            </>
+          }
+          tagline={page.tagline}
+          parentLine={
+            parentPage ? (
+              <p className="mt-1.5 text-xs text-ink-muted">
+                A Subsidiary of{" "}
+                <Link to={`/page/${parentPage.username}`} className="font-medium text-accent">
+                  {parentPage.name}
+                </Link>
+              </p>
+            ) : null
+          }
+          followers={
             <span className="text-sm text-ink">
-              <strong className="tabular-nums"><span className={followersPulse ? "ako-count-tick" : ""}>{page.follower_count}</span></strong>{" "}
+              <strong className="tabular-nums">
+                <span className={followersPulse ? "ako-count-tick" : ""}>{page.follower_count}</span>
+              </strong>{" "}
               <span className="text-ink-muted">{page.follower_count === 1 ? "follower" : "followers"}</span>
             </span>
-            {page.website_url && (
+          }
+          website={
+            page.website_url ? (
               <a
                 href={getWebsiteHref(page.website_url)}
                 target="_blank"
@@ -494,56 +512,42 @@ export function PagePage() {
                 <Link2 size={14} className="shrink-0" />
                 <span className="truncate">{getWebsiteDomain(page.website_url)}</span>
               </a>
-            )}
-          </div>
-        </div>
-
-        {/* Landing sections */}
-        <div className="mt-8 space-y-9 px-4">
-          {previewingAsVisitor && canEditPage && (
-            <div className="flex items-center justify-between gap-3 rounded-xl bg-accent-soft px-4 py-2.5 text-sm text-accent">
-              <span className="flex items-center gap-1.5">
-                <Eye size={14} className="shrink-0" />
-                You're viewing this page as a visitor.
-              </span>
-              <button
-                onClick={() => setPreviewingAsVisitor(false)}
-                className="flex shrink-0 items-center gap-1 font-medium"
-                aria-label="Exit visitor view"
-              >
-                <X size={14} />
-                Exit
-              </button>
-            </div>
-          )}
-
-          {hasSlides && (
-            <PageHero
-              slides={slides!}
-              autoplay={page.hero_autoplay ?? true}
-              intervalSeconds={page.hero_interval_seconds ?? 5}
-              direction={page.hero_direction ?? "forward"}
-              pageName={page.name}
-              aspect={heroAspect}
-            />
-          )}
-
-          {page.bio && (
-            <section aria-labelledby="page-about-heading">
-              <h2 id="page-about-heading" className="font-display text-xl font-semibold tracking-tight text-ink">
-                About
-              </h2>
-              <p className="mt-2 whitespace-pre-wrap break-words text-[15px] leading-relaxed text-ink">{page.bio}</p>
-            </section>
-          )}
-
-          {hasFeatured && <PageTeamShowcase members={featured!} />}
-
-          {subsidiaries && subsidiaries.length > 0 && (
-            <section aria-labelledby="page-subs-heading">
-              <h2 id="page-subs-heading" className="font-display text-xl font-semibold tracking-tight text-ink">
-                Subsidiaries
-              </h2>
+            ) : null
+          }
+          visitorNotice={
+            previewingAsVisitor && canEditPage ? (
+              <div className="flex items-center justify-between gap-3 rounded-xl bg-accent-soft px-4 py-2.5 text-sm text-accent">
+                <span className="flex items-center gap-1.5">
+                  <Eye size={14} className="shrink-0" />
+                  You're viewing this page as a visitor.
+                </span>
+                <button
+                  onClick={() => setPreviewingAsVisitor(false)}
+                  className="flex shrink-0 items-center gap-1 font-medium"
+                  aria-label="Exit visitor view"
+                >
+                  <X size={14} />
+                  Exit
+                </button>
+              </div>
+            ) : null
+          }
+          hero={
+            hasSlides ? (
+              <PageHero
+                slides={slides!}
+                autoplay={page.hero_autoplay ?? true}
+                intervalSeconds={page.hero_interval_seconds ?? 5}
+                direction={page.hero_direction ?? "forward"}
+                pageName={page.name}
+                aspect={heroAspect}
+                frame={cfg.heroFrame}
+              />
+            ) : null
+          }
+          team={(heading) => (hasFeatured ? <PageTeamShowcase members={featured!} heading={heading} /> : null)}
+          subsidiaries={
+            subsidiaries && subsidiaries.length > 0 ? (
               <div className="no-scrollbar -mx-4 mt-3 flex gap-3 overflow-x-auto px-4">
                 {subsidiaries.map((s) => (
                   <Link
@@ -556,9 +560,9 @@ export function PagePage() {
                   </Link>
                 ))}
               </div>
-            </section>
-          )}
-        </div>
+            ) : null
+          }
+        />
 
         {/* Projects / Posts — icon-led tabs with a sliding indicator, same as a personal profile. */}
         <div className="mt-8">
@@ -596,7 +600,7 @@ export function PagePage() {
                           : `${page.name} hasn't published any projects yet.`}
                       </EmptyNote>
                     ) : (
-                      <ProjectMiniGrid projects={projects} showStatus={isMember} />
+                      <ProjectMiniGrid projects={projects} showStatus={isMember} columns={cfg.columns} tight={cfg.density === "tight"} />
                     )}
                   </div>
                 ) : (

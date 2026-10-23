@@ -22,6 +22,7 @@ import { useUploadAvatar } from "../hooks/useUploadAvatar";
 import { Avatar } from "../components/Avatar";
 import { MentionTextarea } from "../components/MentionTextarea";
 import { PageHeroEditor } from "../components/PageHeroEditor";
+import { TemplatePicker } from "../components/pageTemplate/TemplatePicker";
 import { BANNER_ASPECT, normalizeWebsite } from "../hooks/usePageLanding";
 import { cropToAspect } from "../lib/cropImage";
 
@@ -75,6 +76,7 @@ export function EditPage() {
   const [menuOpen, setMenuOpen] = useState(false);
   const menuButtonRef = useRef<HTMLButtonElement>(null);
   const heroRef = useRef<HTMLDivElement>(null);
+  const templateRef = useRef<HTMLDivElement>(null);
   const { hash } = useLocation();
 
   useEffect(() => {
@@ -176,6 +178,7 @@ export function EditPage() {
   const pageLoaded = !!page;
   useEffect(() => {
     if (hash === "#hero" && pageLoaded) heroRef.current?.scrollIntoView({ block: "start" });
+    if (hash === "#template" && pageLoaded) templateRef.current?.scrollIntoView({ block: "start" });
   }, [hash, pageLoaded]);
 
   if (isLoading || !page) {
@@ -349,6 +352,10 @@ export function EditPage() {
             slide's title must not submit the page details above. */}
         <div id="hero" ref={heroRef} className="mt-8 scroll-mt-4 border-t border-border pt-6">
           <PageHeroEditor page={page} />
+        </div>
+
+        <div id="template" ref={templateRef} className="mt-8 scroll-mt-4 border-t border-border pt-6">
+          <TemplatePicker page={page} />
         </div>
       </div>
 
