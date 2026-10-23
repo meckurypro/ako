@@ -16,7 +16,7 @@ import {
   Star,
   ChevronDown,
   RefreshCw,
-  TrendingUp,
+  GitFork,
   Briefcase,
 } from "lucide-react";
 import { useProjectDetail, useSimilarProjects, type Project } from "../hooks/useProjects";
@@ -50,7 +50,9 @@ import { pageModeLabel } from "../lib/pageRoles";
 import { ProjectCard } from "../components/ProjectCard";
 import { BottomNav } from "../components/BottomNav";
 import { AffiliateShareSheet } from "../components/AffiliateShareSheet";
-import { useAffiliateProgram } from "../hooks/useAffiliates";
+import { useAffiliateProgram, useMyAffiliateRelationship, useUnforkAffiliateRelationship } from "../hooks/useAffiliates";
+import { ConfirmDialog } from "../components/ConfirmDialog";
+import { useToast } from "../components/Toast";
 import { PublishMusicButton } from "../components/music/PublishMusicButton";
 import { ProjectFaqSection } from "../components/ProjectFaqSection";
 import { getProjectUrl } from "../lib/projectLinks";
@@ -368,6 +370,13 @@ export function ProjectDetail({ resolvedProjectId }: { resolvedProjectId?: strin
     project && project.project_type !== "pitch" ? project.id : undefined
   );
   const [shareSheetOpen, setShareSheetOpen] = useState(false);
+  // Already forked → the CTA becomes Unfork (confirm first). Independent of the program still being enabled:
+  // an existing fork can always be dropped.
+  const toast = useToast();
+  const [unforkOpen, setUnforkOpen] = useState(false);
+  const { data: myFork } = useMyAffiliateRelationship(project && project.project_type !== "pitch" ? project.id : undefined);
+  const unfork = useUnforkAffiliateRelationship(projectId ?? "");
+  const hasForked = !!user && !isOwner && myFork?.status === "active";
   // Forewords: the creator's panel (also opened by ?forewords=1 from a notification) and the invitee's modal.
   const [searchParams, setSearchParams] = useSearchParams();
   const [forewordsOpen, setForewordsOpen] = useState(searchParams.get("forewords") === "1");
@@ -591,14 +600,24 @@ export function ProjectDetail({ resolvedProjectId }: { resolvedProjectId?: strin
               </div>
             )}
 
-            {canBecomeAffiliate && (
+            {hasForked ? (
               <button
-                onClick={() => setShareSheetOpen(true)}
-                className="w-full flex items-center justify-center gap-2 bg-accent-soft text-accent py-3 rounded-2xl font-semibold text-sm -mt-2 mb-4 transition-transform active:scale-[0.98]"
+                onClick={() => setUnforkOpen(true)}
+                className="w-full flex items-center justify-center gap-2 bg-ink/5 text-ink-muted py-3 rounded-2xl font-semibold text-sm -mt-2 mb-4 transition-transform active:scale-[0.98]"
               >
-                <TrendingUp size={16} />
-                Fork & earn
+                <GitFork size={16} />
+                Unfork
               </button>
+            ) : (
+              canBecomeAffiliate && (
+                <button
+                  onClick={() => setShareSheetOpen(true)}
+                  className="w-full flex items-center justify-center gap-2 bg-accent-soft text-accent py-3 rounded-2xl font-semibold text-sm -mt-2 mb-4 transition-transform active:scale-[0.98]"
+                >
+                  <GitFork size={16} />
+                  Fork & earn
+                </button>
+              )
             )}
 
             {/* The owner's publish action is a main action, not browsing info: it stays out of the folded details. */}
@@ -709,6 +728,28 @@ export function ProjectDetail({ resolvedProjectId }: { resolvedProjectId?: strin
         />
       )}
       {forewordModalOpen && project && <ForewordInviteModal projectId={project.id} onClose={() => setForewordModalOpen(false)} />}
+
+      {unforkOpen && project && (
+        <ConfirmDialog
+          title="Unfork this project?"
+          description="You stop earning on its sales, including buyers your link already brought in. What you've already earned stays."
+          confirmLabel={unfork.isPending ? "Unforking…" : "Unfork"}
+          cancelLabel="Keep"
+          onConfirm={() =>
+            unfork.mutate(undefined, {
+              onSuccess: () => {
+                setUnforkOpen(false);
+                toast("Unforked.", { variant: "success" });
+              },
+              onError: (err) => {
+                setUnforkOpen(false);
+                toast(err instanceof Error ? err.message : "Couldn't unfork.", { variant: "error" });
+              },
+            })
+          }
+          onCancel={() => setUnforkOpen(false)}
+        />
+      )}
 
       {shareSheetOpen && project && (
         <AffiliateShareSheet
