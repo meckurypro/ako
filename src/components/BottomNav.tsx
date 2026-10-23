@@ -103,18 +103,14 @@ export function BottomNav() {
     (!!profile?.username && profileMatch?.params.username === profile.username) ||
     (identity?.mode === "page" && pageMatch?.params.username === identity.page.username);
 
-  // Same idea for Messages: /inbox redirects to /page-inbox while
-  // acting as a page instead of /messages (see MyInboxRedirect) — match
-  // both so the tab still lights up regardless of which one it landed on.
-  const messagesMatch = useMatch("/messages/*");
-  const pageInboxMatch = useMatch("/page-inbox/*");
-  const isMessagesActive = !!messagesMatch || !!pageInboxMatch;
-
-  // The chat button points at the messages list, so it's redundant (and
-  // would sit on top of the conversation list) while already in messaging.
-  // Also hidden on a post and its comment pages — nothing should sit over the conversation.
-  const postMatch = useMatch("/post/*");
-  const showChatFab = !isMessagesActive && !postMatch;
+  // The chat button is a shortcut for browsing, not a fixture: it shows only on the five tab screens (Feed, Discover,
+  // Library, Connect, your own Profile). Anywhere you are doing something — a project, a request, a wallet screen, a
+  // thread — it stays out of the way.
+  const feedMatch = useMatch("/feed");
+  const topicsMatch = useMatch("/topics");
+  const libraryMatch = useMatch("/library");
+  const connectMatch = useMatch("/connect");
+  const showChatFab = !!(feedMatch || topicsMatch || libraryMatch || connectMatch || isOwnProfileActive);
   const inboxHref = activePageId ? "/page-inbox" : "/inbox";
 
   const navList = restricted ? restrictedNavItems : fullNavItems;
