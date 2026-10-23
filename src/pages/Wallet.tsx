@@ -78,13 +78,13 @@ function CardPill({ to, icon: Icon, label, primary }: { to: string; icon: Lucide
   return (
     <Link
       to={to}
-      className={`flex-1 h-11 rounded-full inline-flex items-center justify-center gap-2 text-sm font-semibold transition-[transform,background-color] active:scale-[0.98] ${
+      className={`flex-1 h-9 rounded-full inline-flex items-center justify-center gap-1.5 text-[13px] font-semibold transition-[transform,background-color] active:scale-[0.98] ${
         primary
           ? "bg-white text-cta shadow-[0_6px_16px_-8px_rgba(0,0,0,0.5)] hover:bg-white/95"
           : "bg-white/15 text-white ring-1 ring-inset ring-white/25 hover:bg-white/20"
       }`}
     >
-      <Icon size={18} />
+      <Icon size={16} />
       {label}
     </Link>
   );
@@ -185,11 +185,9 @@ export function WalletPage() {
   if (!walletEnabled) {
     return (
       <div className="min-h-screen bg-canvas pb-24">
-        <div className="md:hidden">
-          <header className="px-4 pt-6 pb-3 sticky top-0 bg-canvas z-chrome border-b border-border">
-            <Wordmark size="sm" />
-          </header>
-        </div>
+        <header className="md:hidden px-4 pt-6 pb-3 sticky top-0 bg-canvas z-chrome border-b border-border">
+          <Wordmark size="sm" />
+        </header>
         <div className="max-w-xl mx-auto px-4 pt-10 text-center">
           <p className="text-sm text-ink-muted">The wallet is temporarily unavailable. Check back later.</p>
         </div>
@@ -200,11 +198,11 @@ export function WalletPage() {
 
   return (
     <div className="min-h-screen bg-canvas pb-24">
-      <div className="md:hidden">
-        <header className="px-4 pt-6 pb-3 sticky top-0 bg-canvas z-chrome border-b border-border h-[73px] box-border flex items-end justify-center">
-          <Wordmark size="sm" />
-        </header>
-      </div>
+      {/* The header is a direct child of the page (not wrapped in its own div): a sticky element can't leave its
+          parent's box, so inside a header-sized wrapper it scrolled away and left a gap above the pinned card. */}
+      <header className="md:hidden px-4 pt-6 pb-3 sticky top-0 bg-canvas z-chrome border-b border-border h-[73px] box-border flex items-end justify-center">
+        <Wordmark size="sm" />
+      </header>
 
       {/* Desktop: balance/actions form a sticky left rail, history gets
           real table-width room on the right — per audit doc §13
@@ -216,21 +214,21 @@ export function WalletPage() {
             can stay pinned under the header while the activity list scrolls beneath it. Desktop: the whole
             left rail (card + shortcuts) is the sticky element. */}
         <div className="contents md:block md:sticky md:top-10">
-          <div className="sticky top-[73px] z-20 bg-canvas -mx-4 px-4 pt-3 pb-3 -mt-6 md:static md:z-auto md:mx-0 md:px-0 md:pt-0 md:pb-0 md:mt-0 md:bg-transparent">
-          <BrandCard className="p-6 pt-6">
+          <div className="sticky top-[73px] z-20 bg-canvas -mx-4 px-4 pt-3 pb-2 -mt-6 md:static md:z-auto md:mx-0 md:px-0 md:pt-0 md:pb-0 md:mt-0 md:bg-transparent">
+          <BrandCard className="p-4">
             <div className="flex items-center justify-between">
               <p className="text-[11px] font-medium uppercase tracking-[0.16em] text-white">Available balance</p>
-              <span className="rounded-full bg-white/15 px-2.5 py-0.5 text-[11px] font-medium tracking-wide text-white ring-1 ring-inset ring-white/20">
+              <span className="rounded-full bg-white/15 px-2 py-px text-[10px] font-medium tracking-wide text-white ring-1 ring-inset ring-white/20">
                 USD
               </span>
             </div>
 
-            <p className="font-display text-5xl text-white mt-3 mb-6 tabular-nums">
+            <p className="font-display text-3xl text-white mt-1 mb-3 tabular-nums">
               {isLoading ? "…" : formatUsd(wallet?.balance ?? 0)}
             </p>
 
             {(depositsEnabled || withdrawalsEnabled) && (
-              <div className="flex gap-3">
+              <div className="flex gap-2">
                 {depositsEnabled && <CardPill to="/wallet/fund" icon={ArrowDownCircle} label="Fund" primary />}
                 {withdrawalsEnabled && <CardPill to="/wallet/withdraw" icon={ArrowUpCircle} label="Withdraw" primary={!depositsEnabled} />}
               </div>

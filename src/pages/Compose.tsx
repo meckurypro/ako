@@ -285,13 +285,9 @@ export function Compose() {
           { variant: "success" }
         );
         navigate("/activity/scheduled", { replace: true });
-      } else if (postingAsPage) {
-        // A Page's posts live on the Page's own profile (already newest-first).
-        toast("Posted.", { variant: "success" });
-        await returnAfterSave({ landOn: `/page/${postingAsPage.username}` });
       } else {
-        // Personal posts live on the Feed. The create-post hook already refetched feed / profile lists, and
-        // justPosted lets Feed pin this exact post at the top of "For You" the instant it lands there.
+        // A published post always lands on the Feed with a "Posted" toast. The create-post hook already refetched
+        // feed / profile lists, and justPosted lets Feed pin this exact post at the top the instant it lands there.
         setJustPosted(createdId);
         toast("Posted.", { variant: "success" });
         await returnAfterSave({ landOn: "/feed" });
@@ -316,10 +312,13 @@ export function Compose() {
     setLeaveSaving(true);
     setError(null);
     try {
-      await createPost.mutateAsync(postInput("draft"));
+      const savedDraft = await createPost.mutateAsync(postInput("draft"));
       await removeOriginalDraft();
+      setJustSaved("draft", (savedDraft as { id: string }).id);
       toast("Saved to your drafts.", { variant: "success" });
-      leaveGuard.proceed();
+      // Like "Save as draft" from the menu: the draft is the outcome, so the person lands on their Drafts.
+      leaveGuard.allowLeaving();
+      navigate("/activity/drafts", { replace: true });
     } catch (err) {
       const message = err instanceof Error ? err.message : "Couldn't save this draft.";
       setError(message);

@@ -2,8 +2,8 @@
 //
 // Forked projects. Built from the same parts as Library, Connect and the Profile so it reads as one family:
 //   • Header   — Library/Connect's orange icon + bold title (with a back arrow: this page lives under Wallet).
-//   • Summary  — the Profile's quiet stat row (big number, muted label, no filled card). The filled green card
-//                belongs to the Wallet balance alone; earnings here are a figure, not a second balance.
+//   • Summary  — the Profile's quiet stat row (number over muted label, no filled card). Lead with the projects;
+//                earnings are one stat among four. The Wallet owns the money headline.
 //   • Tabs     — Active / Revoked on the shared SlidingTabBar + SwipeableTabs carousel.
 //   • Rows     — Library's thumbnail tile, with the share action in the trailing slot where Library puts "remove".
 import { isFileType } from "../lib/fileProject";
@@ -194,18 +194,13 @@ export function MyAffiliateLinks() {
           </div>
         ) : (
           <>
-            {/* Earnings as a figure, not a card — the Wallet owns the one filled surface. */}
-            <div className="mb-6">
-              <p className="text-[11px] font-medium uppercase tracking-[0.16em] text-ink-muted">Earned from referrals</p>
-              <p className="font-display text-4xl text-ink tabular-nums mt-1.5">
-                {totals.loading ? "…" : formatUsd(totals.paid + totals.pending)}
-              </p>
-              <div className="grid grid-cols-4 gap-4 mt-4 border-t border-border pt-4">
-                <Stat label="Clicks" value={String(totals.clicks)} />
-                <Stat label="Sales" value={String(totals.sales)} />
-                <Stat label="Pending" value={formatUsd(totals.pending)} />
-                <Stat label="Paid" value={formatUsd(totals.paid)} />
-              </div>
+            {/* Projects first: how many you've forked and how they're doing. Earnings are one stat among four, the
+                same weight as the rest; the Wallet owns the money headline. */}
+            <div className="grid grid-cols-4 gap-4 mb-5 pb-5 border-b border-border">
+              <Stat label="Forked" value={String(visible.length)} />
+              <Stat label="Clicks" value={String(totals.clicks)} />
+              <Stat label="Sales" value={String(totals.sales)} />
+              <Stat label="Earned" value={totals.loading ? "…" : formatUsd(totals.paid + totals.pending)} />
             </div>
 
             <SlidingTabBar
