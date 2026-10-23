@@ -1,22 +1,24 @@
 import { useMemo, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import {
   ArrowDownCircle,
   ArrowUpCircle,
   TrendingUp,
   Gift,
   Receipt,
+  Clock,
   RotateCcw,
   Megaphone,
   Heart,
   Sparkles,
   Gem,
-  ChevronRight,
+  Menu,
   type LucideIcon,
 } from "lucide-react";
 import { useWallet, useWalletTransactions } from "../hooks/useWallet";
 import { BottomNav } from "../components/BottomNav";
 import { BrandCard } from "../components/BrandCard";
+import { OptionsModal, type OptionItem } from "../components/OptionsModal";
 import { Wordmark } from "../components/Wordmark";
 import { useFeatureFlag } from "../hooks/useFeatureFlags";
 import { useWithdrawalEligibility } from "../hooks/useWalletRates";
@@ -78,34 +80,14 @@ function CardPill({ to, icon: Icon, label, primary }: { to: string; icon: Lucide
   return (
     <Link
       to={to}
-      className={`flex-1 h-9 rounded-full inline-flex items-center justify-center gap-1.5 text-[13px] font-semibold transition-[transform,background-color] active:scale-[0.98] ${
+      className={`flex-1 h-11 rounded-full inline-flex items-center justify-center gap-2 text-sm font-semibold transition-[transform,background-color] active:scale-[0.98] ${
         primary
           ? "bg-white text-cta shadow-[0_6px_16px_-8px_rgba(0,0,0,0.5)] hover:bg-white/95"
           : "bg-white/15 text-white ring-1 ring-inset ring-white/25 hover:bg-white/20"
       }`}
     >
-      <Icon size={16} />
+      <Icon size={18} />
       {label}
-    </Link>
-  );
-}
-
-// Secondary destinations sit under the card as quiet surface tiles — same bordered, rounded-2xl,
-// accent-soft icon-chip language as the Profile's rows.
-function ShortcutTile({ to, icon: Icon, title, hint }: { to: string; icon: LucideIcon; title: string; hint: string }) {
-  return (
-    <Link
-      to={to}
-      className="group flex items-center gap-3 rounded-2xl border border-border bg-surface px-3.5 py-3 transition-colors hover:border-accent/40"
-    >
-      <span className="w-10 h-10 rounded-full bg-accent-soft text-accent flex items-center justify-center shrink-0">
-        <Icon size={18} />
-      </span>
-      <span className="min-w-0 flex-1">
-        <span className="block text-sm font-medium text-ink">{title}</span>
-        <span className="block text-xs text-ink-muted truncate">{hint}</span>
-      </span>
-      <ChevronRight size={16} className="text-ink-muted transition-transform group-hover:translate-x-0.5" aria-hidden="true" />
     </Link>
   );
 }
@@ -138,6 +120,8 @@ export function WalletPage() {
   const { data: withdrawals } = useWithdrawals();
   const [filter, setFilter] = useState<ActivityFilter>("all");
   const [period, setPeriod] = useState<WalletPeriod>("all");
+  const [menuOpen, setMenuOpen] = useState(false);
+  const navigate = useNavigate();
 
   // Requests that have left the wallet but not yet reached the bank.
   const inReviewUsd = (withdrawals ?? [])
@@ -176,6 +160,51 @@ export function WalletPage() {
     return out;
   }, [periodRows, filter]);
 
+  // The hamburger: everything that used to sit around the balance card, grouped by what it's for. First the two
+  // numbers people check before asking for money out (both lead to Withdraw, which also lists past requests), then
+  // the other ways money reaches the wallet.
+  const menuItems: (OptionItem | "divider")[] = [
+    ...(withdrawalsEnabled
+      ? ([
+          {
+            key: "can-withdraw",
+            label: "Can withdraw",
+            description: "this week",
+            icon: <ArrowUpCircle />,
+            badge: <span className="text-sm font-semibold tabular-nums text-overlay-ink">{formatUsd(eligibility?.available_to_request ?? 0)}</span>,
+            onSelect: () => navigate("/wallet/withdraw"),
+          },
+          {
+            key: "in-review",
+            label: "In review",
+            description: "on its way to your bank",
+            icon: <Clock />,
+            badge: <span className="text-sm font-semibold tabular-nums text-overlay-ink">{formatUsd(inReviewUsd)}</span>,
+            onSelect: () => navigate("/wallet/withdraw"),
+          },
+          "divider",
+        ] satisfies (OptionItem | "divider")[])
+      : []),
+    { key: "gifts", label: "Gift Vault", description: "Gifts you've been given", icon: <Gem />, onSelect: () => navigate("/wallet/gifts") },
+    ...(affiliateEnabled
+      ? ([
+          { key: "affiliate", label: "Affiliate", description: "Forked projects & commissions", icon: <TrendingUp />, onSelect: () => navigate("/wallet/affiliate-links") },
+        ] satisfies OptionItem[])
+      : []),
+  ];
+
+  const menuButton = (
+    <button
+      type="button"
+      onClick={() => setMenuOpen(true)}
+      aria-label="Wallet menu"
+      title="Menu"
+      className="w-10 h-10 -mr-2 rounded-full flex items-center justify-center text-ink-muted active:bg-surface"
+    >
+      <Menu size={24} />
+    </button>
+  );
+
   // The main entry point into this page (ProfilePage's owner menu) is
   // already hidden when this is off — this is the defensive layer for
   // anyone who navigates to /wallet directly, or had it open in a tab
@@ -185,7 +214,7 @@ export function WalletPage() {
   if (!walletEnabled) {
     return (
       <div className="min-h-screen bg-canvas pb-24">
-        <header className="md:hidden px-4 pt-6 pb-3 sticky top-0 bg-canvas z-chrome border-b border-border">
+        <header className="md:hidden px-4 pt-6 pb-3 border-b border-border">
           <Wordmark size="sm" />
         </header>
         <div className="max-w-xl mx-auto px-4 pt-10 text-center">
@@ -198,37 +227,36 @@ export function WalletPage() {
 
   return (
     <div className="min-h-screen bg-canvas pb-24">
-      {/* The header is a direct child of the page (not wrapped in its own div): a sticky element can't leave its
-          parent's box, so inside a header-sized wrapper it scrolled away and left a gap above the pinned card. */}
-      <header className="md:hidden px-4 pt-6 pb-3 sticky top-0 bg-canvas z-chrome border-b border-border h-[73px] box-border flex items-end justify-center">
+      {/* Nothing on this page is pinned: header, card and activity all scroll together. */}
+      <header className="md:hidden relative px-4 pt-6 pb-3 border-b border-border h-[73px] box-border flex items-end justify-center">
         <Wordmark size="sm" />
+        <div className="absolute right-4 bottom-1.5">{menuButton}</div>
       </header>
 
-      {/* Desktop: balance/actions form a sticky left rail, history gets
-          real table-width room on the right — per audit doc §13
-          ("Wallet: table/history width"), not the same 576px column as
-          Feed. Mobile keeps the original single stacked column. */}
-      <div className="max-w-xl md:max-w-5xl mx-auto px-4 md:px-8 pt-6 md:pt-10 md:grid md:grid-cols-[360px_1fr] md:gap-10 md:items-start">
+      {/* Desktop: balance on the left, history gets real table-width room on the right — per audit doc §13
+          ("Wallet: table/history width"), not the same 576px column as Feed. Mobile is a single stacked column. */}
+      <div className="max-w-xl md:max-w-5xl mx-auto px-4 md:px-8 pt-6 md:pt-6 md:grid md:grid-cols-[360px_1fr] md:gap-10 md:items-start">
+        <div className="hidden md:flex md:col-span-2 items-center justify-between -mb-4">
+          <h2 className="font-bold text-[1.75rem] leading-tight tracking-tight text-ink">Wallet</h2>
+          {menuButton}
+        </div>
+
         {/* ── Balance card — the one bold element on the page ── */}
-        {/* Mobile: this wrapper vanishes (contents) so the balance card is a direct child of the page column and
-            can stay pinned under the header while the activity list scrolls beneath it. Desktop: the whole
-            left rail (card + shortcuts) is the sticky element. */}
-        <div className="contents md:block md:sticky md:top-10">
-          <div className="sticky top-[73px] z-20 bg-canvas -mx-4 px-4 pt-3 pb-2 -mt-6 md:static md:z-auto md:mx-0 md:px-0 md:pt-0 md:pb-0 md:mt-0 md:bg-transparent">
-          <BrandCard className="p-4">
+        <div className="md:col-start-1 md:row-start-2">
+          <BrandCard className="p-6 pt-6">
             <div className="flex items-center justify-between">
               <p className="text-[11px] font-medium uppercase tracking-[0.16em] text-white">Available balance</p>
-              <span className="rounded-full bg-white/15 px-2 py-px text-[10px] font-medium tracking-wide text-white ring-1 ring-inset ring-white/20">
+              <span className="rounded-full bg-white/15 px-2.5 py-0.5 text-[11px] font-medium tracking-wide text-white ring-1 ring-inset ring-white/20">
                 USD
               </span>
             </div>
 
-            <p className="font-display text-3xl text-white mt-1 mb-3 tabular-nums">
+            <p className="font-display text-5xl text-white mt-3 mb-6 tabular-nums">
               {isLoading ? "…" : formatUsd(wallet?.balance ?? 0)}
             </p>
 
             {(depositsEnabled || withdrawalsEnabled) && (
-              <div className="flex gap-2">
+              <div className="flex gap-3">
                 {depositsEnabled && <CardPill to="/wallet/fund" icon={ArrowDownCircle} label="Fund" primary />}
                 {withdrawalsEnabled && <CardPill to="/wallet/withdraw" icon={ArrowUpCircle} label="Withdraw" primary={!depositsEnabled} />}
               </div>
@@ -237,36 +265,9 @@ export function WalletPage() {
               <p className="text-xs text-white/90">Funding and withdrawals are temporarily unavailable.</p>
             )}
           </BrandCard>
-          </div>
-
-          {/* Withdrawal position — the two numbers people check before asking for money out. Kept off the card so the
-              pinned balance stays one number with one job, and so no stat row here echoes the Gift Vault plaque. */}
-          {withdrawalsEnabled && (eligibility || inReviewUsd > 0) && (
-            <div className="mt-1 md:mt-3 mb-3 grid grid-cols-2 divide-x divide-border rounded-2xl border border-border bg-surface py-3">
-              <div className="px-4">
-                <p className="text-[11px] uppercase tracking-wide text-ink-muted">Can withdraw</p>
-                <p className="font-display text-xl text-ink tabular-nums mt-0.5">
-                  {formatUsd(eligibility?.available_to_request ?? 0)}
-                </p>
-                <p className="text-[11px] text-ink-muted">this week</p>
-              </div>
-              <div className="px-4">
-                <p className="text-[11px] uppercase tracking-wide text-ink-muted">In review</p>
-                <p className="font-display text-xl text-ink tabular-nums mt-0.5">{formatUsd(inReviewUsd)}</p>
-                <p className="text-[11px] text-ink-muted">on its way to your bank</p>
-              </div>
-            </div>
-          )}
-
-          <div className={`grid gap-3 ${affiliateEnabled ? "grid-cols-2 md:grid-cols-1" : "grid-cols-1"}`}>
-            <ShortcutTile to="/wallet/gifts" icon={Gem} title="Gift Vault" hint="Your collection of gifts" />
-            {affiliateEnabled && (
-              <ShortcutTile to="/wallet/affiliate-links" icon={TrendingUp} title="Affiliate" hint="Links & earnings" />
-            )}
-          </div>
         </div>
 
-        <div className="md:row-span-2 md:col-start-2 md:row-start-1">
+        <div className="md:col-start-2 md:row-start-2">
           <h3 className="font-display text-lg text-ink mt-8 md:mt-0 mb-3">Activity</h3>
 
           <div className="-mx-4 px-4 mb-4 overflow-x-auto no-scrollbar">
@@ -357,6 +358,8 @@ export function WalletPage() {
           )}
         </div>
       </div>
+
+      {menuOpen && <OptionsModal title="Wallet" items={menuItems} onClose={() => setMenuOpen(false)} />}
 
       <BottomNav />
     </div>
