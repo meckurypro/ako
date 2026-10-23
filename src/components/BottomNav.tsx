@@ -47,18 +47,20 @@ const connectItem = { to: "/connect", icon: Users, label: "Connect" } as const;
 const fullNavItems = [feedItem, discoverItem, libraryItem, connectItem] as const;
 const restrictedNavItems = [discoverItem, libraryItem, connectItem] as const;
 
-// Solid chat bubble with a "+" knocked out of it — the same glyph the
-// reference design uses for its floating new-chat button. The long
-// pointed tail at the bottom-left is what makes it read as a speech bubble
-// rather than a bare "+" (people were mistaking it for add-post/project).
-function ChatPlusIcon({ size = 26 }: { size?: number }) {
+// Two overlapping speech bubbles — a solid one in front carrying the "typing" dots, a softer one behind — so it reads
+// as a conversation, not a single comment (the post's comment action is a bubble with a "+", which this used to copy).
+// A thin ring in the button's own colour separates the front bubble from the one behind it.
+function ChatIcon({ size = 26 }: { size?: number }) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" aria-hidden>
-      <path
-        d="M6.5 2.5H17.5A4 4 0 0 1 21.5 6.5V12.5A4 4 0 0 1 17.5 16.5H11L3.5 22L2.5 13V6.5A4 4 0 0 1 6.5 2.5Z"
-        fill="currentColor"
-      />
-      <path d="M12 6.2v6.6M8.7 9.5h6.6" className="stroke-accent dark:stroke-ink" strokeWidth="1.8" strokeLinecap="round" />
+      <path d="M11 2.5H18A3.5 3.5 0 0 1 21.5 6V16.5L17.8 12.5H11A3.5 3.5 0 0 1 7.5 9V6A3.5 3.5 0 0 1 11 2.5Z" fill="currentColor" opacity={0.5} />
+      <path d="M6 7.5H13A3.5 3.5 0 0 1 16.5 11V14A3.5 3.5 0 0 1 13 17.5H8.5L3.2 21.5L2.5 17.5V11A3.5 3.5 0 0 1 6 7.5Z" className="stroke-accent dark:stroke-ink" strokeWidth="3.2" strokeLinejoin="round" />
+      <path d="M6 7.5H13A3.5 3.5 0 0 1 16.5 11V14A3.5 3.5 0 0 1 13 17.5H8.5L3.2 21.5L2.5 17.5V11A3.5 3.5 0 0 1 6 7.5Z" fill="currentColor" />
+      <g className="fill-accent dark:fill-ink">
+        <circle cx="6.4" cy="12.5" r="1.2" />
+        <circle cx="9.5" cy="12.5" r="1.2" />
+        <circle cx="12.6" cy="12.5" r="1.2" />
+      </g>
     </svg>
   );
 }
@@ -141,7 +143,7 @@ export function BottomNav() {
           aria-label={unreadCount > 0 ? `Chats, ${unreadCount} unread` : "Chats"}
           className="absolute right-4 bottom-full mb-4 w-14 h-14 rounded-[18px] bg-accent text-canvas dark:bg-ink dark:text-accent flex items-center justify-center shadow-[0_4px_14px_rgba(var(--shadow-ink-rgb),0.25)] active:scale-95 transition-transform"
         >
-          <ChatPlusIcon size={30} />
+          <ChatIcon size={30} />
           {unreadCount > 0 && (
             <span className="pointer-events-none absolute -top-[9px] -right-[9px] min-w-6 h-6 px-[5px] rounded-full border-[2.5px] border-canvas bg-[#D8453A] text-white text-[11px] leading-[13px] font-semibold tabular-nums flex items-center justify-center">
               {unreadCount > 99 ? "99+" : unreadCount}
