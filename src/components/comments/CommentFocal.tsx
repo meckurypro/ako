@@ -1,6 +1,5 @@
 // src/components/comments/CommentFocal.tsx
 import { Link } from "react-router-dom";
-import { MessageSquare, ThumbsDown } from "lucide-react";
 import { LikeHeart } from "../LikeHeart";
 import { Avatar } from "../Avatar";
 import { renderFormattedText } from "../../lib/formatText";
@@ -21,10 +20,8 @@ export function CommentFocal({ comment }: { comment: CommentWithAuthor }) {
   const views = useCommentViewCount(comment.id).data ?? 0;
   const delta = eng.deltas.get(comment.id);
   const likes = Math.max(0, comment.like_count + (delta?.like ?? 0));
-  const dislikes = Math.max(0, comment.dislike_count + (delta?.dislike ?? 0));
   const state = eng.reactions?.get(comment.id);
   const liked = !!state?.liked;
-  const disliked = !!state?.disliked;
 
   return (
     <article className="pt-4">
@@ -42,10 +39,10 @@ export function CommentFocal({ comment }: { comment: CommentWithAuthor }) {
         {renderFormattedText(comment.content, "c")}
       </p>
 
-      {/* One stats row: time · date · views on the left; reply count, heart, dislike and the "…" on the right. The heart and
-          thumb are the like / dislike controls themselves, so nothing repeats underneath. */}
-      <div className="flex items-center flex-wrap justify-between gap-x-3 pb-1 mt-3 border-b border-border text-sm">
-        <div className="flex items-center flex-wrap gap-x-1.5 py-1.5 text-ink-muted">
+      {/* One stats row, always on a single line: time · date · views on the left; comment count, heart and the "…" on the
+          right. The heart is the like control itself, so nothing repeats underneath. */}
+      <div className="flex items-center justify-between pb-1 mt-3 border-b border-border text-sm">
+        <div className="flex items-center gap-x-1.5 py-1.5 text-ink-muted whitespace-nowrap shrink-0">
           <span>{formatPostTime(comment.created_at)}</span>
           <span aria-hidden="true">·</span>
           <span>{formatPostDate(comment.created_at)}</span>
@@ -60,13 +57,10 @@ export function CommentFocal({ comment }: { comment: CommentWithAuthor }) {
           )}
         </div>
 
-        <div className="flex items-center gap-x-4 ml-auto">
-          <span
-            className="flex items-center gap-1.5 py-1.5 text-ink-muted"
-            aria-label={`${comment.reply_count} ${comment.reply_count === 1 ? "reply" : "replies"}`}
-          >
-            <MessageSquare size={16} />
+        <div className="flex items-center gap-x-3 shrink-0 whitespace-nowrap">
+          <span className="flex items-center gap-1.5 py-1.5 text-ink-muted">
             <AnimatedCount value={comment.reply_count} showZero className="font-semibold text-ink" />
+            <span>{comment.reply_count === 1 ? "Comment" : "Comments"}</span>
           </span>
           <button
             onClick={() => eng.toggleReaction({ commentId: comment.id, type: "like", currentlyActive: liked })}
@@ -76,15 +70,6 @@ export function CommentFocal({ comment }: { comment: CommentWithAuthor }) {
           >
             <LikeHeart active={liked} size={16} />
             <AnimatedCount value={likes} showZero className={`font-semibold ${liked ? "text-danger" : "text-ink"}`} />
-          </button>
-          <button
-            onClick={() => eng.toggleReaction({ commentId: comment.id, type: "dislike", currentlyActive: disliked })}
-            className={`flex items-center gap-1.5 py-1.5 transition-colors ${disliked ? "text-danger" : "text-ink-muted hover:text-ink"}`}
-            aria-label={disliked ? "Remove dislike" : "Dislike"}
-            aria-pressed={disliked}
-          >
-            <ThumbsDown size={16} fill={disliked ? "currentColor" : "none"} />
-            <AnimatedCount value={dislikes} showZero className={`font-semibold ${disliked ? "text-danger" : "text-ink"}`} />
           </button>
           <CommentMoreMenu comment={comment} iconSize={18} />
         </div>
