@@ -97,7 +97,7 @@ function ForYouTab({
   // when acting as a page. See usePageFeed.ts for why.
   const personal = useFeedPosts(interestId, page);
   const pageFeed = usePageRankedFeed(isPageMode ? activePageId : undefined, page);
-  const { data: pagePosts, isLoading, isFetching, error } = isPageMode ? pageFeed : personal;
+  const { data: pagePosts, isLoading, error } = isPageMode ? pageFeed : personal;
   const { posts } = useAccumulatedPages(
     pagePosts,
     page,
@@ -106,18 +106,22 @@ function ForYouTab({
 
   useEffect(() => setPage(0), [interestId, isPageMode]);
 
-  // Right after publishing, wait for BOTH the ranked feed's fresh
-  // refetch (triggered by useCreatePost's invalidate) and this one
-  // post's own fetch before showing anything — a single loading state
-  // that resolves once, into the final result, rather than flashing
-  // the pre-post feed and then reordering when the refetch lands.
-  // Only applies to page 0 of the plain, no-topic-filter "For You"
-  // list — the one Compose actually redirects to.
-  const pinning = !!justPostedId && page === 0 && !interestId && !isPageMode;
+  // Right after publishing, the new post is pinned first. useCreatePost
+  // has already cached it, so it paints immediately; the ranked list
+  // below it refetches in the background (and the server ranks the
+  // poster's own new post first too, so nothing reorders above the pin).
+  // Only waits when the pinned post itself isn't cached and has to be
+  // fetched. Applies to page 0 of the plain, no-topic-filter "For You"
+  // list — in personal AND Page mode, the list Compose redirects to.
+  const pinning = !!justPostedId && page === 0 && !interestId;
   const { data: justPostedPost, isLoading: isLoadingJustPosted, isError: justPostedFailed } = usePostById(
     pinning ? justPostedId : null
   );
-  const waitingForFreshFeed = pinning && (isLoading || isFetching || (isLoadingJustPosted && !justPostedFailed));
+  // Only pin a post that belongs to the identity this feed is for: a personal post never pins into a Page's
+  // For You (or the reverse) if the person switched identity after posting.
+  const pinnedPost =
+    justPostedPost && (justPostedPost.posted_as_page_id ?? null) === (activePageId ?? null) ? justPostedPost : undefined;
+  const waitingForFreshFeed = pinning && isLoadingJustPosted && !justPostedFailed;
 
   // "Back to post" fallback — if the target post isn't anywhere in
   // what's currently loaded (it's further down in pagination than
@@ -137,14 +141,14 @@ function ForYouTab({
     scrollToPostId && !scrollTargetInList ? scrollToPostId : null
   );
 
-  if ((isLoading || waitingForFreshFeed) && page === 0) return <p className="text-ink-muted text-center py-10">Loading your feed…</p>;
+  if (((isLoading && !pinnedPost) || waitingForFreshFeed) && page === 0) return <p className="text-ink-muted text-center py-10">Loading your feed…</p>;
   if (error) return (
     <p className="text-danger text-center py-10 px-4 text-sm break-words">
       Couldn't load the feed: {(error as any)?.message ?? String(error)}
       {(error as any)?.hint && <> — hint: {(error as any).hint}</>}
     </p>
   );
-  if (posts.length === 0 && page === 0 && !justPostedPost && !fetchedScrollToPost) {
+  if (posts.length === 0 && page === 0 && !pinnedPost && !fetchedScrollToPost) {
     return (
       <div className="text-center py-16">
         <p className="text-ink-muted mb-4">No posts yet. Be the first to share a thought.</p>
@@ -160,8 +164,8 @@ function ForYouTab({
   // the top (see usePostById's comment on get_ranked_feed) — with the
   // rest of the ranked list following, minus that same id in case the
   // algorithm also happened to surface it (avoids a duplicate card).
-  const displayedPosts = justPostedPost
-    ? [justPostedPost, ...posts.filter((p) => p.id !== justPostedPost.id)]
+  const displayedPosts = pinnedPost
+    ? [pinnedPost, ...posts.filter((p) => p.id !== pinnedPost.id)]
     : posts;
 
   // Once fetched, the "back to post" target is pinned above the ranked
@@ -274,6 +278,8 @@ export function Feed() {
   );
   useEffect(() => {
     if (justPostedId || scrollToPostId) window.history.replaceState({}, "");
+    // The new post is pinned first — make sure the page is showing the top of the list.
+    if (justPostedId) window.scrollTo({ top: 0 });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
