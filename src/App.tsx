@@ -54,6 +54,7 @@ import { EditPage } from "./pages/EditPage";
 import { WalletPage } from "./pages/Wallet";
 import { GiftVaultPage } from "./pages/GiftVault";
 import { Withdraw } from "./pages/Withdraw";
+import { WalletTransactionsPage } from "./pages/WalletTransactions";
 import { DepositCallback } from "./pages/DepositCallback";
 import { DepositReturn } from "./pages/DepositReturn";
 import { MyAffiliateLinks } from "./pages/MyAffiliateLinks";
@@ -463,6 +464,14 @@ function AppRoutes() {
               element={
                 <RequireAuth>
                   <WalletPage />
+                </RequireAuth>
+              }
+            />
+            <Route
+              path="/wallet/transactions"
+              element={
+                <RequireAuth>
+                  <WalletTransactionsPage />
                 </RequireAuth>
               }
             />
