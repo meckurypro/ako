@@ -35,6 +35,51 @@ export function useUpdateExchangeRate() {
   });
 }
 
+export interface RateSyncStatus {
+  auto_sync_enabled: boolean;
+  last_market_rate: number | null;
+  last_synced_at: string | null;
+  last_status: string | null;
+}
+
+/** Admin-only read of the automatic rate-sync singleton (RLS: admin_roles). */
+export function useRateSyncStatus() {
+  return useQuery({
+    queryKey: ["exchange-rate-sync-status"],
+    queryFn: async (): Promise<RateSyncStatus> => {
+      const { data, error } = await supabase
+        .from("exchange_rate_settings")
+        .select("auto_sync_enabled, last_market_rate, last_synced_at, last_status")
+        .single();
+      if (error) throw error;
+      return {
+        auto_sync_enabled: data.auto_sync_enabled,
+        last_market_rate: data.last_market_rate === null ? null : Number(data.last_market_rate),
+        last_synced_at: data.last_synced_at,
+        last_status: data.last_status,
+      };
+    },
+    staleTime: 30 * 1000,
+  });
+}
+
+export function useSetRateAutoSync() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (enabled: boolean) => {
+      const { error } = await supabase
+        .from("exchange_rate_settings")
+        .update({ auto_sync_enabled: enabled })
+        .eq("id", true);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["exchange-rate-sync-status"] });
+    },
+  });
+}
+
 export interface PayoutBatchSummary {
   id: string;
   status: "processing" | "completed";

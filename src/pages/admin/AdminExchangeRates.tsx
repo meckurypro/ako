@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import { ArrowLeft } from "lucide-react";
 import { useSmartBack } from "../../hooks/useSmartBack";
 import { useExchangeRates } from "../../hooks/useWalletRates";
-import { useUpdateExchangeRate } from "../../hooks/useAdminWallet";
+import { useRateSyncStatus, useSetRateAutoSync, useUpdateExchangeRate } from "../../hooks/useAdminWallet";
 import { FormField } from "../../components/FormField";
 import { Button } from "../../components/Button";
 import { formatNgn } from "../../lib/money";
@@ -12,6 +12,8 @@ export function AdminExchangeRates() {
   const smartBack = useSmartBack();
   const { data: rates, isLoading } = useExchangeRates();
   const updateRate = useUpdateExchangeRate();
+  const { data: sync } = useRateSyncStatus();
+  const setAutoSync = useSetRateAutoSync();
 
   const [depositRate, setDepositRate] = useState("");
   const [withdrawalRate, setWithdrawalRate] = useState("");
@@ -110,6 +112,34 @@ export function AdminExchangeRates() {
                 </Button>
               </div>
             </div>
+
+            {sync && (
+              <div className="bg-surface rounded-xl p-4 border border-border">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <p className="text-sm font-medium text-ink">Automatic updates</p>
+                    <p className="text-xs text-ink-muted mt-1">
+                      Every 6 hours both rates follow the live market rate, keeping the gap you last set.
+                      {sync.last_market_rate !== null && sync.last_synced_at && (
+                        <>
+                          {" "}Last market rate: {formatNgn(sync.last_market_rate)} (
+                          {new Date(sync.last_synced_at).toLocaleString()}).
+                        </>
+                      )}
+                    </p>
+                    {sync.last_status && sync.last_status !== "ok" && (
+                      <p className="text-xs text-danger mt-1">Last run: {sync.last_status}</p>
+                    )}
+                  </div>
+                  <Button
+                    onClick={() => setAutoSync.mutate(!sync.auto_sync_enabled)}
+                    loading={setAutoSync.isPending}
+                  >
+                    {sync.auto_sync_enabled ? "Pause" : "Resume"}
+                  </Button>
+                </div>
+              </div>
+            )}
 
             {savedMsg && <p className="text-sm text-accent">{savedMsg}</p>}
             {errorMsg && <p className="text-sm text-danger">{errorMsg}</p>}
