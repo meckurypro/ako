@@ -20,6 +20,7 @@ import { usePostRealtime } from "./hooks/usePostRealtime";
 import { usePrefetchGifting } from "./hooks/useWallet";
 
 import { SignUp } from "./pages/auth/SignUp";
+import { PrivacyPolicy, TermsOfService } from "./pages/Legal";
 import { Login } from "./pages/auth/Login";
 import { VerifyEmail } from "./pages/auth/VerifyEmail";
 import { ResetPassword } from "./pages/auth/ResetPassword";
@@ -236,6 +237,9 @@ function AppRoutes() {
             <Route path="/verify-email" element={<VerifyEmail />} />
             <Route path="/reset-password" element={<ResetPassword />} />
             <Route path="/auth/callback" element={<AuthCallback />} />
+            {/* Public legal pages — readable signed-out (sign-up links here; app stores need a public privacy URL). */}
+            <Route path="/privacy" element={<PrivacyPolicy />} />
+            <Route path="/terms" element={<TermsOfService />} />
             {/* Separate entry point for admins — not wrapped in
                 RequireAuth (an admin may not have a normal session
                 yet), and it does its own admin_roles check + sign-out

@@ -25,6 +25,8 @@ const SHELL_EXCLUDED_PREFIXES = [
   "/auth",
   "/admin",
   "/onboarding",
+  "/privacy",
+  "/terms",
 ];
 
 const SIDEBAR_PINNED_KEY = "ako:sidebar-expanded";

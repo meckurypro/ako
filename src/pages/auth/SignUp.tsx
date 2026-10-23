@@ -296,6 +296,18 @@ export function SignUp() {
 
         {/* Add-account mode has no Google button: see the note in Login.tsx. */}
 
+        <p className="text-center text-xs text-ink-muted mt-5">
+          By continuing, you agree to our{" "}
+          <a href="/terms" target="_blank" rel="noopener noreferrer" className="text-accent hover:underline">
+            Terms of Service
+          </a>{" "}
+          and{" "}
+          <a href="/privacy" target="_blank" rel="noopener noreferrer" className="text-accent hover:underline">
+            Privacy Policy
+          </a>
+          .
+        </p>
+
         <p className="text-center text-sm text-ink-muted mt-6">
           Already have an account?{" "}
           <Link to={addMode ? "/login?add=1" : loginPathFor(returnTo)} className="text-accent font-medium hover:underline">

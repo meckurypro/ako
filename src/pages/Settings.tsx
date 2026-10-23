@@ -27,6 +27,8 @@ import {
   ShieldCheck,
   Smartphone,
   Download,
+  FileText,
+  ChevronRight,
 } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "../lib/supabase";
@@ -190,7 +192,7 @@ const SOUND_MODE_OPTIONS: { value: SoundMode; label: string; description: string
   },
 ];
 
-type SectionId = "profile" | "security" | "privacy" | "appearance" | "sound" | "advanced";
+type SectionId = "profile" | "security" | "privacy" | "appearance" | "sound" | "legal" | "advanced";
 
 export function Settings() {
   const navigate = useNavigate();
@@ -890,6 +892,34 @@ export function Settings() {
                 ))}
               </div>
             )}
+          </SettingsSection>
+
+          {/* Legal — Privacy Policy and Terms of Service. Public pages (/privacy, /terms) so the same links also work
+              from sign-up and the app stores. Kept just above Advanced: reference material, after the routine settings. */}
+          <SettingsSection
+            icon={<FileText size={18} />}
+            title="Legal"
+            open={openSection === "legal"}
+            onToggle={() => toggleSection("legal")}
+          >
+            <div className="rounded-xl overflow-hidden border border-border mt-3">
+              {[
+                { to: "/privacy", label: "Privacy Policy", description: "What we collect, why, and your choices" },
+                { to: "/terms", label: "Terms of Service", description: "The rules for using Akọ" },
+              ].map((item, i) => (
+                <button
+                  key={item.to}
+                  onClick={() => navigate(item.to)}
+                  className={`w-full flex items-center gap-3 p-4 text-left bg-canvas ${i > 0 ? "border-t border-border" : ""}`}
+                >
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-ink">{item.label}</p>
+                    <p className="text-xs text-ink-muted">{item.description}</p>
+                  </div>
+                  <ChevronRight size={18} className="text-ink-muted flex-shrink-0" />
+                </button>
+              ))}
+            </div>
           </SettingsSection>
 
           {/* Advanced / danger zone — kept last and on its own, the standard
