@@ -118,6 +118,7 @@ begin
   end if;
 
   perform set_config('ako.rate_sync', 'on', true);
+  perform set_config('ako.market_rate', p_market::text, true);   -- lets the history trigger record the market rate this run used
   update public.exchange_rates set rate = v_dep_new, updated_at = now(), updated_by = null where kind = 'deposit';
   update public.exchange_rates set rate = v_wd_new, updated_at = now(), updated_by = null where kind = 'withdrawal';
 

@@ -78,6 +78,7 @@ import { AdminUserAnalytics } from "./pages/admin/AdminUserAnalytics";
 import { AdminUserList } from "./pages/admin/AdminUserList";
 import { AdminGiftTypes } from "./pages/admin/AdminGiftTypes";
 import { AdminExchangeRates } from "./pages/admin/AdminExchangeRates";
+import { AdminExchangeRateHistory } from "./pages/admin/AdminExchangeRateHistory";
 import { AdminPayouts } from "./pages/admin/AdminPayouts";
 import { AdminReportReasons } from "./pages/admin/AdminReportReasons";
 import { AdminProjectTypes } from "./pages/admin/AdminProjectTypes";
@@ -677,6 +678,16 @@ function AppRoutes() {
                 <RequireAuth>
                   <RequireAdmin>
                     <AdminExchangeRates />
+                  </RequireAdmin>
+                </RequireAuth>
+              }
+            />
+            <Route
+              path="/admin/exchange-rates/history"
+              element={
+                <RequireAuth>
+                  <RequireAdmin>
+                    <AdminExchangeRateHistory />
                   </RequireAdmin>
                 </RequireAuth>
               }
