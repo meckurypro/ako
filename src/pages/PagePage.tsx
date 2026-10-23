@@ -48,7 +48,7 @@ import {
   useSwitchActiveMode,
   usePageById,
 } from "../hooks/usePages";
-import { usePageFeaturedMembers, usePageHeroSlides } from "../hooks/usePageLanding";
+import { useHeroAspect, usePageFeaturedMembers, usePageHeroSlides } from "../hooks/usePageLanding";
 import { usePagePosts } from "../hooks/usePosts";
 import { usePageProjects } from "../hooks/useProjects";
 import { useTabState } from "../hooks/useTabState";
@@ -131,6 +131,7 @@ export function PagePage() {
   const { data: subsidiaries } = usePageSubsidiaries(page?.id);
   const subsidiariesEnabled = useFeatureFlag("subsidiaries_enabled");
   const { data: slides } = usePageHeroSlides(page?.id);
+  const heroAspect = useHeroAspect(slides);
   // Only the members an admin chose to show — a visitor's page load never fetches the full roster.
   const { data: featured } = usePageFeaturedMembers(page?.id);
   const hasSlides = (slides?.length ?? 0) > 0;
@@ -523,6 +524,7 @@ export function PagePage() {
               intervalSeconds={page.hero_interval_seconds ?? 5}
               direction={page.hero_direction ?? "forward"}
               pageName={page.name}
+              aspect={heroAspect}
             />
           )}
 

@@ -1,5 +1,5 @@
 // src/components/PageHero.tsx
-// The hero slideshow at the top of a Page's landing view: one 16:9 frame of images,
+// The hero slideshow at the top of a Page's landing view: one frame of images (shaped by the first image),
 // each with an optional title and caption. Visitors can swipe / drag / use the arrows
 // or the segments; it also advances on its own, in the direction and at the pace the
 // page's admin chose. It pauses whenever it shouldn't be moving — a finger or pointer
@@ -19,6 +19,8 @@ interface PageHeroProps {
   intervalSeconds: number;
   direction: HeroDirection;
   pageName: string;
+  /** Width / height of the frame — set by the first slide. Defaults to 16:9. */
+  aspect?: number;
 }
 
 const SETTLE_MS = 650; // how long a programmatic smooth scroll is allowed to run
@@ -36,7 +38,7 @@ function usePrefersReducedMotion(): boolean {
   return reduced;
 }
 
-export function PageHero({ slides, autoplay, intervalSeconds, direction, pageName }: PageHeroProps) {
+export function PageHero({ slides, autoplay, intervalSeconds, direction, pageName, aspect = 16 / 9 }: PageHeroProps) {
   const count = slides.length;
   const loop = count > 1;
   // Extended strip: a clone of the last slide in front, a clone of the first slide behind.
@@ -207,7 +209,11 @@ export function PageHero({ slides, autoplay, intervalSeconds, direction, pageNam
         if (e.key === "ArrowLeft") step(-1);
       }}
     >
-      <div className="relative aspect-[16/9] overflow-hidden rounded-3xl bg-surface shadow-[0_10px_40px_-18px_rgba(var(--shadow-ink-rgb),0.45)]">
+      <div
+        className="relative mx-auto overflow-hidden rounded-3xl bg-surface shadow-[0_10px_40px_-18px_rgba(var(--shadow-ink-rgb),0.45)]"
+        // Tall frames are capped to ~75% of the screen height so a 9:16 hero never swallows the page.
+        style={{ aspectRatio: aspect, width: `min(100%, calc(75vh * ${aspect}))` }}
+      >
         <div
           ref={scrollerRef}
           className="no-scrollbar flex h-full snap-x snap-mandatory overflow-x-auto overscroll-x-contain"

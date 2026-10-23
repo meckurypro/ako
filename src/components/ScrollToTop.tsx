@@ -1,5 +1,5 @@
 // src/components/ScrollToTop.tsx
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { useLocation, useNavigationType } from "react-router-dom";
 
 // React Router doesn't reset scroll position on navigation the way a full
@@ -26,6 +26,7 @@ const scrollPositions = new Map<string, number>();
 export function ScrollToTop() {
   const { pathname, key } = useLocation();
   const navigationType = useNavigationType();
+  const lastPathname = useRef(pathname);
 
   // Continuously record this entry's scroll position while it's the one
   // showing, rather than reading it once at the moment of leaving — by
@@ -41,6 +42,12 @@ export function ScrollToTop() {
   }, [key]);
 
   useEffect(() => {
+    // A REPLACE that keeps the same pathname is just a query-string tweak on the page
+    // already showing (e.g. switching Projects/Posts tabs writes ?tab=...). That's not a
+    // new page, so the visitor must stay exactly where they've scrolled to.
+    const samePageReplace = navigationType === "REPLACE" && lastPathname.current === pathname;
+    lastPathname.current = pathname;
+    if (samePageReplace) return;
     if (navigationType === "POP") {
       window.scrollTo(0, scrollPositions.get(key) ?? 0);
     } else {

@@ -2,24 +2,26 @@
 // Where a page admin (or a member allowed to edit the page) builds the hero slideshow:
 // add images, give each a title and caption, reorder, remove, and choose how it plays.
 // Every change saves on its own — there's no separate "save hero" step to forget.
-// All slides are cropped to 16:9 on upload so they sit in one frame.
+// The first image uploaded sets the shape (9:16, 1:1, 16:9, …); every later one is cropped to match.
 import { useRef, useState } from "react";
 import { ArrowDown, ArrowUp, ImagePlus, Trash2 } from "lucide-react";
 import { useToast } from "./Toast";
 import { ToggleSwitch } from "./admin/ToggleSwitch";
 import { useUploadAvatar } from "../hooks/useUploadAvatar";
 import {
-  HERO_ASPECT,
   HERO_INTERVAL_OPTIONS,
   MAX_HERO_SLIDES,
+  clampHeroAspect,
+  loadHeroAspect,
   useAddHeroSlide,
   useDeleteHeroSlide,
   usePageHeroSlides,
   useReorderHeroSlides,
   useUpdateHeroSettings,
+  useHeroAspect,
   useUpdateHeroSlide,
 } from "../hooks/usePageLanding";
-import { cropToAspect } from "../lib/cropImage";
+import { cropToAspect, readImageAspect } from "../lib/cropImage";
 import type { HeroDirection, Page, PageHeroSlide } from "../types/database";
 
 function SlideRow({
@@ -30,7 +32,9 @@ function SlideRow({
   onMove,
   onDelete,
   busy,
+  aspect,
 }: {
+  aspect: number;
   slide: PageHeroSlide;
   pageId: string;
   index: number;
@@ -54,7 +58,10 @@ function SlideRow({
 
   return (
     <li className="rounded-2xl bg-canvas p-3">
-      <div className="relative aspect-[16/9] overflow-hidden rounded-xl bg-surface">
+      <div
+        className="relative mx-auto w-full overflow-hidden rounded-xl bg-surface"
+        style={{ aspectRatio: aspect, maxWidth: `min(100%, ${Math.round(aspect * 420)}px)` }}
+      >
         <img src={slide.image_url} alt="" className="h-full w-full object-cover" />
         <span className="absolute left-2 top-2 rounded-full bg-black/55 px-2 py-0.5 text-[11px] font-medium text-white">
           {index + 1}
@@ -125,6 +132,7 @@ export function PageHeroEditor({ page }: { page: Page }) {
   const updateSettings = useUpdateHeroSettings(page.id);
   const upload = useUploadAvatar();
   const [uploading, setUploading] = useState(false);
+  const aspect = useHeroAspect(slides);
 
   const autoplay = page.hero_autoplay ?? true;
   const interval = page.hero_interval_seconds ?? 5;
@@ -139,8 +147,13 @@ export function PageHeroEditor({ page }: { page: Page }) {
     setUploading(true);
     let position = slides.length ? Math.max(...slides.map((s) => s.position)) + 1 : 0;
     try {
+      // The first image on the page sets the aspect ratio; once there are slides, everything matches them.
+      const firstSlide = [...slides].sort((a, b) => a.position - b.position)[0];
+      const target = firstSlide
+        ? await loadHeroAspect(firstSlide.image_url)
+        : clampHeroAspect(await readImageAspect(files[0]));
       for (const file of files) {
-        const cropped = await cropToAspect(file, HERO_ASPECT, { maxWidth: 1600 });
+        const cropped = await cropToAspect(file, target, { maxWidth: target < 1 ? 1200 : 1600 });
         const image_url = await upload.mutateAsync(cropped);
         await addSlide.mutateAsync({ image_url, position: position++ });
       }
@@ -171,7 +184,7 @@ export function PageHeroEditor({ page }: { page: Page }) {
           Hero slides
         </h3>
         <p className="mt-0.5 text-xs text-ink-muted">
-          A slideshow visitors see first. Images are cropped to 16:9 so they all fit the same frame. Up to{" "}
+          A slideshow visitors see first. The first image you add sets the shape (tall, square, wide…); the rest are cropped to match. Up to{" "}
           {MAX_HERO_SLIDES}.
         </p>
       </div>
@@ -186,6 +199,7 @@ export function PageHeroEditor({ page }: { page: Page }) {
               index={i}
               total={slides.length}
               busy={busy}
+              aspect={aspect}
               onMove={(d) => move(i, d)}
               onDelete={() =>
                 deleteSlide.mutate(slide.id, { onError: () => toast("Couldn't remove that slide.", { variant: "error" }) })

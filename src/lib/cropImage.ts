@@ -64,3 +64,15 @@ export async function cropToAspect(
   const ext = type === "image/webp" ? "webp" : "jpg";
   return new File([blob], `page-image.${ext}`, { type });
 }
+
+/** Width / height of a picked file (EXIF orientation applied). */
+export async function readImageAspect(file: File): Promise<number> {
+  try {
+    const bitmap = await createImageBitmap(file, { imageOrientation: "from-image" });
+    const a = bitmap.width / bitmap.height;
+    bitmap.close();
+    return a;
+  } catch {
+    throw new Error("That image couldn't be read. Try a JPEG, PNG or WebP.");
+  }
+}
