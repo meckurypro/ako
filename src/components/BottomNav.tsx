@@ -47,13 +47,13 @@ const connectItem = { to: "/connect", icon: Users, label: "Connect" } as const;
 const fullNavItems = [feedItem, discoverItem, libraryItem, connectItem] as const;
 const restrictedNavItems = [discoverItem, libraryItem, connectItem] as const;
 
-// Two overlapping speech bubbles — a solid one in front carrying the "typing" dots, a softer one behind — so it reads
+// Two overlapping speech bubbles — a solid one in front carrying the "typing" dots, a light-orange one behind — so it reads
 // as a conversation, not a single comment (the post's comment action is a bubble with a "+", which this used to copy).
 // A thin ring in the button's own colour separates the front bubble from the one behind it.
 function ChatIcon({ size = 26 }: { size?: number }) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" aria-hidden>
-      <path d="M11 2.5H18A3.5 3.5 0 0 1 21.5 6V16.5L17.8 12.5H11A3.5 3.5 0 0 1 7.5 9V6A3.5 3.5 0 0 1 11 2.5Z" fill="currentColor" opacity={0.5} />
+      <path d="M11 2.5H18A3.5 3.5 0 0 1 21.5 6V16.5L17.8 12.5H11A3.5 3.5 0 0 1 7.5 9V6A3.5 3.5 0 0 1 11 2.5Z" className="fill-[#FFB874] dark:fill-[#F29A4A]" />
       <path d="M6 7.5H13A3.5 3.5 0 0 1 16.5 11V14A3.5 3.5 0 0 1 13 17.5H8.5L3.2 21.5L2.5 17.5V11A3.5 3.5 0 0 1 6 7.5Z" className="stroke-accent dark:stroke-ink" strokeWidth="3.2" strokeLinejoin="round" />
       <path d="M6 7.5H13A3.5 3.5 0 0 1 16.5 11V14A3.5 3.5 0 0 1 13 17.5H8.5L3.2 21.5L2.5 17.5V11A3.5 3.5 0 0 1 6 7.5Z" fill="currentColor" />
       <g className="fill-accent dark:fill-ink">
