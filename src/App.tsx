@@ -5,7 +5,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { AuthProvider } from "./hooks/useAuth";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import { RequireAuth } from "./components/RequireAuth";
-import { RequireFullAccess, HomeRedirect } from "./components/RequireFullAccess";
+import { RequireFullAccess } from "./components/RequireFullAccess";
 import { RequireProjectCreation } from "./components/RequireProjectCreation";
 import { ScrollToTop } from "./components/ScrollToTop";
 import { PathHistoryTracker } from "./components/PathHistoryTracker";
@@ -21,6 +21,7 @@ import { usePrefetchGifting } from "./hooks/useWallet";
 
 import { SignUp } from "./pages/auth/SignUp";
 import { PrivacyPolicy, TermsOfService } from "./pages/Legal";
+import { HomeGate } from "./pages/Landing";
 import { Login } from "./pages/auth/Login";
 import { VerifyEmail } from "./pages/auth/VerifyEmail";
 import { ResetPassword } from "./pages/auth/ResetPassword";
@@ -222,14 +223,7 @@ function AppRoutes() {
     <AppShell>
       <Suspense fallback={<RouteFallback />}>
       <Routes location={backgroundLocation ?? location}>
-            <Route
-              path="/"
-              element={
-                <RequireAuth>
-                  <HomeRedirect />
-                </RequireAuth>
-              }
-            />
+            <Route path="/" element={<HomeGate />} />
 
             {/* Auth */}
             <Route path="/signup" element={<SignUp />} />
