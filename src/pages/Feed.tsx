@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { Link, useSearchParams, useLocation } from "react-router-dom";
-import { consumeJustPosted } from "../lib/justPosted";
+import { consumeJustPosted, consumeJustPostedPending } from "../lib/justPosted";
 import { X } from "lucide-react";
 import { useAccumulatedPages } from "../hooks/useAccumulatedPages";
 import { useAuth } from "../hooks/useAuth";
@@ -265,9 +265,25 @@ export function Feed() {
   // history entry right after the first render. Mirrors MessageThread's
   // draftMessage handling for the same reason: navigating back/forward
   // through history afterward shouldn't keep re-triggering it.
-  const [justPostedId] = useState<string | null>(
+  const [justPostedId, setJustPostedId] = useState<string | null>(
     () => (location.state as { justPostedId?: string } | null)?.justPostedId ?? consumeJustPosted()
   );
+  // Compose sends the person here the instant they tap Post, before the server has answered: the post's id arrives
+  // later through this promise (null if the post was rejected and the person was sent back to the editor).
+  const [pendingPost] = useState<Promise<string | null> | null>(() => consumeJustPostedPending());
+  useEffect(() => {
+    if (!pendingPost) return;
+    let cancelled = false;
+    void pendingPost.then((id) => {
+      if (id && !cancelled) {
+        setJustPostedId(id);
+        window.scrollTo({ top: 0 });
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [pendingPost]);
   // Set by ProfilePage's "Back to post" FAB (see fromFeedPost there) —
   // the post whose byline sent the visitor to that profile in the
   // first place. Captured once the same way as justPostedId, for the
@@ -279,7 +295,7 @@ export function Feed() {
   useEffect(() => {
     if (justPostedId || scrollToPostId) window.history.replaceState({}, "");
     // The new post is pinned first — make sure the page is showing the top of the list.
-    if (justPostedId) window.scrollTo({ top: 0 });
+    if (justPostedId || pendingPost) window.scrollTo({ top: 0 });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
