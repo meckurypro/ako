@@ -1,13 +1,21 @@
 // src/pages/CreateProject.tsx
 import { FileFolderHero } from "../components/FileFolderArt";
-import { BOOK_COVER_HINT, BOOK_COVER_RATIO, isBookCoverRatio, BOOK_COVER_ERROR } from "../lib/bookCover";
+import { BOOK_COVER_RATIO, isBookCoverRatio, BOOK_COVER_ERROR } from "../lib/bookCover";
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { useNavigate } from "react-router-dom";
 import { useSmartBack } from "../hooks/useSmartBack";
 import { extractBookPdf } from "../hooks/useBookBuilder";
-import { ArrowLeft, ImageIcon } from "lucide-react";
+import { ArrowLeft, Banknote, Eye, EyeOff, ImageIcon, Type } from "lucide-react";
 import { Avatar } from "../components/Avatar";
-import { SupportingImagesField } from "../components/SupportingImagesField";
+import {
+  FormFooter,
+  FormSection,
+  PricingFields,
+  PROJECT_TYPE_ICONS,
+  ProjectTypeChips,
+  ThumbnailPicker,
+  ToggleRow,
+} from "../components/ProjectFormParts";
 import {
   isTypeAllowedForKind,
   useBypassesCreatorRules,
@@ -33,7 +41,6 @@ import { useMyProfile } from "../hooks/useProfile";
 import { useUploadProjectThumbnail } from "../hooks/useUploadProjectThumbnail";
 import { FormField } from "../components/FormField";
 import { Button } from "../components/Button";
-import { PrivacyToggle } from "../components/PrivacyToggle";
 import { TopicPicker, MAX_TOPICS } from "../components/TopicPicker";
 import { FormatToolbar } from "../components/FormatToolbar";
 import { CONTENT_LIMIT, contentCounterClass } from "../lib/textLimits";
@@ -662,6 +669,9 @@ export function CreateProject() {
     );
   }
 
+  const bookNotOwn = projectType === "book" && !bookFields.is_own_work;
+  const isDraftType = projectType === "course" || (projectType === "book" && bookFields.content_source === "authored");
+
   return (
     <div className="min-h-screen bg-canvas px-4 pt-4 pb-10">
       <div className="max-w-md mx-auto">
@@ -680,65 +690,10 @@ export function CreateProject() {
           </div>
         )}
 
-        <form onSubmit={handleSubmit}>
-          {projectType === "file" ? (
-            <div className="w-full mb-4 rounded-xl border border-border bg-surface overflow-hidden">
-              <FileFolderHero />
-            </div>
-          ) : (
-            <>
-          {/* Thumbnail — aspect ratio matches whatever was actually
-              uploaded, not a hardcoded 16:9. Falls back to 16:9 only
-              as the empty-state placeholder before anything is chosen. */}
-          <button
-            type="button"
-            onClick={() => thumbnailInputRef.current?.click()}
-            style={{
-              aspectRatio:
-                projectType === "book"
-                  ? BOOK_COVER_RATIO
-                  : thumbnailRatio
-                    ? `${thumbnailRatio.width} / ${thumbnailRatio.height}`
-                    : "16 / 9",
-            }}
-            className={`bg-surface border border-border rounded-xl flex items-center justify-center overflow-hidden ${
-              projectType === "book" ? "w-48 mx-auto mb-2" : "w-full mb-4"
-            }`}
-          >
-            {thumbnailUrl ? (
-              <img src={thumbnailUrl} alt="" className="w-full h-full object-cover" />
-            ) : (
-              <div className="text-ink-muted flex flex-col items-center gap-1">
-                <ImageIcon size={24} />
-                <span className="text-sm">
-                  {uploadThumbnail.isPending ? "Uploading…" : projectType === "book" ? "Add cover (2:3)" : "Add thumbnail"}
-                </span>
-              </div>
-            )}
-          </button>
-          {projectType === "book" && <p className="text-xs text-ink-muted text-center mb-4">{BOOK_COVER_HINT}</p>}
-          <input
-            ref={thumbnailInputRef}
-            type="file"
-            accept="image/jpeg,image/png,image/webp,image/gif"
-            onChange={handleThumbnailSelect}
-            className="hidden"
-          />
-
-          <SupportingImagesField
-            urls={supportingImageUrls}
-            onChange={setSupportingImageUrls}
-            hasThumbnail={!!thumbnailUrl}
-          />
-
-            </>
-          )}
-
-          {/* Who this project is attributed to — same fixed-at-open,
-              switch-mode-first pattern as Compose.tsx. Also the reason
-              the type picker below only shows a subset of types: some
-              only make sense for one identity or the other. */}
-          <div className="flex items-center gap-2 mb-4">
+        <form onSubmit={handleSubmit} className="space-y-3">
+          {/* Who it posts as — fixed once the form is open (same switch-mode-first pattern as Compose.tsx), so it's a
+              quiet line rather than a section. */}
+          <div className="flex items-center gap-2.5 px-1 pb-1">
             <Avatar
               src={postingAsPage ? postingAsPage.avatar_url : me?.avatar_url}
               name={postingAsPage ? postingAsPage.name : me?.display_name ?? "You"}
@@ -746,9 +701,7 @@ export function CreateProject() {
             />
             <p className="text-sm text-ink-muted">
               Posting as{" "}
-              <span className="text-ink font-medium">
-                {postingAsPage ? postingAsPage.name : me?.display_name}
-              </span>
+              <span className="text-ink font-medium">{postingAsPage ? postingAsPage.name : me?.display_name}</span>
               {!postingAsPage && (
                 <>
                   {" "}
@@ -758,188 +711,150 @@ export function CreateProject() {
             </p>
           </div>
 
-          <FormField
-            id="title"
-            label="Title"
-            value={title}
-            onChange={(e) => setTitle(e.target.value)}
-            required
-          />
-
-          {/* Project type drives everything below it — this is the
-              one field that changes what the rest of the form shows. */}
-          {allowedTypes.length === 0 && (
-            <div className="mb-4 px-4 py-3 rounded-xl bg-surface border border-border">
-              <p className="text-sm text-ink-muted">
-                There are no project types available to this account right now.
-              </p>
-            </div>
-          )}
-          <div className="mb-1.5">
-            <label htmlFor="project_type" className="block text-sm font-medium text-ink-muted mb-1.5">
-              Project type
-            </label>
-            <select
-              id="project_type"
-              value={projectType}
-              onChange={(e) => setProjectType(e.target.value as ProjectType)}
-              className="w-full px-4 py-3 rounded-xl border border-border bg-canvas text-ink
-                focus:outline-none focus:ring-2 focus:ring-accent/40 focus:border-accent"
-            >
-              {allowedTypes.map((type) => (
-                <option key={type} value={type}>
-                  {PROJECT_TYPE_LABELS[type]}
-                </option>
-              ))}
-            </select>
-          </div>
-          <p className="text-xs text-ink-muted mb-4">
-            {PROJECT_TYPE_HINTS[projectType]}
-            {postingAsPage
-              ? " Event and Room are page-only — that's why some types you might expect aren't listed here."
-              : " Gig, Meeting, Media, and File are personal-only — switch to a page to create an Event or Room."}
-          </p>
-
-          {eligibility && !eligibility.eligible && (
-            <div className="mb-4 px-4 py-3 rounded-xl bg-danger/10 border border-danger/30">
-              <p className="text-sm font-medium text-danger mb-1">
-                You don't meet the requirements for {PROJECT_TYPE_LABELS[projectType]} yet:
-              </p>
-              <ul className="text-xs text-danger space-y-0.5 list-disc list-inside">
-                {eligibility.reasons.map((reason) => (
-                  <li key={reason}>{reason}</li>
-                ))}
-              </ul>
-            </div>
-          )}
-
-          <div className="mb-4">
-            <label className="block text-sm font-medium text-ink-muted mb-1.5">Description</label>
-            <FormatToolbar
-              textareaRef={descriptionRef}
-              value={description}
-              onChange={setDescription}
-              className="mb-1.5"
-            />
-            <textarea
-              ref={descriptionRef}
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              maxLength={CONTENT_LIMIT}
-              rows={3}
-              className="w-full px-4 py-3 rounded-xl border border-border bg-canvas text-ink resize-none
-                focus:outline-none focus:ring-2 focus:ring-accent/40 focus:border-accent"
-            />
-            <p className={`text-xs mt-1.5 text-right ${contentCounterClass(description.length)}`}>
-              {description.length}/{CONTENT_LIMIT}
-            </p>
-          </div>
-
-          <TopicPicker selected={topicIds} onToggle={toggleTopic} />
-
-          {/* ---- Type-specific block ---- */}
-          {projectType === "media" && (
-            <MediaFields value={mediaFields} onChange={setMediaFields} onError={setError} />
-          )}
-          {projectType === "file" && (
-            <FileFields value={fileFields} onChange={setFileFields} onError={setError} maxFiles={maxFiles} />
-          )}
-          {projectType === "url" && <UrlFields value={urlFields} onChange={setUrlFields} />}
-          {projectType === "event" && <EventFields value={eventFields} onChange={setEventFields} />}
-          {projectType === "meeting" && <MeetingFields value={meetingFields} onChange={setMeetingFields} />}
-          {projectType === "room" && <RoomFields value={roomFields} onChange={setRoomFields} />}
-          {projectType === "course" && <CourseFields />}
-          {projectType === "gig" && <GigFields value={gigFields} onChange={setGigFields} />}
-          {projectType === "pitch" && <PitchFields value={pitchFields} onChange={setPitchFields} />}
-          {projectType === "book" && <BookFields value={bookFields} onChange={setBookFields} onError={setError} />}
-          {/* ---- end type-specific block ---- */}
-
-          {/* Pitch never carries a price tag — it's support-based
-              fundraising with a free-form pledge amount chosen by the
-              supporter, not a sale, so the price/promo block below is
-              skipped entirely for that type. */}
-          {projectType !== "pitch" && (
-            <>
-              <div className="mb-4">
-                <label className="block text-sm font-medium text-ink-muted mb-1.5">
-                  {projectType === "gig" ? "Booking fee (USD, optional)" : "Price (USD)"}
-                </label>
-                <input
-                  type="number"
-                  value={priceUsd}
-                  onChange={(e) => setPriceUsd(e.target.value)}
-                  min={0}
-                  step="0.01"
-                  disabled={projectType === "book" && !bookFields.is_own_work}
-                  className="w-full px-4 py-3 rounded-xl border border-border bg-canvas text-ink
-                    focus:outline-none focus:ring-2 focus:ring-accent/40 focus:border-accent disabled:opacity-50"
-                />
-                <p className="text-xs text-ink-muted mt-1">
-                  {projectType === "gig"
-                    ? "Set to 0 to keep this message-only — people reach out, no payment upfront. Add an amount to also let people pay a booking fee to secure a slot."
-                    : projectType === "book" && !bookFields.is_own_work
-                      ? "Crediting someone else's work — this has to stay free."
-                      : "Set to 0 for a free project."}
-                </p>
-              </div>
-
-              {/* Promo price — optional. Leaving it off shows only the
-                  main price with no strikethrough, exactly as before. */}
-              {!(projectType === "book" && !bookFields.is_own_work) && (
-              <div className="mb-6">
-                <label className="flex items-center gap-2 text-sm font-medium text-ink-muted mb-2">
-                  <input
-                    type="checkbox"
-                    checked={showPromo}
-                    onChange={(e) => {
-                      setShowPromo(e.target.checked);
-                      if (!e.target.checked) setPromoPriceUsd("");
-                    }}
-                    className="rounded border-border"
-                  />
-                  Add a promo price
-                </label>
-
-                {showPromo && (
-                  <>
-                    <input
-                      type="number"
-                      value={promoPriceUsd}
-                      onChange={(e) => setPromoPriceUsd(e.target.value)}
-                      min={0}
-                      step="0.01"
-                      placeholder="Promo price"
-                      className="w-full px-4 py-3 rounded-xl border border-border bg-canvas text-ink
-                        focus:outline-none focus:ring-2 focus:ring-accent/40 focus:border-accent"
-                    />
-                    <p className="text-xs text-ink-muted mt-1">
-                      Shown next to the actual price, which will appear crossed out. Must be lower than the actual price.
-                    </p>
-                  </>
-                )}
-              </div>
-              )}
-            </>
-          )}
-
-          <PrivacyToggle checked={isPrivate} onChange={setIsPrivate} />
-
-          {error && (
-            <p className="text-danger text-sm mb-4" role="alert">
-              {error}
-            </p>
-          )}
-
-          <Button
-            type="submit"
-            loading={projectType === "pitch" ? createPitchProject.isPending : createProject.isPending}
+          {/* 1 — What are you making? The type decides which fields appear below. */}
+          <FormSection
+            icon={PROJECT_TYPE_ICONS[projectType]}
+            title="Project type"
+            description="What are you creating? The form adapts to your choice."
           >
-            {projectType === "course" || (projectType === "book" && bookFields.content_source === "authored")
-              ? "Create draft"
-              : projectType === "pitch"
-                ? "Publish pitch"
-                : "Publish project"}
-          </Button>
+            {allowedTypes.length === 0 && (
+              <div className="mb-4 px-4 py-3 rounded-xl bg-canvas border border-border">
+                <p className="text-sm text-ink-muted">There are no project types available to this account right now.</p>
+              </div>
+            )}
+            <ProjectTypeChips options={allowedTypes} value={projectType} onChange={setProjectType} />
+            <p className="text-xs text-ink-muted mb-4">
+              {PROJECT_TYPE_HINTS[projectType]}
+              {postingAsPage
+                ? " Event and Room are page-only — that's why some types you might expect aren't listed here."
+                : " Gig, Meeting, Media, and File are personal-only — switch to a page to create an Event or Room."}
+            </p>
+            {eligibility && !eligibility.eligible && (
+              <div className="mb-4 px-4 py-3 rounded-xl bg-danger/10 border border-danger/30">
+                <p className="text-sm font-medium text-danger mb-1">
+                  You don't meet the requirements for {PROJECT_TYPE_LABELS[projectType]} yet:
+                </p>
+                <ul className="text-xs text-danger space-y-0.5 list-disc list-inside">
+                  {eligibility.reasons.map((reason) => (
+                    <li key={reason}>{reason}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </FormSection>
+
+          {/* 2 — Cover. The thumbnail frame takes the uploaded image's own aspect ratio (16:9 only as the placeholder). */}
+          <FormSection
+            icon={ImageIcon}
+            title="Cover"
+            description={projectType === "book" ? "Your book's cover." : projectType === "file" ? undefined : "The image people see first."}
+          >
+            {projectType === "file" ? (
+              <div className="w-full mb-4 rounded-2xl border border-border bg-canvas overflow-hidden">
+                <FileFolderHero />
+              </div>
+            ) : (
+              <ThumbnailPicker
+                url={thumbnailUrl}
+                aspectRatio={
+                  projectType === "book"
+                    ? BOOK_COVER_RATIO
+                    : thumbnailRatio
+                      ? `${thumbnailRatio.width} / ${thumbnailRatio.height}`
+                      : "16 / 9"
+                }
+                isBook={projectType === "book"}
+                uploading={uploadThumbnail.isPending}
+                inputRef={thumbnailInputRef}
+                onFileChange={handleThumbnailSelect}
+                supportingImageUrls={supportingImageUrls}
+                onSupportingChange={setSupportingImageUrls}
+              />
+            )}
+          </FormSection>
+
+          {/* 3 — The basics. */}
+          <FormSection icon={Type} title="Basics">
+            <FormField id="title" label="Title" value={title} onChange={(e) => setTitle(e.target.value)} required />
+
+            <div className="mb-4">
+              <label className="block text-[11px] font-medium uppercase tracking-[0.14em] text-ink-muted mb-2.5">
+                Description
+              </label>
+              <FormatToolbar textareaRef={descriptionRef} value={description} onChange={setDescription} className="mb-1.5" />
+              <textarea
+                ref={descriptionRef}
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                maxLength={CONTENT_LIMIT}
+                rows={3}
+                className="w-full px-4 py-3 rounded-xl border border-border bg-canvas text-ink resize-none
+                  focus:outline-none focus:ring-2 focus:ring-accent/40 focus:border-accent"
+              />
+              <p className={`text-xs mt-1.5 text-right ${contentCounterClass(description.length)}`}>
+                {description.length}/{CONTENT_LIMIT}
+              </p>
+            </div>
+
+            <TopicPicker selected={topicIds} onToggle={toggleTopic} />
+          </FormSection>
+
+          {/* 4 — Whatever this type needs. */}
+          <FormSection icon={PROJECT_TYPE_ICONS[projectType]} title={`${PROJECT_TYPE_LABELS[projectType]} details`}>
+            {projectType === "media" && <MediaFields value={mediaFields} onChange={setMediaFields} onError={setError} />}
+            {projectType === "file" && (
+              <FileFields value={fileFields} onChange={setFileFields} onError={setError} maxFiles={maxFiles} />
+            )}
+            {projectType === "url" && <UrlFields value={urlFields} onChange={setUrlFields} />}
+            {projectType === "event" && <EventFields value={eventFields} onChange={setEventFields} />}
+            {projectType === "meeting" && <MeetingFields value={meetingFields} onChange={setMeetingFields} />}
+            {projectType === "room" && <RoomFields value={roomFields} onChange={setRoomFields} />}
+            {projectType === "course" && <CourseFields />}
+            {projectType === "gig" && <GigFields value={gigFields} onChange={setGigFields} />}
+            {projectType === "pitch" && <PitchFields value={pitchFields} onChange={setPitchFields} />}
+            {projectType === "book" && <BookFields value={bookFields} onChange={setBookFields} onError={setError} />}
+          </FormSection>
+
+          {/* 5 — Price. A pitch never carries one: it's support-based fundraising with a pledge amount chosen by the
+              supporter, not a sale. */}
+          {projectType !== "pitch" && (
+            <FormSection
+              icon={Banknote}
+              title="Pricing"
+              description={bookNotOwn ? "Free — it credits someone else's work." : "Free, or set a price."}
+            >
+              <PricingFields
+                type={projectType}
+                priceUsd={priceUsd}
+                onPriceChange={setPriceUsd}
+                showPromo={showPromo}
+                onShowPromoChange={setShowPromo}
+                promoPriceUsd={promoPriceUsd}
+                onPromoPriceChange={setPromoPriceUsd}
+                bookNotOwn={bookNotOwn}
+              />
+            </FormSection>
+          )}
+
+          {/* 6 — Who can see it. */}
+          <FormSection icon={Eye} title="Visibility">
+            <ToggleRow
+              icon={EyeOff}
+              title="Private project"
+              description="Not listed anywhere, and not open to anyone by link — only people you add can see or open it."
+              checked={isPrivate}
+              onChange={setIsPrivate}
+            />
+          </FormSection>
+
+          <FormFooter error={error}>
+            <Button
+              type="submit"
+              loading={projectType === "pitch" ? createPitchProject.isPending : createProject.isPending}
+            >
+              {isDraftType ? "Create draft" : projectType === "pitch" ? "Publish pitch" : "Publish project"}
+            </Button>
+          </FormFooter>
         </form>
       </div>
 
