@@ -18,7 +18,7 @@ import { useAuth } from "../hooks/useAuth";
 import { useUnreadConversationCount } from "../hooks/useMessaging";
 import { usePageInboxUnreadCount } from "../hooks/usePageInbox";
 import { useActiveIdentity } from "../hooks/usePages";
-import { useUnreadCount } from "../hooks/useNotifications";
+import { useBellUnreadCount } from "../hooks/usePageNotifications";
 import { useIsAdmin } from "../hooks/useAdmin";
 import { useIsRestricted } from "../hooks/useAccountAccess";
 import { useCanCreateAnyProject } from "../hooks/useCreatorKinds";
@@ -128,7 +128,7 @@ export function Sidebar({ collapsed, onToggleCollapsed }: SidebarProps) {
   const personalUnread = useUnreadConversationCount();
   const pageUnread = usePageInboxUnreadCount(activePageId);
   const messagesUnread = activePageId ? pageUnread : personalUnread;
-  const notifUnread = useUnreadCount();
+  const notifUnread = useBellUnreadCount();
   const { data: isAdmin } = useIsAdmin();
   const restricted = useIsRestricted();
   const restrictedCanCreate = useCanCreateAnyProject();

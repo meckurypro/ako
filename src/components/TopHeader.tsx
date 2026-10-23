@@ -2,7 +2,7 @@ import { Link, useLocation } from "react-router-dom";
 import { Bell, Plus } from "lucide-react";
 import { Wordmark } from "./Wordmark";
 import { Avatar } from "./Avatar";
-import { useUnreadCount } from "../hooks/useNotifications";
+import { useBellUnreadCount } from "../hooks/usePageNotifications";
 import { useMyProfile } from "../hooks/useProfile";
 import { useIsRestricted } from "../hooks/useAccountAccess";
 import { useCanCreateAnyProject } from "../hooks/useCreatorKinds";
@@ -25,7 +25,7 @@ interface TopHeaderProps {
 // together with the tabs row below it, and the shadow for that whole
 // combined block lives on the wrapper, not here.
 export function TopHeader({ leftAction = "avatar" }: TopHeaderProps) {
-  const unreadCount = useUnreadCount();
+  const unreadCount = useBellUnreadCount();
   const { data: me } = useMyProfile();
   const location = useLocation();
   const restricted = useIsRestricted();

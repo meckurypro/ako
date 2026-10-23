@@ -1,10 +1,18 @@
 // src/pages/MyAffiliateLinks.tsx
+//
+// Forked projects. Built from the same parts as Library, Connect and the Profile so it reads as one family:
+//   • Header   — Library/Connect's orange icon + bold title (with a back arrow: this page lives under Wallet).
+//   • Summary  — the Profile's quiet stat row (big number, muted label, no filled card). The filled green card
+//                belongs to the Wallet balance alone; earnings here are a figure, not a second balance.
+//   • Tabs     — Active / Revoked on the shared SlidingTabBar + SwipeableTabs carousel.
+//   • Rows     — Library's thumbnail tile, with the share action in the trailing slot where Library puts "remove".
 import { isFileType } from "../lib/fileProject";
 import { FileFolderIcon } from "../components/FileFolderArt";
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { Link } from "react-router-dom";
 import { useSmartBack } from "../hooks/useSmartBack";
-import { ArrowLeft, GitFork, Copy, Check, ImageIcon, Share2, MousePointerClick, ShoppingBag, Clock, Banknote } from "lucide-react";
+import { useTabState } from "../hooks/useTabState";
+import { ArrowLeft, GitFork, Copy, Check, ImageIcon, Share2 } from "lucide-react";
 import {
   useMyAffiliateRelationships,
   useAffiliateDashboard,
@@ -17,7 +25,12 @@ import { formatUsd } from "../lib/money";
 import { getEffectivePrice } from "../hooks/useProjects";
 import { getProjectUrl } from "../lib/projectLinks";
 import { APP_URL } from "../lib/appUrl";
-import { BrandCard } from "../components/BrandCard";
+import { BottomNav } from "../components/BottomNav";
+import { SwipeableTabs } from "../components/SwipeableTabs";
+import { SlidingTabBar } from "../components/SlidingTabBar";
+
+const TABS = ["active", "revoked"] as const;
+type AffiliateTab = (typeof TABS)[number];
 
 export function AffiliateLinkRow({ relationship }: { relationship: AffiliateRelationshipWithProject }) {
   const toast = useToast();
@@ -51,50 +64,51 @@ export function AffiliateLinkRow({ relationship }: { relationship: AffiliateRela
 
   const revoked = relationship.status === "revoked";
   const canShare = typeof navigator !== "undefined" && typeof navigator.share === "function";
+  const sales = dashboard?.completed_sales ?? 0;
 
   return (
-    <div className={`bg-surface rounded-2xl border border-border p-4 mb-3 ${revoked ? "opacity-70" : ""}`}>
-      <div className="flex items-center gap-3">
-        <Link
-          to={`/projects/${relationship.project_id}`}
-          className={`w-12 ${relationship.project.project_type === "book" ? "h-[72px]" : "h-12"} rounded-xl bg-canvas overflow-hidden flex items-center justify-center shrink-0`}
-        >
-          {isFileType(relationship.project.project_type) ? (
-            <FileFolderIcon size={48} className="w-full h-full" />
-          ) : relationship.project.thumbnail_url ? (
-            <img src={relationship.project.thumbnail_url} alt="" className="w-full h-full object-cover" />
-          ) : (
-            <ImageIcon size={18} className="text-ink-muted" />
-          )}
+    <div className={`rounded-xl border border-border bg-surface ${revoked ? "opacity-70" : ""}`}>
+      <div className="relative">
+        <Link to={`/projects/${relationship.project_id}`} className="flex items-center gap-3 p-3 pr-12">
+          <div
+            className={`w-12 ${relationship.project.project_type === "book" ? "h-[72px]" : "h-12"} rounded-lg bg-canvas overflow-hidden flex items-center justify-center shrink-0`}
+          >
+            {isFileType(relationship.project.project_type) ? (
+              <FileFolderIcon size={48} className="w-full h-full" />
+            ) : relationship.project.thumbnail_url ? (
+              <img src={relationship.project.thumbnail_url} alt="" className="w-full h-full object-cover" />
+            ) : (
+              <ImageIcon size={18} className="text-ink-muted" />
+            )}
+          </div>
+          <div className="min-w-0 flex-1">
+            <p className="text-sm text-ink truncate">{relationship.project.title}</p>
+            <p className="text-xs text-ink-muted flex items-center gap-1">
+              <GitFork size={12} />
+              {formatUsd(getEffectivePrice(relationship.project))}
+              {revoked ? " · Revoked" : ` · ${sales} ${sales === 1 ? "sale" : "sales"}`}
+            </p>
+          </div>
         </Link>
-        <div className="min-w-0 flex-1">
-          <Link to={`/projects/${relationship.project_id}`} className="text-sm font-medium text-ink truncate block">
-            {relationship.project.title}
-          </Link>
-          <p className="text-xs text-ink-muted">
-            {formatUsd(getEffectivePrice(relationship.project))}
-            {revoked ? " · Revoked" : ""}
-          </p>
-        </div>
+        {!revoked && (
+          <button
+            type="button"
+            onClick={() => void handleCopy()}
+            aria-label={canShare ? "Share affiliate link" : "Copy affiliate link"}
+            className="absolute top-1/2 -translate-y-1/2 right-2 p-2 rounded-full text-accent hover:bg-accent-soft transition-colors"
+          >
+            {copied ? <Check size={16} /> : canShare ? <Share2 size={16} /> : <Copy size={16} />}
+          </button>
+        )}
       </div>
 
       {!revoked && (
-        <>
-          <div className="grid grid-cols-4 gap-2 mt-4 rounded-xl bg-canvas px-2 py-3">
-            <MiniStat label="Clicks" value={String(dashboard?.clicks ?? 0)} />
-            <MiniStat label="Sales" value={String(dashboard?.completed_sales ?? 0)} />
-            <MiniStat label="Pending" value={formatUsd(dashboard?.pending_commission ?? 0)} />
-            <MiniStat label="Paid" value={formatUsd(dashboard?.paid_commission ?? 0)} />
-          </div>
-
-          <button
-            onClick={() => void handleCopy()}
-            className="mt-3 w-full flex items-center justify-center gap-2 rounded-full bg-accent-soft text-accent text-sm font-medium py-2.5 transition-colors hover:bg-accent-soft/70"
-          >
-            {copied ? <Check size={16} /> : canShare ? <Share2 size={16} /> : <Copy size={16} />}
-            {copied ? "Copied" : canShare ? "Share affiliate link" : "Copy affiliate link"}
-          </button>
-        </>
+        <div className="grid grid-cols-4 gap-2 border-t border-border px-3 py-2.5">
+          <MiniStat label="Clicks" value={String(dashboard?.clicks ?? 0)} />
+          <MiniStat label="Sales" value={String(sales)} />
+          <MiniStat label="Pending" value={formatUsd(dashboard?.pending_commission ?? 0)} />
+          <MiniStat label="Paid" value={formatUsd(dashboard?.paid_commission ?? 0)} />
+        </div>
       )}
     </div>
   );
@@ -103,19 +117,18 @@ export function AffiliateLinkRow({ relationship }: { relationship: AffiliateRela
 function MiniStat({ label, value }: { label: string; value: string }) {
   return (
     <div className="text-center">
-      <p className="text-sm font-medium text-ink truncate">{value}</p>
+      <p className="text-sm font-medium text-ink truncate tabular-nums">{value}</p>
       <p className="text-[10px] text-ink-muted">{label}</p>
     </div>
   );
 }
 
-function SummaryStat({ icon: Icon, label, value }: { icon: typeof Clock; label: string; value: string }) {
+// Profile's stat idiom: a large semibold figure over a small muted label.
+function Stat({ label, value }: { label: string; value: string }) {
   return (
     <div className="min-w-0">
-      <p className="text-[11px] uppercase tracking-wide text-white/90 flex items-center gap-1">
-        <Icon size={11} aria-hidden="true" /> {label}
-      </p>
-      <p className="font-display text-xl text-white tabular-nums mt-0.5 truncate">{value}</p>
+      <span className="block text-xl font-semibold leading-none text-ink tabular-nums truncate">{value}</span>
+      <span className="block text-sm text-ink-muted mt-1.5">{label}</span>
     </div>
   );
 }
@@ -123,22 +136,52 @@ function SummaryStat({ icon: Icon, label, value }: { icon: typeof Clock; label: 
 export function MyAffiliateLinks() {
   const smartBack = useSmartBack();
   const { data: relationships, isLoading } = useMyAffiliateRelationships();
+  const [tab, setTab] = useTabState<AffiliateTab>(TABS, "active");
+  const activeIndex = Math.max(TABS.indexOf(tab), 0);
+  const [tabProgress, setTabProgress] = useState(activeIndex);
+  const [tabDragging, setTabDragging] = useState(false);
 
   const visible = (relationships ?? []).filter((r) => !!r.project);
   const active = visible.filter((r) => r.status !== "revoked");
   const revoked = visible.filter((r) => r.status === "revoked");
   const totals = useAffiliateTotals(active.map((r) => r.id));
 
+  const tabLabel: Record<AffiliateTab, string> = {
+    active: `Active${active.length ? ` · ${active.length}` : ""}`,
+    revoked: `Revoked${revoked.length ? ` · ${revoked.length}` : ""}`,
+  };
+
+  function renderPane(t: AffiliateTab): ReactNode {
+    const rows = t === "active" ? active : revoked;
+    if (rows.length === 0) {
+      return (
+        <div className="flex flex-col items-center text-center gap-2 mt-16 text-ink-muted">
+          <GitFork size={24} className="text-brand-orange" />
+          <p className="text-sm">
+            {t === "active" ? 'Projects you fork show up here. Tap "Fork & earn" on a project to start.' : "Nothing revoked."}
+          </p>
+        </div>
+      );
+    }
+    return (
+      <div className="flex flex-col gap-2 md:grid md:grid-cols-2 md:gap-3">
+        {rows.map((r) => (
+          <AffiliateLinkRow key={r.id} relationship={r} />
+        ))}
+      </div>
+    );
+  }
+
   return (
-    <div className="min-h-screen bg-canvas px-4 md:px-8 pt-4 md:pt-10 pb-10">
-      <div className="max-w-xl md:max-w-3xl mx-auto">
+    <div className="min-h-screen bg-canvas px-4 md:px-8 pt-4 md:pt-10 pb-24">
+      <div className="max-w-xl md:max-w-4xl mx-auto">
         <button onClick={smartBack} className="text-ink-muted mb-4" aria-label="Back">
           <ArrowLeft size={22} />
         </button>
 
         <h2 className="font-bold text-[1.75rem] leading-tight tracking-tight text-ink mb-1 flex items-center gap-2.5">
-          <GitFork size={24} className="text-accent" />
-          Forked projects
+          <GitFork size={24} className="text-brand-orange" />
+          Forked
         </h2>
         <p className="text-sm text-ink-muted mb-5">Each fork has your affiliate link. Share it, earn on every sale.</p>
 
@@ -146,49 +189,52 @@ export function MyAffiliateLinks() {
           <p className="text-ink-muted text-sm">Loading…</p>
         ) : visible.length === 0 ? (
           <div className="flex flex-col items-center text-center gap-2 mt-16 text-ink-muted">
-            <GitFork size={24} />
+            <GitFork size={24} className="text-brand-orange" />
             <p className="text-sm">No forked projects yet. Tap "Fork & earn" on a project to start.</p>
           </div>
         ) : (
           <>
-            {/* One bold card for the whole picture, same surface as the Wallet balance. */}
-            <BrandCard className="p-5 mb-6">
-              <p className="text-[11px] font-medium uppercase tracking-[0.16em] text-white">Earned from referrals</p>
-              <p className="font-display text-4xl text-white tabular-nums mt-2 mb-5">
+            {/* Earnings as a figure, not a card — the Wallet owns the one filled surface. */}
+            <div className="mb-6">
+              <p className="text-[11px] font-medium uppercase tracking-[0.16em] text-ink-muted">Earned from referrals</p>
+              <p className="font-display text-4xl text-ink tabular-nums mt-1.5">
                 {totals.loading ? "…" : formatUsd(totals.paid + totals.pending)}
               </p>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-x-4 gap-y-4 border-t border-white/15 pt-4">
-                <SummaryStat icon={MousePointerClick} label="Clicks" value={String(totals.clicks)} />
-                <SummaryStat icon={ShoppingBag} label="Sales" value={String(totals.sales)} />
-                <SummaryStat icon={Clock} label="Pending" value={formatUsd(totals.pending)} />
-                <SummaryStat icon={Banknote} label="Paid" value={formatUsd(totals.paid)} />
+              <div className="grid grid-cols-4 gap-4 mt-4 border-t border-border pt-4">
+                <Stat label="Clicks" value={String(totals.clicks)} />
+                <Stat label="Sales" value={String(totals.sales)} />
+                <Stat label="Pending" value={formatUsd(totals.pending)} />
+                <Stat label="Paid" value={formatUsd(totals.paid)} />
               </div>
-            </BrandCard>
+            </div>
 
-            {active.length > 0 && (
-              <section className="mb-6">
-                <h3 className="font-display text-lg text-ink mb-3">Active</h3>
-                <div className="md:grid md:grid-cols-2 md:gap-x-3">
-                  {active.map((r) => (
-                    <AffiliateLinkRow key={r.id} relationship={r} />
-                  ))}
-                </div>
-              </section>
-            )}
+            <SlidingTabBar
+              ariaLabel="Forked projects"
+              tabs={TABS.map((t) => ({ id: t, label: tabLabel[t] }))}
+              activeIndex={activeIndex}
+              progress={tabProgress}
+              dragging={tabDragging}
+              onSelect={(i) => setTab(TABS[i])}
+              className="mb-5"
+            />
 
-            {revoked.length > 0 && (
-              <section>
-                <h3 className="font-display text-lg text-ink mb-3">Revoked</h3>
-                <div className="md:grid md:grid-cols-2 md:gap-x-3">
-                  {revoked.map((r) => (
-                    <AffiliateLinkRow key={r.id} relationship={r} />
-                  ))}
-                </div>
-              </section>
-            )}
+            <SwipeableTabs
+              index={activeIndex}
+              onIndexChange={(i) => setTab(TABS[i])}
+              onProgress={(progress, dragging) => {
+                setTabProgress(progress);
+                setTabDragging(dragging);
+              }}
+            >
+              {TABS.map((t) => (
+                <div key={t}>{renderPane(t)}</div>
+              ))}
+            </SwipeableTabs>
           </>
         )}
       </div>
+
+      <BottomNav />
     </div>
   );
 }

@@ -238,29 +238,30 @@ export function WalletPage() {
             {!depositsEnabled && !withdrawalsEnabled && (
               <p className="text-xs text-white/90">Funding and withdrawals are temporarily unavailable.</p>
             )}
-
-            {/* Withdrawal position — the two numbers people check before asking for money out. */}
-            {withdrawalsEnabled && (eligibility || inReviewUsd > 0) && (
-              <div className="mt-6 grid grid-cols-2 gap-4 border-t border-white/15 pt-4">
-                <div>
-                  <p className="text-[11px] uppercase tracking-wide text-white/90">Can withdraw</p>
-                  <p className="font-display text-xl text-white tabular-nums mt-0.5">
-                    {formatUsd(eligibility?.available_to_request ?? 0)}
-                  </p>
-                  <p className="text-[11px] text-white/90">this week</p>
-                </div>
-                <div>
-                  <p className="text-[11px] uppercase tracking-wide text-white/90">In review</p>
-                  <p className="font-display text-xl text-white tabular-nums mt-0.5">{formatUsd(inReviewUsd)}</p>
-                  <p className="text-[11px] text-white/90">on its way to your bank</p>
-                </div>
-              </div>
-            )}
           </BrandCard>
           </div>
 
-          <div className={`mt-1 md:mt-3 grid gap-3 ${affiliateEnabled ? "grid-cols-2 md:grid-cols-1" : "grid-cols-1"}`}>
-            <ShortcutTile to="/wallet/gifts" icon={Gem} title="Gift Vault" hint="Gifts you've received" />
+          {/* Withdrawal position — the two numbers people check before asking for money out. Kept off the card so the
+              pinned balance stays one number with one job, and so no stat row here echoes the Gift Vault plaque. */}
+          {withdrawalsEnabled && (eligibility || inReviewUsd > 0) && (
+            <div className="mt-1 md:mt-3 mb-3 grid grid-cols-2 divide-x divide-border rounded-2xl border border-border bg-surface py-3">
+              <div className="px-4">
+                <p className="text-[11px] uppercase tracking-wide text-ink-muted">Can withdraw</p>
+                <p className="font-display text-xl text-ink tabular-nums mt-0.5">
+                  {formatUsd(eligibility?.available_to_request ?? 0)}
+                </p>
+                <p className="text-[11px] text-ink-muted">this week</p>
+              </div>
+              <div className="px-4">
+                <p className="text-[11px] uppercase tracking-wide text-ink-muted">In review</p>
+                <p className="font-display text-xl text-ink tabular-nums mt-0.5">{formatUsd(inReviewUsd)}</p>
+                <p className="text-[11px] text-ink-muted">on its way to your bank</p>
+              </div>
+            </div>
+          )}
+
+          <div className={`grid gap-3 ${affiliateEnabled ? "grid-cols-2 md:grid-cols-1" : "grid-cols-1"}`}>
+            <ShortcutTile to="/wallet/gifts" icon={Gem} title="Gift Vault" hint="Your collection of gifts" />
             {affiliateEnabled && (
               <ShortcutTile to="/wallet/affiliate-links" icon={TrendingUp} title="Affiliate" hint="Links & earnings" />
             )}

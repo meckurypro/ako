@@ -1,9 +1,10 @@
 // src/pages/GiftVault.tsx
 //
 // The Gift Vault: a trophy cabinet for every gift the user has received.
-//   • Header plaque — total worth, gifts, artifacts and your prized piece.
-//   • Latest — newest gifts first (artwork, sender, date/time, price), filterable All / Today / This week.
+//   • Plaque — the collection at a glance: gift/artifact counts and your prized piece (worth is a small caption).
 //   • Artifacts — one tile per gift type with an ×count badge; tapping opens that artifact's full history.
+//   • Latest — newest gifts first (artwork, sender, date/time, price), filterable All / Today / This week.
+// Wallet is for money you can move; the Vault is for things you were given. Keep them from borrowing each other's look.
 // Rarity (Everyday → Legendary) is driven by the price of a single gift.
 import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
@@ -85,7 +86,9 @@ export function GiftVaultPage() {
           <ArrowLeft size={20} />
         </Link>
 
-        {/* ── Plaque ── */}
+        {/* ── Plaque ──
+            A display case, not a balance: the hero is the collection (a centrepiece and two counts). The money
+            figure is a small caption in gold, so nothing here reads as spendable like the Wallet's balance. */}
         <div
           className="relative overflow-hidden rounded-[28px]"
           style={{
@@ -94,60 +97,45 @@ export function GiftVaultPage() {
           }}
         >
           <div style={{ height: 10, background: KENTE }} aria-hidden="true" />
-          <Crown
-            size={170}
-            strokeWidth={0.8}
-            className="absolute -right-8 top-4 pointer-events-none"
-            style={{ color: "#D9A857", opacity: 0.12 }}
-            aria-hidden="true"
-          />
-          <div className="relative px-6 pt-5 pb-6">
-            <div className="flex items-start justify-between gap-3">
-              <div>
-                <p className="text-[11px] font-medium uppercase tracking-[0.2em]" style={{ color: "#D9A857" }}>
-                  {profile?.username ? `@${profile.username}'s` : "Your"} collection
+          <div className="relative px-6 pt-5 pb-6 flex items-center justify-between gap-4">
+            <div className="min-w-0">
+              <p className="text-[11px] font-medium uppercase tracking-[0.2em]" style={{ color: "#D9A857" }}>
+                {profile?.username ? `@${profile.username}'s` : "Your"} collection
+              </p>
+              <h1 className="font-display text-4xl mt-1" style={{ color: "#F6E7C1" }}>
+                Gift Vault
+              </h1>
+              <p className="text-sm mt-4 tabular-nums" style={{ color: "#F6E7C1" }}>
+                {isLoading ? "…" : `${totals.giftCount} ${totals.giftCount === 1 ? "gift" : "gifts"} · ${totals.artifactCount} ${totals.artifactCount === 1 ? "artifact" : "artifacts"}`}
+              </p>
+              {!isLoading && totals.totalWorth > 0 && (
+                <p className="text-xs mt-1 tabular-nums" style={{ color: "rgba(246,231,193,0.65)" }}>
+                  worth {formatUsd(totals.totalWorth)}
+                  {range === "all" ? "" : ` · ${rangeLabel}`}
                 </p>
-                <h1 className="font-display text-4xl mt-1" style={{ color: "#F6E7C1" }}>
-                  Gift Vault
-                </h1>
-              </div>
-            </div>
-
-            <p className="font-display text-5xl mt-6 tabular-nums" style={{ color: "#F6E7C1" }}>
-              {isLoading ? "…" : formatUsd(totals.totalWorth)}
-            </p>
-            <p className="text-xs mt-1" style={{ color: "rgba(246,231,193,0.65)" }}>
-              treasure worth {range === "all" ? "" : `· ${rangeLabel}`}
-            </p>
-
-            <div className="flex gap-6 mt-5">
-              <div>
-                <p className="font-display text-2xl tabular-nums" style={{ color: "#F6E7C1" }}>
-                  {totals.giftCount}
-                </p>
-                <p className="text-[11px] uppercase tracking-wider" style={{ color: "rgba(246,231,193,0.6)" }}>
-                  Gifts
-                </p>
-              </div>
-              <div>
-                <p className="font-display text-2xl tabular-nums" style={{ color: "#F6E7C1" }}>
-                  {totals.artifactCount}
-                </p>
-                <p className="text-[11px] uppercase tracking-wider" style={{ color: "rgba(246,231,193,0.6)" }}>
-                  Artifacts
-                </p>
-              </div>
-              {totals.topArtifact && (
-                <div className="min-w-0">
-                  <p className="font-display text-2xl truncate" style={{ color: "#D9A857" }}>
-                    {totals.topArtifact.name}
-                  </p>
-                  <p className="text-[11px] uppercase tracking-wider" style={{ color: "rgba(246,231,193,0.6)" }}>
-                    Prized piece
-                  </p>
-                </div>
               )}
             </div>
+
+            {totals.topArtifact && (
+              <div className="shrink-0 w-28 text-center">
+                <div
+                  className="relative mx-auto w-24 h-24 rounded-[28px] flex items-center justify-center"
+                  style={{
+                    background: `radial-gradient(circle, ${RARITY_META[totals.topArtifact.rarity].glow} 0%, transparent 70%)`,
+                    boxShadow: `inset 0 0 0 1.5px ${RARITY_META[totals.topArtifact.rarity].color}`,
+                  }}
+                >
+                  <Crown size={16} className="absolute -top-2 left-1/2 -translate-x-1/2" style={{ color: "#D9A857" }} aria-hidden="true" />
+                  <GiftArt url={totals.topArtifact.iconUrl} size={68} glow={RARITY_META[totals.topArtifact.rarity].glow} />
+                </div>
+                <p className="text-xs font-medium truncate mt-2" style={{ color: "#F6E7C1" }}>
+                  {totals.topArtifact.name}
+                </p>
+                <p className="text-[10px] uppercase tracking-wider" style={{ color: "rgba(246,231,193,0.6)" }}>
+                  Prized piece
+                </p>
+              </div>
+            )}
           </div>
           <div style={{ height: 6, background: KENTE }} aria-hidden="true" />
         </div>
@@ -188,44 +176,9 @@ export function GiftVaultPage() {
           <p className="text-sm text-ink-muted text-center py-10">No gifts {rangeLabel} yet.</p>
         )}
 
-        {/* ── Latest ── */}
-        {filtered.length > 0 && (
-          <section className="mt-8">
-            <h2 className="font-display text-lg text-ink mb-3">Latest</h2>
-            <div className="bg-surface dark:bg-[#121114] rounded-2xl border border-border divide-y divide-border overflow-hidden">
-              {latest.map((g) => {
-                const rarity = RARITY_META[rarityFor(g.amount)];
-                return (
-                  <div key={g.id} className="flex items-center gap-3 px-4 py-3">
-                    <div
-                      className="w-14 h-14 rounded-2xl flex items-center justify-center flex-shrink-0"
-                      style={{ background: rarity.glow, boxShadow: `inset 0 0 0 1px ${rarity.color}` }}
-                    >
-                      <GiftArt url={g.gift_icon_url} size={42} />
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <p className="text-sm font-medium text-ink truncate">{g.gift_name ?? "Gift"}</p>
-                      <p className="text-xs text-ink-muted truncate">from {senderLabel(g)}</p>
-                      <p className="text-xs text-ink-muted">{formatReceivedAt(g.created_at)}</p>
-                    </div>
-                    <p className="text-sm font-semibold tabular-nums flex-shrink-0" style={{ color: "#B8862E" }}>
-                      {formatUsd(g.amount)}
-                    </p>
-                  </div>
-                );
-              })}
-            </div>
-            {filtered.length > LATEST_PAGE && (
-              <button onClick={() => setShowAll((v) => !v)} className="mt-3 text-sm text-accent font-medium">
-                {showAll ? "Show fewer" : `Show all ${filtered.length}`}
-              </button>
-            )}
-          </section>
-        )}
-
         {/* ── Artifacts ── */}
         {artifacts.length > 0 && (
-          <section className="mt-10">
+          <section className="mt-8">
             <h2 className="font-display text-lg text-ink">Artifacts</h2>
             <p className="text-xs text-ink-muted mb-3">Tap one to see everyone who sent it.</p>
             <div className="grid grid-cols-3 md:grid-cols-4 gap-3">
@@ -258,6 +211,41 @@ export function GiftVaultPage() {
                 );
               })}
             </div>
+          </section>
+        )}
+
+        {/* ── Latest ── */}
+        {filtered.length > 0 && (
+          <section className="mt-10">
+            <h2 className="font-display text-lg text-ink mb-3">Latest</h2>
+            <div className="bg-surface dark:bg-[#121114] rounded-2xl border border-border divide-y divide-border overflow-hidden">
+              {latest.map((g) => {
+                const rarity = RARITY_META[rarityFor(g.amount)];
+                return (
+                  <div key={g.id} className="flex items-center gap-3 px-4 py-3">
+                    <div
+                      className="w-14 h-14 rounded-2xl flex items-center justify-center flex-shrink-0"
+                      style={{ background: rarity.glow, boxShadow: `inset 0 0 0 1px ${rarity.color}` }}
+                    >
+                      <GiftArt url={g.gift_icon_url} size={42} />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-medium text-ink truncate">{g.gift_name ?? "Gift"}</p>
+                      <p className="text-xs text-ink-muted truncate">from {senderLabel(g)}</p>
+                      <p className="text-xs text-ink-muted">{formatReceivedAt(g.created_at)}</p>
+                    </div>
+                    <p className="text-sm font-semibold tabular-nums flex-shrink-0" style={{ color: "#B8862E" }}>
+                      {formatUsd(g.amount)}
+                    </p>
+                  </div>
+                );
+              })}
+            </div>
+            {filtered.length > LATEST_PAGE && (
+              <button onClick={() => setShowAll((v) => !v)} className="mt-3 text-sm text-accent font-medium">
+                {showAll ? "Show fewer" : `Show all ${filtered.length}`}
+              </button>
+            )}
           </section>
         )}
       </div>

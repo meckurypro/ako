@@ -127,7 +127,13 @@ export function Connect() {
     if (t === "affiliates") {
       if (affiliatesLoading) return <p className="text-ink-muted text-sm">Loading…</p>;
       if ((relationships ?? []).length === 0) return <Empty tab={t} />;
-      return relationships!.map((r) => <AffiliateLinkRow key={r.id} relationship={r} />);
+      return (
+        <div className="flex flex-col gap-2">
+          {relationships!.map((r) => (
+            <AffiliateLinkRow key={r.id} relationship={r} />
+          ))}
+        </div>
+      );
     }
     if (activityLoading) return <p className="text-ink-muted text-sm">Loading…</p>;
     const kindItems = (items ?? []).filter((i) => i.kind === KIND_FOR_TAB[t]);
