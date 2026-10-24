@@ -425,7 +425,8 @@ export function CreateProject() {
       return;
     }
 
-    const price = parseFloat(priceUsd) || 0;
+    // A song is never sold (the database refuses a price on one), so it always saves as free.
+    const price = projectType === "media" ? 0 : parseFloat(priceUsd) || 0;
 
     const typeError = validateTypeSpecific();
     if (typeError) {
@@ -486,7 +487,7 @@ export function CreateProject() {
     }
 
     let promoPrice: number | null = null;
-    if (showPromo && promoPriceUsd.trim() !== "") {
+    if (projectType !== "media" && showPromo && promoPriceUsd.trim() !== "") {
       promoPrice = parseFloat(promoPriceUsd);
       if (Number.isNaN(promoPrice) || promoPrice < 0) {
         setError("Promo price must be a valid amount.");
@@ -816,8 +817,8 @@ export function CreateProject() {
           </FormSection>
 
           {/* 5 — Price. A pitch never carries one: it's support-based fundraising with a pledge amount chosen by the
-              supporter, not a sale. */}
-          {projectType !== "pitch" && (
+              supporter, not a sale. Neither does a song. */}
+          {projectType !== "pitch" && projectType !== "media" && (
             <FormSection
               icon={Banknote}
               title="Pricing"

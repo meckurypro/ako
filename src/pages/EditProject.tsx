@@ -398,7 +398,8 @@ export function EditProject() {
       return;
     }
 
-    const price = project.project_type === "pitch" ? 0 : parseFloat(priceUsd) || 0;
+    // Pitches and songs are never sold (the database refuses a price on a song), so they save as free.
+    const price = project.project_type === "pitch" || project.project_type === "media" ? 0 : parseFloat(priceUsd) || 0;
 
     const typeError = validateTypeSpecific();
     if (typeError) {
@@ -407,7 +408,7 @@ export function EditProject() {
     }
 
     let promoPrice: number | null = null;
-    if (project.project_type !== "pitch" && showPromo && promoPriceUsd.trim() !== "") {
+    if (project.project_type !== "pitch" && project.project_type !== "media" && showPromo && promoPriceUsd.trim() !== "") {
       promoPrice = parseFloat(promoPriceUsd);
       if (Number.isNaN(promoPrice) || promoPrice < 0) {
         setError("Promo price must be a valid amount.");
@@ -749,8 +750,8 @@ export function EditProject() {
             )}
           </FormSection>
 
-          {/* A pitch never carries a price tag, and has no sale for an affiliate commission to attach to. */}
-          {project.project_type !== "pitch" && (
+          {/* A pitch or a song never carries a price tag, and has no sale for an affiliate commission to attach to. */}
+          {project.project_type !== "pitch" && project.project_type !== "media" && (
             <FormSection
               icon={Banknote}
               title="Pricing"
