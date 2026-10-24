@@ -8,6 +8,7 @@ import { Link, useNavigate, useParams } from "react-router-dom";
 import { Archive, ArrowLeft, Eye, RotateCcw, Star, Trash2, Plus, X, Wand2, Send } from "lucide-react";
 import { useSmartBack } from "../../hooks/useSmartBack";
 import { Avatar } from "../../components/Avatar";
+import { PostContent } from "../../components/PostContent";
 import {
   AI_PROVIDERS,
   useAddAutomationIdea,
@@ -716,8 +717,7 @@ export function AdminAutomationAccount() {
           )}
           {preview && (
             <div className="bg-surface rounded-xl p-4 border border-border mt-3 space-y-2">
-              <p className="font-display text-lg text-ink">{preview.header}</p>
-              <p className="text-sm text-ink whitespace-pre-wrap leading-relaxed">{preview.body}</p>
+              <PostContent heading={preview.header} headingColor={preview.heading_color} content={preview.body} />
               <p className="text-xs text-ink-muted">
                 {preview.mode} · {preview.topic} · {preview.header.length}/{maxHeader} header, {preview.body.length}/
                 {maxBodyShown} body

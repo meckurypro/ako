@@ -95,6 +95,8 @@ export interface GeneratedPreview {
   source_idea_id: string | null;
   /** News pipeline: the cached articles the post was built from. Sent back unchanged when publishing the draft. */
   source_article_ids?: string[];
+  /** The heading color the post will get when published (set by the generator from the day of the week). */
+  heading_color?: string | null;
 }
 
 const ACCOUNT_SELECT =
@@ -333,7 +335,10 @@ export function useGenerateAutomationPreview() {
       });
       if (error) throw new Error("Couldn't reach the generator. Please try again.");
       if (!data?.ok) throw new Error(data?.error ?? "Couldn't generate a preview.");
-      return { post: data.post as GeneratedPreview, idea_id: (data.idea_id as string | null) ?? null };
+      return {
+        post: { ...(data.post as GeneratedPreview), heading_color: (data.heading_color as string | null) ?? null },
+        idea_id: (data.idea_id as string | null) ?? null,
+      };
     },
   });
 }
