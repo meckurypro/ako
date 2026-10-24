@@ -160,7 +160,8 @@ export function useGigDetails(projectId: string | undefined) {
   });
 }
 
-// A gig's proof-of-work samples, in display order. Two-step fetch
+// Everything shown under a gig, in display order: its own songs first (projects.parent_gig_id), then its proof-of-
+// work samples. Both come from the gig_works view (supabase/ako_songs_under_gigs.sql). Two-step fetch
 // (sample ids, then the projects themselves) rather than a
 // PostgREST embed — keeps this independent of the exact FK
 // constraint name in the DB.
@@ -169,7 +170,7 @@ export function useGigSamples(gigProjectId: string | undefined) {
     queryKey: ["project-gig-samples", gigProjectId],
     queryFn: async (): Promise<Project[]> => {
       const { data: links, error: linksError } = await supabase
-        .from("project_gig_samples")
+        .from("gig_works")
         .select("sample_project_id, sort_order")
         .eq("gig_project_id", gigProjectId)
         .order("sort_order");
@@ -213,7 +214,7 @@ export function useGigsFeaturingProject(sampleProjectId: string | undefined) {
     queryFn: async (): Promise<FeaturingGig[]> => {
       if (!sampleProjectId) return [];
       const { data: links, error: linksError } = await supabase
-        .from("project_gig_samples")
+        .from("gig_works")
         .select("gig_project_id")
         .eq("sample_project_id", sampleProjectId);
       if (linksError) throw linksError;

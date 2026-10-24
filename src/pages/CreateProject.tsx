@@ -40,6 +40,8 @@ import { PageActionBlocked } from "../components/PageActionBlocked";
 import { useMyProfile } from "../hooks/useProfile";
 import { useUploadProjectThumbnail } from "../hooks/useUploadProjectThumbnail";
 import { FormField } from "../components/FormField";
+import { SongGigField, NEW_ARTIST_GIG } from "../components/SongGigField";
+import { useEnsureArtistGig } from "../hooks/usePortfolio";
 import { Button } from "../components/Button";
 import { TopicPicker, MAX_TOPICS } from "../components/TopicPicker";
 import { FormatToolbar } from "../components/FormatToolbar";
@@ -170,6 +172,9 @@ export function CreateProject() {
   const [urlFields, setUrlFields] = useState<UrlFieldsValue>(EMPTY_URL_FIELDS);
   const [mediaFields, setMediaFields] = useState<MediaFieldsValue>(EMPTY_MEDIA_FIELDS);
   const [mediaUploading, setMediaUploading] = useState(false);
+  // A song lives under an artist gig: a gig id, or NEW_ARTIST_GIG to scaffold one on save. "" until the picker settles.
+  const [songGig, setSongGig] = useState("");
+  const ensureArtistGig = useEnsureArtistGig();
   const [eventFields, setEventFields] = useState<EventFieldsValue>(EMPTY_EVENT_FIELDS);
   const [meetingFields, setMeetingFields] = useState<MeetingFieldsValue>(EMPTY_MEETING_FIELDS);
   const [gigFields, setGigFields] = useState<GigFieldsValue>(EMPTY_GIG_FIELDS);
@@ -507,8 +512,19 @@ export function CreateProject() {
     }
 
     try {
+      // A song needs a gig. "New gig" scaffolds the Music Artist gig first, so the song never exists without one.
+      let parentGigId: string | undefined;
+      if (projectType === "media") {
+        if (!songGig) {
+          setError("Pick a gig.");
+          return;
+        }
+        parentGigId = songGig === NEW_ARTIST_GIG ? await ensureArtistGig.mutateAsync() : songGig;
+      }
+
       const created = await createProject.mutateAsync({
         title: title.trim(),
+        parent_gig_id: parentGigId,
         description: description.trim() || undefined,
         project_type: projectType,
         posted_as_page_id: postingAsPage?.id,
@@ -809,6 +825,7 @@ export function CreateProject() {
 
           {/* 4 — Whatever this type needs. */}
           <FormSection icon={PROJECT_TYPE_ICONS[projectType]} title={`${PROJECT_TYPE_LABELS[projectType]} details`}>
+            {projectType === "media" && <SongGigField value={songGig} onChange={setSongGig} />}
             {projectType === "media" && <MediaFields value={mediaFields} onChange={setMediaFields} onError={setError} onUploadingChange={setMediaUploading} />}
             {projectType === "file" && (
               <FileFields value={fileFields} onChange={setFileFields} onError={setError} maxFiles={maxFiles} />

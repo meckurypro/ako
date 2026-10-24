@@ -16,6 +16,8 @@ import {
   type ProjectStatus,
 } from "../hooks/useProjects";
 import { useAffiliateProgram } from "../hooks/useAffiliates";
+import { SongGigField, NEW_ARTIST_GIG } from "../components/SongGigField";
+import { useEnsureArtistGig } from "../hooks/usePortfolio";
 import { useEventDetails, useMeetingDetails, useMediaDetails, useGigDetails, useGigSamples, usePitchDetails, useBookDetails } from "../hooks/useProjectTypeDetails";
 import { useRoomDetails } from "../hooks/useRoom";
 import { supabase } from "../lib/supabase";
@@ -125,6 +127,9 @@ export function EditProject() {
   const [urlFields, setUrlFields] = useState<UrlFieldsValue>(EMPTY_URL_FIELDS);
   const [mediaFields, setMediaFields] = useState<MediaFieldsValue>(EMPTY_MEDIA_FIELDS);
   const [mediaUploading, setMediaUploading] = useState(false);
+  // The gig a song lives under (a gig id, or NEW_ARTIST_GIG to scaffold one on save).
+  const [songGig, setSongGig] = useState("");
+  const ensureArtistGig = useEnsureArtistGig();
   const [eventFields, setEventFields] = useState<EventFieldsValue>(EMPTY_EVENT_FIELDS);
   const [meetingFields, setMeetingFields] = useState<MeetingFieldsValue>(EMPTY_MEETING_FIELDS);
   const [gigFields, setGigFields] = useState<GigFieldsValue>(EMPTY_GIG_FIELDS);
@@ -185,6 +190,9 @@ export function EditProject() {
       if (project.project_type === "url") {
         setUrlFields({ url: project.external_url ?? "" });
       }
+      if (project.project_type === "media") {
+        setSongGig(project.parent_gig_id ?? "");
+      }
       if (project.promo_price_usd !== null) {
         setShowPromo(true);
         setPromoPriceUsd(String(project.promo_price_usd));
@@ -243,7 +251,8 @@ export function EditProject() {
         role_id: existingGigDetails?.role_id ?? "",
         tagline: existingGigDetails?.tagline ?? "",
         delivery_estimate: existingGigDetails?.delivery_estimate ?? "",
-        sample_project_ids: existingGigSamples.map((p) => p.id),
+        // A gig's own songs come back in this list too, but they're not samples — the form only edits samples.
+        sample_project_ids: existingGigSamples.filter((p) => p.parent_gig_id !== projectId).map((p) => p.id),
         revisions_included: existingGigDetails?.revisions_included?.toString() ?? "",
         deliverables: existingGigDetails?.deliverables ?? [],
         faq: existingGigDetails?.faq ?? [],
@@ -428,6 +437,16 @@ export function EditProject() {
     }
 
     try {
+      // A song always has a gig. "New gig" scaffolds the Music Artist gig first.
+      let parentGigId: string | undefined;
+      if (project.project_type === "media") {
+        if (!songGig) {
+          setError("Pick a gig.");
+          return;
+        }
+        parentGigId = songGig === NEW_ARTIST_GIG ? await ensureArtistGig.mutateAsync() : songGig;
+      }
+
       // Files first: it's the part the database can refuse (limit, ownership), so if it does, nothing else changes.
       if (project.project_type === "file") {
         await saveProjectFiles.mutateAsync({ projectId, files: fileFieldsToInputs(fileFields) });
@@ -437,6 +456,7 @@ export function EditProject() {
         title: title.trim(),
         description: description.trim() || null,
         project_type: project.project_type, // fixed — see note near the type display below
+        parent_gig_id: parentGigId,
         external_url: project.project_type === "url" ? urlFields.url.trim() || null : project.external_url,
         // File projects: the files are saved by set_project_files below, which also keeps file_path in step.
         file_path: project.project_type === "file" ? undefined : project.file_path,
@@ -707,6 +727,7 @@ export function EditProject() {
           </FormSection>
 
           <FormSection icon={TypeIcon} title={`${PROJECT_TYPE_LABELS[project.project_type]} details`}>
+            {project.project_type === "media" && <SongGigField value={songGig} onChange={setSongGig} />}
             {project.project_type === "media" && <MediaFields value={mediaFields} onChange={setMediaFields} onError={setError} onUploadingChange={setMediaUploading} />}
             {project.project_type === "file" && (
               <FileFields value={fileFields} onChange={setFileFields} onError={setError} maxFiles={maxFiles} />

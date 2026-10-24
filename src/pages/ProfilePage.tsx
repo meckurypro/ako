@@ -421,8 +421,11 @@ export function ProfilePage() {
   // it should no longer also show in Media, or it appears twice on
   // the same profile (categorizedProjectIds already exists for this
   // exact purpose; the Media tab just wasn't checking it before).
+  // The owner's own songs aren't listed here at all any more: every song lives under one of their artist gigs
+  // (parent_gig_id) and shows there — on the gig and in its category tab. Only songs you're credited on, on someone
+  // else's gig, still land in this tab.
   const ownedMedia = (visibleProjects ?? []).filter(
-    (p) => p.project_type === "media" && !p.is_private && !categorizedProjectIds?.has(p.id)
+    (p) => p.project_type === "media" && !p.parent_gig_id && !p.is_private && !categorizedProjectIds?.has(p.id)
   );
   const mediaProjects = (() => {
     const byId = new Map(ownedMedia.map((p) => [p.id, p]));
@@ -449,6 +452,8 @@ export function ProfilePage() {
   // duplicate of a category tab.
   const fallbackProjects = visibleProjects?.filter((p) => {
     if (p.project_type === "gig") return false;
+    // A song lives under its gig — never a loose card in the Projects tab.
+    if (p.parent_gig_id) return false;
     // Only drop it here once it actually has the Media tab as a home
     // (active + public, same as ownedMedia above) — a draft or
     // private Media project has no tab yet, so it stays visible to
