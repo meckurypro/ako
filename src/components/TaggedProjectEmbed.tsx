@@ -1,7 +1,7 @@
 // src/components/TaggedProjectEmbed.tsx
 import { isBookType } from "../lib/bookCover";
 import { Link } from "react-router-dom";
-import { ImageIcon, Music, Music2 } from "lucide-react";
+import { ImageIcon, Music2 } from "lucide-react";
 import { type ProjectType } from "../hooks/useProjects";
 import { getProjectPath } from "../lib/projectLinks";
 import { affiliateLinkFor } from "../hooks/useAffiliates";
@@ -102,51 +102,55 @@ export function TaggedProjectEmbed({
 
       {song ? (
         // Record: the cover fills a circle, fine grooves and a dark rim sit over it, and a spindle hole marks the
-        // centre. Flat (no perspective tilt) so it reads as a disc lying on the post; a hair of rotation keeps it
-        // from looking stamped.
+        // centre. Flat (no perspective tilt) so it reads as a disc lying on the post. A single music badge rides the
+        // bottom-right rim, like a verified tick on an avatar — it sits outside the disc's clipping so it can overhang.
         <div
-          className="absolute left-3 top-1/2 overflow-hidden rounded-full bg-neutral-900 flex items-center justify-center pointer-events-none"
-          style={{
-            width: thumbW,
-            height: thumbH,
-            transform: "translateY(-50%) rotate(-8deg)",
-            boxShadow:
-              "0 0 0 2px rgba(20,20,20,0.9), 0 12px 18px -8px rgba(var(--shadow-ink-rgb),0.5), 0 2px 5px rgba(var(--shadow-ink-rgb),0.28)",
-          }}
+          className="absolute left-3 top-1/2 pointer-events-none"
+          style={{ width: thumbW, height: thumbH, transform: "translateY(-50%)" }}
         >
-          {project.thumbnail_url ? (
-            <img src={project.thumbnail_url} alt="" className="w-full h-full object-cover" />
-          ) : null}
-          {/* Grooves + a soft diagonal sheen. */}
           <div
-            className="absolute inset-0 rounded-full"
+            className="absolute inset-0 overflow-hidden rounded-full bg-neutral-900 flex items-center justify-center"
             style={{
-              background:
-                "repeating-radial-gradient(circle at center, rgba(0,0,0,0) 0 3px, rgba(0,0,0,0.16) 3px 4px), linear-gradient(135deg, rgba(255,255,255,0.28) 0%, rgba(255,255,255,0) 40%, rgba(255,255,255,0) 60%, rgba(255,255,255,0.12) 100%)",
+              transform: "rotate(-8deg)",
+              boxShadow:
+                "0 0 0 2px rgba(20,20,20,0.9), 0 12px 18px -8px rgba(var(--shadow-ink-rgb),0.5), 0 2px 5px rgba(var(--shadow-ink-rgb),0.28)",
             }}
-          />
-          {/* Spindle hole. */}
+          >
+            {project.thumbnail_url ? (
+              <img src={project.thumbnail_url} alt="" className="w-full h-full object-cover" />
+            ) : null}
+            {/* Grooves + a soft diagonal sheen. */}
+            <div
+              className="absolute inset-0 rounded-full"
+              style={{
+                background:
+                  "repeating-radial-gradient(circle at center, rgba(0,0,0,0) 0 3px, rgba(0,0,0,0.16) 3px 4px), linear-gradient(135deg, rgba(255,255,255,0.28) 0%, rgba(255,255,255,0) 40%, rgba(255,255,255,0) 60%, rgba(255,255,255,0.12) 100%)",
+              }}
+            />
+            {/* Spindle hole. */}
+            <div
+              className="absolute rounded-full bg-surface"
+              style={{
+                width: thumbW * 0.16,
+                height: thumbW * 0.16,
+                boxShadow: "0 0 0 3px rgba(20,20,20,0.75), inset 0 1px 2px rgba(0,0,0,0.35)",
+              }}
+            />
+          </div>
+          {/* The song badge: brand-orange disc, white note, surface-coloured ring so it separates from the cover. */}
           <div
-            className="absolute rounded-full bg-surface"
+            className="absolute flex items-center justify-center rounded-full text-white"
             style={{
-              width: thumbW * 0.16,
-              height: thumbW * 0.16,
-              boxShadow: "0 0 0 3px rgba(20,20,20,0.75), inset 0 1px 2px rgba(0,0,0,0.35)",
+              width: 28,
+              height: 28,
+              right: -4,
+              bottom: -2,
+              background: "var(--color-brand-orange)",
+              boxShadow: "0 0 0 2.5px var(--color-surface), 0 2px 5px rgba(var(--shadow-ink-rgb),0.35)",
             }}
-          />
-          {/* Two small notes, low on the right — enough to say "song" without crowding the cover. */}
-          <Music2
-            size={Math.round(thumbW * 0.19)}
-            strokeWidth={2.4}
-            className="absolute text-white/90"
-            style={{ right: thumbW * 0.17, bottom: thumbW * 0.2, filter: "drop-shadow(0 1px 2px rgba(0,0,0,0.6))" }}
-          />
-          <Music
-            size={Math.round(thumbW * 0.13)}
-            strokeWidth={2.4}
-            className="absolute text-white/80"
-            style={{ right: thumbW * 0.09, bottom: thumbW * 0.34, filter: "drop-shadow(0 1px 2px rgba(0,0,0,0.6))" }}
-          />
+          >
+            <Music2 size={15} strokeWidth={2.6} />
+          </div>
         </div>
       ) : (
         <div
