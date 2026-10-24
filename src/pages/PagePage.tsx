@@ -373,7 +373,7 @@ export function PagePage() {
   // What an editor could still add to make the page feel finished.
   // White glass buttons only work over an image; templates without one at the top use plain ink buttons.
   const darkTop = cfg.banner === "standard" || cfg.banner === "tall" || cfg.banner === "strip" || cfg.heroFirst;
-  const topBtn = scrolled || !darkTop ? "text-ink hover:bg-ink/5" : "bg-black/35 text-white backdrop-blur-md";
+  const topBtn = scrolled || !darkTop ? "text-ink hover:bg-ink/5" : "bg-black/50 text-white backdrop-blur-md";
 
   return (
     <div className="min-h-screen bg-canvas pb-24">
@@ -492,22 +492,32 @@ export function PagePage() {
               </p>
             ) : null
           }
-          followers={
-            <span className="text-sm text-ink">
-              <strong className="tabular-nums">
-                <span className={followersPulse ? "ako-count-tick" : ""}>{page.follower_count}</span>
-              </strong>{" "}
-              <span className="text-ink-muted">{page.follower_count === 1 ? "follower" : "followers"}</span>
-            </span>
-          }
-          website={
+          followers={(tone) => {
+            // "overlay" = drawn over the dark cover scrim (Spotlight / Poster): light text. Otherwise the page's own ink.
+            const onImage = tone === "overlay";
+            return (
+              <span className={`text-sm ${onImage ? `text-white ${"[text-shadow:0_1px_12px_rgba(0,0,0,0.55)]"}` : "text-ink"}`}>
+                <strong className="tabular-nums">
+                  <span className={followersPulse ? "ako-count-tick" : ""}>{page.follower_count}</span>
+                </strong>{" "}
+                <span className={onImage ? "text-white/90" : "text-ink-muted"}>
+                  {page.follower_count === 1 ? "follower" : "followers"}
+                </span>
+              </span>
+            );
+          }}
+          website={(tone) =>
             page.website_url ? (
               <a
                 href={getWebsiteHref(page.website_url)}
                 target="_blank"
                 rel="noopener noreferrer"
                 title={page.website_url}
-                className="inline-flex max-w-full items-center gap-1.5 rounded-full bg-accent-soft px-3 py-1.5 text-sm font-medium text-accent"
+                className={`inline-flex max-w-full items-center gap-1.5 rounded-full px-3 py-1.5 text-sm font-medium ${
+                  tone === "overlay"
+                    ? "bg-white/20 text-white ring-1 ring-white/30 backdrop-blur"
+                    : "bg-accent-soft text-accent-hover"
+                }`}
               >
                 <Link2 size={14} className="shrink-0" />
                 <span className="truncate">{getWebsiteDomain(page.website_url)}</span>
@@ -516,7 +526,7 @@ export function PagePage() {
           }
           visitorNotice={
             previewingAsVisitor && canEditPage ? (
-              <div className="flex items-center justify-between gap-3 rounded-xl bg-accent-soft px-4 py-2.5 text-sm text-accent">
+              <div className="flex items-center justify-between gap-3 rounded-xl bg-accent-soft px-4 py-2.5 text-sm text-accent-hover">
                 <span className="flex items-center gap-1.5">
                   <Eye size={14} className="shrink-0" />
                   You're viewing this page as a visitor.

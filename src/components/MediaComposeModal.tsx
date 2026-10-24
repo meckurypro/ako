@@ -120,7 +120,7 @@ export function MediaComposeModal({ kind, files: initialFiles, onClose, onSend }
         <button
           type="submit"
           aria-label={files.length > 1 ? `Send ${files.length} items` : "Send"}
-          className="relative w-11 h-11 rounded-full bg-accent text-white flex items-center justify-center flex-shrink-0 hover:bg-accent-hover active:scale-95"
+          className="relative w-11 h-11 rounded-full bg-cta text-white flex items-center justify-center flex-shrink-0 hover:brightness-90 active:scale-95"
         >
           <Send size={20} />
           {files.length > 1 && (

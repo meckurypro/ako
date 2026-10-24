@@ -118,7 +118,7 @@ export function AdminModeration() {
                   <button
                     onClick={handleSaveBlocklist}
                     disabled={!blocklistDirty || setBlocklist.isPending}
-                    className="text-sm font-medium px-4 py-1.5 rounded-full bg-accent text-white disabled:opacity-40 disabled:cursor-not-allowed"
+                    className="text-sm font-medium px-4 py-1.5 rounded-full bg-cta text-white disabled:opacity-40 disabled:cursor-not-allowed"
                   >
                     {setBlocklist.isPending ? "Saving…" : "Save"}
                   </button>

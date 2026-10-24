@@ -1222,7 +1222,7 @@ export function MessageThread() {
               rowVirtualizer.scrollToIndex(items.length - 1, { align: "end", behavior: "smooth" });
               setShowNewMessagePill(false);
             }}
-            className="inline-flex items-center gap-1 px-3 py-1.5 rounded-full bg-accent text-white text-xs font-medium shadow-md"
+            className="inline-flex items-center gap-1 px-3 py-1.5 rounded-full bg-cta text-white text-xs font-medium shadow-md"
           >
             New messages <ChevronDown size={14} />
           </button>
@@ -1401,7 +1401,7 @@ export function MessageThread() {
             <button
               type="submit"
               disabled={sendMessage.isPending}
-              className="bg-accent text-white rounded-full w-11 h-11 flex items-center justify-center transition-colors hover:bg-accent-hover active:scale-95 disabled:opacity-50 disabled:active:scale-100 flex-shrink-0"
+              className="bg-cta text-white rounded-full w-11 h-11 flex items-center justify-center transition-colors hover:brightness-90 active:scale-95 disabled:opacity-50 disabled:active:scale-100 flex-shrink-0"
               aria-label="Send"
             >
               <Send size={20} />
@@ -1410,7 +1410,7 @@ export function MessageThread() {
             <button
               type="button"
               onPointerDown={voiceRecorder.micHandlers.onPointerDown}
-              className="bg-accent text-white rounded-full w-11 h-11 flex items-center justify-center transition-colors hover:bg-accent-hover active:scale-95 flex-shrink-0"
+              className="bg-cta text-white rounded-full w-11 h-11 flex items-center justify-center transition-colors hover:brightness-90 active:scale-95 flex-shrink-0"
               style={{ touchAction: "none" }}
               aria-label="Hold to record a voice message"
             >

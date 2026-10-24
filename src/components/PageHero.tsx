@@ -274,7 +274,7 @@ export function PageHero({ slides, autoplay, intervalSeconds, direction, pageNam
               type="button"
               aria-label="Previous slide"
               onClick={() => step(-1)}
-              className="absolute left-3 top-1/2 hidden h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full bg-black/35 text-white opacity-0 backdrop-blur transition-opacity hover:bg-black/50 focus-visible:opacity-100 group-hover:opacity-100 md:flex"
+              className="absolute left-3 top-1/2 hidden h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full bg-black/50 text-white opacity-0 backdrop-blur transition-opacity hover:bg-black/65 focus-visible:opacity-100 group-hover:opacity-100 md:flex"
             >
               <ChevronLeft size={22} />
             </button>
@@ -282,10 +282,14 @@ export function PageHero({ slides, autoplay, intervalSeconds, direction, pageNam
               type="button"
               aria-label="Next slide"
               onClick={() => step(1)}
-              className="absolute right-3 top-1/2 hidden h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full bg-black/35 text-white opacity-0 backdrop-blur transition-opacity hover:bg-black/50 focus-visible:opacity-100 group-hover:opacity-100 md:flex"
+              className="absolute right-3 top-1/2 hidden h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full bg-black/50 text-white opacity-0 backdrop-blur transition-opacity hover:bg-black/65 focus-visible:opacity-100 group-hover:opacity-100 md:flex"
             >
               <ChevronRight size={22} />
             </button>
+
+            {/* The segments are white: give them a soft dark floor so they stay visible on a light slide that has no
+                caption scrim of its own. */}
+            <div aria-hidden className="pointer-events-none absolute inset-x-0 bottom-0 h-14 bg-gradient-to-t from-black/45 to-transparent" />
 
             {/* Segments — also the progress of the current slide while autoplay runs. */}
             <div className="absolute inset-x-0 bottom-3 flex items-center justify-center gap-1.5 px-5">
@@ -301,7 +305,7 @@ export function PageHero({ slides, autoplay, intervalSeconds, direction, pageNam
                     className="flex h-5 items-center"
                   >
                     <span
-                      className={`relative block h-1 overflow-hidden rounded-full bg-white/40 transition-[width] duration-300 ${
+                      className={`relative block h-1 overflow-hidden rounded-full bg-white/50 transition-[width] duration-300 ${
                         active ? "w-9" : "w-4"
                       }`}
                     >
@@ -325,7 +329,7 @@ export function PageHero({ slides, autoplay, intervalSeconds, direction, pageNam
                 type="button"
                 aria-label={userPaused ? "Play slideshow" : "Pause slideshow"}
                 onClick={() => setUserPaused((p) => !p)}
-                className="absolute right-3 top-3 flex h-8 w-8 items-center justify-center rounded-full bg-black/35 text-white backdrop-blur transition-colors hover:bg-black/50"
+                className="absolute right-3 top-3 flex h-8 w-8 items-center justify-center rounded-full bg-black/50 text-white backdrop-blur transition-colors hover:bg-black/65"
               >
                 {userPaused ? <Play size={14} fill="currentColor" /> : <Pause size={14} fill="currentColor" />}
               </button>

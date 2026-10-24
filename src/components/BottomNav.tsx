@@ -145,7 +145,7 @@ export function BottomNav() {
         >
           <ChatIcon size={30} />
           {unreadCount > 0 && (
-            <span className="pointer-events-none absolute -top-[9px] -right-[9px] min-w-6 h-6 px-[5px] rounded-full border-[2.5px] border-canvas bg-[#D8453A] text-white text-[11px] leading-[13px] font-semibold tabular-nums flex items-center justify-center">
+            <span className="pointer-events-none absolute -top-[9px] -right-[9px] min-w-6 h-6 px-[5px] rounded-full border-[2.5px] border-canvas bg-[#CF4136] text-white text-[11px] leading-[13px] font-semibold tabular-nums flex items-center justify-center">
               {unreadCount > 99 ? "99+" : unreadCount}
             </span>
           )}

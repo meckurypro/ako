@@ -68,7 +68,7 @@ export function TemplateThumb({ cfg }: { cfg: PageTemplateConfig }) {
         {cfg.banner === "backdrop" && <div className="-mx-1.5 -mt-1.5 h-9 bg-gradient-to-b from-accent/30 to-transparent" />}
 
         {hasBanner && (
-          <div className={`-mx-1.5 -mt-1.5 flex items-end ${bannerH} ${overlay ? "bg-ink/70" : soft} px-1.5 pb-1`}>
+          <div className={`-mx-1.5 -mt-1.5 flex items-end ${bannerH} ${overlay ? "bg-black/70" : soft} px-1.5 pb-1`}>
             {overlay && (
               <div className={`flex w-full ${center ? "flex-col items-center gap-[3px]" : "items-end gap-1"}`}>
                 <Dot size={cfg.avatarSize} shape={cfg.avatarShape} />

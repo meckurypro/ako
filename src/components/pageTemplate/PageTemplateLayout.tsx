@@ -12,6 +12,8 @@ const SHAPE = { circle: "rounded-full", squircle: "rounded-[28%]", square: "roun
 const BANNER_ASPECT = { standard: "aspect-[8/3]", tall: "aspect-[4/5] md:aspect-[4/3]", strip: "aspect-[5/1]" } as const;
 const SECTION_GAP = { tight: "space-y-6", cozy: "space-y-9", airy: "space-y-12" } as const;
 const SECTION_TOP = { tight: "mt-6", cozy: "mt-8", airy: "mt-10" } as const;
+// White text drawn over a cover image: a soft dark halo keeps it readable even where the image is bright.
+const TEXT_SHADOW = "[text-shadow:0_1px_12px_rgba(0,0,0,0.55)]";
 
 export function SectionHeading({
   id,
@@ -95,8 +97,9 @@ export interface PageTemplateLayoutProps {
   handleLine: ReactNode;
   tagline: ReactNode;
   parentLine: ReactNode;
-  followers: ReactNode;
-  website: ReactNode;
+  /** Receive the tone so they can dress for a dark cover scrim ("overlay") or the page canvas ("normal"). */
+  followers: (tone: "normal" | "overlay") => ReactNode;
+  website: (tone: "normal" | "overlay") => ReactNode;
   visitorNotice: ReactNode;
   /** The hero slideshow (already framed), or null. */
   hero: ReactNode;
@@ -119,7 +122,7 @@ export function PageTemplateLayout(p: PageTemplateLayoutProps) {
     ) : (
       <span
         style={{ width: px, height: px, fontSize: px * 0.34 }}
-        className={`flex items-center justify-center bg-accent-soft font-medium text-accent ${cls}`}
+        className={`flex items-center justify-center bg-accent-soft font-medium text-accent-hover ${cls}`}
       >
         {page.name
           .split(" ")
@@ -144,19 +147,20 @@ export function PageTemplateLayout(p: PageTemplateLayoutProps) {
   const statsBlock = (tone: "normal" | "overlay", align: string) => {
     if (cfg.stats === "none") return null;
     if (cfg.stats === "tiles") {
+      const site = p.website("normal");
       return (
         <div className="mt-4 grid grid-cols-2 gap-2">
-          <div className="rounded-2xl border border-border bg-surface px-4 py-3">{p.followers}</div>
-          {p.website ? <div className="min-w-0 rounded-2xl border border-border bg-surface px-4 py-3">{p.website}</div> : null}
+          <div className="rounded-2xl border border-border bg-surface px-4 py-3">{p.followers("normal")}</div>
+          {site ? <div className="min-w-0 rounded-2xl border border-border bg-surface px-4 py-3">{site}</div> : null}
         </div>
       );
     }
+    // Each piece dresses itself for its tone (no blanket "force everything white" here: that is what turned the
+    // pale website pill into white text on a pale fill).
     return (
-      <div
-        className={`mt-4 flex flex-wrap items-center gap-x-5 gap-y-2 ${align} ${tone === "overlay" ? "text-white [&_*]:!text-white/90" : ""}`}
-      >
-        {p.followers}
-        {p.website}
+      <div className={`mt-4 flex flex-wrap items-center gap-x-5 gap-y-2 ${align}`}>
+        {p.followers(tone)}
+        {p.website(tone)}
       </div>
     );
   };
@@ -178,21 +182,21 @@ export function PageTemplateLayout(p: PageTemplateLayoutProps) {
         <div className="pointer-events-none absolute inset-x-0 top-0 h-24 bg-gradient-to-b from-black/35 to-transparent" />
         {overlay && (
           <div
-            className={`absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 via-black/45 to-transparent px-4 pb-5 pt-28 text-white ${
+            className={`absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/85 via-black/60 to-transparent px-4 pb-5 pt-36 text-white ${
               center ? "text-center" : ""
             }`}
           >
             <div className={`flex ${center ? "flex-col items-center" : "items-end gap-3"}`}>
               {avatarBox(cfg.avatarSize, false)}
               <div className={`min-w-0 ${center ? "mt-3" : "pb-0.5"}`}>
-                {p.renderName(`${nameCls(center ? "text-4xl sm:text-5xl" : "text-[1.75rem]")} text-white`)}
-                <div className={`mt-1 flex flex-wrap items-center gap-x-2 text-sm text-white/80 ${center ? "justify-center" : ""}`}>
+                {p.renderName(`${nameCls(center ? "text-4xl sm:text-5xl" : "text-[1.75rem]")} text-white ${TEXT_SHADOW}`)}
+                <div className={`mt-1 flex flex-wrap items-center gap-x-2 text-sm text-white/90 ${TEXT_SHADOW} ${center ? "justify-center" : ""}`}>
                   {p.verified}
                   {p.handleLine}
                 </div>
               </div>
             </div>
-            {p.tagline && <div className="mt-2 text-base leading-snug text-white/90">{p.tagline}</div>}
+            {p.tagline && <div className={`mt-2 text-base leading-snug text-white ${TEXT_SHADOW}`}>{p.tagline}</div>}
             {statsBlock("overlay", center ? "justify-center" : "")}
             <div className={`mt-4 flex ${center ? "justify-center" : ""}`}>{p.renderActions("overlay", cfg.actions)}</div>
           </div>
@@ -203,11 +207,11 @@ export function PageTemplateLayout(p: PageTemplateLayoutProps) {
     top = (
       <div aria-hidden className="absolute inset-x-0 top-0 h-80 overflow-hidden">
         {hasCover ? (
-          <img src={page.cover_url!} alt="" className="h-full w-full scale-125 object-cover opacity-50 blur-2xl" />
+          <img src={page.cover_url!} alt="" className="h-full w-full scale-125 object-cover opacity-30 blur-2xl" />
         ) : (
           <div className="h-full w-full bg-accent-soft" />
         )}
-        <div className="absolute inset-0 bg-gradient-to-b from-transparent via-canvas/60 to-canvas" />
+        <div className="absolute inset-0 bg-gradient-to-b from-transparent via-canvas/75 to-canvas" />
       </div>
     );
   }

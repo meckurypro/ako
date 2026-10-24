@@ -344,7 +344,7 @@ export function MessageActionMenu({
       >
         <div
           className={`relative rounded-2xl px-4 py-2.5 text-sm whitespace-pre-wrap break-words ${
-            isMine ? "bg-accent text-white bubble-tail-mine" : "bg-surface text-ink bubble-tail-theirs"
+            isMine ? "bg-bubble-mine text-white bubble-tail-mine" : "bg-surface text-ink bubble-tail-theirs"
           } ${isDeleted ? "italic opacity-70" : ""}`}
         >
           <MessagePreviewLine content={isDeleted ? "This message was deleted" : content} className="whitespace-pre-wrap break-words" />

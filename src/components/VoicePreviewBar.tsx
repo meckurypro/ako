@@ -116,7 +116,7 @@ export function VoicePreviewBar({
         <button
           type="button"
           onClick={toggle}
-          className="w-9 h-9 rounded-full bg-accent text-white flex items-center justify-center flex-shrink-0"
+          className="w-9 h-9 rounded-full bg-cta text-white flex items-center justify-center flex-shrink-0"
           aria-label={playing ? "Pause preview" : "Play preview"}
         >
           {playing ? <Pause size={15} fill="currentColor" /> : <Play size={15} fill="currentColor" className="ml-0.5" />}
@@ -138,7 +138,7 @@ export function VoicePreviewBar({
             type="button"
             onClick={onToggleViewOnce}
             className={`w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 text-[11px] font-bold transition-colors ${
-              viewOnce ? "bg-accent text-white" : "bg-ink-muted/15 text-ink-muted"
+              viewOnce ? "bg-cta text-white" : "bg-ink-muted/15 text-ink-muted"
             }`}
             aria-label={viewOnce ? "View once enabled — tap to allow replay" : "Enable view once"}
             aria-pressed={viewOnce}
@@ -151,7 +151,7 @@ export function VoicePreviewBar({
         type="button"
         onClick={onSend}
         disabled={sending}
-        className="bg-accent text-white rounded-full p-2.5 flex-shrink-0 disabled:opacity-50"
+        className="bg-cta text-white rounded-full p-2.5 flex-shrink-0 disabled:opacity-50"
         aria-label="Send voice message"
       >
         <Send size={18} />

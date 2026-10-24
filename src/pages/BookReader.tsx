@@ -503,7 +503,7 @@ function BookPdfPageReader() {
                     <button
                       onClick={convertToText}
                       disabled={startOcr.isPending}
-                      className="px-4 py-2 rounded-xl bg-accent text-white text-sm font-medium disabled:opacity-50"
+                      className="px-4 py-2 rounded-xl bg-cta text-white text-sm font-medium disabled:opacity-50"
                     >
                       {ocrJob?.status === "failed" ? "Try again" : "Convert to text"}
                     </button>
