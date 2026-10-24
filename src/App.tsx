@@ -103,6 +103,8 @@ import { AdminEmailCampaignEditor } from "./pages/admin/AdminEmailCampaignEditor
 import { AdminSendNotification } from "./pages/admin/AdminSendNotification";
 import { AdminAppDownload } from "./pages/admin/AdminAppDownload";
 import { AdminPageRoles } from "./pages/admin/AdminPageRoles";
+import { AdminAutomation } from "./pages/admin/AdminAutomation";
+import { AdminAutomationAccount } from "./pages/admin/AdminAutomationAccount";
 
 import { CreateProject } from "./pages/CreateProject";
 import { EditProject } from "./pages/EditProject";
@@ -906,6 +908,26 @@ function AppRoutes() {
                 <RequireAuth>
                   <RequireAdmin>
                     <AdminPageRoles />
+                  </RequireAdmin>
+                </RequireAuth>
+              }
+            />
+            <Route
+              path="/admin/automation"
+              element={
+                <RequireAuth>
+                  <RequireAdmin>
+                    <AdminAutomation />
+                  </RequireAdmin>
+                </RequireAuth>
+              }
+            />
+            <Route
+              path="/admin/automation/:accountId"
+              element={
+                <RequireAuth>
+                  <RequireAdmin>
+                    <AdminAutomationAccount />
                   </RequireAdmin>
                 </RequireAuth>
               }
