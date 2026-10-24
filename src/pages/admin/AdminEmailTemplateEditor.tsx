@@ -10,8 +10,10 @@ import {
 } from "../../hooks/useAdminComms";
 import { FormField } from "../../components/FormField";
 import { Button } from "../../components/Button";
+import { useErrorNotice } from "../../components/ErrorNotice";
 
 export function AdminEmailTemplateEditor() {
+  const notifyError = useErrorNotice();
   const smartBack = useSmartBack();
   const navigate = useNavigate();
   const { templateId } = useParams<{ templateId: string }>();
@@ -47,7 +49,7 @@ export function AdminEmailTemplateEditor() {
       });
       navigate(`/admin/emails/templates/${id}`, { replace: true });
     } catch (err: any) {
-      setError(err.message ?? "Couldn't save template.");
+      notifyError(err, "Couldn't save template.");
     }
   }
 

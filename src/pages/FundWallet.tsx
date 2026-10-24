@@ -8,6 +8,7 @@ import { useExchangeRates } from "../hooks/useWalletRates";
 import { useInitiateDeposit } from "../hooks/useDeposits";
 import { useFeatureFlag } from "../hooks/useFeatureFlags";
 import { formatNgn, formatUsd } from "../lib/money";
+import { friendlyError } from "../lib/friendlyError";
 
 // Deposits used to be Apple/Google in-app purchases (verify-iap-receipt).
 // That path never worked outside a native app shell, and per product
@@ -98,7 +99,7 @@ export function FundWallet() {
       });
     } catch (err) {
       setCheckoutOpen(false);
-      setErrorMessage(err instanceof Error ? err.message : "Couldn't start payment.");
+      setErrorMessage(friendlyError(err, "Couldn't start payment."));
     }
   }
 

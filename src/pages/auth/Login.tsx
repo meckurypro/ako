@@ -12,6 +12,7 @@ import { PasswordField } from "../../components/PasswordField";
 import { Button } from "../../components/Button";
 import { AuthOrDivider, GoogleAuthButton } from "../../components/GoogleAuthButton";
 import { safeReturnPath, signupPathFor } from "../../lib/authRedirect";
+import { friendlyError } from "../../lib/friendlyError";
 
 export function Login() {
   const navigate = useNavigate();
@@ -68,7 +69,7 @@ export function Login() {
         navigate(`/profile/${newProfile.username}`, { replace: true });
       } catch (err: any) {
         setLoading(false);
-        setError(err.message ?? "Incorrect email or password.");
+        setError(friendlyError(err, "Incorrect email or password."));
       }
       return;
     }

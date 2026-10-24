@@ -7,6 +7,7 @@ import { FormField } from "../../components/FormField";
 import { PasswordField } from "../../components/PasswordField";
 import { Button } from "../../components/Button";
 import { AuthPattern } from "../../components/AuthPattern";
+import { friendlyError } from "../../lib/friendlyError";
 
 interface LocationState {
   fromRecovery?: boolean;
@@ -65,7 +66,7 @@ export function ResetPassword() {
     setLoading(false);
 
     if (updateError) {
-      setError(updateError.message);
+      setError(friendlyError(updateError, "Couldn't update your password. Please try again."));
       return;
     }
 

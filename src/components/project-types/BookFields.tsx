@@ -4,6 +4,7 @@ import { FileUp, Info } from "lucide-react";
 import { FormField } from "../FormField";
 import { useUploadProjectFile } from "../../hooks/useUploadProjectFile";
 import { useFeatureFlag } from "../../hooks/useFeatureFlags";
+import { friendlyError } from "../../lib/friendlyError";
 
 export type BookContentSource = "link" | "upload" | "authored";
 
@@ -86,7 +87,7 @@ export function BookFields({ value, onChange, onError, existingSource }: BookFie
       const path = await uploadFile.mutateAsync(file);
       onChange({ ...value, file_path: path, file_name: file.name });
     } catch (err) {
-      onError(err instanceof Error ? err.message : "File upload failed.");
+      onError(friendlyError(err, "File upload failed."));
     }
   }
 

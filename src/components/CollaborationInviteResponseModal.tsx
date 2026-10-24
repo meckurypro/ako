@@ -13,6 +13,7 @@ import {
   type CollaborationTarget,
 } from "../hooks/useCollaboration";
 import { useToast } from "./Toast";
+import { friendlyError } from "../lib/friendlyError";
 
 // Same shape as PageInviteResponseModal — opened from a tap on a
 // collaboration_invite notification (see Notifications.tsx), looking
@@ -49,7 +50,7 @@ export function CollaborationInviteResponseModal({
           toast(accept ? "You're now a collaborator." : "Invite declined.", { variant: "success" });
           if (accept) navigate(target === "post" ? `/post/${targetId}` : `/projects/${targetId}`);
         },
-        onError: (err) => setError(err instanceof Error ? err.message : "Couldn't respond to this invite."),
+        onError: (err) => setError(friendlyError(err, "Couldn't respond to this invite.")),
       }
     );
   }

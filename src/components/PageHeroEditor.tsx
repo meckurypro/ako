@@ -23,6 +23,7 @@ import {
 } from "../hooks/usePageLanding";
 import { cropToAspect, readImageAspect } from "../lib/cropImage";
 import type { HeroDirection, Page, PageHeroSlide } from "../types/database";
+import { friendlyError } from "../lib/friendlyError";
 
 function SlideRow({
   slide,
@@ -158,7 +159,7 @@ export function PageHeroEditor({ page }: { page: Page }) {
         await addSlide.mutateAsync({ image_url, position: position++ });
       }
     } catch (err) {
-      toast(err instanceof Error ? err.message : "Couldn't add that image.", { variant: "error" });
+      toast(friendlyError(err, "Couldn't add that image."), { variant: "error" });
     } finally {
       setUploading(false);
     }

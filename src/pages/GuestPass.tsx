@@ -27,6 +27,7 @@ import { BookRichText } from "../components/BookRichText";
 import { parseBook } from "../lib/bookFormat";
 import { useToast } from "../components/Toast";
 import { SafeAudio } from "../components/MediaPlaceholder";
+import { friendlyError } from "../lib/friendlyError";
 
 // A link is only ever opened if it is plain http(s) — never javascript:/data: from a database column.
 function safeHref(url: string | null | undefined): string | null {
@@ -174,7 +175,7 @@ function useFileFetcher(token: string, onExpired: () => void) {
       return await fetcher.mutateAsync(args);
     } catch (e) {
       if (e instanceof GuestPassExpiredError) onExpired();
-      else toast(e instanceof Error ? e.message : "Couldn't open that file.", { variant: "error" });
+      else toast(friendlyError(e, "Couldn't open that file."), { variant: "error" });
       return null;
     }
   }

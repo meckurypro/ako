@@ -6,6 +6,7 @@ import { usePayoutDashboard, useProcessSaturdayPayouts } from "../../hooks/useAd
 import { ConfirmDialog } from "../../components/ConfirmDialog";
 import { Button } from "../../components/Button";
 import { formatNgn, formatUsd } from "../../lib/money";
+import { friendlyError } from "../../lib/friendlyError";
 
 function Row({ label, value }: { label: string; value: string }) {
   return (
@@ -39,7 +40,7 @@ export function AdminPayouts() {
         }.`
       );
     } catch (err) {
-      setErrorMsg(err instanceof Error ? err.message : "Couldn't process payouts.");
+      setErrorMsg(friendlyError(err, "Couldn't process payouts."));
     }
   }
 

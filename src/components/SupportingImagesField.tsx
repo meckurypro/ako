@@ -6,6 +6,7 @@ import { useRef, useState } from "react";
 import { ChevronLeft, ChevronRight, ImageIcon, Plus, X } from "lucide-react";
 import { useUploadProjectThumbnail } from "../hooks/useUploadProjectThumbnail";
 import { MAX_SUPPORTING_IMAGES } from "../lib/projectImages";
+import { friendlyError } from "../lib/friendlyError";
 
 export function SupportingImagesField({
   urls,
@@ -43,7 +44,7 @@ export function SupportingImagesField({
         const { url } = await upload.mutateAsync(file);
         added.push(url);
       } catch (err) {
-        setError(err instanceof Error ? err.message : "Image upload failed.");
+        setError(friendlyError(err, "Image upload failed."));
         break;
       } finally {
         setPending((p) => Math.max(0, p - 1));

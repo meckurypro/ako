@@ -4,6 +4,7 @@ import { FileUp, Music, Video as VideoIcon, Image as ImageIcon } from "lucide-re
 import { FormField } from "../FormField";
 import { useUploadProjectFile, UPLOAD_CANCELLED } from "../../hooks/useUploadProjectFile";
 import { UploadProgress } from "../UploadProgress";
+import { friendlyError } from "../../lib/friendlyError";
 
 // A channel no longer picks link XOR upload — it's a hybrid: an
 // uploaded file (played as a capped ~30s preview for audio/video, or
@@ -196,7 +197,7 @@ function MediaChannelFields({
     } catch (err) {
       // Cancelling is the person's own choice, not a failure.
       if (err instanceof Error && err.message === UPLOAD_CANCELLED) return;
-      onError(err instanceof Error ? err.message : "File upload failed.");
+      onError(friendlyError(err, "File upload failed."));
     }
   }
 

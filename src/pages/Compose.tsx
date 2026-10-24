@@ -31,6 +31,7 @@ import { useFeatureFlag } from "../hooks/useFeatureFlags";
 import { useLeaveGuard } from "../hooks/useLeaveGuard";
 import { SaveProgressDialog } from "../components/SaveProgressDialog";
 import { ProfilePagesModal } from "../components/ProfilePagesModal";
+import { friendlyError } from "../lib/friendlyError";
 
 const HEADING_LIMIT = 50;
 const MAX_MEDIA_FILES = 4;
@@ -233,7 +234,7 @@ export function Compose() {
         const url = await uploadMedia.mutateAsync(file);
         setMediaUrls((prev) => [...prev, url]);
       } catch (err) {
-        setUploadError(err instanceof Error ? err.message : "Upload failed.");
+        setUploadError(friendlyError(err, "Upload failed."));
         break;
       }
     }
@@ -319,7 +320,7 @@ export function Compose() {
       .catch((err) => {
         // Moderation rejections and other edge-function errors surface here - the message is already short and
         // direct. Reopen the editor with the form exactly as it was.
-        const message = err instanceof Error ? err.message : "Couldn't post this.";
+        const message = friendlyError(err, "Couldn't post this.");
         posting.dismiss();
         toast(message, { variant: "error" });
         setComposeRestore({ ...snapshot, error: message });
@@ -373,7 +374,7 @@ export function Compose() {
       // Staying on this screen (no navigate() above the catch) is what
       // puts the author right back in edit mode with everything they
       // typed still intact, ready to change whatever bounced.
-      const message = err instanceof Error ? err.message : "Couldn't post this.";
+      const message = friendlyError(err, "Couldn't post this.");
       setError(message);
       toast(message, { variant: "error" });
     }
@@ -395,7 +396,7 @@ export function Compose() {
       leaveGuard.allowLeaving();
       navigate("/activity/drafts", { replace: true });
     } catch (err) {
-      const message = err instanceof Error ? err.message : "Couldn't save this draft.";
+      const message = friendlyError(err, "Couldn't save this draft.");
       setError(message);
       toast(message, { variant: "error" });
       leaveGuard.stay();

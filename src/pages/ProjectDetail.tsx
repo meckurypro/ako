@@ -62,6 +62,7 @@ import { ForewordsSheet } from "../components/ForewordsSheet";
 import { ForewordInviteModal } from "../components/ForewordInviteModal";
 import { isForewordSupportedType, isInviteOpen, useMyForeword, useProjectForewords } from "../hooks/useForewords";
 import { SafeAudio } from "../components/MediaPlaceholder";
+import { friendlyError } from "../lib/friendlyError";
 
 function ProjectRail({ title, projects }: { title: string; projects: Project[] }) {
   if (projects.length === 0) return null;
@@ -281,7 +282,7 @@ function EventHighlightsSection({ projectId, isOwner }: { projectId: string; isO
     try {
       await addHighlight.mutateAsync({ file });
     } catch (err) {
-      setUploadError(err instanceof Error ? err.message : "Couldn't upload that file.");
+      setUploadError(friendlyError(err, "Couldn't upload that file."));
     }
   }
 
@@ -744,7 +745,7 @@ export function ProjectDetail({ resolvedProjectId }: { resolvedProjectId?: strin
               },
               onError: (err) => {
                 setUnforkOpen(false);
-                toast(err instanceof Error ? err.message : "Couldn't unfork.", { variant: "error" });
+                toast(friendlyError(err, "Couldn't unfork."), { variant: "error" });
               },
             })
           }

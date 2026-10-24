@@ -15,11 +15,12 @@ import {
   type PageRoleRequest,
 } from "../../hooks/useAdmin";
 import { GENERIC_ROLE_LABEL } from "../../lib/pageRoles";
+import { friendlyError } from "../../lib/friendlyError";
 
 function errorMessage(err: unknown): string {
   const e = err as { code?: string; message?: string };
   if (e?.code === "23505") return "A role with that name already exists.";
-  return e?.message || "Something went wrong. Please try again.";
+  return friendlyError(err, "Something went wrong. Please try again.");
 }
 
 function RequestCard({ request }: { request: PageRoleRequest }) {

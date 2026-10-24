@@ -15,6 +15,7 @@ import {
 import { AudiencePicker } from "../../components/admin/AudiencePicker";
 import { FormField } from "../../components/FormField";
 import { Button } from "../../components/Button";
+import { useErrorNotice } from "../../components/ErrorNotice";
 
 const SCHEDULE_OPTIONS: { value: ScheduleType; label: string }[] = [
   { value: "immediate", label: "Send now" },
@@ -36,6 +37,7 @@ function toLocalInputValue(iso: string | null): string {
 }
 
 export function AdminEmailCampaignEditor() {
+  const notifyError = useErrorNotice();
   const smartBack = useSmartBack();
   const navigate = useNavigate();
   const { campaignId } = useParams<{ campaignId: string }>();
@@ -130,7 +132,7 @@ export function AdminEmailCampaignEditor() {
         navigate(`/admin/emails/campaigns/${id}`, { replace: true });
       }
     } catch (err: any) {
-      setError(err.message ?? "Couldn't send campaign.");
+      notifyError(err, "Couldn't send campaign.");
     }
   }
 

@@ -68,6 +68,7 @@ import { isPublished } from "../lib/postStatus";
 import { isPlainReshare, isQuote, type PostWithAuthor, type Stance } from "../types/database";
 import { timeAgo } from "../lib/timeAgo";
 import { APP_URL } from "../lib/appUrl";
+import { friendlyError } from "../lib/friendlyError";
 
 const DOUBLE_TAP_WINDOW_MS = 300;
 
@@ -365,7 +366,7 @@ export function PostCard({
     setShowPrioritizeConfirm(false);
     prioritizePost.mutate(post.id, {
       onError: (err) => {
-        setPrioritizeError(err instanceof Error ? err.message : "Couldn't prioritize this post.");
+        setPrioritizeError(friendlyError(err, "Couldn't prioritize this post."));
       },
     });
   }

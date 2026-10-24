@@ -8,6 +8,7 @@ import {
   useToggleGiftTypeActive,
   type AdminGiftType,
 } from "../../hooks/useAdmin";
+import { friendlyError } from "../../lib/friendlyError";
 
 // Local edit-form shape, kept separate from AdminGiftType since the
 // inputs are strings (cost_usd needs free typing, incl. a trailing
@@ -61,7 +62,7 @@ export function AdminGiftTypes() {
       setCostUsd("");
       setIconUrl("");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Couldn't create gift type.");
+      setError(friendlyError(err, "Couldn't create gift type."));
     }
   }
 
@@ -95,7 +96,7 @@ export function AdminGiftTypes() {
       setEditingId(null);
       setEditValue(null);
     } catch (err) {
-      setEditError(err instanceof Error ? err.message : "Couldn't save changes.");
+      setEditError(friendlyError(err, "Couldn't save changes."));
     }
   }
 

@@ -6,6 +6,7 @@ import { X, Image as ImageIcon } from "lucide-react";
 import { useBackDismiss } from "../hooks/useBackDismiss";
 import { Portal } from "./Portal";
 import { Button } from "./Button";
+import { useErrorNotice } from "./ErrorNotice";
 import { useToast } from "./Toast";
 import { usePurchaseOffer, type Offer } from "../hooks/useOffers";
 import { formatUsd } from "../lib/money";
@@ -34,12 +35,11 @@ interface OfferNudgeSheetProps {
 export function OfferNudgeSheet({ projectId, projectTitle, singlePrice, offers, onBuySingle, onClose }: OfferNudgeSheetProps) {
   useBackDismiss(onClose);
   const toast = useToast();
+  const notifyError = useErrorNotice();
   const purchaseOffer = usePurchaseOffer();
-  const [error, setError] = useState<string | null>(null);
   const [buyingId, setBuyingId] = useState<string | null>(null);
 
   async function handleBuyOffer(offer: Offer) {
-    setError(null);
     setBuyingId(offer.id);
     try {
       const result = await purchaseOffer.mutateAsync(offer.id);
@@ -47,7 +47,7 @@ export function OfferNudgeSheet({ projectId, projectTitle, singlePrice, offers, 
       toast(`Unlocked ${count} projects 🎉`, { variant: "success" });
       onClose();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Couldn't complete the purchase.");
+      notifyError(err, "Couldn't complete the purchase.");
     } finally {
       setBuyingId(null);
     }
@@ -83,7 +83,6 @@ export function OfferNudgeSheet({ projectId, projectTitle, singlePrice, offers, 
               </div>
             )}
 
-            {error && <p className="text-danger text-sm mt-3">{error}</p>}
 
             <button
               onClick={() => {

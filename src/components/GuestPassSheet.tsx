@@ -13,6 +13,7 @@ import {
   type GuestPassRow,
 } from "../hooks/useGuestPass";
 import { GUEST_PASS_HOURS, getGuestPassUrl } from "../lib/guestPass";
+import { friendlyError } from "../lib/friendlyError";
 
 interface GuestPassSheetProps {
   projectId: string;
@@ -126,7 +127,7 @@ export function GuestPassSheet({ projectId, projectTitle, isPrivate, isPaid, onC
         toast("Pass link created.", { variant: "success" });
       }
     } catch (e) {
-      toast(e instanceof Error ? e.message : "Couldn't create the pass.", { variant: "error" });
+      toast(friendlyError(e, "Couldn't create the pass."), { variant: "error" });
     }
   }
 
@@ -135,7 +136,7 @@ export function GuestPassSheet({ projectId, projectTitle, isPrivate, isPaid, onC
       await revoke.mutateAsync(passId);
       toast("Pass revoked. That link no longer works.", { variant: "success" });
     } catch (e) {
-      toast(e instanceof Error ? e.message : "Couldn't revoke the pass.", { variant: "error" });
+      toast(friendlyError(e, "Couldn't revoke the pass."), { variant: "error" });
     }
   }
 

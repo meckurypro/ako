@@ -73,6 +73,7 @@ import { ManageAccessSheet } from "./ManageAccessSheet";
 import { GuestPassSheet } from "./GuestPassSheet";
 import { SupportPitchSheet } from "./SupportPitchSheet";
 import { PrivateProjectNotice } from "./PrivateProjectNotice";
+import { useErrorNotice } from "./ErrorNotice";
 import { useToast } from "./Toast";
 import { useIsProjectMember } from "../hooks/useProjectMembers";
 import { resolveFunctionErrorMessage } from "../lib/functionErrors";
@@ -427,6 +428,7 @@ export function ProjectCard({
   const isSavedQuery = useIsProjectSaved(project.id);
   const toggleSaved = useToggleSavedProject(project.id);
   const toast = useToast();
+  const notifyError = useErrorNotice();
   const accessCountQuery = useProjectAccessCount(project.id);
   const logFreeAccess = useLogFreeProjectAccess();
   const { data: mediaDetails } = useMediaDetails(project.project_type === "media" ? project.id : undefined);
@@ -442,7 +444,6 @@ export function ProjectCard({
   const isBookDraftUnpublished = isBook && bookDetails?.content_source === "authored" && !project.published_at;
   const startConversation = useStartConversation();
 
-  const [error, setError] = useState<string | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
   const [detailsOpen, setDetailsOpen] = useState(false);
   const showDetails = !concealDetails || detailsOpen;
@@ -548,11 +549,10 @@ export function ProjectCard({
       goToLogin();
       return;
     }
-    setError(null);
     try {
       await purchaseProject.mutateAsync(project.id);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Purchase failed.");
+      notifyError(err, "Purchase failed.");
     }
   }
 
@@ -563,7 +563,6 @@ export function ProjectCard({
       goToLogin();
       return;
     }
-    setError(null);
     const suggestable = !isFree && OFFER_ELIGIBLE_TYPES.includes(project.project_type);
     if (suggestable && (await offerNudge.offerBeforeBuy())) return;
     await buyThisOnly();
@@ -591,12 +590,11 @@ export function ProjectCard({
       goToLogin();
       return;
     }
-    setError(null);
     try {
       const { conversationId } = await bookGig.mutateAsync(project.id);
       navigate(`/messages/${conversationId}`);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Booking failed.");
+      notifyError(err, "Booking failed.");
     }
   }
 
@@ -608,12 +606,11 @@ export function ProjectCard({
       goToLogin();
       return;
     }
-    setError(null);
     try {
       const conversationId = await startConversation.mutateAsync(project.owner_id);
       navigate(`/messages/${conversationId}`);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Couldn't start conversation.");
+      notifyError(err, "Couldn't start conversation.");
     }
   }
 
@@ -627,14 +624,13 @@ export function ProjectCard({
       goToLogin();
       return;
     }
-    setError(null);
     try {
       const conversationId = await startConversation.mutateAsync(project.owner_id);
       navigate(`/messages/${conversationId}`, {
         state: { draftMessage: `Hi! I'd like access to "${project.title}".` },
       });
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Couldn't start conversation.");
+      notifyError(err, "Couldn't start conversation.");
     }
   }
 
@@ -677,7 +673,6 @@ export function ProjectCard({
       goToLogin();
       return;
     }
-    setError(null);
     try {
       // Streams the file in-app so the download only counts (and the creator is only notified) once every byte
       // has arrived — see useDownloadProjectFile.
@@ -693,7 +688,7 @@ export function ProjectCard({
       logFreeAccessIfNeeded("download");
     } catch (err) {
       if (err instanceof DownloadCancelledError) return;
-      setError(await resolveFunctionErrorMessage(err, "Couldn't download the file."));
+      notifyError(await resolveFunctionErrorMessage(err, "Couldn't download the file."), "Couldn't download the file.");
     }
   }
 
@@ -703,13 +698,12 @@ export function ProjectCard({
       goToLogin();
       return;
     }
-    setError(null);
     try {
       await downloadAllFiles.mutateAsync({ projectId: project.id, title: project.title, mode });
       logFreeAccessIfNeeded("download");
     } catch (err) {
       if (err instanceof DownloadCancelledError) return;
-      setError(await resolveFunctionErrorMessage(err, "Couldn't download the files."));
+      notifyError(await resolveFunctionErrorMessage(err, "Couldn't download the files."), "Couldn't download the files.");
     }
   }
 
@@ -722,7 +716,6 @@ export function ProjectCard({
       goToLogin();
       return;
     }
-    setError(null);
     const tab = window.open("", "_blank");
     try {
       const url = await getBookDownload.mutateAsync({ projectId: project.id, kind: "book", action: "download" });
@@ -734,7 +727,7 @@ export function ProjectCard({
       logFreeAccessIfNeeded("download");
     } catch (err) {
       tab?.close();
-      setError(await resolveFunctionErrorMessage(err, "Couldn't access file."));
+      notifyError(await resolveFunctionErrorMessage(err, "Couldn't access file."), "Couldn't access file.");
     }
   }
 
@@ -756,13 +749,12 @@ export function ProjectCard({
 
   async function handleCopyLink() {
     if (!project.external_url) return;
-    setError(null);
     try {
       await navigator.clipboard.writeText(project.external_url);
       setLinkCopied(true);
       window.setTimeout(() => setLinkCopied(false), 2000);
     } catch {
-      setError("Couldn't copy link.");
+      notifyError("Couldn't copy link.", "Couldn't copy link.");
     }
   }
 
@@ -772,13 +764,12 @@ export function ProjectCard({
   // "grab it now and paste it somewhere," not for a durable embed.
   async function handleCopyImageLink() {
     if (!imageSrc) return;
-    setError(null);
     try {
       await navigator.clipboard.writeText(imageSrc);
       setImageLinkCopied(true);
       window.setTimeout(() => setImageLinkCopied(false), 2000);
     } catch {
-      setError("Couldn't copy link.");
+      notifyError("Couldn't copy link.", "Couldn't copy link.");
     }
   }
 
@@ -790,13 +781,12 @@ export function ProjectCard({
       goToLogin();
       return;
     }
-    setError(null);
     try {
       const url = await getAudioStream.mutateAsync({ projectId: project.id, kind: "audio" });
       setAudioSrc(url);
       logFreeAccessIfNeeded("stream");
     } catch (err) {
-      setError(await resolveFunctionErrorMessage(err, "Couldn't load audio."));
+      notifyError(await resolveFunctionErrorMessage(err, "Couldn't load audio."), "Couldn't load audio.");
     }
   }
 
@@ -805,13 +795,12 @@ export function ProjectCard({
       goToLogin();
       return;
     }
-    setError(null);
     try {
       const url = await getVideoStream.mutateAsync({ projectId: project.id, kind: "video" });
       setVideoSrc(url);
       logFreeAccessIfNeeded("stream");
     } catch (err) {
-      setError(await resolveFunctionErrorMessage(err, "Couldn't load video."));
+      notifyError(await resolveFunctionErrorMessage(err, "Couldn't load video."), "Couldn't load video.");
     }
   }
 
@@ -820,13 +809,12 @@ export function ProjectCard({
       goToLogin();
       return;
     }
-    setError(null);
     try {
       const url = await getImageStream.mutateAsync({ projectId: project.id, kind: "image" });
       setImageSrc(url);
       logFreeAccessIfNeeded("stream");
     } catch (err) {
-      setError(await resolveFunctionErrorMessage(err, "Couldn't load image."));
+      notifyError(await resolveFunctionErrorMessage(err, "Couldn't load image."), "Couldn't load image.");
     }
   }
 
@@ -856,7 +844,7 @@ export function ProjectCard({
     } catch (err) {
       // Most likely reason: purchases exist and the delete was
       // refused server-side — surface that instead of failing silently.
-      setError(err instanceof Error ? err.message : "Couldn't delete this project.");
+      notifyError(err, "Couldn't delete this project.");
     }
   }
 
@@ -1514,7 +1502,6 @@ export function ProjectCard({
 
         {concealDetails && detailsOpen && detailsSlot && <div className="mt-4">{detailsSlot}</div>}
 
-        {error && <p className="text-danger text-sm mt-2">{error}</p>}
 
         {/* Media's playable preview lives on the card's own thumbnail
             now (see MediaHeroPlayer above) — this block only holds

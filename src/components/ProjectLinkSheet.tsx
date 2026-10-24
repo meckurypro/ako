@@ -13,6 +13,7 @@ import {
   type Project,
 } from "../hooks/useProjects";
 import { normalizeProjectSlug, getProjectSlugFormatError, getProjectUrl } from "../lib/projectLinks";
+import { friendlyError } from "../lib/friendlyError";
 
 interface ProjectLinkSheetProps {
   project: Project;
@@ -96,7 +97,7 @@ export function ProjectLinkSheet({ project, onClose }: ProjectLinkSheetProps) {
       toast("Custom URL updated.", { variant: "success" });
       onClose();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Couldn't update the link. Please try again.");
+      setError(friendlyError(err, "Couldn't update the link. Please try again."));
     }
   }
 

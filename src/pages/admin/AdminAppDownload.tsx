@@ -13,6 +13,7 @@ import {
   useSaveStoreUrls,
   useUploadApk,
 } from "../../hooks/useAppDownload";
+import { friendlyError } from "../../lib/friendlyError";
 
 // /admin/app-download — what the "Get the Akọ app" modal in Settings sends people to.
 //
@@ -74,7 +75,7 @@ export function AdminAppDownload() {
       {
         onSuccess: () => toast("APK uploaded. Users can download it now.", { variant: "success" }),
         onError: (err) =>
-          toast(err instanceof Error && err.message ? err.message : "Upload failed. Please try again.", {
+          toast(friendlyError(err, "Upload failed. Please try again."), {
             variant: "error",
             duration: 4500,
           }),

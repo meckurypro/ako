@@ -25,6 +25,8 @@ import { PageHeroEditor } from "../components/PageHeroEditor";
 import { TemplatePicker } from "../components/pageTemplate/TemplatePicker";
 import { BANNER_ASPECT, normalizeWebsite } from "../hooks/usePageLanding";
 import { cropToAspect } from "../lib/cropImage";
+import { friendlyError } from "../lib/friendlyError";
+import { useErrorNotice } from "../components/ErrorNotice";
 
 // /page/:username/edit — admin-only. Everything a page can change about
 // itself: name, tagline, bio, avatar, banner, website, topics, hero slides. Reuses
@@ -34,6 +36,7 @@ import { cropToAspect } from "../lib/cropImage";
 // uploading human's auth.uid() regardless of which page they're
 // editing, so the existing avatars bucket works fine for both.
 export function EditPage() {
+  const notifyError = useErrorNotice();
   const { username } = useParams<{ username: string }>();
   const returnAfterSave = useReturnAfterSave();
   const toast = useToast();
@@ -116,7 +119,7 @@ export function EditPage() {
     try {
       setAvatarUrl(await uploadAvatar.mutateAsync(file));
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Upload failed.");
+      setError(friendlyError(err, "Upload failed."));
     } finally {
       setUploadingAvatar(false);
       e.target.value = "";
@@ -132,7 +135,7 @@ export function EditPage() {
       // Cropped to the banner's shape first, so what's previewed here is what visitors see.
       setCoverUrl(await uploadAvatar.mutateAsync(await cropToAspect(file, BANNER_ASPECT, { maxWidth: 1600 })));
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Upload failed.");
+      setError(friendlyError(err, "Upload failed."));
     } finally {
       setUploadingCover(false);
       e.target.value = "";
@@ -170,7 +173,7 @@ export function EditPage() {
       toast("Page updated.", { variant: "success" });
       await returnAfterSave({ fallback: `/page/${page.username}` });
     } catch (err: any) {
-      setError(err.message ?? "Couldn't save those changes.");
+      notifyError(err, "Couldn't save those changes.");
     }
   }
 

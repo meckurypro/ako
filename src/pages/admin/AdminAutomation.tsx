@@ -8,6 +8,8 @@ import { useSmartBack } from "../../hooks/useSmartBack";
 import { Avatar } from "../../components/Avatar";
 import { useAdminSearchUsers } from "../../hooks/useAdminComms";
 import { useAutomatedAccounts, useCreateAutomatedAccount } from "../../hooks/useAutomation";
+import { useToast } from "../../components/Toast";
+import { useErrorNotice } from "../../components/ErrorNotice";
 
 export function formatInZone(iso: string | null, timeZone: string): string {
   if (!iso) return "Not scheduled";
@@ -26,6 +28,8 @@ export function formatInZone(iso: string | null, timeZone: string): string {
 }
 
 export function AdminAutomation() {
+  const notifyError = useErrorNotice();
+  const toast = useToast();
   const smartBack = useSmartBack();
   const navigate = useNavigate();
   const { data: accounts = [], isLoading } = useAutomatedAccounts();
@@ -44,7 +48,8 @@ export function AdminAutomation() {
       navigate(`/admin/automation/${id}`);
     } catch (err) {
       const e = err as { code?: string; message?: string };
-      setError(e?.code === "23505" ? "That account is already automated." : e?.message || "Something went wrong.");
+      if (e?.code === "23505") toast("That account is already automated.", { variant: "error" });
+      else notifyError(err, "Something went wrong.");
     }
   }
 

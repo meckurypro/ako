@@ -10,6 +10,7 @@ import { Portal } from "./Portal";
 import { Avatar } from "./Avatar";
 import { useFeatureFlag } from "../hooks/useFeatureFlags";
 import type { GiftType } from "../types/database";
+import { friendlyError } from "../lib/friendlyError";
 
 interface GiftPickerProps {
   recipientId: string;
@@ -127,7 +128,7 @@ export function GiftPicker({
       }
       setStep("sent");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Couldn't send gift.");
+      setError(friendlyError(err, "Couldn't send gift."));
     }
   }
 

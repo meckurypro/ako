@@ -32,6 +32,7 @@ import {
 import { ClipSelector } from "./ClipSelector";
 import { ContributorPicker } from "./ContributorPicker";
 import type { ContributorDraft, EligibleAudioProject } from "../../types/music";
+import { friendlyError } from "../../lib/friendlyError";
 
 interface PublishMusicSheetProps {
   onClose: () => void;
@@ -169,7 +170,7 @@ export function PublishMusicSheet({ onClose, onPublished, projectId }: PublishMu
       onPublished?.(result.catalogue.id);
       onClose();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Couldn't publish this song.");
+      setError(friendlyError(err, "Couldn't publish this song."));
     }
   }
 

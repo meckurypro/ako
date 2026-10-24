@@ -14,6 +14,7 @@ import { splitChapterOpener } from "../../lib/bookReaderText";
 import { READER_THEMES } from "../../lib/bookReaderTheme";
 import { useBookReaderTheme } from "./useBookReaderTheme";
 import { FONT_STACKS } from "./fontStacks";
+import { friendlyError } from "../../lib/friendlyError";
 
 const TOOLS: { op: BookFormatOp; label: string; text?: string; Icon?: typeof Bold }[] = [
   { op: "h1", label: "Chapter title (H1)", text: "H1" },
@@ -78,7 +79,7 @@ export function BookChapterEditor({
       const { url } = await upload.mutateAsync(file);
       commit(insertBookImage(content, s, end, url));
     } catch (err) {
-      setImageError(err instanceof Error ? err.message : "Couldn't upload that image.");
+      setImageError(friendlyError(err, "Couldn't upload that image."));
     }
   }
 

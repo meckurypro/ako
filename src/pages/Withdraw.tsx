@@ -24,6 +24,7 @@ import { FormField } from "../components/FormField";
 import { useFeatureFlag } from "../hooks/useFeatureFlags";
 import { useToast } from "../components/Toast";
 import { formatNgn, formatUsd } from "../lib/money";
+import { friendlyError } from "../lib/friendlyError";
 
 /**
  * Live bank list from Paystack, via the list-banks edge function —
@@ -169,7 +170,7 @@ export function Withdraw() {
       setAccountNumber("");
       toast("Payout account added.", { variant: "success" });
     } catch (err) {
-      setAddAccountError(err instanceof Error ? err.message : "Couldn't add this account.");
+      setAddAccountError(friendlyError(err, "Couldn't add this account."));
     }
   }
 
@@ -205,7 +206,7 @@ export function Withdraw() {
       navigate("/wallet");
       toast("Withdrawal requested.", { variant: "success" });
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Withdrawal failed.");
+      setError(friendlyError(err, "Withdrawal failed."));
     }
   }
 

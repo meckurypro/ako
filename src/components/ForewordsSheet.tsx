@@ -23,6 +23,7 @@ import { PeoplePicker } from "./PeoplePicker";
 import { ConfirmDialog } from "./ConfirmDialog";
 import { useToast } from "./Toast";
 import type { MentionCandidate } from "../hooks/useMentions";
+import { friendlyError } from "../lib/friendlyError";
 
 function daysLeft(expiresAt: string): number {
   return Math.max(0, Math.ceil((new Date(expiresAt).getTime() - Date.now()) / 86_400_000));
@@ -191,7 +192,7 @@ export function ForewordsSheet({
       try {
         await invite.mutateAsync({ inviteeId: person.id, note });
       } catch (err) {
-        failures.push(`${person.display_name}: ${err instanceof Error ? err.message : "couldn't invite."}`);
+        failures.push(`${person.display_name}: ${friendlyError(err, "couldn't invite.")}`);
       }
     }
     setSending(false);
@@ -216,7 +217,7 @@ export function ForewordsSheet({
             action === "approve" ? `Added to your ${noun}.` : action === "remove" ? "Foreword removed." : "Foreword declined.",
             { variant: "success" }
           ),
-        onError: (err) => setError(err instanceof Error ? err.message : "Couldn't update this foreword."),
+        onError: (err) => setError(friendlyError(err, "Couldn't update this foreword.")),
       }
     );
   }
@@ -292,7 +293,7 @@ export function ForewordsSheet({
                       onRevoke={() =>
                         revoke.mutate(f.id, {
                           onSuccess: () => toast("Invite cancelled.", { variant: "success" }),
-                          onError: (err) => setError(err instanceof Error ? err.message : "Couldn't cancel the invite."),
+                          onError: (err) => setError(friendlyError(err, "Couldn't cancel the invite.")),
                         })
                       }
                     />

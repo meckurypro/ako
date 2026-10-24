@@ -52,6 +52,7 @@ import {
   useSetLessonComplete,
   type CourseLesson,
 } from "../hooks/useCourseBuilder";
+import { friendlyError } from "../lib/friendlyError";
 
 // ---------------------------------------------------------------
 // Lesson video embedding — a course lesson's media_url is a plain
@@ -481,7 +482,7 @@ export function Course() {
     try {
       await publishCourse.mutateAsync();
     } catch (err) {
-      toast(err instanceof Error ? err.message : "Couldn't publish this course.", { variant: "error" });
+      toast(friendlyError(err, "Couldn't publish this course."), { variant: "error" });
       return;
     }
     toast("Course published.", { variant: "success" });

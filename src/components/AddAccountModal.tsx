@@ -2,6 +2,7 @@
 import { useState } from "react";
 import { Modal } from "./Modal";
 import { useAddAccount } from "../hooks/useAccountSwitcher";
+import { friendlyError } from "../lib/friendlyError";
 
 interface AddAccountModalProps {
   onClose: () => void;
@@ -35,7 +36,7 @@ export function AddAccountModal({ onClose, onAdded }: AddAccountModalProps) {
       await addAccount.mutateAsync({ email: email.trim(), password });
       onAdded();
     } catch (err: any) {
-      setError(err.message ?? "Couldn't sign into that account.");
+      setError(friendlyError(err, "Couldn't sign into that account."));
     }
   }
 

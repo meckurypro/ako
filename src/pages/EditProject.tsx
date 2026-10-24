@@ -64,6 +64,7 @@ import {
   ToggleRow,
 } from "../components/ProjectFormParts";
 import { ProjectStatusSelect } from "../components/ProjectStatusSelect";
+import { friendlyError } from "../lib/friendlyError";
 
 export function EditProject() {
   const { projectId } = useParams<{ projectId: string }>();
@@ -313,7 +314,7 @@ export function EditProject() {
       setThumbnailUrl(url);
       setThumbnailRatio({ width, height });
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Thumbnail upload failed.");
+      setError(friendlyError(err, "Thumbnail upload failed."));
     }
   }
 
@@ -593,7 +594,7 @@ export function EditProject() {
         : undefined;
       await returnAfterSave({ fallback: `/projects/${projectId}`, landOn: projectsTab });
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Couldn't save changes.");
+      setError(friendlyError(err, "Couldn't save changes."));
     }
   }
 

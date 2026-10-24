@@ -81,6 +81,7 @@ import {
   writeProjectDraft,
   type ProjectDraftData,
 } from "../lib/projectDraft";
+import { friendlyError } from "../lib/friendlyError";
 
 export function CreateProject() {
   const navigate = useNavigate();
@@ -346,7 +347,7 @@ export function CreateProject() {
       setThumbnailUrl(url);
       setThumbnailRatio({ width, height });
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Thumbnail upload failed.");
+      setError(friendlyError(err, "Thumbnail upload failed."));
     }
   }
 
@@ -487,7 +488,7 @@ export function CreateProject() {
           navigate(-1);
         }
       } catch (err) {
-        setError(err instanceof Error ? err.message : "Couldn't create project.");
+        setError(friendlyError(err, "Couldn't create project."));
       }
       return;
     }
@@ -648,7 +649,7 @@ export function CreateProject() {
         navigate(-1);
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Couldn't create project.");
+      setError(friendlyError(err, "Couldn't create project."));
     }
   }
 

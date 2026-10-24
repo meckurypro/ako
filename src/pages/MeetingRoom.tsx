@@ -39,6 +39,7 @@ import {
   useStartMeetingRecording,
   useStopMeetingRecording,
 } from "../hooks/useMeetingRecordings";
+import { friendlyError } from "../lib/friendlyError";
 
 function useCountdown(target: string | null | undefined) {
   const [remainingMs, setRemainingMs] = useState<number | null>(null);
@@ -189,7 +190,7 @@ function SharedItemsPanel({ projectId }: { projectId: string }) {
     try {
       await shareFile.mutateAsync(file);
     } catch (err) {
-      setFileError(err instanceof Error ? err.message : "Couldn't share that file.");
+      setFileError(friendlyError(err, "Couldn't share that file."));
     }
   }
 
@@ -267,7 +268,7 @@ function RecordingsSection({ projectId }: { projectId: string }) {
       const url = await getUrl.mutateAsync(recordingId);
       setOpenUrls((prev) => ({ ...prev, [recordingId]: url }));
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Couldn't load the recording.");
+      setError(friendlyError(err, "Couldn't load the recording."));
     }
   }
 

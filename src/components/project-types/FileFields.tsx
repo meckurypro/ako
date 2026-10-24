@@ -18,6 +18,7 @@ import {
   stripExtension,
 } from "../../lib/fileProject";
 import { supabase } from "../../lib/supabase";
+import { friendlyError } from "../../lib/friendlyError";
 
 export interface FileSlot {
   /** Local React key only — never sent anywhere. */
@@ -226,7 +227,7 @@ function FileSlotRow({ index, slot, showNumber, canRemove, onPatch, onRemove, on
       onPatch({ id: null, file_path: path, original_name: file.name, size_bytes: file.size });
     } catch (err) {
       if (err instanceof Error && err.message === UPLOAD_CANCELLED) return;
-      onError(err instanceof Error ? err.message : "File upload failed.");
+      onError(friendlyError(err, "File upload failed."));
     }
   }
 

@@ -11,6 +11,7 @@ import {
 } from "../../hooks/useAdminComms";
 import { AudiencePicker } from "../../components/admin/AudiencePicker";
 import { Button } from "../../components/Button";
+import { useErrorNotice } from "../../components/ErrorNotice";
 
 const MAX_LENGTH = 500;
 
@@ -113,6 +114,7 @@ function NotificationHistoryRow({
 }
 
 export function AdminSendNotification() {
+  const notifyError = useErrorNotice();
   const smartBack = useSmartBack();
   const sendNotification = useAdminSendNotification();
   const { data: sends, isLoading: sendsLoading } = useAdminNotificationSends();
@@ -149,7 +151,7 @@ export function AdminSendNotification() {
       setSuccessMsg(`Sent to ${result.recipient_count.toLocaleString()} people.`);
       setMessage("");
     } catch (err: any) {
-      setError(err.message ?? "Couldn't send notification.");
+      notifyError(err, "Couldn't send notification.");
     }
   }
 

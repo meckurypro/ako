@@ -13,6 +13,7 @@ import { ExternalLinkGuard } from "./components/ExternalLinkGuard";
 import { LoadingOverlay } from "./components/LoadingOverlay";
 import { usePageThemeSync } from "./hooks/usePageThemeSync";
 import { useIdentityRouteSync } from "./hooks/useIdentityRouteSync";
+import { ErrorNoticeProvider } from "./components/ErrorNotice";
 import { ToastProvider } from "./components/Toast";
 import { AppShell } from "./components/AppShell";
 import { ProfilePrefetch } from "./components/ProfilePrefetch";
@@ -193,9 +194,11 @@ export default function App() {
     <QueryClientProvider client={queryClient}>
       <LoadingOverlay />
       <ToastProvider>
-        <AuthProvider>
-          <RouterProvider router={router} />
-        </AuthProvider>
+        <ErrorNoticeProvider onFund={() => void router.navigate("/wallet/fund")}>
+          <AuthProvider>
+            <RouterProvider router={router} />
+          </AuthProvider>
+        </ErrorNoticeProvider>
       </ToastProvider>
     </QueryClientProvider>
   );

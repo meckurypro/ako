@@ -3,6 +3,7 @@ import { useRef, useState } from "react";
 import { FileUp, Link as LinkIcon } from "lucide-react";
 import { FormField } from "../FormField";
 import { useUploadProjectFile } from "../../hooks/useUploadProjectFile";
+import { friendlyError } from "../../lib/friendlyError";
 
 export interface DeliverableFieldsValue {
   external_url: string;
@@ -58,7 +59,7 @@ export function DeliverableFields({ kind, value, onChange, onError }: Deliverabl
       // same time, not just on an explicit mode switch.
       onChange({ ...value, external_url: "", file_path: path, file_name: file.name });
     } catch (err) {
-      onError(err instanceof Error ? err.message : "File upload failed.");
+      onError(friendlyError(err, "File upload failed."));
     }
   }
 

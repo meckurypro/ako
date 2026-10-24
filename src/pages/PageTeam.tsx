@@ -29,6 +29,8 @@ import {
 } from "../lib/pagePermissions";
 import { useToast } from "../components/Toast";
 import type { PageMemberWithProfile, ProfileWithRoles } from "../types/database";
+import { friendlyError } from "../lib/friendlyError";
+import { useErrorNotice } from "../components/ErrorNotice";
 
 
 // One team member's permissions, collapsed by default. Admins can't be
@@ -90,6 +92,7 @@ function MemberPermissions({ pageId, member }: { pageId: string; member: PageMem
 // on PagePage (only shown there to admins); RLS/the RPCs enforce the
 // same admin-only rules server-side regardless of what this page shows.
 export function PageTeam() {
+  const notifyError = useErrorNotice();
   const { username } = useParams<{ username: string }>();
   const smartBack = useSmartBack();
   const { user } = useAuth();
@@ -141,7 +144,7 @@ export function PageTeam() {
               : `${m.profile.display_name} now shows on the page.`,
             { variant: "success" }
           ),
-        onError: (err) => toast(err instanceof Error ? err.message : "Couldn't update that.", { variant: "error" }),
+        onError: (err) => toast(friendlyError(err, "Couldn't update that."), { variant: "error" }),
       }
     );
   }
@@ -185,7 +188,7 @@ export function PageTeam() {
       setInvitePermissions({ ...LEGACY_MEMBER_PERMISSIONS });
       toast("Invite sent.", { variant: "success" });
     } catch (err: any) {
-      setError(err.message ?? "Couldn't send that invite.");
+      notifyError(err, "Couldn't send that invite.");
     } finally {
       setSubmitting(false);
     }

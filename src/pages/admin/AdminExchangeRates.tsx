@@ -10,6 +10,7 @@ import { FormField } from "../../components/FormField";
 import { Button } from "../../components/Button";
 import { formatNgn } from "../../lib/money";
 import { formatCountdown, nextRateSyncAt } from "../../lib/rateSync";
+import { friendlyError } from "../../lib/friendlyError";
 
 /**
  * One "1 USD = ₦ [input] [Save]" row. The input takes all the room the button doesn't need —
@@ -131,7 +132,7 @@ export function AdminExchangeRates() {
       );
       setTimeout(() => setSavedMsg(null), 5000);
     } catch (err) {
-      setErrorMsg(err instanceof Error ? err.message : "Couldn't save rate.");
+      setErrorMsg(friendlyError(err, "Couldn't save rate."));
     }
   }
 

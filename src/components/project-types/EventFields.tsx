@@ -2,6 +2,7 @@
 import { FormField } from "../FormField";
 import { useUploadProjectThumbnail } from "../../hooks/useUploadProjectThumbnail";
 import { useState } from "react";
+import { friendlyError } from "../../lib/friendlyError";
 
 export interface EventFieldsValue {
   event_date: string; // datetime-local string, "" = TBA
@@ -38,7 +39,7 @@ export function EventFields({ value, onChange }: EventFieldsProps) {
       const uploaded = await uploadThumbnail.mutateAsync(file);
       set("ticket_template_url", uploaded.url);
     } catch (err) {
-      setUploadError(err instanceof Error ? err.message : "Upload failed.");
+      setUploadError(friendlyError(err, "Upload failed."));
     }
   }
 

@@ -8,6 +8,7 @@ import { Portal } from "./Portal";
 import { Avatar } from "./Avatar";
 import { PeoplePicker } from "./PeoplePicker";
 import type { MentionCandidate } from "../hooks/useMentions";
+import { friendlyError } from "../lib/friendlyError";
 
 export function TagPeopleSheet({
   target,
@@ -32,7 +33,7 @@ export function TagPeopleSheet({
       { targetId, userIds: selected.map((p) => p.id) },
       {
         onSuccess: () => setShowPicker(false),
-        onError: (err) => setError(err instanceof Error ? err.message : "Couldn't update tags."),
+        onError: (err) => setError(friendlyError(err, "Couldn't update tags.")),
       }
     );
   }

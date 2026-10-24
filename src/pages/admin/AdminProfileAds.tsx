@@ -23,6 +23,7 @@ import {
   publicUrlFor,
   type AdCreative,
 } from "../../hooks/useAdCreatives";
+import { friendlyError } from "../../lib/friendlyError";
 
 const EMPTY_AUDIENCE: AudienceInput = { audience_type: "all", audience_filter: {}, manual_recipient_ids: [] };
 
@@ -91,7 +92,7 @@ export function AdminProfileAds() {
       toast("Ad creative added.", { variant: "success" });
       resetForm();
     } catch (err: any) {
-      toast(err.message ?? "Couldn't save that creative.", { variant: "error" });
+      toast(friendlyError(err, "Couldn't save that creative."), { variant: "error" });
     }
   }
 

@@ -17,6 +17,7 @@ import {
   type RateKind,
 } from "../../hooks/useRateHistory";
 import { formatNgn } from "../../lib/money";
+import { friendlyError } from "../../lib/friendlyError";
 
 type SeriesKey = "deposit" | "withdrawal" | "market";
 
@@ -445,7 +446,7 @@ export function AdminExchangeRateHistory() {
           <p className="py-10 text-center text-ink-muted">Loading…</p>
         ) : error ? (
           <p className="py-10 text-center text-sm text-danger">
-            {error instanceof Error ? error.message : "Couldn't load rate history."}
+            {friendlyError(error, "Couldn't load rate history.")}
           </p>
         ) : rows.length === 0 ? (
           <div className="rounded-xl border border-border bg-surface p-6 text-center">

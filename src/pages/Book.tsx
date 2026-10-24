@@ -43,6 +43,8 @@ import {
   type BookChapter,
   type BookChapterKind,
 } from "../hooks/useBookBuilder";
+import { useErrorNotice } from "../components/ErrorNotice";
+import { friendlyError } from "../lib/friendlyError";
 
 
 export function Book() {
@@ -72,7 +74,7 @@ export function Book() {
   const purchaseProject = usePurchaseProject();
   // If this book is part of one of the creator's offers, Buy suggests the bundle first.
   const offerNudge = useOfferNudge(projectId ?? "");
-  const toast = useToast();
+  const notifyError = useErrorNotice();
 
   const ordered = useMemo(() => (chapters ?? []).slice().sort((a, b) => a.sort_order - b.sort_order), [chapters]);
 
@@ -106,7 +108,7 @@ export function Book() {
             onBuySingle={() => {
               purchaseProject
                 .mutateAsync(project.id)
-                .catch((err) => toast(err instanceof Error ? err.message : "Couldn't complete purchase.", { variant: "error" }));
+                .catch((err) => notifyError(err, "Couldn't complete purchase."));
             }}
             onClose={offerNudge.close}
           />
@@ -182,7 +184,7 @@ function BookLockedView({
   buying: boolean;
   onBack: () => void;
 }) {
-  const [error, setError] = useState<string | null>(null);
+  const notifyError = useErrorNotice();
   return (
     <div className="min-h-screen flex flex-col items-center justify-center gap-4 bg-canvas px-6 text-center">
       <button onClick={onBack} className="absolute top-4 left-4 text-ink">
@@ -201,11 +203,10 @@ function BookLockedView({
       </p>
       <button
         onClick={async () => {
-          setError(null);
           try {
             await onBuy();
           } catch (err) {
-            setError(err instanceof Error ? err.message : "Couldn't complete purchase.");
+            notifyError(err, "Couldn't complete purchase.");
           }
         }}
         disabled={buying}
@@ -213,7 +214,6 @@ function BookLockedView({
       >
         {buying ? "Processing…" : `Buy for $${price.toFixed(2)}`}
       </button>
-      {error && <p className="text-danger text-sm">{error}</p>}
     </div>
   );
 }
@@ -281,7 +281,7 @@ function BookBuilder({
     try {
       await draft.save();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Couldn't save.");
+      setError(friendlyError(err, "Couldn't save."));
     }
   }
 
@@ -291,7 +291,7 @@ function BookBuilder({
       navigate(-1);
     } catch (err) {
       setConfirmLeave(false);
-      setError(err instanceof Error ? err.message : "Couldn't save.");
+      setError(friendlyError(err, "Couldn't save."));
     }
   }
 
@@ -323,7 +323,7 @@ function BookBuilder({
       await updateProject.mutateAsync({ id: projectId, thumbnail_url: url, thumbnail_width: width, thumbnail_height: height });
       setError(null);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Cover upload failed.");
+      setError(friendlyError(err, "Cover upload failed."));
     }
   }
 
@@ -342,7 +342,7 @@ function BookBuilder({
       // Back to wherever the builder was opened from, refreshed.
       await returnAfterSave({ fallback: `/books/${projectId}` });
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Couldn't publish.");
+      setError(friendlyError(err, "Couldn't publish."));
     }
   }
 

@@ -4,6 +4,7 @@ import { useSmartBack } from "../../hooks/useSmartBack";
 import { ArrowLeft } from "lucide-react";
 import { usePendingPromotions, useReviewPromotion } from "../../hooks/usePromotions";
 import { formatUsd } from "../../lib/money";
+import { friendlyError } from "../../lib/friendlyError";
 
 export function AdminPromotions() {
   const smartBack = useSmartBack();
@@ -51,7 +52,7 @@ export function AdminPromotions() {
       });
       setDecidingId(null);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Couldn't submit this review.");
+      setError(friendlyError(err, "Couldn't submit this review."));
     }
   }
 

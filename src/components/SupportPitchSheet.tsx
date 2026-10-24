@@ -4,6 +4,8 @@ import { X, Heart } from "lucide-react";
 import { useBackDismiss } from "../hooks/useBackDismiss";
 import { Portal } from "./Portal";
 import { useSupportPitch } from "../hooks/useProjectTypeDetails";
+import { useErrorNotice } from "./ErrorNotice";
+import { friendlyError, isInsufficientBalance } from "../lib/friendlyError";
 
 interface SupportPitchSheetProps {
   projectId: string;
@@ -22,6 +24,7 @@ export function SupportPitchSheet({ projectId, projectTitle, onClose, onSupporte
   const [amount, setAmount] = useState("");
   const [message, setMessage] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const notifyError = useErrorNotice();
   const supportPitch = useSupportPitch(projectId);
 
   async function handleSubmit(e: React.FormEvent) {
@@ -36,7 +39,8 @@ export function SupportPitchSheet({ projectId, projectTitle, onClose, onSupporte
       await supportPitch.mutateAsync({ amountUsd, message: message.trim() || undefined });
       onSupported();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Couldn't process your support.");
+      if (isInsufficientBalance(err)) notifyError(err, "Couldn't process your support.");
+      else setError(friendlyError(err, "Couldn't process your support."));
     }
   }
 

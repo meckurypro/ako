@@ -15,6 +15,7 @@ import { Avatar } from "./Avatar";
 import { PeoplePicker } from "./PeoplePicker";
 import { useToast } from "./Toast";
 import type { MentionCandidate } from "../hooks/useMentions";
+import { friendlyError } from "../lib/friendlyError";
 
 const STATUS_LABEL: Record<string, string> = {
   invited: "Pending",
@@ -74,7 +75,7 @@ export function CollaboratorsSheet({
         setRoleAssignments({});
         toast(people.length > 1 ? "Invites sent." : "Invite sent.", { variant: "success" });
       })
-      .catch((err) => setError(err instanceof Error ? err.message : "Couldn't send one or more invites."))
+      .catch((err) => setError(friendlyError(err, "Couldn't send one or more invites.")))
       .finally(() => setSending(false));
   }
 

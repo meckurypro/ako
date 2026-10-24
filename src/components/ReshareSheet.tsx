@@ -7,6 +7,7 @@ import { Modal } from "./Modal";
 import { RepostEmbed } from "./RepostEmbed";
 import { useToast } from "./Toast";
 import type { RepostSource } from "../types/database";
+import { friendlyError } from "../lib/friendlyError";
 
 interface ReshareSheetProps {
   postId: string;
@@ -42,7 +43,7 @@ export function ReshareSheet({ postId, source, onClose }: ReshareSheetProps) {
       onClose();
       toast("Reposted.", { variant: "success" });
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Couldn't repost this.");
+      setError(friendlyError(err, "Couldn't repost this."));
     }
   }
 
@@ -54,7 +55,7 @@ export function ReshareSheet({ postId, source, onClose }: ReshareSheetProps) {
       onClose();
       toast("Posted.", { variant: "success" });
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Couldn't post this.");
+      setError(friendlyError(err, "Couldn't post this."));
     }
   }
 

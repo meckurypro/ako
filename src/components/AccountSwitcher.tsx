@@ -7,6 +7,7 @@ import { Avatar } from "./Avatar";
 import { useAuth } from "../hooks/useAuth";
 import { useMyProfile } from "../hooks/useProfile";
 import { useSavedAccounts, useSwitchAccount } from "../hooks/useAccountSwitcher";
+import { friendlyError } from "../lib/friendlyError";
 
 // Tapping your own display name on your profile opens this — same
 // "tap the name to switch" gesture as the organisation/brand switcher
@@ -75,7 +76,7 @@ export function AccountSwitcher({ onClose }: { onClose: () => void }) {
                 navigate(`/profile/${account.username}`);
               },
               onError: (err) => {
-                setSwitchError(err instanceof Error ? err.message : "Couldn't switch accounts.");
+                setSwitchError(friendlyError(err, "Couldn't switch accounts."));
                 // A stale entry gets removed from storage inside the
                 // mutation itself (useSwitchAccount) on this failure mode —
                 // re-read here so it disappears from `others` immediately

@@ -19,6 +19,7 @@ import { usePagesFeatureSettings } from "../hooks/useAdmin";
 import { useFeatureFlag } from "../hooks/useFeatureFlags";
 import { useToast } from "../components/Toast";
 import type { PageType } from "../types/database";
+import { useErrorNotice } from "../components/ErrorNotice";
 
 type UsernameStatus = "idle" | "checking" | "available" | "taken" | "error";
 
@@ -76,6 +77,7 @@ const TAGLINE_PLACEHOLDER: Record<PageType, string> = {
 // automatically (see create_page() in the migration) and we drop them
 // straight into managing it.
 export function CreatePage() {
+  const notifyError = useErrorNotice();
   const navigate = useNavigate();
   const smartBack = useSmartBack();
   const [searchParams] = useSearchParams();
@@ -237,7 +239,7 @@ export function CreatePage() {
       navigate(`/page/${page.username}`);
       toast(`${name.trim()} created successfully.`, { variant: "success" });
     } catch (err: any) {
-      setError(err.message ?? "Couldn't create that page.");
+      notifyError(err, "Couldn't create that page.");
     }
   }
 

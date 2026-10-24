@@ -25,6 +25,7 @@ import { Button } from "../components/Button";
 import { FormField } from "../components/FormField";
 import { useFeatureFlag } from "../hooks/useFeatureFlags";
 import { formatUsd } from "../lib/money";
+import { friendlyError } from "../lib/friendlyError";
 
 interface PromotablePost {
   id: string;
@@ -122,7 +123,7 @@ export function PromoteComposer() {
         await pausePromotion.mutateAsync(existingPromotion.id);
       }
     } catch (err) {
-      setLifecycleError(err instanceof Error ? err.message : "Couldn't update this campaign.");
+      setLifecycleError(friendlyError(err, "Couldn't update this campaign."));
     }
   }
 
@@ -133,7 +134,7 @@ export function PromoteComposer() {
     try {
       await terminatePromotion.mutateAsync(existingPromotion.id);
     } catch (err) {
-      setLifecycleError(err instanceof Error ? err.message : "Couldn't terminate this campaign.");
+      setLifecycleError(friendlyError(err, "Couldn't terminate this campaign."));
     }
   }
 
@@ -151,7 +152,7 @@ export function PromoteComposer() {
       setShowExtendForm(false);
       setExtendDays("1");
     } catch (err) {
-      setLifecycleError(err instanceof Error ? err.message : "Couldn't extend this campaign.");
+      setLifecycleError(friendlyError(err, "Couldn't extend this campaign."));
     }
   }
 
@@ -197,7 +198,7 @@ export function PromoteComposer() {
       });
       navigate(`/post/${postId}`);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Couldn't submit this campaign.");
+      setError(friendlyError(err, "Couldn't submit this campaign."));
     }
   }
 

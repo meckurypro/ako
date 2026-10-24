@@ -24,6 +24,7 @@ import {
   type ScheduleSlot,
 } from "../../hooks/useAutomation";
 import { formatInZone } from "./AdminAutomation";
+import { friendlyError } from "../../lib/friendlyError";
 
 const DAY_LABELS = ["S", "M", "T", "W", "T", "F", "S"];
 const DAY_NAMES = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
@@ -71,8 +72,7 @@ function toSchedule(drafts: SlotDraft[]): ScheduleSlot[] {
 }
 
 function errorMessage(err: unknown): string {
-  const e = err as { message?: string };
-  return e?.message || "Something went wrong. Please try again.";
+  return friendlyError(err, "Something went wrong. Please try again.");
 }
 
 function describeSlot(s: ScheduleSlot): string {

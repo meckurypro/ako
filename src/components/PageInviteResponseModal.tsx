@@ -4,6 +4,7 @@ import { useNavigate } from "react-router-dom";
 import { Avatar } from "./Avatar";
 import { Modal } from "./Modal";
 import { useMyPendingPageInvites, useRespondToPageInvite } from "../hooks/usePages";
+import { friendlyError } from "../lib/friendlyError";
 
 // Opened from a tap on a page_role_invite notification (see
 // Notifications.tsx) — this is the missing "accept or decline" step
@@ -41,7 +42,7 @@ export function PageInviteResponseModal({
           }
         },
         onError: (err) => {
-          setError(err instanceof Error ? err.message : "Couldn't respond to this invite.");
+          setError(friendlyError(err, "Couldn't respond to this invite."));
         },
       }
     );

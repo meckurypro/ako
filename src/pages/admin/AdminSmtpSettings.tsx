@@ -5,8 +5,10 @@ import { useSmartBack } from "../../hooks/useSmartBack";
 import { useSmtpSettings, useSaveSmtpSettings, useSendTestEmail } from "../../hooks/useAdminComms";
 import { FormField } from "../../components/FormField";
 import { Button } from "../../components/Button";
+import { useErrorNotice } from "../../components/ErrorNotice";
 
 export function AdminSmtpSettings() {
+  const notifyError = useErrorNotice();
   const smartBack = useSmartBack();
   const { data: settings, isLoading } = useSmtpSettings();
   const save = useSaveSmtpSettings();
@@ -50,7 +52,7 @@ export function AdminSmtpSettings() {
       setSavedMsg("Saved.");
       setTimeout(() => setSavedMsg(null), 3000);
     } catch (err: any) {
-      setSavedMsg(err.message ?? "Couldn't save settings.");
+      notifyError(err, "Couldn't save settings.");
     }
   }
 
@@ -60,7 +62,7 @@ export function AdminSmtpSettings() {
       await sendTest.mutateAsync(testTo);
       setTestMsg(`Test email sent to ${testTo}.`);
     } catch (err: any) {
-      setTestMsg(err.message ?? "Couldn't send test email.");
+      notifyError(err, "Couldn't send test email.");
     }
   }
 

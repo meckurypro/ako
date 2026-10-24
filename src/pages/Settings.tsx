@@ -63,6 +63,7 @@ import { SettingsSection } from "../components/SettingsSection";
 import { MentionTextarea } from "../components/MentionTextarea";
 import { useToast } from "../components/Toast";
 import { DownloadAppModal } from "../components/DownloadAppModal";
+import { friendlyError } from "../lib/friendlyError";
 
 // Own-profile lookup by id, since this page doesn't have :username in the URL
 function useOwnProfile() {
@@ -312,7 +313,7 @@ export function Settings() {
       // The photo is saved with the rest of the profile — open that section so "Save changes" is in view.
       setOpenSection("profile");
     } catch (err) {
-      setUploadError(err instanceof Error ? err.message : "Upload failed.");
+      setUploadError(friendlyError(err, "Upload failed."));
     } finally {
       e.target.value = "";
     }
@@ -394,7 +395,7 @@ export function Settings() {
             : undefined,
       });
     } catch (err) {
-      setProfileError(err instanceof Error ? err.message : "Couldn't save changes.");
+      setProfileError(friendlyError(err, "Couldn't save changes."));
     }
   }
 
@@ -455,7 +456,7 @@ export function Settings() {
       navigate("/login");
       toast("Account deactivated.", { variant: "success" });
     } catch (err) {
-      setDeactivateError(err instanceof Error ? err.message : "Couldn't deactivate account.");
+      setDeactivateError(friendlyError(err, "Couldn't deactivate account."));
       setDeactivating(false);
     }
   }
@@ -733,9 +734,7 @@ export function Settings() {
               />
               {changePassword.isError && (
                 <p className="text-danger text-sm mb-4" role="alert">
-                  {changePassword.error instanceof Error
-                    ? changePassword.error.message
-                    : "Couldn't change your password."}
+                  {friendlyError(changePassword.error, "Couldn't change your password.")}
                 </p>
               )}
               {passwordSuccess && <p className="text-accent text-sm mb-4">Password updated.</p>}

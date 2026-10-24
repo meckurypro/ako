@@ -8,6 +8,7 @@ import { useToast } from "./Toast";
 import type { Stance } from "../types/database";
 import { MentionTextarea } from "./MentionTextarea";
 import { CONTENT_LIMIT, contentCounterClass } from "../lib/textLimits";
+import { friendlyError } from "../lib/friendlyError";
 
 // ─── Shared colour system ─────────────────────────────────────────────────────
 // Single source of truth for stance colours. Imported by:
@@ -119,7 +120,7 @@ export function StanceComposer({
       // same composer with their text intact, ready to change
       // whatever bounced; the toast is what actually announces the
       // rejection, since the inline text below can be easy to miss.
-      const message = err instanceof Error ? err.message : "Couldn't post this.";
+      const message = friendlyError(err, "Couldn't post this.");
       setError(message);
       toast(message, { variant: "error" });
     }

@@ -15,6 +15,7 @@ import { useScrollLock } from "../hooks/useScrollLock";
 import { useMyPendingMusicCredits, useRespondToMusicCredit } from "../hooks/useMusicCatalogue";
 import { CONTRIBUTOR_ROLE_LABELS } from "../types/music";
 import { useToast } from "./Toast";
+import { friendlyError } from "../lib/friendlyError";
 
 export function MusicCreditResponseModal({
   catalogueId,
@@ -50,7 +51,7 @@ export function MusicCreditResponseModal({
             toast("Credit declined.", { variant: "success" });
           }
         },
-        onError: (err) => setError(err instanceof Error ? err.message : "Couldn't respond to this credit."),
+        onError: (err) => setError(friendlyError(err, "Couldn't respond to this credit.")),
       }
     );
   }

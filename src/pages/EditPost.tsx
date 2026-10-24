@@ -18,6 +18,7 @@ import { HeadingColorPicker } from "../components/HeadingColorPicker";
 import { contentCounterClass, postContentLimit } from "../lib/textLimits";
 import { useMyProfile } from "../hooks/useProfile";
 import type { PostWithAuthor } from "../types/database";
+import { friendlyError } from "../lib/friendlyError";
 
 const HEADING_LIMIT = 50;
 const MAX_MEDIA_FILES = 4;
@@ -116,7 +117,7 @@ export function EditPost() {
         const url = await uploadMedia.mutateAsync(file);
         setMediaUrls((prev) => [...prev, url]);
       } catch (err) {
-        setUploadError(err instanceof Error ? err.message : "Upload failed.");
+        setUploadError(friendlyError(err, "Upload failed."));
         break;
       }
     }
@@ -144,7 +145,7 @@ export function EditPost() {
       // a feed), refreshed — post detail is only the fallback.
       await returnAfterSave({ fallback: `/post/${postId}` });
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Couldn't save changes.");
+      setError(friendlyError(err, "Couldn't save changes."));
     }
   }
 
