@@ -3,6 +3,8 @@ import {
   ArrowDownCircle,
   ArrowUpCircle,
   ChevronRight,
+  Eye,
+  EyeOff,
   Gem,
   ReceiptText,
   TrendingUp,
@@ -15,8 +17,12 @@ import { Wordmark } from "../components/Wordmark";
 import { useFeatureFlag } from "../hooks/useFeatureFlags";
 import { useWithdrawalEligibility } from "../hooks/useWalletRates";
 import { useWithdrawals } from "../hooks/usePayout";
+import { useBalanceVisibility } from "../hooks/useBalanceVisibility";
 import { formatUsd } from "../lib/money";
 import { txnMeta } from "../lib/walletTxn";
+
+// What an amount shows as while the balance is hidden.
+const MASK = "••••";
 
 // Fund is the primary action: a solid white pill with deep-green text (a light button on a dark brand
 // surface, so contrast holds in light, dark and page themes). Withdraw is its quieter translucent twin.
@@ -54,6 +60,9 @@ function Tile({ to, icon: Icon, label }: { to: string; icon: LucideIcon; label: 
  *   2. Latest-transaction strip → full history lives on its own page (/wallet/transactions).
  *   3. Two numbers people check before cashing out: Can withdraw, In review.
  *   4. A short row of links: Transactions, Gift Vault, Affiliate.
+ *
+ * The eye on the balance card hides every amount on this page (balance, latest transaction, Can withdraw,
+ * In review) and the choice persists until it's toggled again — see useBalanceVisibility.
  */
 export function WalletPage() {
   const { data: wallet, isLoading } = useWallet();
@@ -64,6 +73,8 @@ export function WalletPage() {
   const affiliateEnabled = useFeatureFlag("affiliate_programs_enabled");
   const { data: eligibility } = useWithdrawalEligibility();
   const { data: withdrawals } = useWithdrawals();
+  const { hidden, toggle: toggleHidden } = useBalanceVisibility();
+  const money = (text: string) => (hidden ? MASK : text);
 
   // Requests that have left the wallet but not yet reached the bank.
   const inReviewUsd = (withdrawals ?? [])
@@ -109,14 +120,25 @@ export function WalletPage() {
         {/* ── Balance card — the one bold element on the page ── */}
         <BrandCard className="p-6">
           <div className="flex items-center justify-between">
-            <p className="text-[11px] font-medium uppercase tracking-[0.16em] text-white">Balance</p>
+            <div className="flex items-center gap-1.5">
+              <p className="text-[11px] font-medium uppercase tracking-[0.16em] text-white">Balance</p>
+              <button
+                type="button"
+                onClick={toggleHidden}
+                aria-pressed={hidden}
+                aria-label={hidden ? "Show balance" : "Hide balance"}
+                className="-m-1 inline-flex h-8 w-8 items-center justify-center rounded-full text-white/90 transition-colors hover:bg-white/15 active:bg-white/20"
+              >
+                {hidden ? <EyeOff size={18} /> : <Eye size={18} />}
+              </button>
+            </div>
             <span className="rounded-full bg-white/15 px-2.5 py-0.5 text-[11px] font-medium tracking-wide text-white ring-1 ring-inset ring-white/20">
               USD
             </span>
           </div>
 
           <p className="font-display text-5xl text-white mt-3 mb-6 tabular-nums">
-            {isLoading ? "…" : formatUsd(wallet?.balance ?? 0)}
+            {isLoading ? "…" : money(formatUsd(wallet?.balance ?? 0))}
           </p>
 
           {(depositsEnabled || withdrawalsEnabled) && (
@@ -138,8 +160,14 @@ export function WalletPage() {
               <>
                 {latestMeta.label}{" "}
                 <span className={`font-medium tabular-nums ${latestAmount >= 0 ? "text-accent" : "text-ink"}`}>
-                  {latestAmount >= 0 ? "+" : "-"}
-                  {formatUsd(Math.abs(latestAmount))}
+                  {hidden ? (
+                    MASK
+                  ) : (
+                    <>
+                      {latestAmount >= 0 ? "+" : "-"}
+                      {formatUsd(Math.abs(latestAmount))}
+                    </>
+                  )}
                 </span>
               </>
             ) : (
@@ -159,11 +187,11 @@ export function WalletPage() {
           >
             <div className="px-4 py-3">
               <p className="text-xs text-ink-muted">Can withdraw</p>
-              <p className="mt-0.5 text-base font-semibold text-ink tabular-nums">{formatUsd(eligibility?.available_to_request ?? 0)}</p>
+              <p className="mt-0.5 text-base font-semibold text-ink tabular-nums">{money(formatUsd(eligibility?.available_to_request ?? 0))}</p>
             </div>
             <div className="px-4 py-3">
               <p className="text-xs text-ink-muted">In review</p>
-              <p className="mt-0.5 text-base font-semibold text-ink tabular-nums">{formatUsd(inReviewUsd)}</p>
+              <p className="mt-0.5 text-base font-semibold text-ink tabular-nums">{money(formatUsd(inReviewUsd))}</p>
             </div>
           </Link>
         )}
