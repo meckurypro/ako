@@ -1,6 +1,7 @@
 // src/components/comments/CommentActionBar.tsx
 import { useRef, useState, type MouseEvent } from "react";
-import { Flag, Gift as GiftIcon, MoreHorizontal, Pencil, Share2, ThumbsDown, Trash2 } from "lucide-react";
+import { useNavigate } from "react-router-dom";
+import { Flag, Gift as GiftIcon, MessageCircle, MoreHorizontal, Pencil, Share2, ThumbsDown, Trash2 } from "lucide-react";
 import { LikeHeart } from "../LikeHeart";
 import { DropdownMenu, type DropdownMenuItem } from "../DropdownMenu";
 import { AnimatedCount } from "../AnimatedCount";
@@ -51,18 +52,21 @@ export function CommentMoreMenu({ comment, iconSize = 16 }: { comment: CommentWi
 }
 
 /**
- * The row under a reply: like · dislike, with a "…" on the right that holds everything else (share, gift, report;
- * edit / delete on your own). There's no reply button — opening a comment is how you reply (see ReplyBar in
- * CommentDetail). Counts are hidden at zero.
+ * The row under a reply: like · replies · dislike, with a "…" on the right that holds everything else (share, gift,
+ * report; edit / delete on your own). The replies count is every direct reply under this comment (add, question and
+ * pushback together); tapping it opens the comment. There's no separate reply button — opening a comment is how you
+ * reply (see ReplyBar in CommentDetail). Counts are hidden at zero.
  */
 export function CommentActionBar({ comment }: { comment: CommentWithAuthor }) {
   const eng = useCommentEngagement();
+  const navigate = useNavigate();
   const state = eng.reactions?.get(comment.id);
   const liked = !!state?.liked;
   const disliked = !!state?.disliked;
   const delta = eng.deltas.get(comment.id);
   const likeCount = Math.max(0, comment.like_count + (delta?.like ?? 0));
   const dislikeCount = Math.max(0, comment.dislike_count + (delta?.dislike ?? 0));
+  const replyCount = Math.max(0, comment.reply_count);
 
   const icon = 17;
   const btn = "flex items-center gap-1.5 p-1.5 transition-colors";
@@ -79,6 +83,15 @@ export function CommentActionBar({ comment }: { comment: CommentWithAuthor }) {
       >
         <LikeHeart active={liked} size={icon} />
         <AnimatedCount value={likeCount} className="text-xs" />
+      </button>
+
+      <button
+        onClick={() => navigate(`/post/${comment.post_id}/comment/${comment.id}`)}
+        className={`${btn} text-ink-muted hover:text-ink`}
+        aria-label={replyCount === 1 ? "1 reply" : `${replyCount} replies`}
+      >
+        <MessageCircle size={icon} />
+        <AnimatedCount value={replyCount} className="text-xs" />
       </button>
 
       <button
