@@ -1,7 +1,7 @@
 // src/components/TaggedProjectEmbed.tsx
 import { isBookType } from "../lib/bookCover";
 import { Link } from "react-router-dom";
-import { ImageIcon } from "lucide-react";
+import { ImageIcon, Music2 } from "lucide-react";
 import { type ProjectType } from "../hooks/useProjects";
 import { getProjectPath } from "../lib/projectLinks";
 import { affiliateLinkFor } from "../hooks/useAffiliates";
@@ -80,6 +80,8 @@ export function TaggedProjectEmbed({
   // and below, and is tilted in perspective like a physical card resting on the post. The link's own height
   // reserves the overflow so nothing above or below is overlapped.
   const book = isBookType(project.project_type);
+  // A song (a "media" project) gets a record instead of a tilted card: same box, same spot, but round.
+  const song = project.project_type === "media";
   const thumbW = book ? 84 : 96;
   const thumbH = book ? 120 : 96;
 
@@ -98,23 +100,62 @@ export function TaggedProjectEmbed({
         <p className="text-base font-bold leading-[21px] text-ink text-center line-clamp-2 break-words">{project.title}</p>
       </div>
 
-      <div
-        className="absolute left-3 top-1/2 overflow-hidden rounded-lg border border-white/25 bg-surface flex items-center justify-center pointer-events-none"
-        style={{
-          width: thumbW,
-          height: thumbH,
-          transform: "translateY(-50%) perspective(600px) rotateY(16deg) rotateX(4deg) rotate(-6deg)",
-          boxShadow: "0 12px 18px -8px rgba(var(--shadow-ink-rgb),0.5), 0 2px 5px rgba(var(--shadow-ink-rgb),0.28)",
-        }}
-      >
-        {isFileType(project.project_type) ? (
-          <FileFolderIcon size={thumbW} className="w-full h-full" />
-        ) : project.thumbnail_url ? (
-          <img src={project.thumbnail_url} alt="" className="w-full h-full object-cover" />
-        ) : (
-          <ImageIcon size={22} className="text-ink-muted" />
-        )}
-      </div>
+      {song ? (
+        // Record: the cover fills a circle, fine grooves and a dark rim sit over it, and a spindle hole marks the
+        // centre. Flat (no perspective tilt) so it reads as a disc lying on the post; a hair of rotation keeps it
+        // from looking stamped.
+        <div
+          className="absolute left-3 top-1/2 overflow-hidden rounded-full bg-neutral-900 flex items-center justify-center pointer-events-none"
+          style={{
+            width: thumbW,
+            height: thumbH,
+            transform: "translateY(-50%) rotate(-8deg)",
+            boxShadow:
+              "0 0 0 2px rgba(20,20,20,0.9), 0 12px 18px -8px rgba(var(--shadow-ink-rgb),0.5), 0 2px 5px rgba(var(--shadow-ink-rgb),0.28)",
+          }}
+        >
+          {project.thumbnail_url ? (
+            <img src={project.thumbnail_url} alt="" className="w-full h-full object-cover" />
+          ) : (
+            <Music2 size={24} className="text-white/70" />
+          )}
+          {/* Grooves + a soft diagonal sheen. */}
+          <div
+            className="absolute inset-0 rounded-full"
+            style={{
+              background:
+                "repeating-radial-gradient(circle at center, rgba(0,0,0,0) 0 3px, rgba(0,0,0,0.16) 3px 4px), linear-gradient(135deg, rgba(255,255,255,0.28) 0%, rgba(255,255,255,0) 40%, rgba(255,255,255,0) 60%, rgba(255,255,255,0.12) 100%)",
+            }}
+          />
+          {/* Spindle hole. */}
+          <div
+            className="absolute rounded-full bg-surface"
+            style={{
+              width: thumbW * 0.16,
+              height: thumbW * 0.16,
+              boxShadow: "0 0 0 3px rgba(20,20,20,0.75), inset 0 1px 2px rgba(0,0,0,0.35)",
+            }}
+          />
+        </div>
+      ) : (
+        <div
+          className="absolute left-3 top-1/2 overflow-hidden rounded-lg border border-white/25 bg-surface flex items-center justify-center pointer-events-none"
+          style={{
+            width: thumbW,
+            height: thumbH,
+            transform: "translateY(-50%) perspective(600px) rotateY(16deg) rotateX(4deg) rotate(-6deg)",
+            boxShadow: "0 12px 18px -8px rgba(var(--shadow-ink-rgb),0.5), 0 2px 5px rgba(var(--shadow-ink-rgb),0.28)",
+          }}
+        >
+          {isFileType(project.project_type) ? (
+            <FileFolderIcon size={thumbW} className="w-full h-full" />
+          ) : project.thumbnail_url ? (
+            <img src={project.thumbnail_url} alt="" className="w-full h-full object-cover" />
+          ) : (
+            <ImageIcon size={22} className="text-ink-muted" />
+          )}
+        </div>
+      )}
     </Link>
   );
 }
