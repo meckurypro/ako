@@ -1,8 +1,9 @@
 // src/components/project-types/MediaFields.tsx
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { FileUp, Music, Video as VideoIcon, Image as ImageIcon } from "lucide-react";
 import { FormField } from "../FormField";
-import { useUploadProjectFile } from "../../hooks/useUploadProjectFile";
+import { useUploadProjectFile, UPLOAD_CANCELLED } from "../../hooks/useUploadProjectFile";
+import { UploadProgress } from "../UploadProgress";
 
 // A channel no longer picks link XOR upload — it's a hybrid: an
 // uploaded file (played as a capped ~30s preview for audio/video, or
@@ -103,9 +104,20 @@ interface MediaFieldsProps {
   value: MediaFieldsValue;
   onChange: (value: MediaFieldsValue) => void;
   onError: (message: string) => void;
+  /** True while any channel is still uploading, so the form can refuse to save a half-uploaded project. */
+  onUploadingChange?: (uploading: boolean) => void;
 }
 
-export function MediaFields({ value, onChange, onError }: MediaFieldsProps) {
+export function MediaFields({ value, onChange, onError, onUploadingChange }: MediaFieldsProps) {
+  const [busy, setBusy] = useState<Record<string, boolean>>({});
+  const anyBusy = Object.values(busy).some(Boolean);
+  useEffect(() => {
+    onUploadingChange?.(anyBusy);
+    // Leaving the form clears the flag.
+    return () => onUploadingChange?.(false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [anyBusy]);
+
   return (
     <div className="mb-4">
       <label className="block text-sm font-medium text-ink-muted mb-1.5">
@@ -138,6 +150,7 @@ export function MediaFields({ value, onChange, onError }: MediaFieldsProps) {
           value={value[config.key]}
           onChange={(channel) => onChange({ ...value, [config.key]: channel })}
           onError={onError}
+          onBusyChange={(isBusy) => setBusy((b) => (b[config.key] === isBusy ? b : { ...b, [config.key]: isBusy }))}
         />
       ))}
 
@@ -156,25 +169,33 @@ function MediaChannelFields({
   value,
   onChange,
   onError,
+  onBusyChange,
 }: {
   config: ChannelConfig;
   value: MediaChannelValue;
   onChange: (value: MediaChannelValue) => void;
   onError: (message: string) => void;
+  onBusyChange: (busy: boolean) => void;
 }) {
   const uploadFile = useUploadProjectFile();
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const [, setTick] = useState(0);
+
+  useEffect(() => {
+    onBusyChange(uploadFile.isPending);
+    return () => onBusyChange(false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [uploadFile.isPending]);
 
   async function handleFileSelect(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     e.target.value = "";
     if (!file) return;
     try {
-      setTick((t) => t + 1);
       const path = await uploadFile.mutateAsync(file);
       onChange({ ...value, file_path: path, file_name: file.name });
     } catch (err) {
+      // Cancelling is the person's own choice, not a failure.
+      if (err instanceof Error && err.message === UPLOAD_CANCELLED) return;
       onError(err instanceof Error ? err.message : "File upload failed.");
     }
   }
@@ -195,7 +216,7 @@ function MediaChannelFields({
         >
           <FileUp size={16} />
           {uploadFile.isPending
-            ? "Uploading…"
+            ? `Uploading… ${uploadFile.progress}%`
             : value.file_name
               ? value.file_name
               : // Editing an existing channel: file_path came from the
@@ -207,6 +228,14 @@ function MediaChannelFields({
                 ? "File uploaded — tap to replace"
                 : "Choose file"}
         </button>
+        {uploadFile.isPending && (
+          <UploadProgress
+            className="mt-2"
+            progress={uploadFile.progress}
+            retrying={uploadFile.retrying}
+            onCancel={uploadFile.cancel}
+          />
+        )}
         {value.file_path && !uploadFile.isPending && (
           <button
             type="button"

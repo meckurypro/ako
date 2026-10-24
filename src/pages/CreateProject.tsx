@@ -168,6 +168,7 @@ export function CreateProject() {
   const [fileFields, setFileFields] = useState<FileFieldsValue>(EMPTY_FILE_FIELDS);
   const [urlFields, setUrlFields] = useState<UrlFieldsValue>(EMPTY_URL_FIELDS);
   const [mediaFields, setMediaFields] = useState<MediaFieldsValue>(EMPTY_MEDIA_FIELDS);
+  const [mediaUploading, setMediaUploading] = useState(false);
   const [eventFields, setEventFields] = useState<EventFieldsValue>(EMPTY_EVENT_FIELDS);
   const [meetingFields, setMeetingFields] = useState<MeetingFieldsValue>(EMPTY_MEETING_FIELDS);
   const [gigFields, setGigFields] = useState<GigFieldsValue>(EMPTY_GIG_FIELDS);
@@ -419,6 +420,11 @@ export function CreateProject() {
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
     setError(null);
+
+    if (mediaUploading) {
+      setError("Your file is still uploading — wait for it to finish, then save.");
+      return;
+    }
 
     if (!title.trim()) {
       setError("Title is required.");
@@ -802,7 +808,7 @@ export function CreateProject() {
 
           {/* 4 — Whatever this type needs. */}
           <FormSection icon={PROJECT_TYPE_ICONS[projectType]} title={`${PROJECT_TYPE_LABELS[projectType]} details`}>
-            {projectType === "media" && <MediaFields value={mediaFields} onChange={setMediaFields} onError={setError} />}
+            {projectType === "media" && <MediaFields value={mediaFields} onChange={setMediaFields} onError={setError} onUploadingChange={setMediaUploading} />}
             {projectType === "file" && (
               <FileFields value={fileFields} onChange={setFileFields} onError={setError} maxFiles={maxFiles} />
             )}

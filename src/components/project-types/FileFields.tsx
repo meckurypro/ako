@@ -7,7 +7,8 @@
 // show).
 import { useRef } from "react";
 import { FileUp, Plus, Trash2 } from "lucide-react";
-import { useUploadProjectFile } from "../../hooks/useUploadProjectFile";
+import { useUploadProjectFile, UPLOAD_CANCELLED } from "../../hooks/useUploadProjectFile";
+import { UploadProgress } from "../UploadProgress";
 import type { ProjectFile, ProjectFileInput } from "../../hooks/useProjectFiles";
 import {
   MAX_PROJECT_FILES_VERIFIED,
@@ -224,6 +225,7 @@ function FileSlotRow({ index, slot, showNumber, canRemove, onPatch, onRemove, on
       // id: null — a different file is a new file; the old saved row (if any) is dropped when the project saves.
       onPatch({ id: null, file_path: path, original_name: file.name, size_bytes: file.size });
     } catch (err) {
+      if (err instanceof Error && err.message === UPLOAD_CANCELLED) return;
       onError(err instanceof Error ? err.message : "File upload failed.");
     }
   }
@@ -266,6 +268,15 @@ function FileSlotRow({ index, slot, showNumber, canRemove, onPatch, onRemove, on
         )}
       </div>
       <input ref={fileInputRef} type="file" onChange={handleFileSelect} className="hidden" />
+
+      {uploadFile.isPending && (
+        <UploadProgress
+          className="mt-2"
+          progress={uploadFile.progress}
+          retrying={uploadFile.retrying}
+          onCancel={uploadFile.cancel}
+        />
+      )}
 
       {slot.file_path && (
         <input
