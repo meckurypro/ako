@@ -12,15 +12,18 @@
 //             re-validating it. Recorded as a manual run.
 //
 // Pipeline per run: load account + context (last 3 posts, topic history, next idea or recent audience comments) ->
-// Claude (forced tool call, so the output is structured) -> validate against the permanent writing rules in
+// the account's AI provider (structured output, see llm.ts) -> validate against the permanent writing rules in
 // writing.ts (retry with the problems listed, up to 3 attempts) -> moderation, same as user posts -> insert the post
 // as the automated account -> record the run, topic history and mark the idea used.
 //
 // Idempotency: a slot can only ever open one run (UNIQUE (account_id, scheduled_for)), and the post is inserted with
 // client_request_id = the run id, so a retry of the same run returns the post that already exists.
 //
+// AI provider: per account (Anthropic, OpenAI or Gemini), with the account's own API key read from Supabase Vault at run
+// time through automation_get_api_key() (service role only). No AI key lives in the function's environment. See llm.ts.
+//
 // verify_jwt: OFF (the function authenticates itself: shared secret for cron, admin_roles check for the admin UI).
-// Secrets required: SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, ANTHROPIC_API_KEY. Optional: ANTHROPIC_MODEL.
+// Secrets required: SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY (both provided by Supabase).
 // Deploy: supabase functions deploy run-post-automation --no-verify-jwt
 
 import { createClient } from "jsr:@supabase/supabase-js@2";
@@ -34,6 +37,7 @@ import {
   validatePost,
   type GeneratedPost,
 } from "./writing.ts";
+import { callProvider, DEFAULT_MODELS, isProvider, LlmError, PROVIDER_LABEL, type Provider } from "./llm.ts";
 
 declare const EdgeRuntime: { waitUntil(promise: Promise<unknown>): void } | undefined;
 
@@ -45,8 +49,6 @@ const corsHeaders = {
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-const ANTHROPIC_API_KEY = Deno.env.get("ANTHROPIC_API_KEY");
-const MODEL = Deno.env.get("ANTHROPIC_MODEL") ?? "claude-sonnet-5-5";
 
 const admin = createClient(SUPABASE_URL, SERVICE_ROLE_KEY);
 
@@ -63,6 +65,12 @@ interface AccountRow {
   system_prompt: string;
   max_post_chars: number;
   max_heading_chars: number;
+  /** The account's own provider, model and key. The key is only ever held in memory for the length of a run. */
+  ai: { provider: Provider; model: string; apiKey: string };
+}
+
+function modelLabel(account: AccountRow): string {
+  return `${account.ai.provider}:${account.ai.model}`;
 }
 
 interface ProfileRow {
@@ -212,8 +220,10 @@ async function processRun(
   draft: GeneratedPost | null = null,
 ): Promise<{ ok: boolean; run_id: string; post_id?: string; error?: string }> {
   let usage: Usage | undefined;
+  let usedModel: string | null = null;
   try {
     const { account, profile } = await loadAccount(accountId);
+    usedModel = modelLabel(account);
 
     // A previous attempt of this very run may have inserted its post and died before recording it.
     const already = await findPostForRun(account.user_id, runId);
@@ -253,7 +263,7 @@ async function processRun(
         idea_id: ideaId,
         post_id: postId,
         attempts: usage.attempts,
-        model: MODEL,
+        model: usedModel,
         input_tokens: usage.input,
         output_tokens: usage.output,
         error: null,
@@ -288,7 +298,7 @@ async function processRun(
       .update({
         status: "failed",
         error: message.slice(0, 500),
-        model: MODEL,
+        model: usedModel,
         attempts: u?.attempts ?? 0,
         input_tokens: u?.input ?? 0,
         output_tokens: u?.output ?? 0,
@@ -319,9 +329,26 @@ async function loadAccount(accountId: string): Promise<{ account: AccountRow; pr
     .select("display_name, username, bio, is_verified, is_deleted")
     .eq("id", account.user_id)
     .maybeSingle();
-  if (!profile || profile.is_deleted) throw new RunError("The Akọ account behind this automation is missing or deleted.");
+  if (!profile || profile.is_deleted) throw new RunError("The Ak\u1ecd account behind this automation is missing or deleted.");
 
-  return { account: account as AccountRow, profile: profile as ProfileRow };
+  // The account's own provider and key, from Vault. Nothing here is logged or returned to a browser.
+  const { data: keyRows } = await admin.rpc("automation_get_api_key", { p_account_id: accountId });
+  const keyRow = (keyRows ?? [])[0] as { provider: string; model: string | null; api_key: string } | undefined;
+  if (!keyRow?.api_key || !isProvider(keyRow.provider)) {
+    throw new RunError("This account has no AI provider key saved. Add one in its AI settings.");
+  }
+
+  return {
+    account: {
+      ...(account as Omit<AccountRow, "ai">),
+      ai: {
+        provider: keyRow.provider,
+        model: keyRow.model?.trim() || DEFAULT_MODELS[keyRow.provider],
+        apiKey: keyRow.api_key,
+      },
+    },
+    profile: profile as ProfileRow,
+  };
 }
 
 async function buildContext(account: AccountRow): Promise<Context> {
@@ -419,25 +446,8 @@ function validationContext(account: AccountRow, profile: ProfileRow, ctx: Contex
 // Generation
 // ---------------------------------------------------------------------------------------------------------------
 
-const SUBMIT_TOOL = {
-  name: "submit_post",
-  description: "Submit the finished post.",
-  input_schema: {
-    type: "object",
-    properties: {
-      header: { type: "string", description: "The post header." },
-      body: { type: "string", description: "The post body, plain prose." },
-      topic: { type: "string", description: "The subject in a few words, for the account's topic history." },
-      content_angle: { type: "string", description: "The specific angle taken, one short sentence." },
-      mode: { type: "string", enum: [...CONTENT_MODES] },
-      source_idea_id: { type: "string", description: "The id of the stored idea used, if one was provided." },
-    },
-    required: ["header", "body", "topic", "content_angle", "mode"],
-  },
-};
-
 function buildSystem(account: AccountRow, profile: ProfileRow, limits: { maxHeader: number; maxBody: number }): string {
-  return `You write posts for an account on Akọ, a social platform. The account is operated by the Akọ team and writes in its own voice. You write only the post, through the submit_post tool.
+  return `You write posts for an account on Akọ, a social platform. The account is operated by the Akọ team and writes in its own voice. You write only the post and return it in the structured format you are given.
 
 ${GLOBAL_WRITING_RULES}
 
@@ -503,7 +513,7 @@ function buildUser(ctx: Context, feedback: { previous: GeneratedPost; problems: 
   }
 
   parts.push(
-    "Write the next post now. Choose the content mode that suits the topic and differs from recent posts, and submit it with submit_post.",
+    "Write the next post now. Choose the content mode that suits the topic and differs from recent posts, and return it.",
   );
 
   if (feedback) {
@@ -522,8 +532,6 @@ async function generate(
   profile: ProfileRow,
   ctx: Context,
 ): Promise<{ post: GeneratedPost; usage: Usage }> {
-  if (!ANTHROPIC_API_KEY) throw new RunError("ANTHROPIC_API_KEY is not set in the edge function secrets.");
-
   const vctx = validationContext(account, profile, ctx);
   const system = buildSystem(account, profile, vctx);
   const usage: Usage = { input: 0, output: 0, attempts: 0 };
@@ -533,14 +541,21 @@ async function generate(
 
   for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
     usage.attempts = attempt;
-    let raw: { input: Record<string, unknown>; usage?: { input_tokens?: number; output_tokens?: number } };
+    let raw: Awaited<ReturnType<typeof callProvider>>;
     try {
-      raw = await callClaude(system, buildUser(ctx, feedback));
+      raw = await callProvider({
+        provider: account.ai.provider,
+        model: account.ai.model,
+        apiKey: account.ai.apiKey,
+        system,
+        user: buildUser(ctx, feedback),
+        modes: CONTENT_MODES,
+      });
     } catch (err) {
-      throw new RunError(messageOf(err), usage);
+      throw new RunError(err instanceof LlmError ? err.message : `Couldn't reach ${PROVIDER_LABEL[account.ai.provider]}.`, usage);
     }
-    usage.input += raw.usage?.input_tokens ?? 0;
-    usage.output += raw.usage?.output_tokens ?? 0;
+    usage.input += raw.usage.input;
+    usage.output += raw.usage.output;
 
     const post = coercePost(raw.input, ctx);
     const problems = validatePost(post, vctx);
@@ -563,47 +578,6 @@ async function generate(
     `Couldn't produce a post that passes the writing rules after ${MAX_ATTEMPTS} attempts: ${last?.problems.join(" ") ?? ""}`,
     usage,
   );
-}
-
-async function callClaude(
-  system: string,
-  user: string,
-): Promise<{ input: Record<string, unknown>; usage?: { input_tokens?: number; output_tokens?: number } }> {
-  for (let attempt = 1; attempt <= 2; attempt++) {
-    const res = await fetch("https://api.anthropic.com/v1/messages", {
-      method: "POST",
-      headers: {
-        "x-api-key": ANTHROPIC_API_KEY!,
-        "anthropic-version": "2023-06-01",
-        "content-type": "application/json",
-      },
-      body: JSON.stringify({
-        model: MODEL,
-        max_tokens: 1500,
-        system,
-        messages: [{ role: "user", content: user }],
-        tools: [SUBMIT_TOOL],
-        tool_choice: { type: "tool", name: "submit_post" },
-      }),
-      signal: AbortSignal.timeout(90_000),
-    });
-
-    if (res.ok) {
-      const data = await res.json();
-      const block = (data.content ?? []).find((b: { type: string }) => b.type === "tool_use");
-      if (!block?.input) throw new Error("Claude returned no post.");
-      return { input: block.input, usage: data.usage };
-    }
-
-    const retryable = res.status === 429 || res.status >= 500;
-    const text = (await res.text()).slice(0, 300);
-    if (retryable && attempt === 1) {
-      await new Promise((r) => setTimeout(r, 3000));
-      continue;
-    }
-    throw new Error(`Claude API ${res.status}: ${text}`);
-  }
-  throw new Error("Claude API unavailable.");
 }
 
 function coercePost(input: Record<string, unknown>, ctx: Context): GeneratedPost {

@@ -12,6 +12,14 @@ export interface ScheduleSlot {
   time: string;
 }
 
+export type AiProvider = "anthropic" | "openai" | "gemini";
+
+export const AI_PROVIDERS: { value: AiProvider; label: string; defaultModel: string }[] = [
+  { value: "anthropic", label: "Anthropic", defaultModel: "claude-sonnet-5-5" },
+  { value: "openai", label: "OpenAI", defaultModel: "gpt-4.1" },
+  { value: "gemini", label: "Gemini", defaultModel: "gemini-2.5-flash" },
+];
+
 export interface AutomatedAccount {
   id: string;
   user_id: string;
@@ -21,6 +29,10 @@ export interface AutomatedAccount {
   max_heading_chars: number;
   timezone: string;
   schedule: ScheduleSlot[];
+  ai_provider: AiProvider;
+  ai_model: string | null;
+  /** Last four characters of the saved key, or null when none is saved. The key itself is never readable here. */
+  api_key_last4: string | null;
   next_run_at: string | null;
   last_run_at: string | null;
   locked_until: string | null;
@@ -73,7 +85,7 @@ export interface GeneratedPreview {
 }
 
 const ACCOUNT_SELECT =
-  "id, user_id, system_prompt, is_enabled, max_post_chars, max_heading_chars, timezone, schedule, next_run_at, last_run_at, locked_until, created_at, profile:profiles(username, display_name, avatar_url, is_verified)";
+  "id, user_id, system_prompt, is_enabled, max_post_chars, max_heading_chars, timezone, schedule, ai_provider, ai_model, api_key_last4, next_run_at, last_run_at, locked_until, created_at, profile:profiles(username, display_name, avatar_url, is_verified)";
 
 function invalidate(queryClient: ReturnType<typeof useQueryClient>) {
   queryClient.invalidateQueries({ queryKey: ["automation"] });
@@ -143,6 +155,49 @@ export function useUpdateAutomatedAccount() {
   return useMutation({
     mutationFn: async ({ id, patch }: { id: string; patch: AutomatedAccountPatch }) => {
       const { error } = await supabase.from("automated_accounts").update(patch).eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => invalidate(queryClient),
+  });
+}
+
+/**
+ * Saves the provider, optional model override and (when pasted) the API key. The key goes straight into Supabase
+ * Vault and can't be read back, only replaced or removed. Switching provider without pasting a new key removes the
+ * old key and pauses the account, because the old key belongs to the old provider.
+ */
+export function useSaveAutomationAi() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({
+      accountId,
+      provider,
+      model,
+      apiKey,
+    }: {
+      accountId: string;
+      provider: AiProvider;
+      model: string;
+      apiKey: string;
+    }): Promise<{ key_saved: boolean; key_removed: boolean; paused: boolean }> => {
+      const { data, error } = await supabase.rpc("automation_set_ai", {
+        p_account_id: accountId,
+        p_provider: provider,
+        p_model: model.trim() || null,
+        p_key: apiKey.trim() || null,
+      });
+      if (error) throw error;
+      return data as { key_saved: boolean; key_removed: boolean; paused: boolean };
+    },
+    onSuccess: () => invalidate(queryClient),
+  });
+}
+
+export function useClearAutomationApiKey() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (accountId: string) => {
+      const { error } = await supabase.rpc("automation_clear_api_key", { p_account_id: accountId });
       if (error) throw error;
     },
     onSuccess: () => invalidate(queryClient),

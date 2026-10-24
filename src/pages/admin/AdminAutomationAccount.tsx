@@ -9,16 +9,20 @@ import { Archive, ArrowLeft, Eye, RotateCcw, Star, Trash2, Plus, X, Wand2, Send 
 import { useSmartBack } from "../../hooks/useSmartBack";
 import { Avatar } from "../../components/Avatar";
 import {
+  AI_PROVIDERS,
   useAddAutomationIdea,
   useAutomatedAccount,
   useAutomationIdeas,
   useAutomationRuns,
+  useClearAutomationApiKey,
   useDeleteAutomatedAccount,
   useDeleteAutomationIdea,
   useGenerateAutomationPreview,
   useRunAutomationNow,
+  useSaveAutomationAi,
   useUpdateAutomatedAccount,
   useUpdateAutomationIdea,
+  type AiProvider,
   type AutomationIdea,
   type GeneratedPreview,
   type ScheduleSlot,
@@ -75,6 +79,13 @@ function errorMessage(err: unknown): string {
   return friendlyError(err, "Something went wrong. Please try again.");
 }
 
+// The generator's own messages (rejected key, writing rule failures, moderation) are written to be read by the admin,
+// so they are shown as they are rather than collapsed by friendlyError.
+function generatorMessage(err: unknown): string {
+  const message = err instanceof Error ? err.message : "";
+  return message ? message.slice(0, 400) : "Something went wrong. Please try again.";
+}
+
 function describeSlot(s: ScheduleSlot): string {
   if (s.days.length === 0 || s.days.length === 7) return `Every day at ${s.time}`;
   return `${s.days.map((d) => DAY_NAMES[d].slice(0, 3)).join(", ")} at ${s.time}`;
@@ -96,6 +107,8 @@ export function AdminAutomationAccount() {
   const deleteIdea = useDeleteAutomationIdea();
   const generate = useGenerateAutomationPreview();
   const runNow = useRunAutomationNow();
+  const saveAi = useSaveAutomationAi();
+  const clearKey = useClearAutomationApiKey();
 
   // ---- Form state, seeded from the saved account ---------------------------------------------------------------
   const [prompt, setPrompt] = useState("");
@@ -115,6 +128,19 @@ export function AdminAutomationAccount() {
       setSeededFor(account.id);
     }
   }, [account, seededFor]);
+
+  // AI provider settings. The key box is write only: a saved key can't be read back, only replaced or removed.
+  const [provider, setProvider] = useState<AiProvider>("anthropic");
+  const [model, setModel] = useState("");
+  const [apiKey, setApiKey] = useState("");
+  const [aiMessage, setAiMessage] = useState<{ text: string; error: boolean } | null>(null);
+
+  useEffect(() => {
+    if (account) {
+      setProvider(account.ai_provider);
+      setModel(account.ai_model ?? "");
+    }
+  }, [account?.id, account?.ai_provider, account?.ai_model]);
 
   const [saveError, setSaveError] = useState<string | null>(null);
   const [toggleError, setToggleError] = useState<string | null>(null);
@@ -181,11 +207,50 @@ export function AdminAutomationAccount() {
       if (dirty) return setToggleError("Save your changes first, then turn it on.");
       if (!account!.system_prompt.trim()) return setToggleError("Write the account’s brief first.");
       if ((account!.schedule ?? []).length === 0) return setToggleError("Add at least one publishing time first.");
+      if (!account!.api_key_last4) return setToggleError("Save an AI provider key first.");
     }
     try {
       await update.mutateAsync({ id: account!.id, patch: { is_enabled: !account!.is_enabled } });
     } catch (err) {
       setToggleError(errorMessage(err));
+    }
+  }
+
+  async function handleSaveAi() {
+    setAiMessage(null);
+    const switching = provider !== account!.ai_provider;
+    if (
+      switching &&
+      !apiKey.trim() &&
+      account!.api_key_last4 &&
+      !window.confirm("Switching provider without a new key removes the saved key and pauses this account. Continue?")
+    ) {
+      return;
+    }
+    try {
+      const result = await saveAi.mutateAsync({ accountId: account!.id, provider, model, apiKey });
+      setApiKey("");
+      setAiMessage({
+        text: result.key_saved
+          ? "Key saved."
+          : result.key_removed
+            ? "Provider changed. The old key was removed, so paste a key for the new provider."
+            : "Saved.",
+        error: false,
+      });
+    } catch (err) {
+      setAiMessage({ text: errorMessage(err), error: true });
+    }
+  }
+
+  async function handleRemoveKey() {
+    if (!window.confirm("Remove the saved key? This also pauses the account.")) return;
+    setAiMessage(null);
+    try {
+      await clearKey.mutateAsync(account!.id);
+      setAiMessage({ text: "Key removed.", error: false });
+    } catch (err) {
+      setAiMessage({ text: errorMessage(err), error: true });
     }
   }
 
@@ -197,7 +262,7 @@ export function AdminAutomationAccount() {
       const result = await generate.mutateAsync(account!.id);
       setPreview(result.post);
     } catch (err) {
-      setActionError(errorMessage(err));
+      setActionError(generatorMessage(err));
     }
   }
 
@@ -210,7 +275,7 @@ export function AdminAutomationAccount() {
       setPreview(null);
       setNotice({ postId: result.post_id });
     } catch (err) {
-      setActionError(errorMessage(err));
+      setActionError(generatorMessage(err));
     }
   }
 
@@ -300,6 +365,93 @@ export function AdminAutomationAccount() {
             : "Paused. Nothing will be published until you turn it on."}
         </p>
         {toggleError && <p className="text-xs text-danger mb-1">{toggleError}</p>}
+
+        {/* AI provider */}
+        <section className="mt-6">
+          <h3 className="text-sm font-medium text-ink mb-1">AI provider</h3>
+          <p className="text-xs text-ink-muted mb-2">
+            This account writes with its own key and is billed to it. The key is stored encrypted and can’t be read
+            back, only replaced or removed.
+          </p>
+          <div className="space-y-3">
+            <label className="block">
+              <span className="text-xs text-ink-muted">Provider</span>
+              <select
+                value={provider}
+                onChange={(e) => setProvider(e.target.value as AiProvider)}
+                className="mt-1 w-full px-3 py-2.5 rounded-xl border border-border bg-surface text-ink"
+              >
+                {AI_PROVIDERS.map((p) => (
+                  <option key={p.value} value={p.value}>
+                    {p.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="block">
+              <span className="text-xs text-ink-muted">
+                API key
+                {account.api_key_last4 ? ` (saved, ends in ${account.api_key_last4})` : " (none saved)"}
+              </span>
+              <input
+                type="password"
+                autoComplete="off"
+                autoCorrect="off"
+                autoCapitalize="off"
+                spellCheck={false}
+                value={apiKey}
+                onChange={(e) => setApiKey(e.target.value)}
+                placeholder={account.api_key_last4 ? "Paste a new key to replace it" : "Paste the key"}
+                className="mt-1 w-full px-3 py-2.5 rounded-xl border border-border bg-surface text-ink"
+              />
+            </label>
+            <label className="block">
+              <span className="text-xs text-ink-muted">Model (optional)</span>
+              <input
+                value={model}
+                onChange={(e) => setModel(e.target.value)}
+                autoCapitalize="off"
+                autoCorrect="off"
+                spellCheck={false}
+                placeholder={`Default: ${AI_PROVIDERS.find((p) => p.value === provider)?.defaultModel ?? ""}`}
+                className="mt-1 w-full px-3 py-2.5 rounded-xl border border-border bg-surface text-ink"
+              />
+            </label>
+          </div>
+          {provider !== account.ai_provider && account.api_key_last4 && !apiKey.trim() && (
+            <p className="text-xs text-ink-muted mt-2">
+              Switching provider without a new key removes the saved key and pauses this account.
+            </p>
+          )}
+          {aiMessage && (
+            <p className={`text-xs mt-2 ${aiMessage.error ? "text-danger" : "text-ink-muted"}`}>{aiMessage.text}</p>
+          )}
+          <div className="flex gap-2 mt-3">
+            <button
+              type="button"
+              onClick={handleSaveAi}
+              disabled={
+                saveAi.isPending ||
+                (!apiKey.trim() &&
+                  provider === account.ai_provider &&
+                  model.trim() === (account.ai_model ?? ""))
+              }
+              className="flex-1 bg-accent text-canvas rounded-xl py-2.5 text-sm font-medium disabled:opacity-40"
+            >
+              {saveAi.isPending ? "Saving…" : "Save AI settings"}
+            </button>
+            {account.api_key_last4 && (
+              <button
+                type="button"
+                onClick={handleRemoveKey}
+                disabled={clearKey.isPending}
+                className="border border-border text-danger rounded-xl px-4 py-2.5 text-sm font-medium disabled:opacity-40"
+              >
+                Remove key
+              </button>
+            )}
+          </div>
+        </section>
 
         <form onSubmit={handleSave} className="mt-6 space-y-6">
           {/* Brief */}
@@ -464,7 +616,7 @@ export function AdminAutomationAccount() {
             <button
               type="button"
               onClick={handleGenerate}
-              disabled={busy || dirty || !account.system_prompt.trim()}
+              disabled={busy || dirty || !account.system_prompt.trim() || !account.api_key_last4}
               className="flex-1 border border-border text-ink rounded-xl py-2.5 text-sm font-medium flex items-center justify-center gap-1.5 disabled:opacity-40"
             >
               <Eye size={16} /> {generate.isPending ? "Writing…" : "Generate preview"}
@@ -472,13 +624,16 @@ export function AdminAutomationAccount() {
             <button
               type="button"
               onClick={() => handlePublish()}
-              disabled={busy || dirty || !account.system_prompt.trim()}
+              disabled={busy || dirty || !account.system_prompt.trim() || !account.api_key_last4}
               className="flex-1 border border-border text-ink rounded-xl py-2.5 text-sm font-medium flex items-center justify-center gap-1.5 disabled:opacity-40"
             >
               <Send size={16} /> {runNow.isPending && !preview ? "Publishing…" : "Publish now"}
             </button>
           </div>
           {dirty && <p className="text-xs text-ink-muted mt-2">Save your changes to use these.</p>}
+          {!account.api_key_last4 && (
+            <p className="text-xs text-ink-muted mt-2">Save an AI provider key above to use these.</p>
+          )}
           {actionError && <p className="text-xs text-danger mt-2">{actionError}</p>}
           {notice && (
             <p className="text-sm text-ink bg-surface rounded-xl p-3 border border-border mt-3">

@@ -36,13 +36,11 @@ export function AdminAutomation() {
   const createAccount = useCreateAutomatedAccount();
 
   const [query, setQuery] = useState("");
-  const [error, setError] = useState<string | null>(null);
   const { data: results = [], isFetching } = useAdminSearchUsers(query);
 
   const taken = new Set(accounts.map((a) => a.user_id));
 
   async function handlePick(userId: string) {
-    setError(null);
     try {
       const id = await createAccount.mutateAsync(userId);
       navigate(`/admin/automation/${id}`);
@@ -118,7 +116,6 @@ export function AdminAutomation() {
             className="w-full pl-9 pr-4 py-2.5 rounded-xl border border-border bg-surface text-ink"
           />
         </div>
-        {error && <p className="text-xs text-danger mb-2">{error}</p>}
         {query.trim().length >= 2 && (
           <div className="space-y-2">
             {isFetching && results.length === 0 && <p className="text-xs text-ink-muted">Searching…</p>}
