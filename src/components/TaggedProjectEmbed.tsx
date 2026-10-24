@@ -1,7 +1,7 @@
 // src/components/TaggedProjectEmbed.tsx
 import { isBookType } from "../lib/bookCover";
 import { Link } from "react-router-dom";
-import { ImageIcon, Music2 } from "lucide-react";
+import { ImageIcon, Music, Music2 } from "lucide-react";
 import { type ProjectType } from "../hooks/useProjects";
 import { getProjectPath } from "../lib/projectLinks";
 import { affiliateLinkFor } from "../hooks/useAffiliates";
@@ -116,9 +116,7 @@ export function TaggedProjectEmbed({
         >
           {project.thumbnail_url ? (
             <img src={project.thumbnail_url} alt="" className="w-full h-full object-cover" />
-          ) : (
-            <Music2 size={24} className="text-white/70" />
-          )}
+          ) : null}
           {/* Grooves + a soft diagonal sheen. */}
           <div
             className="absolute inset-0 rounded-full"
@@ -135,6 +133,19 @@ export function TaggedProjectEmbed({
               height: thumbW * 0.16,
               boxShadow: "0 0 0 3px rgba(20,20,20,0.75), inset 0 1px 2px rgba(0,0,0,0.35)",
             }}
+          />
+          {/* Two small notes, low on the right — enough to say "song" without crowding the cover. */}
+          <Music2
+            size={Math.round(thumbW * 0.19)}
+            strokeWidth={2.4}
+            className="absolute text-white/90"
+            style={{ right: thumbW * 0.17, bottom: thumbW * 0.2, filter: "drop-shadow(0 1px 2px rgba(0,0,0,0.6))" }}
+          />
+          <Music
+            size={Math.round(thumbW * 0.13)}
+            strokeWidth={2.4}
+            className="absolute text-white/80"
+            style={{ right: thumbW * 0.09, bottom: thumbW * 0.34, filter: "drop-shadow(0 1px 2px rgba(0,0,0,0.6))" }}
           />
         </div>
       ) : (
