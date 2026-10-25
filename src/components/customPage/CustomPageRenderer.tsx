@@ -11,7 +11,7 @@
 // design values are just short slugs in the config.
 import { useState, type CSSProperties, type ReactNode } from "react";
 import { Link } from "react-router-dom";
-import { Download, FileText, Mail, MapPin, MessageCircle, Phone, ExternalLink, X } from "lucide-react";
+import { Download, FileText, Loader2, Mail, MapPin, MessageCircle, Phone, ExternalLink, X } from "lucide-react";
 import {
   publicFileUrl,
   resolveDesign,
@@ -25,6 +25,7 @@ import {
 } from "../../lib/customPage";
 import { Reveal } from "./Reveal";
 import { HeroSlides } from "./HeroSlides";
+import { useFileDownload } from "../../hooks/useFileDownload";
 
 type Palette = ReturnType<typeof resolvePalette>;
 
@@ -455,6 +456,7 @@ function ctaHref(cta: CustomPageCta, config: CustomPageConfig): string | null {
 
 function CtaButton({ cta, primary, ctx, block }: { cta: CustomPageCta; primary: boolean; ctx: Ctx; block?: boolean }) {
   const { t, config, preview, actions } = ctx;
+  const { busy, start: startDownload } = useFileDownload();
   const style: CSSProperties = {
     ...(primary ? t.primaryBtn : t.secondaryBtn),
     borderRadius: btnRadius(t),
@@ -479,6 +481,19 @@ function CtaButton({ cta, primary, ctx, block }: { cta: CustomPageCta; primary: 
   };
 
   const href = ctaHref(cta, config);
+  if (cta.action === "download" && href) {
+    const onDownload = () => {
+      if (preview || busy) return;
+      actions.onCta?.(cta);
+      void startDownload(href, cta.file_name || "download");
+    };
+    return (
+      <button type="button" onClick={onDownload} aria-busy={busy} disabled={busy} className={`${cls} disabled:cursor-wait`} style={{ ...style, opacity: busy ? 0.85 : undefined }}>
+        {busy ? <Loader2 size={17} className="animate-spin" /> : icon}
+        {busy ? "Preparing…" : cta.label}
+      </button>
+    );
+  }
   if (cta.action === "inquiry" || cta.action === "message" || !href) {
     return (
       <button type="button" onClick={click} className={cls} style={style}>
@@ -565,6 +580,7 @@ function Intro({ ctx, left }: { ctx: Ctx; left?: boolean }) {
 }
 
 function DocumentCard({ ctx }: { ctx: Ctx }) {
+  const { busy, start: startDownload } = useFileDownload();
   const doc = ctx.config.document;
   if (!doc?.path) return null;
   const view = publicFileUrl(doc.path);
@@ -593,18 +609,20 @@ function DocumentCard({ ctx }: { ctx: Ctx }) {
         >
           <FileText size={17} /> Read online
         </a>
-        <a
-          href={dl ?? "#"}
-          download={doc.file_name || ""}
-          onClick={(e) => {
-            block(e);
-            if (!ctx.preview) ctx.actions.onDocumentDownload?.();
+        <button
+          type="button"
+          aria-busy={busy}
+          disabled={busy}
+          onClick={() => {
+            if (ctx.preview || busy) return;
+            ctx.actions.onDocumentDownload?.();
+            void startDownload(dl, doc.file_name || `${doc.title || "document"}.pdf`);
           }}
-          className={`cp-btn cp-${ctx.t.fx} inline-flex items-center gap-2 px-6 py-3.5 text-[15px] font-semibold`}
-          style={{ ...ctx.t.secondaryBtn, borderRadius: btnRadius(ctx.t) }}
+          className={`cp-btn cp-${ctx.t.fx} inline-flex items-center gap-2 px-6 py-3.5 text-[15px] font-semibold disabled:cursor-wait`}
+          style={{ ...ctx.t.secondaryBtn, borderRadius: btnRadius(ctx.t), opacity: busy ? 0.85 : undefined }}
         >
-          <Download size={17} /> Download
-        </a>
+          {busy ? <Loader2 size={17} className="animate-spin" /> : <Download size={17} />} {busy ? "Preparing…" : "Download"}
+        </button>
       </div>
     </div>
   );
