@@ -10,7 +10,7 @@ import { useToast } from "../components/Toast";
 import { friendlyError } from "../lib/friendlyError";
 import { CustomPageRenderer } from "../components/customPage/CustomPageRenderer";
 import { BrandColorFields } from "../components/customPage/ColorPicker";
-import { FilePicker, Field, ImageList, INPUT, Section, SingleImage } from "../components/customPage/EditorParts";
+import { FilePicker, Field, ImageList, INPUT, Section, SelectField, SingleImage } from "../components/customPage/EditorParts";
 import {
   ANIMATIONS,
   CTA_ACTIONS,
@@ -381,18 +381,10 @@ export function CustomPageEditor() {
           {stage === "design" && (
             <Section title="Design" intro="Pick a style, a layout and how sections appear.">
               <Field label="Style">
-                <div className="grid gap-2.5">
-                  {STYLES.map((s) => (
-                    <Choice key={s.id} active={design.style === s.id} title={s.label} blurb={s.blurb} onClick={() => set("design", { style: s.id })} />
-                  ))}
-                </div>
+                <SelectField label="Style" value={design.style} options={STYLES} onChange={(id) => set("design", { style: id })} />
               </Field>
               <Field label="Template">
-                <div className="grid gap-2.5">
-                  {TEMPLATES.map((t) => (
-                    <Choice key={t.id} active={design.template === t.id} title={t.label} blurb={t.blurb} onClick={() => set("design", { template: t.id })} />
-                  ))}
-                </div>
+                <SelectField label="Template" value={design.template} options={TEMPLATES} onChange={(id) => set("design", { template: id })} />
               </Field>
               <Field label="Animation" hint="Applied to sections as they scroll into view. Turned off automatically for people who prefer reduced motion.">
                 <div className="flex flex-wrap gap-2">

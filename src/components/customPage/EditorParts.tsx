@@ -1,7 +1,7 @@
 // src/components/customPage/EditorParts.tsx
 // Small form building blocks for the Custom Page editor.
-import { useRef, useState, type ReactNode } from "react";
-import { ArrowDown, ArrowUp, FileText, ImagePlus, Trash2, Upload } from "lucide-react";
+import { useEffect, useId, useRef, useState, type ReactNode } from "react";
+import { ArrowDown, ArrowUp, Check, ChevronDown, FileText, ImagePlus, Trash2, Upload } from "lucide-react";
 import { fileProblem, publicFileUrl, storagePathFor, type CustomPageImage } from "../../lib/customPage";
 import { uploadCustomPageFile } from "../../hooks/useCustomPages";
 import { friendlyError } from "../../lib/friendlyError";
@@ -9,6 +9,106 @@ import { useToast } from "../Toast";
 
 export const INPUT =
   "w-full rounded-xl bg-surface border border-border text-ink placeholder:text-ink-muted/50 px-4 py-3 text-[15px] focus:outline-none focus:ring-2 focus:ring-accent/40";
+
+export interface SelectOption {
+  id: string;
+  label: string;
+  blurb?: string;
+}
+
+/**
+ * A dropdown for choosing one option out of many (styles, templates). The closed control shows the current choice with
+ * its one-line description; the open list scrolls, shows every option's description and supports the keyboard
+ * (arrows, Home/End, Enter, Escape).
+ */
+export function SelectField({ label, value, options, onChange }: { label: string; value: string; options: SelectOption[]; onChange: (id: string) => void }) {
+  const [open, setOpen] = useState(false);
+  const [cursor, setCursor] = useState(0);
+  const root = useRef<HTMLDivElement>(null);
+  const listId = useId();
+  const current = options.find((o) => o.id === value) ?? options[0];
+
+  useEffect(() => {
+    if (!open) return;
+    const away = (e: PointerEvent) => {
+      if (root.current && !root.current.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener("pointerdown", away);
+    return () => document.removeEventListener("pointerdown", away);
+  }, [open]);
+
+  useEffect(() => {
+    if (open) root.current?.querySelector<HTMLElement>(`[data-active="true"]`)?.scrollIntoView({ block: "nearest" });
+  }, [open, cursor]);
+
+  const show = () => {
+    setCursor(Math.max(0, options.findIndex((o) => o.id === value)));
+    setOpen(true);
+  };
+  const pick = (id: string) => {
+    onChange(id);
+    setOpen(false);
+  };
+  const onKey = (e: React.KeyboardEvent) => {
+    if (!open) {
+      if (e.key === "ArrowDown" || e.key === "ArrowUp" || e.key === "Enter" || e.key === " ") {
+        e.preventDefault();
+        show();
+      }
+      return;
+    }
+    if (e.key === "Escape") setOpen(false);
+    else if (e.key === "ArrowDown") (e.preventDefault(), setCursor((c) => Math.min(options.length - 1, c + 1)));
+    else if (e.key === "ArrowUp") (e.preventDefault(), setCursor((c) => Math.max(0, c - 1)));
+    else if (e.key === "Home") (e.preventDefault(), setCursor(0));
+    else if (e.key === "End") (e.preventDefault(), setCursor(options.length - 1));
+    else if (e.key === "Enter" || e.key === " ") (e.preventDefault(), pick(options[cursor].id));
+  };
+
+  return (
+    <div ref={root} className="relative" onKeyDown={onKey}>
+      <button
+        type="button"
+        aria-label={label}
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        aria-controls={listId}
+        onClick={() => (open ? setOpen(false) : show())}
+        className="w-full flex items-center gap-3 text-left rounded-2xl bg-surface border border-border p-4 focus:outline-none focus:ring-2 focus:ring-accent/40"
+      >
+        <span className="min-w-0 flex-1">
+          <span className="block text-sm font-semibold text-ink">{current?.label}</span>
+          {current?.blurb && <span className="block text-xs text-ink-muted mt-0.5 leading-snug">{current.blurb}</span>}
+        </span>
+        <ChevronDown size={18} className={`shrink-0 text-ink-muted transition-transform ${open ? "rotate-180" : ""}`} aria-hidden />
+      </button>
+      {open && (
+        <ul id={listId} role="listbox" aria-label={label} className="absolute z-30 left-0 right-0 mt-2 max-h-[min(60vh,420px)] overflow-y-auto rounded-2xl bg-surface border border-border shadow-xl p-1.5">
+          {options.map((o, i) => {
+            const selected = o.id === value;
+            return (
+              <li
+                key={o.id}
+                role="option"
+                aria-selected={selected}
+                data-active={i === cursor}
+                onPointerEnter={() => setCursor(i)}
+                onClick={() => pick(o.id)}
+                className={`flex items-start gap-3 rounded-xl px-3 py-2.5 cursor-pointer ${i === cursor ? "bg-accent-soft" : ""}`}
+              >
+                <span className={`mt-0.5 w-5 h-5 rounded-full flex items-center justify-center shrink-0 ${selected ? "bg-accent text-canvas" : "border border-border"}`}>{selected && <Check size={13} />}</span>
+                <span className="min-w-0">
+                  <span className="block text-sm font-semibold text-ink">{o.label}</span>
+                  {o.blurb && <span className="block text-xs text-ink-muted mt-0.5 leading-snug">{o.blurb}</span>}
+                </span>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+    </div>
+  );
+}
 
 export function Field({ label, hint, count, max, children }: { label: string; hint?: string; count?: number; max?: number; children: ReactNode }) {
   return (

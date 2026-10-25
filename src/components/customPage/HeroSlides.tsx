@@ -1,6 +1,6 @@
 // src/components/customPage/HeroSlides.tsx
 // Crossfading hero slideshow. One image = no timer. Reduced-motion users get a still first image with dots to step through.
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { publicFileUrl, type CustomPageImage } from "../../lib/customPage";
 
 export function HeroSlides({
@@ -8,24 +8,41 @@ export function HeroSlides({
   className = "",
   overlay,
   intervalMs = 5500,
+  index: indexProp,
+  onIndexChange,
+  dots = true,
 }: {
   images: CustomPageImage[];
   className?: string;
   /** Content laid over the slides (the Showcase template puts the title here). */
   overlay?: ReactNode;
   intervalMs?: number;
+  /** Controlled mode: the parent owns which slide shows (templates with Previous / Next controls). */
+  index?: number;
+  onIndexChange?: (index: number) => void;
+  /** Show the dot row. Templates that draw their own controls turn it off. */
+  dots?: boolean;
 }) {
-  const [index, setIndex] = useState(0);
+  const [inner, setInner] = useState(0);
+  const index = indexProp ?? inner;
   const count = images.length;
+  const latest = useRef({ index, onIndexChange });
+  latest.current = { index, onIndexChange };
+  const setIndex = (n: number) => {
+    setInner(n);
+    latest.current.onIndexChange?.(n);
+  };
 
   useEffect(() => {
     if (count < 2 || window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) return;
-    const t = window.setInterval(() => setIndex((i) => (i + 1) % count), intervalMs);
+    const t = window.setInterval(() => setIndex((latest.current.index + 1) % count), intervalMs);
     return () => window.clearInterval(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [count, intervalMs]);
 
   useEffect(() => {
-    if (index >= count) setIndex(0);
+    if (index >= count && count > 0) setIndex(0);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [count, index]);
 
   if (count === 0) return null;
@@ -45,7 +62,7 @@ export function HeroSlides({
         />
       ))}
       {overlay}
-      {count > 1 && (
+      {count > 1 && dots && (
         <div className="absolute bottom-3 left-0 right-0 flex justify-center gap-1.5 z-10">
           {images.map((img, i) => (
             <button
