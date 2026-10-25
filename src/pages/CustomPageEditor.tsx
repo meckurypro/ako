@@ -1,7 +1,7 @@
 // src/pages/CustomPageEditor.tsx
 // /me/custom-pages/:id/edit — the staged editor. Work saves to the page's *draft* automatically; nothing reaches the
 // public page until "Publish". The live preview uses the same renderer visitors get.
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { ArrowLeft, Check, Eye, Plus, Trash2, X } from "lucide-react";
 import { useAuth } from "../hooks/useAuth";
@@ -66,6 +66,9 @@ export function CustomPageEditor() {
       latest.current = row.draft ?? {};
     }
   }, [row, config]);
+
+  // The preview is the heaviest thing on screen; let inputs (colour drag, typing) win the frame and the preview catch up.
+  const deferredConfig = useDeferredValue(config);
 
   const problem = useMemo(() => (config ? draftProblem(config) : null), [config]);
 
@@ -418,7 +421,7 @@ export function CustomPageEditor() {
       {/* Desktop: live preview beside the form. */}
       <aside className="hidden lg:flex flex-1 items-start justify-center bg-ink/5 h-screen overflow-hidden p-8">
         <div className="w-[390px] h-full max-h-[820px] rounded-[2rem] border-[10px] border-ink overflow-y-auto bg-white shadow-2xl">
-          <CustomPageRenderer config={config} preview slug={row.slug} />
+          <CustomPageRenderer config={deferredConfig ?? config} preview slug={row.slug} />
         </div>
       </aside>
 
@@ -432,7 +435,7 @@ export function CustomPageEditor() {
             </button>
           </div>
           <div className="flex-1 overflow-y-auto">
-            <CustomPageRenderer config={config} preview slug={row.slug} />
+            <CustomPageRenderer config={deferredConfig ?? config} preview slug={row.slug} />
           </div>
         </div>
       )}

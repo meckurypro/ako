@@ -45,23 +45,31 @@ export function normaliseHex(input: string): string | null {
   return /^[0-9a-fA-F]{6}$/.test(t) ? "#" + t.toUpperCase() : null;
 }
 
-/** Pointer-driven 2D/1D drag surface. Reports 0–1 positions; touch-action:none so phones don't scroll while dragging. */
-function useDrag(onMove: (x: number, y: number) => void) {
+/** Pointer-driven 1D/2D drag surface. Reports 0–1 positions. The latest callback is read through a ref so a fast drag
+ *  never acts on a stale closure, and touch-action:none (set by the caller) stops the page scrolling under the finger. */
+function useDrag(onMove: (x: number, y: number) => void, onEnd: () => void) {
   const ref = useRef<HTMLDivElement>(null);
   const active = useRef(false);
-  const report = useCallback(
-    (e: React.PointerEvent) => {
-      const el = ref.current;
-      if (!el) return;
-      const r = el.getBoundingClientRect();
-      onMove(clamp((e.clientX - r.left) / r.width, 0, 1), clamp((e.clientY - r.top) / r.height, 0, 1));
-    },
-    [onMove],
-  );
+  const move = useRef(onMove);
+  const end = useRef(onEnd);
+  move.current = onMove;
+  end.current = onEnd;
+  const report = (e: React.PointerEvent) => {
+    const el = ref.current;
+    if (!el) return;
+    const r = el.getBoundingClientRect();
+    move.current(clamp((e.clientX - r.left) / r.width, 0, 1), clamp((e.clientY - r.top) / r.height, 0, 1));
+  };
+  const stop = () => {
+    if (!active.current) return;
+    active.current = false;
+    end.current();
+  };
   return {
     ref,
     handlers: {
       onPointerDown: (e: React.PointerEvent) => {
+        e.preventDefault();
         active.current = true;
         (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
         report(e);
@@ -69,44 +77,89 @@ function useDrag(onMove: (x: number, y: number) => void) {
       onPointerMove: (e: React.PointerEvent) => {
         if (active.current) report(e);
       },
-      onPointerUp: () => {
-        active.current = false;
-      },
-      onPointerCancel: () => {
-        active.current = false;
-      },
+      onPointerUp: stop,
+      onPointerCancel: stop,
+      onLostPointerCapture: stop,
+      onContextMenu: (e: React.SyntheticEvent) => e.preventDefault(),
     },
   };
 }
 
 export function ColorPicker({ value, onChange }: { value: string; onChange: (hex: string) => void }) {
-  // HSV is the source of truth while the person interacts: hex → HSV loses the hue at black/white/grey, which would
-  // make the hue slider jump back to red mid-drag. We only re-derive from `value` when it changes from outside.
+  // The picker owns its colour while the person is interacting (HSV is the source of truth — hex → HSV loses the hue at
+  // black/white/grey, which would make the hue slider jump back to red). The parent only receives updates at most once
+  // per animation frame, so a drag doesn't re-render the whole editor and live preview on every pointer event.
   const [hsv, setHsv] = useState<Hsv>(() => rgbToHsv(...hexToRgb(value)));
-  const lastEmitted = useRef(value.toUpperCase());
+  const hsvRef = useRef(hsv);
   const [hexText, setHexText] = useState(value.toUpperCase());
+  const sent = useRef(value.toUpperCase()); // last value handed to the parent
+  const pending = useRef<string | null>(null);
+  const raf = useRef<number | null>(null);
+  const dragging = useRef(false);
+  const onChangeRef = useRef(onChange);
+  onChangeRef.current = onChange;
 
-  useEffect(() => {
-    if (value.toUpperCase() !== lastEmitted.current) {
-      lastEmitted.current = value.toUpperCase();
-      setHsv(rgbToHsv(...hexToRgb(value)));
-      setHexText(value.toUpperCase());
+  const flush = useCallback(() => {
+    raf.current = null;
+    if (pending.current && pending.current !== sent.current) {
+      sent.current = pending.current;
+      onChangeRef.current(pending.current);
     }
+    pending.current = null;
+  }, []);
+
+  // Pick up changes that came from outside (e.g. a different colour was selected). Our own echoes are ignored, and
+  // nothing is applied mid-drag, so the thumb can never be yanked back to an older value.
+  useEffect(() => {
+    const v = value.toUpperCase();
+    if (dragging.current || v === sent.current || v === pending.current) return;
+    sent.current = v;
+    const next = rgbToHsv(...hexToRgb(v));
+    const merged = next.s === 0 || next.v === 0 ? { ...next, h: hsvRef.current.h } : next;
+    hsvRef.current = merged;
+    setHsv(merged);
+    setHexText(v);
   }, [value]);
 
-  const emit = useCallback(
-    (next: Hsv) => {
-      setHsv(next);
-      const hex = rgbToHex(...hsvToRgb(next));
-      lastEmitted.current = hex;
-      setHexText(hex);
-      onChange(hex);
+  useEffect(
+    () => () => {
+      if (raf.current !== null) cancelAnimationFrame(raf.current);
+      if (pending.current && pending.current !== sent.current) onChangeRef.current(pending.current);
     },
-    [onChange],
+    [],
   );
 
-  const box = useDrag((x, y) => emit({ ...hsv, s: x, v: 1 - y }));
-  const hue = useDrag((x) => emit({ ...hsv, h: x * 360 }));
+  const emit = useCallback(
+    (next: Hsv, immediate = false) => {
+      hsvRef.current = next;
+      setHsv(next);
+      const hex = rgbToHex(...hsvToRgb(next));
+      setHexText(hex);
+      pending.current = hex;
+      if (immediate) {
+        if (raf.current !== null) cancelAnimationFrame(raf.current);
+        flush();
+      } else if (raf.current === null) {
+        raf.current = requestAnimationFrame(flush);
+      }
+    },
+    [flush],
+  );
+
+  const endDrag = useCallback(() => {
+    dragging.current = false;
+    if (raf.current !== null) cancelAnimationFrame(raf.current);
+    flush(); // make sure the final position is what the parent has
+  }, [flush]);
+
+  const box = useDrag((x, y) => {
+    dragging.current = true;
+    emit({ ...hsvRef.current, s: x, v: 1 - y });
+  }, endDrag);
+  const hue = useDrag((x) => {
+    dragging.current = true;
+    emit({ ...hsvRef.current, h: x * 359.999 });
+  }, endDrag);
 
   const [r, g, b] = hsvToRgb(hsv).map(Math.round);
   const hex = rgbToHex(r, g, b);
@@ -120,7 +173,7 @@ export function ColorPicker({ value, onChange }: { value: string; onChange: (hex
     }
     const next = rgbToHsv(...hexToRgb(h));
     // Keep the current hue when the typed colour has none (greys), so the slider doesn't snap to red.
-    emit(next.s === 0 || next.v === 0 ? { ...next, h: hsv.h } : next);
+    emit(next.s === 0 || next.v === 0 ? { ...next, h: hsvRef.current.h } : next, true);
   }
 
   function setChannel(i: 0 | 1 | 2, raw: string) {
@@ -128,7 +181,7 @@ export function ColorPicker({ value, onChange }: { value: string; onChange: (hex
     const rgb: [number, number, number] = [r, g, b];
     rgb[i] = n;
     const next = rgbToHsv(...rgb);
-    emit(next.s === 0 || next.v === 0 ? { ...next, h: hsv.h } : next);
+    emit(next.s === 0 || next.v === 0 ? { ...next, h: hsvRef.current.h } : next, true);
   }
 
   return (
@@ -140,8 +193,8 @@ export function ColorPicker({ value, onChange }: { value: string; onChange: (hex
         role="slider"
         aria-label="Colour shade"
         aria-valuetext={hex}
-        className="relative w-full h-44 rounded-xl cursor-crosshair touch-none overflow-hidden"
-        style={{ backgroundColor: pure, backgroundImage: "linear-gradient(to top, #000, transparent), linear-gradient(to right, #fff, transparent)" }}
+        className="relative w-full h-44 rounded-xl cursor-crosshair touch-none select-none overflow-hidden"
+        style={{ WebkitTouchCallout: "none", backgroundColor: pure, backgroundImage: "linear-gradient(to top, #000, transparent), linear-gradient(to right, #fff, transparent)" }}
       >
         <span
           className="absolute w-5 h-5 -ml-2.5 -mt-2.5 rounded-full border-2 border-white pointer-events-none"
@@ -158,7 +211,7 @@ export function ColorPicker({ value, onChange }: { value: string; onChange: (hex
         aria-valuemin={0}
         aria-valuemax={360}
         aria-valuenow={Math.round(hsv.h)}
-        className="relative w-full h-4 mt-3 rounded-full cursor-pointer touch-none"
+        className="relative w-full h-4 mt-3 rounded-full cursor-pointer touch-none select-none"
         style={{ background: "linear-gradient(to right, #f00 0%, #ff0 17%, #0f0 33%, #0ff 50%, #00f 67%, #f0f 83%, #f00 100%)" }}
       >
         <span
