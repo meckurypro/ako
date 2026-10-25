@@ -964,3 +964,25 @@ html[data-kb-open] .ako-keyboard-aware > *:not([data-anchored-panel]) {
 @media (prefers-reduced-motion: reduce) {
   .vault-shimmer::after { animation: none; }
 }
+
+/*
+  iOS focus-zoom guard. iOS WebKit (Safari AND Chrome/Firefox on iPhone,
+  which all use WebKit) zooms the page when a text field is focused and its
+  computed font-size is below 16px, and it does NOT zoom back out on blur —
+  so the zoom sticks across route changes in this SPA (seen on the Discover
+  search box, which was text-sm = 14px).
+  Best-practice fix: keep text fields at >= 16px on touch devices rather than
+  setting maximum-scale=1 / user-scalable=no in the viewport meta, which
+  would block pinch-zoom for low-vision users (WCAG 1.4.4).
+  Deliberately UNLAYERED so it wins over Tailwind's text-sm/text-xs utilities
+  (which live in @layer utilities). max() keeps any larger size intact.
+*/
+@media (hover: none) and (pointer: coarse) {
+  input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]):not([type="file"]):not([type="button"]):not([type="submit"]):not([type="reset"]):not([type="image"]),
+  textarea,
+  select,
+  [contenteditable="true"],
+  [contenteditable=""] {
+    font-size: max(16px, 1em);
+  }
+}
