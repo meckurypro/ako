@@ -245,6 +245,42 @@ interface Card {
   squareImage?: boolean;
 }
 
+// Custom Pages share the flat /:slug namespace with Projects. Same anon-key RPC the SPA uses, so it only ever answers
+// for a page that is published and not private — a draft or private page falls through to the generic card.
+interface PreviewCustomPage {
+  slug: string;
+  state: string;
+  config: {
+    identity?: { name?: string; tagline?: string; intro?: string; icon_path?: string };
+    brand?: { hero?: { path?: string }[] };
+    seo?: { share_image_path?: string };
+  };
+}
+
+async function lookupCustomPage(slug: string): Promise<PreviewCustomPage | null> {
+  const row = (await supabaseFetch("rpc/get_public_custom_page", {
+    method: "POST",
+    body: JSON.stringify({ p_slug: slug }),
+  })) as PreviewCustomPage | null;
+  return row && row.state === "live" ? row : null;
+}
+
+function cardForCustomPage(page: PreviewCustomPage): Card {
+  const id = page.config.identity ?? {};
+  const path = page.config.seo?.share_image_path || page.config.brand?.hero?.[0]?.path || id.icon_path;
+  // Files live in the public custom-pages bucket; build the URL from the path, never trust a stored URL.
+  const image = path && !path.includes("..") && SUPABASE_URL ? httpsOnly(`${SUPABASE_URL}/storage/v1/object/public/custom-pages/${path}`) : null;
+  return {
+    title: `${plainText(id.name, 90) || "Akọ page"} · ${SITE_NAME}`,
+    description: plainText(id.tagline, 200) || plainText(id.intro, 200) || DEFAULT_DESCRIPTION,
+    image,
+    imageWidth: null,
+    imageHeight: null,
+    canonicalPath: `/${page.slug}`,
+    squareImage: !page.config.seo?.share_image_path && !page.config.brand?.hero?.[0]?.path && !!id.icon_path,
+  };
+}
+
 function genericCard(): Card {
   return {
     title: DEFAULT_TITLE,
@@ -427,10 +463,17 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
         cacheControl = "public, s-maxage=120, stale-while-revalidate=600";
       }
     } else {
-      const project = await lookupProject(slug, id);
-      if (project) {
-        card = cardFor(project);
-        cacheControl = "public, s-maxage=300, stale-while-revalidate=86400";
+      // A flat /:slug is either a Custom Page or a Project (the database keeps the two apart).
+      const customPage = slug ? await lookupCustomPage(slug) : null;
+      if (customPage) {
+        card = cardForCustomPage(customPage);
+        cacheControl = "public, s-maxage=120, stale-while-revalidate=600";
+      } else {
+        const project = await lookupProject(slug, id);
+        if (project) {
+          card = cardFor(project);
+          cacheControl = "public, s-maxage=300, stale-while-revalidate=86400";
+        }
       }
     }
   } catch (err) {
