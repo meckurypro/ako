@@ -9,15 +9,24 @@
 //   • animation — how sections arrive (a preset, applied uniformly; never per element).
 // Add a style by extending styleTokens(); add a template by adding an entry to LAYOUTS. Neither touches the database —
 // design values are just short slugs in the config.
-import { useState, type CSSProperties, type ReactNode } from "react";
+import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { Link } from "react-router-dom";
 import { ArrowLeft, ArrowRight, Download, FileText, Loader2, Mail, MapPin, MessageCircle, Phone, ExternalLink, X } from "lucide-react";
 import {
+  LOOK_CSS,
+  availableNavTargets,
   customPageUrl,
   publicFileUrl,
+  readableOn,
+  isHex,
+  resolveBackground,
   resolveDesign,
+  resolveForeground,
+  resolveNav,
   resolveShare,
   resolvePalette,
+  shadowGeometry,
+  type ResolvedForeground,
   withAlpha,
   type AnimationId,
   type CustomPageConfig,
@@ -28,6 +37,8 @@ import {
 import { Reveal } from "./Reveal";
 import { HeroSlides } from "./HeroSlides";
 import { useFileDownload } from "../../hooks/useFileDownload";
+import { shapeMaskUrl } from "../../lib/customPageShapes";
+import { findScroller, scrollToElement } from "../../lib/customPageScroll";
 
 type Palette = ReturnType<typeof resolvePalette>;
 
@@ -111,6 +122,7 @@ const CP_CSS = `
 .cp-root .cp-squish:active{transform:scale(.93)}
 .cp-root.cp-grain{position:relative}
 .cp-root.cp-grain::after{content:"";position:absolute;inset:0;pointer-events:none;opacity:.1;mix-blend-mode:multiply;z-index:5;background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.8' numOctaves='2' stitchTiles='stitch'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>")}
+.cp-root .cp-bg{height:100vh;height:100dvh}
 .cp-root .cp-marquee{display:flex;width:max-content;animation:cp-marquee 24s linear infinite}
 @keyframes cp-marquee{to{transform:translateX(-50%)}}
 .cp-root .cp-mask-l{-webkit-mask-image:linear-gradient(180deg,#000 70%,transparent);mask-image:linear-gradient(180deg,#000 70%,transparent)}
@@ -679,6 +691,8 @@ interface Ctx {
   animation: AnimationId;
   preview: boolean;
   actions: CustomPageActions;
+  /** Space the page menu takes at the top / bottom, so floating pieces (the share button) stay clear of it. */
+  navInset: { top: number; bottom: number };
 }
 
 const btnRadius = (t: Tokens) => t.btnRadius ?? (t.radius > 20 ? 999 : Math.min(t.radius, 12));
@@ -784,7 +798,7 @@ function CtaGroup({ ctx, block, left }: { ctx: Ctx; block?: boolean; left?: bool
   const ctas = (ctx.config.ctas ?? []).filter((c) => c.label.trim());
   if (!ctas.length) return null;
   return (
-    <div className={`flex flex-wrap gap-3 ${block ? "flex-col" : left ? "justify-start" : "justify-center"}`}>
+    <div data-cp-anchor="buttons" className={`flex flex-wrap gap-3 ${block ? "flex-col" : left ? "justify-start" : "justify-center"}`}>
       {ctas.map((c, i) => (
         <CtaButton key={c.id} cta={c} primary={i === 0} ctx={ctx} block={block} />
       ))}
@@ -827,7 +841,7 @@ function Intro({ ctx, left }: { ctx: Ctx; left?: boolean }) {
   const intro = ctx.config.identity?.intro?.trim();
   if (!intro) return null;
   return (
-    <p className={`text-[17px] leading-relaxed whitespace-pre-line max-w-2xl ${left ? "text-left" : "text-center mx-auto"}`} style={{ color: ctx.t.text }}>
+    <p data-cp-anchor="about" className={`text-[17px] leading-relaxed whitespace-pre-line max-w-2xl ${left ? "text-left" : "text-center mx-auto"}`} style={{ color: ctx.t.text }}>
       {intro}
     </p>
   );
@@ -841,7 +855,7 @@ function DocumentCard({ ctx }: { ctx: Ctx }) {
   const dl = publicFileUrl(doc.path, { download: doc.file_name || `${doc.title || "document"}.pdf` });
   const block = (e: React.MouseEvent) => ctx.preview && e.preventDefault();
   return (
-    <div className="cp-card p-6 sm:p-8 text-center" style={cardStyle(ctx)}>
+    <div data-cp-anchor="document" className="cp-card p-6 sm:p-8 text-center" style={cardStyle(ctx)}>
       <FileText size={34} className="mx-auto mb-3" style={{ color: ctx.t.text, opacity: 0.85 }} />
       <h3 className="text-xl font-semibold mb-1" style={hStyle(ctx)}>
         {doc.title || "Read the document"}
@@ -903,7 +917,7 @@ function Gallery({ ctx, variant = "grid", items: override }: { ctx: Ctx; variant
     variant === "bento" ? `${BENTO[i % BENTO.length]} h-full` : variant === "big" ? "aspect-[4/5]" : "aspect-square";
   return (
     <>
-      <div className={wrap}>
+      <div data-cp-anchor="gallery" className={wrap}>
         {items.map((g, i) => (
           <Reveal key={g.path} animation={ctx.animation} index={i % 6} className={variant === "bento" ? BENTO[i % BENTO.length] : ""}>
             <button
@@ -951,7 +965,7 @@ function Contact({ ctx }: { ctx: Ctx }) {
     );
   };
   return (
-    <div className="cp-card p-6 sm:p-8" style={cardStyle(ctx)}>
+    <div data-cp-anchor="contact" className="cp-card p-6 sm:p-8" style={cardStyle(ctx)}>
       <Heading ctx={ctx} small>
         Get in touch
       </Heading>
@@ -2104,7 +2118,7 @@ function ShareButton({ ctx, slug }: { ctx: Ctx; slug?: string }) {
 
   if (!floating) {
     return (
-      <div className="absolute z-10" style={{ top: `calc(env(safe-area-inset-top, 0px) + ${place.top})`, ...horizontal }}>
+      <div className="absolute z-10" style={{ top: `calc(env(safe-area-inset-top, 0px) + ${ctx.navInset.top}px + ${place.top})`, ...horizontal }}>
         {button}
       </div>
     );
@@ -2112,8 +2126,226 @@ function ShareButton({ ctx, slug }: { ctx: Ctx; slug?: string }) {
   // Zero-height sticky rail at the end of the page: the button rides the bottom edge of whatever is scrolling.
   return (
     <div className="sticky z-10 pointer-events-none" style={{ bottom: 0, height: 0 }}>
-      <div className="absolute pointer-events-auto" style={{ bottom: "calc(env(safe-area-inset-bottom, 0px) + 18px)", ...horizontal }}>
+      <div className="absolute pointer-events-auto" style={{ bottom: `calc(env(safe-area-inset-bottom, 0px) + ${ctx.navInset.bottom}px + 18px)`, ...horizontal }}>
         {button}
+      </div>
+    </div>
+  );
+}
+
+// ── Background, foreground and menu ─────────────────────────────────────────────────────────────────────────────
+const NAV_BAR_H = 48;
+const NAV_PILL_H = 64;
+
+/** The page's background picture. A zero-height sticky rail holds it, so it stays put while the content scrolls over it. */
+function BackgroundLayer({ ctx }: { ctx: Ctx }) {
+  const bg = resolveBackground(ctx.config);
+  const url = bg ? publicFileUrl(bg.path) : null;
+  if (!bg || !url) return null;
+  const look = LOOK_CSS[bg.look];
+  // The veil is the opposite of the text colour, so text always has something to read against.
+  const veilColor = isHex(ctx.t.text) ? readableOn(ctx.t.text) : "#14120F";
+  const size = bg.fit === "stretch" ? "100% 100%" : bg.fit === "tile" ? "auto" : "cover";
+  return (
+    <div className="sticky top-0 pointer-events-none" style={{ height: 0, zIndex: -1 }} aria-hidden="true">
+      <div className="cp-bg absolute left-0 top-0 w-full overflow-hidden">
+        <div
+          className="absolute inset-0"
+          style={{
+            backgroundImage: `url("${url}")`,
+            backgroundSize: size,
+            backgroundRepeat: bg.fit === "tile" ? "repeat" : "no-repeat",
+            backgroundPosition: "center",
+            filter: look.filter,
+            transform: bg.zoom !== 1 ? `scale(${bg.zoom})` : undefined,
+          }}
+        />
+        <div className="absolute inset-0" style={{ background: withAlpha(veilColor, look.veil) }} />
+      </div>
+    </div>
+  );
+}
+
+/**
+ * The picture laid over the top of the page. It lives in a "stage" the width of the first screen, so x / y / size are
+ * percentages that mean the same thing on every device. Shadow and rotation sit on separate elements on purpose: the
+ * shadow filter is on the outer one, so it keeps falling in the chosen direction however the picture is turned.
+ */
+export function ForegroundArt({ fg, url }: { fg: ResolvedForeground; url: string }) {
+  const shadow = fg.shadow.enabled ? shadowGeometry(fg.shadow.intensity, fg.shadow.angle) : null;
+  const clipped = !!fg.shape;
+  const mask = fg.shape ? shapeMaskUrl(fg.shape.path) : undefined;
+  return (
+    <div
+      className="absolute"
+      style={{
+        left: `${fg.x}%`,
+        top: `${fg.y}%`,
+        width: `${fg.size}%`,
+        transform: "translate(-50%, -50%)",
+        filter: shadow ? `drop-shadow(${shadow.dx}px ${shadow.dy}px ${shadow.blur}px rgba(0,0,0,${shadow.alpha}))` : undefined,
+      }}
+    >
+      <div
+        style={{
+          transform: fg.rotation ? `rotate(${fg.rotation}deg)` : undefined,
+          aspectRatio: fg.shape ? String(fg.shape.aspect) : undefined,
+          overflow: clipped ? "hidden" : undefined,
+          WebkitMaskImage: mask,
+          maskImage: mask,
+          WebkitMaskSize: "100% 100%",
+          maskSize: "100% 100%",
+          WebkitMaskRepeat: "no-repeat",
+          maskRepeat: "no-repeat",
+        }}
+      >
+        <img
+          src={url}
+          alt=""
+          draggable={false}
+          style={{
+            display: "block",
+            width: "100%",
+            height: clipped ? "100%" : "auto",
+            objectFit: clipped ? "cover" : undefined,
+            objectPosition: clipped ? `${fg.crop.x}% ${fg.crop.y}%` : undefined,
+            transform: clipped && fg.crop.zoom !== 1 ? `scale(${fg.crop.zoom})` : undefined,
+            transformOrigin: clipped ? `${fg.crop.x}% ${fg.crop.y}%` : undefined,
+          }}
+        />
+      </div>
+    </div>
+  );
+}
+
+function ForegroundLayer({ ctx }: { ctx: Ctx }) {
+  const fg = resolveForeground(ctx.config);
+  const url = fg ? publicFileUrl(fg.path) : null;
+  if (!fg || !url) return null;
+  return (
+    <div className="absolute top-0 left-1/2 w-full pointer-events-none" style={{ maxWidth: 640, transform: "translateX(-50%)", aspectRatio: "4 / 5", zIndex: 6 }} aria-hidden="true">
+      <ForegroundArt fg={fg} url={url} />
+    </div>
+  );
+}
+
+/** The page menu. Each item scrolls to a section with the animation the creator chose. */
+function NavBar({ ctx, rootRef }: { ctx: Ctx; rootRef: React.RefObject<HTMLDivElement | null> }) {
+  const nav = resolveNav(ctx.config);
+  const available = availableNavTargets(ctx.config);
+  const items = nav.items.filter((i) => available.includes(i.target));
+  const [active, setActive] = useState<string | null>(null);
+  const top = nav.position === "top";
+  const height = nav.look === "pill" ? NAV_PILL_H : NAV_BAR_H;
+  const offset = top ? height + 8 : 12;
+
+  const anchorOf = (target: string): HTMLElement | null =>
+    target === "top" ? rootRef.current : (rootRef.current?.querySelector<HTMLElement>(`[data-cp-anchor="${target}"]`) ?? null);
+
+  // Scroll-spy: highlight the last section whose top has passed the menu.
+  const key = items.map((i) => i.id + i.target).join("|");
+  useEffect(() => {
+    const root = rootRef.current;
+    if (!root || !items.length) return;
+    const scroller = findScroller(root);
+    const holder: EventTarget = scroller ?? window;
+    let raf = 0;
+    const measure = () => {
+      raf = 0;
+      const viewTop = scroller ? scroller.getBoundingClientRect().top : 0;
+      let current: string | null = null;
+      for (const item of items) {
+        if (item.target === "top") {
+          current = current ?? item.id;
+          continue;
+        }
+        const el = anchorOf(item.target);
+        if (el && el.getBoundingClientRect().top - viewTop <= offset + 24) current = item.id;
+      }
+      setActive(current);
+    };
+    const onScroll = () => {
+      if (!raf) raf = requestAnimationFrame(measure);
+    };
+    holder.addEventListener("scroll", onScroll, { passive: true });
+    measure();
+    return () => {
+      holder.removeEventListener("scroll", onScroll);
+      if (raf) cancelAnimationFrame(raf);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [key, offset]);
+
+  if (!items.length) return null;
+
+  const go = (id: string, target: string) => {
+    const el = anchorOf(target);
+    if (!el) return;
+    setActive(id);
+    scrollToElement(el, { animation: nav.scroll, offset: target === "top" ? 0 : offset });
+  };
+
+  const surface = withAlpha(isHex(ctx.t.text) ? readableOn(ctx.t.text) : "#FFFFFF", 0.86);
+  const pill = nav.look === "pill";
+  const list = (
+    <nav
+      aria-label="Page menu"
+      className="no-scrollbar flex items-center overflow-x-auto"
+      style={{
+        height: pill ? 44 : NAV_BAR_H,
+        maxWidth: "100%",
+        gap: 4,
+        padding: pill ? "0 6px" : "0 12px",
+        justifyContent: pill ? "flex-start" : "center",
+        background: surface,
+        backdropFilter: "blur(14px) saturate(1.4)",
+        WebkitBackdropFilter: "blur(14px) saturate(1.4)",
+        borderRadius: pill ? 999 : 0,
+        border: pill ? `1px solid ${ctx.t.rule}` : undefined,
+        borderBottom: pill ? undefined : top ? `1px solid ${ctx.t.rule}` : undefined,
+        borderTop: pill ? undefined : top ? undefined : `1px solid ${ctx.t.rule}`,
+        boxShadow: pill ? "0 10px 28px -12px rgba(0,0,0,.35)" : undefined,
+      }}
+    >
+      {items.map((item) => {
+        const on = item.id === active;
+        return (
+          <button
+            key={item.id}
+            type="button"
+            onClick={() => go(item.id, item.target)}
+            aria-current={on ? "true" : undefined}
+            className="cp-btn shrink-0 whitespace-nowrap text-[14px] font-semibold px-3.5"
+            style={{
+              height: pill ? 34 : NAV_BAR_H,
+              borderRadius: pill ? 999 : 0,
+              color: on && pill ? ctx.p.onAccent : ctx.t.text,
+              background: on && pill ? ctx.p.accent : "transparent",
+              opacity: on || pill ? 1 : 0.72,
+              boxShadow: on && !pill ? `inset 0 ${top ? -3 : 3}px 0 ${ctx.p.accent}` : undefined,
+              fontFamily: ctx.t.heading,
+              fontWeight: on ? 700 : 600,
+            }}
+          >
+            {item.label}
+          </button>
+        );
+      })}
+    </nav>
+  );
+
+  if (top) {
+    return (
+      <div className="sticky top-0 flex justify-center" style={{ zIndex: 20, paddingTop: "env(safe-area-inset-top, 0px)", ...(pill ? { padding: "10px 12px 10px", paddingTop: "calc(env(safe-area-inset-top, 0px) + 10px)", pointerEvents: "none" } : null) }}>
+        <div style={{ pointerEvents: "auto", maxWidth: "100%", width: pill ? undefined : "100%" }}>{list}</div>
+      </div>
+    );
+  }
+  // Bottom: a zero-height sticky rail at the end of the page, like the floating share button.
+  return (
+    <div className="sticky pointer-events-none" style={{ bottom: 0, height: 0, zIndex: 20 }}>
+      <div className="absolute left-0 right-0 flex justify-center pointer-events-none" style={{ bottom: pill ? "calc(env(safe-area-inset-bottom, 0px) + 12px)" : 0, paddingBottom: pill ? 0 : "env(safe-area-inset-bottom, 0px)", background: pill ? undefined : surface }}>
+        <div style={{ pointerEvents: "auto", maxWidth: "100%", width: pill ? undefined : "100%" }}>{list}</div>
       </div>
     </div>
   );
@@ -2146,15 +2378,27 @@ export function CustomPageRenderer({ config, preview = false, actions = {}, slug
   const { style, template, animation } = resolveDesign(config);
   const p = resolvePalette(config);
   const t = styleTokens(style, p);
-  const ctx: Ctx = { config, p, t, style, animation, preview, actions };
+  const nav = resolveNav(config);
+  const hasNav = nav.enabled && nav.items.some((i) => availableNavTargets(config).includes(i.target));
+  const navH = nav.look === "pill" ? NAV_PILL_H : NAV_BAR_H;
+  const navInset = { top: hasNav && nav.position === "top" ? navH : 0, bottom: hasNav && nav.position === "bottom" ? navH + 12 : 0 };
+  const ctx: Ctx = { config, p, t, style, animation, preview, actions, navInset };
   const Layout = LAYOUTS[template];
+  const rootRef = useRef<HTMLDivElement>(null);
   return (
     <div
-      className={`cp-root relative min-h-full w-full overflow-x-hidden overflow-x-clip ${t.drift ? "cp-drift" : ""} ${t.grain ? "cp-grain" : ""}`}
+      ref={rootRef}
+      className={`cp-root relative isolate min-h-full w-full overflow-x-hidden overflow-x-clip ${t.drift ? "cp-drift" : ""} ${t.grain ? "cp-grain" : ""}`}
       style={{ ...t.pageStyle, ["--cp-glow" as string]: t.glow ?? "rgba(0,0,0,.25)", ["--cp-ink" as string]: t.ink ?? "#14120F" }}
     >
       <style>{CP_CSS}</style>
-      <Layout ctx={ctx} slug={slug} />
+      <BackgroundLayer ctx={ctx} />
+      {hasNav && nav.position === "top" && <NavBar ctx={ctx} rootRef={rootRef} />}
+      <div className="relative">
+        <Layout ctx={ctx} slug={slug} />
+        <ForegroundLayer ctx={ctx} />
+      </div>
+      {hasNav && nav.position === "bottom" && <NavBar ctx={ctx} rootRef={rootRef} />}
       {resolveShare(config).enabled && <ShareButton ctx={ctx} slug={slug} />}
     </div>
   );

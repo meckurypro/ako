@@ -20,14 +20,11 @@ export const AI_PROVIDERS: { value: AiProvider; label: string; defaultModel: str
   { value: "gemini", label: "Gemini", defaultModel: "gemini-3.5-flash" },
 ];
 
-export type AutomationPipeline = "knowledge" | "news";
+/** The id of a template in the catalog (automation_templates). The app never names one in code. */
+export type AutomationPipeline = string;
 
-/** Tuning for the news pipeline. All optional; the engine applies its own defaults. */
-export interface NewsSettings {
-  lookback_hours?: number;
-  min_sources?: number;
-  max_stories?: number;
-}
+/** Values for the template's own settings (automated_accounts.news_settings). Keys come from the template. */
+export type TemplateSettings = Record<string, unknown>;
 
 export interface AutomatedAccount {
   id: string;
@@ -41,7 +38,7 @@ export interface AutomatedAccount {
   ai_provider: AiProvider;
   ai_model: string | null;
   pipeline: AutomationPipeline;
-  news_settings: NewsSettings;
+  news_settings: TemplateSettings;
   /** Last four characters of the saved key, or null when none is saved. The key itself is never readable here. */
   api_key_last4: string | null;
   next_run_at: string | null;
@@ -102,8 +99,89 @@ export interface GeneratedPreview {
 const ACCOUNT_SELECT =
   "id, user_id, system_prompt, is_enabled, max_post_chars, max_heading_chars, timezone, schedule, ai_provider, ai_model, pipeline, news_settings, api_key_last4, next_run_at, last_run_at, locked_until, created_at, profile:profiles(username, display_name, avatar_url, is_verified)";
 
+// Returned on purpose: a mutation then resolves only after the refreshed data has arrived, so a screen that reads the
+// account straight after saving never sees the old values.
 function invalidate(queryClient: ReturnType<typeof useQueryClient>) {
-  queryClient.invalidateQueries({ queryKey: ["automation"] });
+  return queryClient.invalidateQueries({ queryKey: ["automation"] });
+}
+
+
+// ---- Catalog ---------------------------------------------------------------------------------------------------
+// What an account can be, which feeds it can read and the presets for them. Lives in the database
+// (supabase/ako_automation_catalog.sql) so the screen builds itself from it and names nothing in code.
+
+export interface TemplateSetting {
+  key: string;
+  label: string;
+  help?: string;
+  min: number;
+  max: number;
+  default: number;
+}
+
+export interface AutomationTemplate {
+  id: AutomationPipeline;
+  label: string;
+  description: string;
+  uses_idea_vault: boolean;
+  uses_sources: boolean;
+  settings: TemplateSetting[];
+}
+
+export interface SourceProviderInfo {
+  id: SourceProvider;
+  label: string;
+  needs_key: boolean;
+  config_help: string;
+  blank_config: Record<string, unknown>;
+}
+
+export interface SourcePreset {
+  id: string;
+  provider_id: SourceProvider;
+  label: string;
+  note: string;
+  config: Record<string, unknown>;
+}
+
+export interface AutomationCatalog {
+  templates: AutomationTemplate[];
+  providers: SourceProviderInfo[];
+  presets: SourcePreset[];
+}
+
+export function useAutomationCatalog() {
+  return useQuery({
+    queryKey: ["automation", "catalog"],
+    staleTime: 10 * 60_000,
+    queryFn: async (): Promise<AutomationCatalog> => {
+      const [templates, providers, presets] = await Promise.all([
+        supabase
+          .from("automation_templates")
+          .select("id, label, description, uses_idea_vault, uses_sources, settings")
+          .eq("is_active", true)
+          .order("sort_order", { ascending: true }),
+        supabase
+          .from("automation_source_providers")
+          .select("id, label, needs_key, config_help, blank_config")
+          .eq("is_active", true)
+          .order("sort_order", { ascending: true }),
+        supabase
+          .from("automation_source_presets")
+          .select("id, provider_id, label, note, config")
+          .eq("is_active", true)
+          .order("sort_order", { ascending: true }),
+      ]);
+      if (templates.error) throw templates.error;
+      if (providers.error) throw providers.error;
+      if (presets.error) throw presets.error;
+      return {
+        templates: (templates.data ?? []) as unknown as AutomationTemplate[],
+        providers: (providers.data ?? []) as unknown as SourceProviderInfo[],
+        presets: (presets.data ?? []) as unknown as SourcePreset[],
+      };
+    },
+  });
 }
 
 // ---- Accounts --------------------------------------------------------------------------------------------------
@@ -368,12 +446,8 @@ export function useRunAutomationNow() {
 // Feeds a news account reads (supabase/ako_post_automation_news.sql). A feed's key goes straight into Supabase Vault and
 // can't be read back, only replaced or removed, exactly like the AI key.
 
-export type SourceProvider = "newsdata" | "gdelt";
-
-export const SOURCE_PROVIDERS: { value: SourceProvider; label: string; needsKey: boolean }[] = [
-  { value: "newsdata", label: "NewsData.io", needsKey: true },
-  { value: "gdelt", label: "GDELT", needsKey: false },
-];
+/** The id of a provider in the catalog (automation_source_providers). */
+export type SourceProvider = string;
 
 export interface AutomationSource {
   id: string;
@@ -426,14 +500,15 @@ export function useAddAutomationSource() {
       label,
       config,
       apiKey,
+      needsKey,
     }: {
       accountId: string;
       provider: SourceProvider;
       label: string;
       config: Record<string, unknown>;
       apiKey: string;
+      needsKey: boolean;
     }) => {
-      const needsKey = SOURCE_PROVIDERS.find((p) => p.value === provider)?.needsKey ?? false;
       // A keyed source can't be enabled until it has a key, so it is created off and switched on after the key lands.
       const { data, error } = await supabase
         .from("automation_sources")

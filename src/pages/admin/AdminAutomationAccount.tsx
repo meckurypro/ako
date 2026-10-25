@@ -1,8 +1,9 @@
 // src/pages/admin/AdminAutomationAccount.tsx
-// One automated account: its writing brief (system prompt), limits, publishing schedule, idea vault and history, plus
-// "generate preview" and "publish now". The natural writing rules (no emoji, no dashes, no AI tells) are enforced by
-// the engine for every account and are deliberately not editable here. See supabase/ako_post_automation.sql and
-// supabase/functions/run-post-automation.
+// One automated account. The page is the same for every account (writing, AI provider, schedule, preview, history); what
+// differs is the template it uses, which comes from the catalog (supabase/ako_automation_catalog.sql) and decides which
+// extra panels and settings appear. Nothing here names a template or a news provider. The natural writing rules (no
+// emoji, no dashes, no AI tells) are enforced by the engine for every account and are deliberately not editable here.
+// See supabase/ako_post_automation.sql and supabase/functions/run-post-automation.
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { Archive, ArrowLeft, Eye, RotateCcw, Star, Trash2, Plus, X, Wand2, Send } from "lucide-react";
@@ -13,8 +14,10 @@ import {
   AI_PROVIDERS,
   useAddAutomationIdea,
   useAutomatedAccount,
+  useAutomationCatalog,
   useAutomationIdeas,
   useAutomationRuns,
+  useAutomationSources,
   useClearAutomationApiKey,
   useDeleteAutomatedAccount,
   useDeleteAutomationIdea,
@@ -25,9 +28,9 @@ import {
   useUpdateAutomationIdea,
   type AiProvider,
   type AutomationIdea,
-  type AutomationPipeline,
   type GeneratedPreview,
   type ScheduleSlot,
+  type TemplateSetting,
 } from "../../hooks/useAutomation";
 import { formatInZone } from "./AdminAutomation";
 import { AutomationSourcesPanel } from "./AutomationSourcesPanel";
@@ -78,6 +81,18 @@ function toSchedule(drafts: SlotDraft[]): ScheduleSlot[] {
     .sort((a, b) => a.time.localeCompare(b.time));
 }
 
+function clampInt(value: number, min: number, max: number, fallback: number): number {
+  return Math.min(max, Math.max(min, Math.round(value) || fallback));
+}
+
+// A template setting as it will be saved: the edit if there is one, else the saved value, else the default, kept
+// inside the template's own range.
+function settingNow(field: TemplateSetting, edits: Record<string, number>, saved: Record<string, unknown>): number {
+  const stored = saved[field.key];
+  const raw = edits[field.key] ?? (typeof stored === "number" ? stored : field.default);
+  return clampInt(raw, field.min, field.max, field.default);
+}
+
 function errorMessage(err: unknown): string {
   return friendlyError(err, "Something went wrong. Please try again.");
 }
@@ -102,6 +117,8 @@ export function AdminAutomationAccount() {
   const { data: account, isLoading } = useAutomatedAccount(accountId);
   const { data: ideas = [] } = useAutomationIdeas(accountId);
   const { data: runs = [] } = useAutomationRuns(accountId);
+  const { data: catalog } = useAutomationCatalog();
+  const { data: sources = [] } = useAutomationSources(accountId);
 
   const update = useUpdateAutomatedAccount();
   const deleteAccount = useDeleteAutomatedAccount();
@@ -119,9 +136,8 @@ export function AdminAutomationAccount() {
   const [maxHeader, setMaxHeader] = useState(50);
   const [timezone, setTimezone] = useState("Africa/Lagos");
   const [slots, setSlots] = useState<SlotDraft[]>([]);
-  const [pipeline, setPipeline] = useState<AutomationPipeline>("knowledge");
-  const [lookback, setLookback] = useState(36);
-  const [minOutlets, setMinOutlets] = useState(2);
+  const [settingEdits, setSettingEdits] = useState<Record<string, number>>({});
+  const [chosenTemplate, setChosenTemplate] = useState<string | null>(null);
   const [seededFor, setSeededFor] = useState<string | null>(null);
 
   useEffect(() => {
@@ -131,9 +147,7 @@ export function AdminAutomationAccount() {
       setMaxHeader(account.max_heading_chars);
       setTimezone(account.timezone);
       setSlots(toDrafts(account.schedule ?? []));
-      setPipeline(account.pipeline ?? "knowledge");
-      setLookback(account.news_settings?.lookback_hours ?? 36);
-      setMinOutlets(account.news_settings?.min_sources ?? 2);
+      setSettingEdits({});
       setSeededFor(account.id);
     }
   }, [account, seededFor]);
@@ -163,29 +177,38 @@ export function AdminAutomationAccount() {
   const [ideaError, setIdeaError] = useState<string | null>(null);
   const [ideaTab, setIdeaTab] = useState<AutomationIdea["status"]>("pending");
 
-  const newsSettings = useMemo(
-    () => ({
-      ...(account?.news_settings ?? {}),
-      lookback_hours: Math.min(120, Math.max(6, Math.round(lookback) || 36)),
-      min_sources: Math.min(5, Math.max(1, Math.round(minOutlets) || 2)),
-    }),
-    [account?.news_settings, lookback, minOutlets],
-  );
+  // The template this account uses, from the catalog. It is saved the moment it changes, so it is not part of "dirty".
+  const templateId = chosenTemplate ?? account?.pipeline ?? "";
+  const template = catalog?.templates.find((t) => t.id === templateId);
+  const templateSettings = template?.settings ?? [];
+  const templateOptions = template || !templateId ? (catalog?.templates ?? []) : [...(catalog?.templates ?? []), { id: templateId, label: templateId }];
 
+  // Unsaved changes are judged on what would actually be saved (trimmed, clamped, sorted), never on raw text, so
+  // trimming a prompt or reordering times can't leave the form looking unsaved after a save.
   const dirty = useMemo(() => {
-    if (!account) return false;
+    if (!account || seededFor !== account.id) return false;
+    const savedSettings = account.news_settings ?? {};
+    const savedSchedule = toSchedule(toDrafts(account.schedule ?? []));
     return (
-      pipeline !== (account.pipeline ?? "knowledge") ||
-      (pipeline === "news" &&
-        (newsSettings.lookback_hours !== (account.news_settings?.lookback_hours ?? 36) ||
-          newsSettings.min_sources !== (account.news_settings?.min_sources ?? 2))) ||
-      prompt !== account.system_prompt ||
-      maxPost !== account.max_post_chars ||
-      maxHeader !== account.max_heading_chars ||
+      prompt.trim() !== account.system_prompt.trim() ||
+      clampInt(maxPost, 50, 1200, 450) !== account.max_post_chars ||
+      clampInt(maxHeader, 10, 50, 50) !== account.max_heading_chars ||
       timezone !== account.timezone ||
-      JSON.stringify(toSchedule(slots)) !== JSON.stringify(account.schedule ?? [])
+      JSON.stringify(toSchedule(slots)) !== JSON.stringify(savedSchedule) ||
+      templateSettings.some((f) => settingNow(f, settingEdits, savedSettings) !== settingNow(f, {}, savedSettings))
     );
-  }, [account, prompt, maxPost, maxHeader, timezone, slots, pipeline, newsSettings]);
+  }, [account, seededFor, prompt, maxPost, maxHeader, timezone, slots, settingEdits, templateSettings]);
+
+  // What is still missing before the account can be switched on. Shown as a list, so there are no cryptic errors.
+  const missing: string[] = [];
+  if (account) {
+    if (!prompt.trim() && !account.system_prompt.trim()) missing.push("Write the brief");
+    if (!account.api_key_last4) missing.push("Save an AI provider key");
+    if ((account.schedule ?? []).length === 0 && toSchedule(slots).length === 0) missing.push("Add a publishing time");
+    if (template?.uses_sources && !sources.some((src) => src.is_enabled)) missing.push("Switch on at least one source");
+    if (dirty) missing.push("Save your changes");
+  }
+  const ready = missing.length === 0;
 
   const zones = useMemo(() => zoneList(account?.timezone ?? "Africa/Lagos"), [account?.timezone]);
 
@@ -206,51 +229,54 @@ export function AdminAutomationAccount() {
   async function handleSave(e?: FormEvent) {
     e?.preventDefault();
     setSaveError(null);
+    setToggleError(null);
+    const next = {
+      system_prompt: prompt.trim(),
+      max_post_chars: clampInt(maxPost, 50, 1200, 450),
+      max_heading_chars: clampInt(maxHeader, 10, 50, 50),
+      timezone,
+      schedule: toSchedule(slots),
+    };
+    const savedSettings = account!.news_settings ?? {};
+    const settingsPatch: Record<string, number> = {};
+    for (const f of templateSettings) settingsPatch[f.key] = settingNow(f, settingEdits, savedSettings);
     try {
       await update.mutateAsync({
         id: account!.id,
         patch: {
-          system_prompt: prompt.trim(),
-          max_post_chars: Math.min(1200, Math.max(50, Math.round(maxPost) || 450)),
-          max_heading_chars: Math.min(50, Math.max(10, Math.round(maxHeader) || 50)),
-          timezone,
-          schedule: toSchedule(slots),
-          pipeline,
-          news_settings: pipeline === "news" ? newsSettings : (account!.news_settings ?? {}),
+          ...next,
+          ...(templateSettings.length ? { news_settings: { ...savedSettings, ...settingsPatch } } : {}),
         },
       });
-      // Re-seed from what was saved (the DB clamps nothing, but we do).
-      setSeededFor(null);
+      // The form now shows exactly what was saved. Reloading it from the cached account here would bring back the
+      // old values and leave the page claiming there is something to save.
+      setPrompt(next.system_prompt);
+      setMaxPost(next.max_post_chars);
+      setMaxHeader(next.max_heading_chars);
+      setSlots(toDrafts(next.schedule));
+      setSettingEdits(settingsPatch);
     } catch (err) {
       setSaveError(errorMessage(err));
     }
   }
 
-  // The account type decides which settings the rest of this screen shows, so it saves on its own the moment it
-  // changes instead of waiting for the form's Save button.
-  async function handlePipelineChange(next: AutomationPipeline) {
-    if (next === (account!.pipeline ?? "knowledge")) return;
+  // The template decides which panels this screen shows, so it saves on its own the moment it changes.
+  async function handleTemplateChange(next: string) {
+    if (next === account!.pipeline) return;
     setPipelineError(null);
-    setPipeline(next);
+    setChosenTemplate(next);
     try {
-      await update.mutateAsync({
-        id: account!.id,
-        patch: { pipeline: next, news_settings: next === "news" ? newsSettings : (account!.news_settings ?? {}) },
-      });
+      await update.mutateAsync({ id: account!.id, patch: { pipeline: next } });
     } catch (err) {
-      setPipeline(account!.pipeline ?? "knowledge");
       setPipelineError(errorMessage(err));
+    } finally {
+      setChosenTemplate(null);
     }
   }
 
   async function handleToggle() {
     setToggleError(null);
-    if (!account!.is_enabled) {
-      if (dirty) return setToggleError("Save your changes first, then turn it on.");
-      if (!account!.system_prompt.trim()) return setToggleError("Write the account’s brief first.");
-      if ((account!.schedule ?? []).length === 0) return setToggleError("Add at least one publishing time first.");
-      if (!account!.api_key_last4) return setToggleError("Save an AI provider key first.");
-    }
+    if (!account!.is_enabled && !ready) return;
     try {
       await update.mutateAsync({ id: account!.id, patch: { is_enabled: !account!.is_enabled } });
     } catch (err) {
@@ -389,7 +415,7 @@ export function AdminAutomationAccount() {
             aria-checked={account.is_enabled}
             aria-label={account.is_enabled ? "Pause automation" : "Turn automation on"}
             onClick={handleToggle}
-            disabled={update.isPending}
+            disabled={update.isPending || (!account.is_enabled && !ready)}
             className={`relative w-12 h-7 rounded-full transition-colors disabled:opacity-50 ${
               account.is_enabled ? "bg-accent" : "bg-border"
             }`}
@@ -401,187 +427,61 @@ export function AdminAutomationAccount() {
             />
           </button>
         </div>
-        <p className="text-xs text-ink-muted mb-1">
+        <p className="text-xs text-ink-muted mb-2">
           {account.is_enabled
             ? `Active. Next post ${formatInZone(account.next_run_at, account.timezone)}.`
             : "Paused. Nothing will be published until you turn it on."}
         </p>
+        {!account.is_enabled && missing.length > 0 && (
+          <div className="bg-surface border border-border rounded-xl p-3 mb-1">
+            <p className="text-xs font-medium text-ink mb-1">Before you can turn it on</p>
+            <ul className="text-xs text-ink-muted space-y-0.5 list-disc pl-4">
+              {missing.map((m) => (
+                <li key={m}>{m}</li>
+              ))}
+            </ul>
+          </div>
+        )}
         {toggleError && <p className="text-xs text-danger mb-1">{toggleError}</p>}
 
-        {/* Account type */}
-        <section className="mt-6">
-          <h3 className="text-sm font-medium text-ink mb-1">Account type</h3>
-          <select
-            value={pipeline}
-            onChange={(e) => handlePipelineChange(e.target.value as AutomationPipeline)}
-            disabled={update.isPending}
-            aria-label="Account type"
-            className="w-full px-3 py-2.5 rounded-xl border border-border bg-surface text-ink disabled:opacity-50"
-          >
-            <option value="knowledge">Knowledge (writes from a brief and an idea vault)</option>
-            <option value="news">News (writes from collected articles)</option>
-          </select>
-          <p className="text-xs text-ink-muted mt-2">
-            {pipeline === "news"
-              ? "Collects fresh articles from the sources below, groups them into stories, writes about stories not yet covered and adds a sources line to each post. The idea vault isn’t used."
-              : "Writes from the brief below and the idea vault, with no outside sources."}
-          </p>
-          {pipelineError && <p className="text-xs text-danger mt-1">{pipelineError}</p>}
-        </section>
-
-        {/* AI provider */}
-        <section className="mt-6">
-          <h3 className="text-sm font-medium text-ink mb-1">AI provider</h3>
-          <p className="text-xs text-ink-muted mb-2">
-            This account writes with its own key and is billed to it. The key is stored encrypted and can’t be read
-            back, only replaced or removed.
-          </p>
-          <div className="space-y-3">
-            <label className="block">
-              <span className="text-xs text-ink-muted">Provider</span>
-              <select
-                value={provider}
-                onChange={(e) => setProvider(e.target.value as AiProvider)}
-                className="mt-1 w-full px-3 py-2.5 rounded-xl border border-border bg-surface text-ink"
-              >
-                {AI_PROVIDERS.map((p) => (
-                  <option key={p.value} value={p.value}>
-                    {p.label}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className="block">
-              <span className="text-xs text-ink-muted">
-                API key
-                {account.api_key_last4 ? ` (saved, ends in ${account.api_key_last4})` : " (none saved)"}
-              </span>
-              <input
-                type="password"
-                autoComplete="off"
-                autoCorrect="off"
-                autoCapitalize="off"
-                spellCheck={false}
-                value={apiKey}
-                onChange={(e) => setApiKey(e.target.value)}
-                placeholder={account.api_key_last4 ? "Paste a new key to replace it" : "Paste the key"}
-                className="mt-1 w-full px-3 py-2.5 rounded-xl border border-border bg-surface text-ink"
-              />
-            </label>
-            <label className="block">
-              <span className="text-xs text-ink-muted">Model (optional)</span>
-              <input
-                value={model}
-                onChange={(e) => setModel(e.target.value)}
-                autoCapitalize="off"
-                autoCorrect="off"
-                spellCheck={false}
-                placeholder={`Default: ${AI_PROVIDERS.find((p) => p.value === provider)?.defaultModel ?? ""}`}
-                className="mt-1 w-full px-3 py-2.5 rounded-xl border border-border bg-surface text-ink"
-              />
-            </label>
-          </div>
-          {provider !== account.ai_provider && account.api_key_last4 && !apiKey.trim() && (
-            <p className="text-xs text-ink-muted mt-2">
-              Switching provider without a new key removes the saved key and pauses this account.
-            </p>
-          )}
-          {aiMessage && (
-            <p className={`text-xs mt-2 ${aiMessage.error ? "text-danger" : "text-ink-muted"}`}>{aiMessage.text}</p>
-          )}
-          <div className="flex gap-2 mt-3">
-            <button
-              type="button"
-              onClick={handleSaveAi}
-              disabled={
-                saveAi.isPending ||
-                (!apiKey.trim() &&
-                  provider === account.ai_provider &&
-                  model.trim() === (account.ai_model ?? ""))
-              }
-              className="flex-1 bg-accent text-canvas rounded-xl py-2.5 text-sm font-medium disabled:opacity-40"
-            >
-              {saveAi.isPending ? "Saving…" : "Save AI settings"}
-            </button>
-            {account.api_key_last4 && (
-              <button
-                type="button"
-                onClick={handleRemoveKey}
-                disabled={clearKey.isPending}
-                className="border border-border text-danger rounded-xl px-4 py-2.5 text-sm font-medium disabled:opacity-40"
-              >
-                Remove key
-              </button>
-            )}
-          </div>
-        </section>
-
-        {account.pipeline === "news" && <AutomationSourcesPanel accountId={account.id} timezone={account.timezone} />}
-
-        <form onSubmit={handleSave} className="mt-6 space-y-6">
-          {/* Brief */}
+        <div className="mt-6 space-y-8">
+          {/* Template */}
           <section>
-            <h3 className="text-sm font-medium text-ink mb-1">{pipeline === "news" ? "Editorial brief" : "System prompt"}</h3>
+            <h3 className="text-sm font-medium text-ink mb-1">Template</h3>
+            <select
+              value={templateId}
+              onChange={(e) => handleTemplateChange(e.target.value)}
+              disabled={update.isPending || !catalog}
+              aria-label="Template"
+              className="w-full px-3 py-2.5 rounded-xl border border-border bg-surface text-ink disabled:opacity-50"
+            >
+              {templateOptions.map((t) => (
+                <option key={t.id} value={t.id}>
+                  {t.label}
+                </option>
+              ))}
+            </select>
+            {template?.description && <p className="text-xs text-ink-muted mt-2">{template.description}</p>}
+            {pipelineError && <p className="text-xs text-danger mt-1">{pipelineError}</p>}
+          </section>
+
+          {/* Writing */}
+          <section>
+            <h3 className="text-sm font-medium text-ink mb-1">Writing</h3>
             <p className="text-xs text-ink-muted mb-2">
-              {pipeline === "news"
-                ? "The beat, voice, audience, what to lead with and what to leave out. Facts always come from the collected articles, and the natural writing rules (no emoji, no dashes, no AI sounding phrasing) apply automatically."
-                : "The niche, voice, audience, viewpoint, boundaries and what each post should achieve. Natural writing rules (no emoji, no dashes, no AI sounding phrasing) are applied to every account automatically."}
+              The niche, voice, audience, viewpoint, boundaries and what each post should achieve. Natural writing rules
+              (no emoji, no dashes, no AI sounding phrasing) are applied to every account automatically.
             </p>
             <textarea
               value={prompt}
               onChange={(e) => setPrompt(e.target.value)}
               rows={9}
               maxLength={6000}
-              placeholder={
-                pipeline === "news"
-                  ? "You are the news desk for an African audience. Lead with what changes people’s lives, explain it plainly…"
-                  : "You are a psychology educator who explores human behaviour, relationships and everyday patterns…"
-              }
+              placeholder="Describe the account: who it writes for, its voice, what it covers and what it leaves out…"
               className="w-full px-4 py-3 rounded-xl border border-border bg-surface text-ink text-sm leading-relaxed"
             />
             <p className="text-xs text-ink-muted text-right">{prompt.length}/6000</p>
-          </section>
-
-          {/* News settings */}
-          {pipeline === "news" && (
-            <section>
-              <h3 className="text-sm font-medium text-ink mb-1">News settings</h3>
-              <p className="text-xs text-ink-muted mb-2">
-                How far back to look for articles, and how many different outlets must report a story before it is used.
-              </p>
-              <div className="grid grid-cols-2 gap-3 mt-3">
-                <label className="block">
-                  <span className="text-xs text-ink-muted">Look back (hours)</span>
-                  <input
-                    type="number"
-                    inputMode="numeric"
-                    min={6}
-                    max={120}
-                    value={lookback}
-                    onChange={(e) => setLookback(Number(e.target.value))}
-                    className="mt-1 w-full px-3 py-2.5 rounded-xl border border-border bg-surface text-ink"
-                  />
-                </label>
-                <label className="block">
-                  <span className="text-xs text-ink-muted">Outlets to trust a story</span>
-                  <input
-                    type="number"
-                    inputMode="numeric"
-                    min={1}
-                    max={5}
-                    value={minOutlets}
-                    onChange={(e) => setMinOutlets(Number(e.target.value))}
-                    className="mt-1 w-full px-3 py-2.5 rounded-xl border border-border bg-surface text-ink"
-                  />
-                </label>
-              </div>
-            </section>
-          )}
-
-          {/* Limits */}
-          <section>
-            <h3 className="text-sm font-medium text-ink mb-2">Limits</h3>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-2 gap-3 mt-3">
               <label className="block">
                 <span className="text-xs text-ink-muted">Max post characters</span>
                 <input
@@ -612,6 +512,118 @@ export function AdminAutomationAccount() {
               {profile?.is_verified ? "This account is verified." : "This account isn’t verified."} Posts will stay
               within {maxBodyShown}.
             </p>
+          </section>
+
+          {/* Template settings */}
+          {templateSettings.length > 0 && (
+            <section>
+              <h3 className="text-sm font-medium text-ink mb-1">{template?.label} settings</h3>
+              <div className="grid grid-cols-2 gap-3">
+                {templateSettings.map((f) => (
+                  <label key={f.key} className="block">
+                    <span className="text-xs text-ink-muted">{f.label}</span>
+                    <input
+                      type="number"
+                      inputMode="numeric"
+                      min={f.min}
+                      max={f.max}
+                      value={settingEdits[f.key] ?? settingNow(f, {}, account.news_settings ?? {})}
+                      onChange={(e) => setSettingEdits((prev) => ({ ...prev, [f.key]: Number(e.target.value) }))}
+                      className="mt-1 w-full px-3 py-2.5 rounded-xl border border-border bg-surface text-ink"
+                    />
+                    {f.help && <span className="block text-[11px] text-ink-muted mt-1">{f.help}</span>}
+                  </label>
+                ))}
+              </div>
+            </section>
+          )}
+
+
+          {/* AI provider */}
+          <section>
+            <h3 className="text-sm font-medium text-ink mb-1">AI provider</h3>
+            <p className="text-xs text-ink-muted mb-2">
+              This account writes with its own key and is billed to it. The key is stored encrypted and can’t be read
+              back, only replaced or removed.
+            </p>
+            <div className="space-y-3">
+              <label className="block">
+                <span className="text-xs text-ink-muted">Provider</span>
+                <select
+                  value={provider}
+                  onChange={(e) => setProvider(e.target.value as AiProvider)}
+                  className="mt-1 w-full px-3 py-2.5 rounded-xl border border-border bg-surface text-ink"
+                >
+                  {AI_PROVIDERS.map((p) => (
+                    <option key={p.value} value={p.value}>
+                      {p.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="block">
+                <span className="text-xs text-ink-muted">
+                  API key
+                  {account.api_key_last4 ? ` (saved, ends in ${account.api_key_last4})` : " (none saved)"}
+                </span>
+                <input
+                  type="password"
+                  autoComplete="off"
+                  autoCorrect="off"
+                  autoCapitalize="off"
+                  spellCheck={false}
+                  value={apiKey}
+                  onChange={(e) => setApiKey(e.target.value)}
+                  placeholder={account.api_key_last4 ? "Paste a new key to replace it" : "Paste the key"}
+                  className="mt-1 w-full px-3 py-2.5 rounded-xl border border-border bg-surface text-ink"
+                />
+              </label>
+              <label className="block">
+                <span className="text-xs text-ink-muted">Model (optional)</span>
+                <input
+                  value={model}
+                  onChange={(e) => setModel(e.target.value)}
+                  autoCapitalize="off"
+                  autoCorrect="off"
+                  spellCheck={false}
+                  placeholder={`Default: ${AI_PROVIDERS.find((p) => p.value === provider)?.defaultModel ?? ""}`}
+                  className="mt-1 w-full px-3 py-2.5 rounded-xl border border-border bg-surface text-ink"
+                />
+              </label>
+            </div>
+            {provider !== account.ai_provider && account.api_key_last4 && !apiKey.trim() && (
+              <p className="text-xs text-ink-muted mt-2">
+                Switching provider without a new key removes the saved key and pauses this account.
+              </p>
+            )}
+            {aiMessage && (
+              <p className={`text-xs mt-2 ${aiMessage.error ? "text-danger" : "text-ink-muted"}`}>{aiMessage.text}</p>
+            )}
+            <div className="flex gap-2 mt-3">
+              <button
+                type="button"
+                onClick={handleSaveAi}
+                disabled={
+                  saveAi.isPending ||
+                  (!apiKey.trim() &&
+                    provider === account.ai_provider &&
+                    model.trim() === (account.ai_model ?? ""))
+                }
+                className="flex-1 bg-accent text-canvas rounded-xl py-2.5 text-sm font-medium disabled:opacity-40"
+              >
+                {saveAi.isPending ? "Saving…" : "Save AI settings"}
+              </button>
+              {account.api_key_last4 && (
+                <button
+                  type="button"
+                  onClick={handleRemoveKey}
+                  disabled={clearKey.isPending}
+                  className="border border-border text-danger rounded-xl px-4 py-2.5 text-sm font-medium disabled:opacity-40"
+                >
+                  Remove key
+                </button>
+              )}
+            </div>
           </section>
 
           {/* Schedule */}
@@ -702,88 +714,10 @@ export function AdminAutomationAccount() {
             )}
           </section>
 
-          {saveError && <p className="text-xs text-danger">{saveError}</p>}
-          <button
-            type="submit"
-            disabled={!dirty || update.isPending}
-            className="w-full bg-accent text-canvas rounded-xl py-3 font-medium disabled:opacity-40"
-          >
-            {update.isPending ? "Saving…" : dirty ? "Save changes" : "Saved"}
-          </button>
-        </form>
+          {template?.uses_sources && <AutomationSourcesPanel accountId={account.id} timezone={account.timezone} />}
 
-        {/* Try it */}
-        <section className="mt-8">
-          <h3 className="text-sm font-medium text-ink mb-1">Try it</h3>
-          <p className="text-xs text-ink-muted mb-3">
-            Preview writes a post without publishing it. Publishing uses the saved brief, so save first.
-          </p>
-          <div className="flex gap-2">
-            <button
-              type="button"
-              onClick={handleGenerate}
-              disabled={busy || dirty || !account.system_prompt.trim() || !account.api_key_last4}
-              className="flex-1 border border-border text-ink rounded-xl py-2.5 text-sm font-medium flex items-center justify-center gap-1.5 disabled:opacity-40"
-            >
-              <Eye size={16} /> {generate.isPending ? "Writing…" : "Generate preview"}
-            </button>
-            <button
-              type="button"
-              onClick={() => handlePublish()}
-              disabled={busy || dirty || !account.system_prompt.trim() || !account.api_key_last4}
-              className="flex-1 border border-border text-ink rounded-xl py-2.5 text-sm font-medium flex items-center justify-center gap-1.5 disabled:opacity-40"
-            >
-              <Send size={16} /> {runNow.isPending && !preview ? "Publishing…" : "Publish now"}
-            </button>
-          </div>
-          {dirty && <p className="text-xs text-ink-muted mt-2">Save your changes to use these.</p>}
-          {!account.api_key_last4 && (
-            <p className="text-xs text-ink-muted mt-2">Save an AI provider key above to use these.</p>
-          )}
-          {actionError && <p className="text-xs text-danger mt-2">{actionError}</p>}
-          {notice && (
-            <p className="text-sm text-ink bg-surface rounded-xl p-3 border border-border mt-3">
-              Published.{" "}
-              <Link to={`/post/${notice.postId}`} className="text-accent">
-                View the post
-              </Link>
-            </p>
-          )}
-          {preview && (
-            <div className="bg-surface rounded-xl p-4 border border-border mt-3 space-y-2">
-              <PostContent heading={preview.header} headingColor={preview.heading_color} content={preview.body} />
-              <p className="text-xs text-ink-muted">
-                {preview.mode} · {preview.topic} · {preview.header.length}/{maxHeader} header, {preview.body.length}/
-                {maxBodyShown} body
-              </p>
-              <div className="flex gap-2 pt-1">
-                <button
-                  type="button"
-                  onClick={() => handlePublish(preview)}
-                  disabled={busy}
-                  className="flex-1 bg-accent text-canvas rounded-lg py-2 text-sm font-medium disabled:opacity-50"
-                >
-                  Publish this
-                </button>
-                <button
-                  type="button"
-                  onClick={handleGenerate}
-                  disabled={busy}
-                  className="flex-1 border border-border text-ink rounded-lg py-2 text-sm font-medium flex items-center justify-center gap-1.5 disabled:opacity-50"
-                >
-                  <Wand2 size={15} /> Regenerate
-                </button>
-              </div>
-              {preview.source_idea_id && (
-                <p className="text-xs text-ink-muted">Uses the next idea in the vault. It is marked used once published.</p>
-              )}
-            </div>
-          )}
-        </section>
-
-        {/* Idea vault (news accounts write from collected articles instead) */}
-        {pipeline === "knowledge" && (
-          <section className="mt-8">
+          {template?.uses_idea_vault && (
+          <section>
             <h3 className="text-sm font-medium text-ink mb-1">
               Idea vault{pendingCount > 0 ? ` (${pendingCount} waiting)` : ""}
             </h3>
@@ -908,58 +842,146 @@ export function AdminAutomationAccount() {
               </div>
             )}
           </section>
-        )}
+          )}
 
-        {/* History */}
-        <section className="mt-8">
-          <h3 className="text-sm font-medium text-ink mb-2">History</h3>
-          {runs.length === 0 ? (
-            <p className="text-sm text-ink-muted bg-surface rounded-xl p-3 border border-border">No runs yet.</p>
-          ) : (
-            <div className="space-y-2">
-              {runs.map((run) => (
-                <div key={run.id} className="bg-surface rounded-xl p-3 border border-border">
-                  <div className="flex items-center gap-2 mb-1">
-                    <span
-                      className={`text-[11px] font-medium rounded-full px-2 py-0.5 ${
-                        run.status === "published"
-                          ? "bg-accent text-canvas"
-                          : run.status === "failed"
-                            ? "bg-danger text-canvas"
-                            : "border border-border text-ink-muted"
-                      }`}
-                    >
-                      {run.status}
-                    </span>
-                    <span className="text-[11px] text-ink-muted">
-                      {formatInZone(run.created_at, account.timezone)} · {run.trigger === "manual" ? "manual" : "scheduled"}
-                    </span>
-                    {run.post_id && (
-                      <Link to={`/post/${run.post_id}`} className="ml-auto text-xs text-accent">
-                        View post
-                      </Link>
+          {/* Try it */}
+          <section>
+            <h3 className="text-sm font-medium text-ink mb-1">Try it</h3>
+            <p className="text-xs text-ink-muted mb-3">
+              Preview writes a post without publishing it. Publishing uses the saved brief, so save first.
+            </p>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={handleGenerate}
+                disabled={busy || dirty || !account.system_prompt.trim() || !account.api_key_last4}
+                className="flex-1 border border-border text-ink rounded-xl py-2.5 text-sm font-medium flex items-center justify-center gap-1.5 disabled:opacity-40"
+              >
+                <Eye size={16} /> {generate.isPending ? "Writing…" : "Generate preview"}
+              </button>
+              <button
+                type="button"
+                onClick={() => handlePublish()}
+                disabled={busy || dirty || !account.system_prompt.trim() || !account.api_key_last4}
+                className="flex-1 border border-border text-ink rounded-xl py-2.5 text-sm font-medium flex items-center justify-center gap-1.5 disabled:opacity-40"
+              >
+                <Send size={16} /> {runNow.isPending && !preview ? "Publishing…" : "Publish now"}
+              </button>
+            </div>
+            {dirty && <p className="text-xs text-ink-muted mt-2">Save your changes to use these.</p>}
+            {!account.api_key_last4 && (
+              <p className="text-xs text-ink-muted mt-2">Save an AI provider key above to use these.</p>
+            )}
+            {actionError && <p className="text-xs text-danger mt-2">{actionError}</p>}
+            {notice && (
+              <p className="text-sm text-ink bg-surface rounded-xl p-3 border border-border mt-3">
+                Published.{" "}
+                <Link to={`/post/${notice.postId}`} className="text-accent">
+                  View the post
+                </Link>
+              </p>
+            )}
+            {preview && (
+              <div className="bg-surface rounded-xl p-4 border border-border mt-3 space-y-2">
+                <PostContent heading={preview.header} headingColor={preview.heading_color} content={preview.body} />
+                <p className="text-xs text-ink-muted">
+                  {preview.mode} · {preview.topic} · {preview.header.length}/{maxHeader} header, {preview.body.length}/
+                  {maxBodyShown} body
+                </p>
+                <div className="flex gap-2 pt-1">
+                  <button
+                    type="button"
+                    onClick={() => handlePublish(preview)}
+                    disabled={busy}
+                    className="flex-1 bg-accent text-canvas rounded-lg py-2 text-sm font-medium disabled:opacity-50"
+                  >
+                    Publish this
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleGenerate}
+                    disabled={busy}
+                    className="flex-1 border border-border text-ink rounded-lg py-2 text-sm font-medium flex items-center justify-center gap-1.5 disabled:opacity-50"
+                  >
+                    <Wand2 size={15} /> Regenerate
+                  </button>
+                </div>
+                {preview.source_idea_id && (
+                  <p className="text-xs text-ink-muted">Uses the next idea in the vault. It is marked used once published.</p>
+                )}
+              </div>
+            )}
+          </section>
+
+          {/* History */}
+          <section>
+            <h3 className="text-sm font-medium text-ink mb-2">History</h3>
+            {runs.length === 0 ? (
+              <p className="text-sm text-ink-muted bg-surface rounded-xl p-3 border border-border">No runs yet.</p>
+            ) : (
+              <div className="space-y-2">
+                {runs.map((run) => (
+                  <div key={run.id} className="bg-surface rounded-xl p-3 border border-border">
+                    <div className="flex items-center gap-2 mb-1">
+                      <span
+                        className={`text-[11px] font-medium rounded-full px-2 py-0.5 ${
+                          run.status === "published"
+                            ? "bg-accent text-canvas"
+                            : run.status === "failed"
+                              ? "bg-danger text-canvas"
+                              : "border border-border text-ink-muted"
+                        }`}
+                      >
+                        {run.status}
+                      </span>
+                      <span className="text-[11px] text-ink-muted">
+                        {formatInZone(run.created_at, account.timezone)} · {run.trigger === "manual" ? "manual" : "scheduled"}
+                      </span>
+                      {run.post_id && (
+                        <Link to={`/post/${run.post_id}`} className="ml-auto text-xs text-accent">
+                          View post
+                        </Link>
+                      )}
+                    </div>
+                    {run.header && <p className="text-sm font-medium text-ink">{run.header}</p>}
+                    {run.error && <p className="text-xs text-danger mt-0.5">{run.error}</p>}
+                    {(run.input_tokens > 0 || run.output_tokens > 0) && (
+                      <p className="text-[11px] text-ink-muted mt-0.5">
+                        {run.attempts} attempt{run.attempts === 1 ? "" : "s"} · {run.input_tokens} in, {run.output_tokens} out
+                      </p>
                     )}
                   </div>
-                  {run.header && <p className="text-sm font-medium text-ink">{run.header}</p>}
-                  {run.error && <p className="text-xs text-danger mt-0.5">{run.error}</p>}
-                  {(run.input_tokens > 0 || run.output_tokens > 0) && (
-                    <p className="text-[11px] text-ink-muted mt-0.5">
-                      {run.attempts} attempt{run.attempts === 1 ? "" : "s"} · {run.input_tokens} in, {run.output_tokens} out
-                    </p>
-                  )}
-                </div>
-              ))}
-            </div>
-          )}
-        </section>
+                ))}
+              </div>
+            )}
+          </section>
+        </div>
 
+        <div className="mt-10">
         <button
           type="button"
           onClick={handleRemove}
-          className="mt-10 w-full border border-border text-danger rounded-xl py-2.5 text-sm font-medium"
+          className="w-full border border-border text-danger rounded-xl py-2.5 text-sm font-medium"
         >
           Stop automating this account
         </button>
+        </div>
+
+        {/* Save bar */}
+        {(dirty || saveError) && (
+          <div className="sticky bottom-0 -mx-4 mt-6 px-4 py-3 bg-canvas border-t border-border">
+            {saveError && <p className="text-xs text-danger mb-2">{saveError}</p>}
+            <button
+              type="button"
+              onClick={() => handleSave()}
+              disabled={!dirty || update.isPending}
+              className="w-full bg-accent text-canvas rounded-xl py-3 font-medium disabled:opacity-40"
+            >
+              {update.isPending ? "Saving…" : "Save changes"}
+            </button>
+          </div>
+        )}
+
       </div>
     </div>
   );

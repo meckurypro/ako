@@ -30,6 +30,7 @@ import {
   PenLine,
   Download,
   GitFork,
+  Inbox,
 } from "lucide-react";
 import { useNotifications, useMarkNotificationRead, useMarkAllRead } from "../hooks/useNotifications";
 import {
@@ -105,6 +106,9 @@ const TYPE_CONFIG: Record<string, { icon: typeof Heart; verb: string }> = {
   // A forker tagged the project they forked in a post. target_type "post" (the post that carries the tag),
   // preview_text = project title; routes via the generic post case.
   forked_project_tagged: { icon: Tag, verb: "tagged your project in a post" },
+  // A visitor sent a message through a Custom Page's inquiry form (submit_custom_page_inquiry). The actor is null
+  // when the visitor wasn't signed in. target_type "custom_page", target_id the page — see notificationLink().
+  custom_page_inquiry: { icon: Inbox, verb: "sent a message to your custom page" },
   collaboration_invite: { icon: Users, verb: "invited you to collaborate" },
   collaboration_accepted: { icon: UserCheck, verb: "accepted your collaboration invite" },
   collaboration_declined: { icon: UserX, verb: "declined your collaboration invite" },
@@ -183,6 +187,8 @@ function notificationLink(n: NotificationWithActor): string {
   // "boosted post/project" state lives on whatever they promoted, so
   // send them back to Wallet, where promotion status/history is
   // already surfaced (see MyAffiliateLinks/Wallet).
+  // Custom Page inquiries are read from the page's own control room.
+  if (n.target_type === "custom_page" && n.target_id) return `/me/custom-pages/${n.target_id}`;
   if (n.target_type === "promotion") return "/wallet";
   // No dedicated withdrawal detail page yet — Wallet already surfaces
   // withdrawal history/status, same reasoning as promotion above.
