@@ -11,7 +11,7 @@
 // design values are just short slugs in the config.
 import { useState, type CSSProperties, type ReactNode } from "react";
 import { Link } from "react-router-dom";
-import { Download, FileText, Loader2, Mail, MapPin, MessageCircle, Phone, ExternalLink, X } from "lucide-react";
+import { ArrowRight, Download, FileText, Loader2, Mail, MapPin, MessageCircle, Phone, ExternalLink, X } from "lucide-react";
 import {
   customPageUrl,
   publicFileUrl,
@@ -42,6 +42,8 @@ export interface CustomPageActions {
   onShare?: () => void;
   /** "Create your own custom page" footer link. */
   onCreateYours?: () => void;
+  /** True when the visitor is signed in to Akọ — the footer then offers a quiet way back into the app. */
+  signedIn?: boolean;
 }
 
 interface Props {
@@ -750,6 +752,12 @@ function Footer({ ctx, slug }: { ctx: Ctx; slug?: string }) {
             style={{ color: ctx.t.text }}
           >
             Create your own custom page
+          </Link>
+        )}
+        {/* Signed-in visitors land here with the app's navigation hidden behind the page — a quiet way back in. */}
+        {!ctx.preview && ctx.actions.signedIn && (
+          <Link to="/" className="inline-flex items-center gap-1 mt-1 opacity-80 hover:opacity-100" style={{ color: ctx.t.muted }}>
+            Open Akọ <ArrowRight size={12} aria-hidden />
           </Link>
         )}
       </div>
