@@ -18,7 +18,7 @@ export const SOURCE_PRESETS: SourcePreset[] = [
     id: "africa-newsdata",
     provider: "newsdata",
     label: "Africa, NewsData.io",
-    note: "Ten countries across two requests, plus international reporting about Africa. Uses 5 credits per fetch.",
+    note: "Twenty countries across four requests, plus international reporting about Africa. Uses 5 credits per fetch. On the free plan articles arrive about 12 hours late and each request returns 10.",
     config: {
       requests: [
         { country: "ng,gh,ke,za,eg", category: "politics,business,technology,top", language: "en" },

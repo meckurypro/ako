@@ -148,10 +148,10 @@ export function useAutomatedAccount(accountId: string | undefined) {
 export function useCreateAutomatedAccount() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async (userId: string): Promise<string> => {
+    mutationFn: async ({ userId, pipeline }: { userId: string; pipeline: AutomationPipeline }): Promise<string> => {
       const { data, error } = await supabase
         .from("automated_accounts")
-        .insert({ user_id: userId })
+        .insert({ user_id: userId, pipeline })
         .select("id")
         .single();
       if (error) throw error;

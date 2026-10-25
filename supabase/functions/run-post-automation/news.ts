@@ -194,7 +194,13 @@ async function fetchGdelt(source: SourceRow, _key: string | null, fetchFn: typeo
     url.searchParams.set("timespan", String(req.timespan ?? "1d"));
     url.searchParams.set("maxrecords", String(Math.min(250, Math.max(10, Number(req.maxrecords) || 75))));
 
-    const res = await fetchFn(url, { signal: AbortSignal.timeout(30_000) });
+    // GDELT answers 429 when it was asked again too soon, which happens when two fetches land close together. Wait
+    // out its five second window and try once more before giving up.
+    let res = await fetchFn(url, { signal: AbortSignal.timeout(30_000) });
+    if (res.status === 429) {
+      await sleep(6000);
+      res = await fetchFn(url, { signal: AbortSignal.timeout(30_000) });
+    }
     const text = await res.text();
     if (!res.ok) throw new Error(`GDELT error ${res.status}`);
     let data: { articles?: Record<string, string>[] } | null = null;

@@ -153,6 +153,7 @@ export function AdminAutomationAccount() {
 
   const [saveError, setSaveError] = useState<string | null>(null);
   const [toggleError, setToggleError] = useState<string | null>(null);
+  const [pipelineError, setPipelineError] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [notice, setNotice] = useState<{ postId: string } | null>(null);
   const [preview, setPreview] = useState<GeneratedPreview | null>(null);
@@ -222,6 +223,23 @@ export function AdminAutomationAccount() {
       setSeededFor(null);
     } catch (err) {
       setSaveError(errorMessage(err));
+    }
+  }
+
+  // The account type decides which settings the rest of this screen shows, so it saves on its own the moment it
+  // changes instead of waiting for the form's Save button.
+  async function handlePipelineChange(next: AutomationPipeline) {
+    if (next === (account!.pipeline ?? "knowledge")) return;
+    setPipelineError(null);
+    setPipeline(next);
+    try {
+      await update.mutateAsync({
+        id: account!.id,
+        patch: { pipeline: next, news_settings: next === "news" ? newsSettings : (account!.news_settings ?? {}) },
+      });
+    } catch (err) {
+      setPipeline(account!.pipeline ?? "knowledge");
+      setPipelineError(errorMessage(err));
     }
   }
 
@@ -390,6 +408,27 @@ export function AdminAutomationAccount() {
         </p>
         {toggleError && <p className="text-xs text-danger mb-1">{toggleError}</p>}
 
+        {/* Account type */}
+        <section className="mt-6">
+          <h3 className="text-sm font-medium text-ink mb-1">Account type</h3>
+          <select
+            value={pipeline}
+            onChange={(e) => handlePipelineChange(e.target.value as AutomationPipeline)}
+            disabled={update.isPending}
+            aria-label="Account type"
+            className="w-full px-3 py-2.5 rounded-xl border border-border bg-surface text-ink disabled:opacity-50"
+          >
+            <option value="knowledge">Knowledge (writes from a brief and an idea vault)</option>
+            <option value="news">News (writes from collected articles)</option>
+          </select>
+          <p className="text-xs text-ink-muted mt-2">
+            {pipeline === "news"
+              ? "Collects fresh articles from the sources below, groups them into stories, writes about stories not yet covered and adds a sources line to each post. The idea vault isn’t used."
+              : "Writes from the brief below and the idea vault, with no outside sources."}
+          </p>
+          {pipelineError && <p className="text-xs text-danger mt-1">{pipelineError}</p>}
+        </section>
+
         {/* AI provider */}
         <section className="mt-6">
           <h3 className="text-sm font-medium text-ink mb-1">AI provider</h3>
@@ -482,39 +521,34 @@ export function AdminAutomationAccount() {
         <form onSubmit={handleSave} className="mt-6 space-y-6">
           {/* Brief */}
           <section>
-            <h3 className="text-sm font-medium text-ink mb-1">System prompt</h3>
+            <h3 className="text-sm font-medium text-ink mb-1">{pipeline === "news" ? "Editorial brief" : "System prompt"}</h3>
             <p className="text-xs text-ink-muted mb-2">
-              The niche, voice, audience, viewpoint, boundaries and what each post should achieve. Natural writing rules
-              (no emoji, no dashes, no AI sounding phrasing) are applied to every account automatically.
+              {pipeline === "news"
+                ? "The beat, voice, audience, what to lead with and what to leave out. Facts always come from the collected articles, and the natural writing rules (no emoji, no dashes, no AI sounding phrasing) apply automatically."
+                : "The niche, voice, audience, viewpoint, boundaries and what each post should achieve. Natural writing rules (no emoji, no dashes, no AI sounding phrasing) are applied to every account automatically."}
             </p>
             <textarea
               value={prompt}
               onChange={(e) => setPrompt(e.target.value)}
               rows={9}
               maxLength={6000}
-              placeholder="You are a psychology educator who explores human behaviour, relationships and everyday patterns…"
+              placeholder={
+                pipeline === "news"
+                  ? "You are the news desk for an African audience. Lead with what changes people’s lives, explain it plainly…"
+                  : "You are a psychology educator who explores human behaviour, relationships and everyday patterns…"
+              }
               className="w-full px-4 py-3 rounded-xl border border-border bg-surface text-ink text-sm leading-relaxed"
             />
             <p className="text-xs text-ink-muted text-right">{prompt.length}/6000</p>
           </section>
 
-          {/* Content source */}
-          <section>
-            <h3 className="text-sm font-medium text-ink mb-1">Where posts come from</h3>
-            <p className="text-xs text-ink-muted mb-2">
-              Knowledge accounts write from the brief and the idea vault. News accounts write from fresh articles collected
-              from the sources below, grouped into stories, with a sources line added under each post. Save, then add
-              sources.
-            </p>
-            <select
-              value={pipeline}
-              onChange={(e) => setPipeline(e.target.value as AutomationPipeline)}
-              className="w-full px-3 py-2.5 rounded-xl border border-border bg-surface text-ink"
-            >
-              <option value="knowledge">Knowledge (brief and ideas)</option>
-              <option value="news">News (collected articles)</option>
-            </select>
-            {pipeline === "news" && (
+          {/* News settings */}
+          {pipeline === "news" && (
+            <section>
+              <h3 className="text-sm font-medium text-ink mb-1">News settings</h3>
+              <p className="text-xs text-ink-muted mb-2">
+                How far back to look for articles, and how many different outlets must report a story before it is used.
+              </p>
               <div className="grid grid-cols-2 gap-3 mt-3">
                 <label className="block">
                   <span className="text-xs text-ink-muted">Look back (hours)</span>
@@ -541,8 +575,8 @@ export function AdminAutomationAccount() {
                   />
                 </label>
               </div>
-            )}
-          </section>
+            </section>
+          )}
 
           {/* Limits */}
           <section>
@@ -747,132 +781,134 @@ export function AdminAutomationAccount() {
           )}
         </section>
 
-        {/* Idea vault */}
-        <section className="mt-8">
-          <h3 className="text-sm font-medium text-ink mb-1">
-            Idea vault{pendingCount > 0 ? ` (${pendingCount} waiting)` : ""}
-          </h3>
-          <p className="text-xs text-ink-muted mb-3">
-            Rough thoughts the account turns into posts, high priority first, then oldest. With none waiting, it writes
-            from its recent posts and what followers comment on.
-          </p>
-          <form onSubmit={handleAddIdea} className="space-y-2 mb-3">
-            <textarea
-              value={ideaText}
-              onChange={(e) => setIdeaText(e.target.value)}
-              rows={3}
-              maxLength={1000}
-              placeholder="A random thought, topic or question…"
-              className="w-full px-4 py-3 rounded-xl border border-border bg-surface text-ink text-sm"
-            />
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={() => setIdeaHigh((v) => !v)}
-                aria-pressed={ideaHigh}
-                className={`text-xs rounded-full px-3 py-1.5 border flex items-center gap-1 ${
-                  ideaHigh ? "bg-accent text-canvas border-accent" : "border-border text-ink-muted"
-                }`}
-              >
-                <Star size={13} /> High priority
-              </button>
-              <button
-                type="submit"
-                disabled={addIdea.isPending || !ideaText.trim()}
-                className="ml-auto bg-accent text-canvas rounded-lg px-4 py-2 text-sm font-medium disabled:opacity-40"
-              >
-                Add idea
-              </button>
-            </div>
-            {ideaError && <p className="text-xs text-danger">{ideaError}</p>}
-          </form>
+        {/* Idea vault (news accounts write from collected articles instead) */}
+        {pipeline === "knowledge" && (
+          <section className="mt-8">
+            <h3 className="text-sm font-medium text-ink mb-1">
+              Idea vault{pendingCount > 0 ? ` (${pendingCount} waiting)` : ""}
+            </h3>
+            <p className="text-xs text-ink-muted mb-3">
+              Rough thoughts the account turns into posts, high priority first, then oldest. With none waiting, it writes
+              from its recent posts and what followers comment on.
+            </p>
+            <form onSubmit={handleAddIdea} className="space-y-2 mb-3">
+              <textarea
+                value={ideaText}
+                onChange={(e) => setIdeaText(e.target.value)}
+                rows={3}
+                maxLength={1000}
+                placeholder="A random thought, topic or question…"
+                className="w-full px-4 py-3 rounded-xl border border-border bg-surface text-ink text-sm"
+              />
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setIdeaHigh((v) => !v)}
+                  aria-pressed={ideaHigh}
+                  className={`text-xs rounded-full px-3 py-1.5 border flex items-center gap-1 ${
+                    ideaHigh ? "bg-accent text-canvas border-accent" : "border-border text-ink-muted"
+                  }`}
+                >
+                  <Star size={13} /> High priority
+                </button>
+                <button
+                  type="submit"
+                  disabled={addIdea.isPending || !ideaText.trim()}
+                  className="ml-auto bg-accent text-canvas rounded-lg px-4 py-2 text-sm font-medium disabled:opacity-40"
+                >
+                  Add idea
+                </button>
+              </div>
+              {ideaError && <p className="text-xs text-danger">{ideaError}</p>}
+            </form>
 
-          <div className="flex gap-2 mb-3">
-            {(["pending", "used", "archived"] as const).map((tab) => (
-              <button
-                key={tab}
-                type="button"
-                onClick={() => setIdeaTab(tab)}
-                className={`text-xs rounded-full px-3 py-1.5 border capitalize ${
-                  ideaTab === tab ? "bg-accent text-canvas border-accent" : "border-border text-ink-muted"
-                }`}
-              >
-                {tab === "pending" ? "Waiting" : tab}
-              </button>
-            ))}
-          </div>
-
-          {shownIdeas.length === 0 ? (
-            <p className="text-sm text-ink-muted bg-surface rounded-xl p-3 border border-border">Nothing here.</p>
-          ) : (
-            <div className="space-y-2">
-              {shownIdeas.map((idea) => (
-                <div key={idea.id} className="bg-surface rounded-xl p-3 border border-border">
-                  <p className="text-sm text-ink whitespace-pre-wrap">{idea.idea}</p>
-                  <div className="flex items-center gap-1 mt-2">
-                    <span className="text-[11px] text-ink-muted">
-                      {idea.status === "used" && idea.used_at
-                        ? `Used ${formatInZone(idea.used_at, account.timezone)}`
-                        : `Added ${formatInZone(idea.created_at, account.timezone)}`}
-                      {idea.priority === "high" ? " · High priority" : ""}
-                    </span>
-                    <span className="ml-auto flex items-center gap-1">
-                      {idea.used_post_id && (
-                        <Link to={`/post/${idea.used_post_id}`} className="text-xs text-accent px-2">
-                          Post
-                        </Link>
-                      )}
-                      {idea.status === "pending" && (
-                        <button
-                          type="button"
-                          aria-label={idea.priority === "high" ? "Make normal priority" : "Make high priority"}
-                          onClick={() =>
-                            updateIdea.mutate({
-                              id: idea.id,
-                              patch: { priority: idea.priority === "high" ? "normal" : "high" },
-                            })
-                          }
-                          className={`p-1.5 ${idea.priority === "high" ? "text-accent" : "text-ink-muted"}`}
-                        >
-                          <Star size={16} />
-                        </button>
-                      )}
-                      {idea.status === "pending" ? (
-                        <button
-                          type="button"
-                          aria-label="Archive idea"
-                          onClick={() => updateIdea.mutate({ id: idea.id, patch: { status: "archived" } })}
-                          className="p-1.5 text-ink-muted"
-                        >
-                          <Archive size={16} />
-                        </button>
-                      ) : (
-                        <button
-                          type="button"
-                          aria-label="Put back in the vault"
-                          onClick={() => updateIdea.mutate({ id: idea.id, patch: { status: "pending" } })}
-                          className="p-1.5 text-ink-muted"
-                        >
-                          <RotateCcw size={16} />
-                        </button>
-                      )}
-                      <button
-                        type="button"
-                        aria-label="Delete idea"
-                        onClick={() => {
-                          if (window.confirm("Delete this idea?")) deleteIdea.mutate(idea.id);
-                        }}
-                        className="p-1.5 text-ink-muted"
-                      >
-                        <Trash2 size={16} />
-                      </button>
-                    </span>
-                  </div>
-                </div>
+            <div className="flex gap-2 mb-3">
+              {(["pending", "used", "archived"] as const).map((tab) => (
+                <button
+                  key={tab}
+                  type="button"
+                  onClick={() => setIdeaTab(tab)}
+                  className={`text-xs rounded-full px-3 py-1.5 border capitalize ${
+                    ideaTab === tab ? "bg-accent text-canvas border-accent" : "border-border text-ink-muted"
+                  }`}
+                >
+                  {tab === "pending" ? "Waiting" : tab}
+                </button>
               ))}
             </div>
-          )}
-        </section>
+
+            {shownIdeas.length === 0 ? (
+              <p className="text-sm text-ink-muted bg-surface rounded-xl p-3 border border-border">Nothing here.</p>
+            ) : (
+              <div className="space-y-2">
+                {shownIdeas.map((idea) => (
+                  <div key={idea.id} className="bg-surface rounded-xl p-3 border border-border">
+                    <p className="text-sm text-ink whitespace-pre-wrap">{idea.idea}</p>
+                    <div className="flex items-center gap-1 mt-2">
+                      <span className="text-[11px] text-ink-muted">
+                        {idea.status === "used" && idea.used_at
+                          ? `Used ${formatInZone(idea.used_at, account.timezone)}`
+                          : `Added ${formatInZone(idea.created_at, account.timezone)}`}
+                        {idea.priority === "high" ? " · High priority" : ""}
+                      </span>
+                      <span className="ml-auto flex items-center gap-1">
+                        {idea.used_post_id && (
+                          <Link to={`/post/${idea.used_post_id}`} className="text-xs text-accent px-2">
+                            Post
+                          </Link>
+                        )}
+                        {idea.status === "pending" && (
+                          <button
+                            type="button"
+                            aria-label={idea.priority === "high" ? "Make normal priority" : "Make high priority"}
+                            onClick={() =>
+                              updateIdea.mutate({
+                                id: idea.id,
+                                patch: { priority: idea.priority === "high" ? "normal" : "high" },
+                              })
+                            }
+                            className={`p-1.5 ${idea.priority === "high" ? "text-accent" : "text-ink-muted"}`}
+                          >
+                            <Star size={16} />
+                          </button>
+                        )}
+                        {idea.status === "pending" ? (
+                          <button
+                            type="button"
+                            aria-label="Archive idea"
+                            onClick={() => updateIdea.mutate({ id: idea.id, patch: { status: "archived" } })}
+                            className="p-1.5 text-ink-muted"
+                          >
+                            <Archive size={16} />
+                          </button>
+                        ) : (
+                          <button
+                            type="button"
+                            aria-label="Put back in the vault"
+                            onClick={() => updateIdea.mutate({ id: idea.id, patch: { status: "pending" } })}
+                            className="p-1.5 text-ink-muted"
+                          >
+                            <RotateCcw size={16} />
+                          </button>
+                        )}
+                        <button
+                          type="button"
+                          aria-label="Delete idea"
+                          onClick={() => {
+                            if (window.confirm("Delete this idea?")) deleteIdea.mutate(idea.id);
+                          }}
+                          className="p-1.5 text-ink-muted"
+                        >
+                          <Trash2 size={16} />
+                        </button>
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </section>
+        )}
 
         {/* History */}
         <section className="mt-8">
