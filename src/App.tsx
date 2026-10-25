@@ -110,7 +110,10 @@ import { AdminAutomationAccount } from "./pages/admin/AdminAutomationAccount";
 import { CreateProject } from "./pages/CreateProject";
 import { EditProject } from "./pages/EditProject";
 import { ProjectDetail } from "./pages/ProjectDetail";
-import { ProjectBySlug } from "./pages/ProjectBySlug";
+import { SlugRoute } from "./pages/SlugRoute";
+import { CustomPages } from "./pages/CustomPages";
+import { CustomPageManage } from "./pages/CustomPageManage";
+import { CustomPageEditor } from "./pages/CustomPageEditor";
 import { GuestPass } from "./pages/GuestPass";
 import { Course } from "./pages/Course";
 import { Book, BookEdit } from "./pages/Book";
@@ -1139,6 +1142,33 @@ function AppRoutes() {
                 </RequireAuth>
               }
             />
+            {/* Custom Pages (low-code landing pages at /<slug>) — managed under /me/custom-pages. Not to be
+                confused with Pages (/page/:username), which are account-like identities. The public page itself is
+                rendered by SlugRoute at /:slug below. */}
+            <Route
+              path="/me/custom-pages"
+              element={
+                <RequireAuth>
+                  <CustomPages />
+                </RequireAuth>
+              }
+            />
+            <Route
+              path="/me/custom-pages/:id"
+              element={
+                <RequireAuth>
+                  <CustomPageManage />
+                </RequireAuth>
+              }
+            />
+            <Route
+              path="/me/custom-pages/:id/edit"
+              element={
+                <RequireAuth>
+                  <CustomPageEditor />
+                </RequireAuth>
+              }
+            />
             {/* Folded into the Activity hub's Saved tab now — kept as a
                 redirect so any stale links still land somewhere valid. */}
             <Route path="/saved-projects" element={<Navigate to="/activity/saved" replace />} />
@@ -1159,7 +1189,7 @@ function AppRoutes() {
                 segment anyway (see is_reserved_project_slug /
                 RESERVED_PROJECT_SLUGS), so this is purely a fallback
                 for the "nothing else matched" case. */}
-            <Route path="/:slug" element={<ProjectBySlug />} />
+            <Route path="/:slug" element={<SlugRoute />} />
 
             {/* Catch-all — must stay last. Previously absent, so any
                 unmatched URL (typo, stale bookmark to something removed

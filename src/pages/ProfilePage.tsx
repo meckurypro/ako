@@ -1,7 +1,7 @@
 // src/pages/ProfilePage.tsx
 import { useState, useRef, useEffect } from "react";
 import { useParams, Link, useNavigate, useLocation } from "react-router-dom";
-import { Wallet, MessageCircle, MoreHorizontal, Plus, Eye, X, UserCheck, UserPlus, Lock, Building2, Undo2, ChevronDown, UserMinus, Bell, BellOff, Briefcase, Clock, Pencil, Share2, Menu, Link2, Ban, Layers, LayoutGrid, RefreshCw, Activity as ActivityIcon, type LucideIcon } from "lucide-react";
+import { Wallet, MessageCircle, MoreHorizontal, Plus, Eye, X, UserCheck, UserPlus, Lock, Building2, Undo2, ChevronDown, UserMinus, Bell, BellOff, Briefcase, Clock, Pencil, Share2, Menu, Link2, Ban, Layers, LayoutGrid, RefreshCw, LayoutTemplate, Activity as ActivityIcon, type LucideIcon } from "lucide-react";
 import { useAuth } from "../hooks/useAuth";
 import { useProjectOwnership } from "../hooks/useProjectOwnership";
 import {
@@ -713,6 +713,15 @@ export function ProfilePage() {
                             onSelect: () => {
                               setOwnerMenuOpen(false);
                               setPagesOpen(true);
+                            },
+                          },
+                          {
+                            key: "custom-pages",
+                            label: "Custom page",
+                            icon: <LayoutTemplate />,
+                            onSelect: () => {
+                              setOwnerMenuOpen(false);
+                              navigate("/me/custom-pages");
                             },
                           },
                           ] satisfies DropdownMenuItem[])),

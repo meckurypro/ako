@@ -1,0 +1,64 @@
+// src/components/customPage/HeroSlides.tsx
+// Crossfading hero slideshow. One image = no timer. Reduced-motion users get a still first image with dots to step through.
+import { useEffect, useState, type ReactNode } from "react";
+import { publicFileUrl, type CustomPageImage } from "../../lib/customPage";
+
+export function HeroSlides({
+  images,
+  className = "",
+  overlay,
+  intervalMs = 5500,
+}: {
+  images: CustomPageImage[];
+  className?: string;
+  /** Content laid over the slides (the Showcase template puts the title here). */
+  overlay?: ReactNode;
+  intervalMs?: number;
+}) {
+  const [index, setIndex] = useState(0);
+  const count = images.length;
+
+  useEffect(() => {
+    if (count < 2 || window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) return;
+    const t = window.setInterval(() => setIndex((i) => (i + 1) % count), intervalMs);
+    return () => window.clearInterval(t);
+  }, [count, intervalMs]);
+
+  useEffect(() => {
+    if (index >= count) setIndex(0);
+  }, [count, index]);
+
+  if (count === 0) return null;
+
+  return (
+    <div className={`relative overflow-hidden ${className}`}>
+      {images.map((img, i) => (
+        <img
+          key={img.path}
+          src={publicFileUrl(img.path) ?? ""}
+          alt={img.caption ?? ""}
+          loading={i === 0 ? "eager" : "lazy"}
+          decoding="async"
+          draggable={false}
+          className="absolute inset-0 w-full h-full object-cover"
+          style={{ opacity: i === index ? 1 : 0, transition: "opacity 900ms ease" }}
+        />
+      ))}
+      {overlay}
+      {count > 1 && (
+        <div className="absolute bottom-3 left-0 right-0 flex justify-center gap-1.5 z-10">
+          {images.map((img, i) => (
+            <button
+              key={img.path}
+              type="button"
+              aria-label={`Show image ${i + 1}`}
+              onClick={() => setIndex(i)}
+              className="h-1.5 rounded-full transition-all"
+              style={{ width: i === index ? 22 : 8, background: i === index ? "#fff" : "rgba(255,255,255,.55)" }}
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
