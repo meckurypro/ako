@@ -6,7 +6,7 @@
 // here instead of at the raw file. Any failure redirects to the small default
 // card so a preview never ends up without an image.
 //
-// Only public post-media / avatars bucket URLs of our own Supabase project are accepted,
+// Only public post-media / avatars / custom-pages bucket URLs of our own Supabase project are accepted,
 // so this can't be used as an open proxy.
 
 import type { IncomingMessage, ServerResponse } from "node:http";
@@ -14,7 +14,7 @@ import sharp from "sharp";
 
 const SUPABASE_URL = process.env.VITE_SUPABASE_URL ?? process.env.SUPABASE_URL;
 const ALLOWED_PREFIXES = SUPABASE_URL
-  ? ["post-media", "avatars"].map((bucket) => `${SUPABASE_URL}/storage/v1/object/public/${bucket}/`)
+  ? ["post-media", "avatars", "custom-pages"].map((bucket) => `${SUPABASE_URL}/storage/v1/object/public/${bucket}/`)
   : [];
 const MAX_SOURCE_BYTES = 50 * 1024 * 1024;
 const TARGET_BYTES = 250 * 1024;

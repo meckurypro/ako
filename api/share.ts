@@ -199,7 +199,7 @@ async function lookupProfile(username: string): Promise<PreviewProfile | null> {
 const PROBE_BYTES = 128 * 1024;
 const PROBE_TIMEOUT_MS = 2500;
 const PROBE_PREFIXES = SUPABASE_URL
-  ? ["post-media", "avatars"].map((bucket) => `${SUPABASE_URL}/storage/v1/object/public/${bucket}/`)
+  ? ["post-media", "avatars", "custom-pages"].map((bucket) => `${SUPABASE_URL}/storage/v1/object/public/${bucket}/`)
   : [];
 
 async function probeImageSize(url: string): Promise<{ width: number; height: number } | null> {
@@ -267,7 +267,13 @@ async function lookupCustomPage(slug: string): Promise<PreviewCustomPage | null>
 
 function cardForCustomPage(page: PreviewCustomPage): Card {
   const id = page.config.identity ?? {};
-  const path = page.config.seo?.share_image_path || page.config.brand?.hero?.[0]?.path || id.icon_path;
+  // The page's own icon/logo is what people expect to see when the link is shared. An explicit share image (set
+  // deliberately in the SEO settings) still wins; a hero image is the next best own image; with none of them the
+  // page falls back to the Akọ default card (renderHtml supplies it when `image` is null).
+  const share = page.config.seo?.share_image_path;
+  const icon = id.icon_path;
+  const hero = page.config.brand?.hero?.[0]?.path;
+  const path = share || icon || hero;
   // Files live in the public custom-pages bucket; build the URL from the path, never trust a stored URL.
   const image = path && !path.includes("..") && SUPABASE_URL ? httpsOnly(`${SUPABASE_URL}/storage/v1/object/public/custom-pages/${path}`) : null;
   return {
@@ -277,7 +283,8 @@ function cardForCustomPage(page: PreviewCustomPage): Card {
     imageWidth: null,
     imageHeight: null,
     canonicalPath: `/${page.slug}`,
-    squareImage: !page.config.seo?.share_image_path && !page.config.brand?.hero?.[0]?.path && !!id.icon_path,
+    // An icon is compact, so it gets the small summary card (unless it turns out to be a wide logo — see the handler).
+    squareImage: !share && !!icon,
   };
 }
 
@@ -467,6 +474,15 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
       const customPage = slug ? await lookupCustomPage(slug) : null;
       if (customPage) {
         card = cardForCustomPage(customPage);
+        if (card.image) {
+          // Declared dimensions keep WhatsApp from dropping the image on first scrape; a wide logo gets the big card.
+          const size = await probeImageSize(card.image);
+          if (size) {
+            card.imageWidth = size.width;
+            card.imageHeight = size.height;
+            if (card.squareImage && size.width / size.height >= 1.3) card.squareImage = false;
+          }
+        }
         cacheControl = "public, s-maxage=120, stale-while-revalidate=600";
       } else {
         const project = await lookupProject(slug, id);
