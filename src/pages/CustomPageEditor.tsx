@@ -10,6 +10,7 @@ import { useToast } from "../components/Toast";
 import { friendlyError } from "../lib/friendlyError";
 import { CustomPageRenderer } from "../components/customPage/CustomPageRenderer";
 import { BrandColorFields } from "../components/customPage/ColorPicker";
+import { DesignPresets } from "../components/customPage/DesignPresets";
 import { FilePicker, Field, ImageList, INPUT, Section, SingleImage } from "../components/customPage/EditorParts";
 import {
   ANIMATIONS,
@@ -380,6 +381,7 @@ export function CustomPageEditor() {
 
           {stage === "design" && (
             <Section title="Design" intro="Pick a style, a layout and how sections appear.">
+              <DesignPresets config={config} onChange={update} />
               <Field label="Style">
                 <div className="grid gap-2.5">
                   {STYLES.map((s) => (
