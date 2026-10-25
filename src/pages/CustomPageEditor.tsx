@@ -9,6 +9,7 @@ import { useCustomPage, usePublishCustomPage, useSaveCustomPageDraft } from "../
 import { useToast } from "../components/Toast";
 import { friendlyError } from "../lib/friendlyError";
 import { CustomPageRenderer } from "../components/customPage/CustomPageRenderer";
+import { BrandColorFields } from "../components/customPage/ColorPicker";
 import { FilePicker, Field, ImageList, INPUT, Section, SingleImage } from "../components/customPage/EditorParts";
 import {
   ANIMATIONS,
@@ -238,18 +239,14 @@ export function CustomPageEditor() {
 
           {stage === "brand" && (
             <Section title="Brand" intro="Your colours and the images across the top of the page.">
-              <div className="grid grid-cols-3 gap-3 mb-6">
-                {(["primary", "secondary", "accent"] as const).map((k) => {
-                  const value = isHex(config.brand?.[k]) ? (config.brand?.[k] as string) : DEFAULT_COLORS[k];
-                  return (
-                    <label key={k} className="flex flex-col items-center gap-2 rounded-xl bg-surface border border-border p-3 cursor-pointer">
-                      <input type="color" value={value} onChange={(e) => set("brand", { [k]: e.target.value })} className="w-12 h-12 rounded-lg border-0 bg-transparent p-0 cursor-pointer" />
-                      <span className="text-xs font-medium text-ink capitalize">{k}</span>
-                      <span className="text-[11px] text-ink-muted uppercase">{value}</span>
-                    </label>
-                  );
-                })}
-              </div>
+              <BrandColorFields
+                colors={{
+                  primary: isHex(config.brand?.primary) ? config.brand!.primary! : DEFAULT_COLORS.primary,
+                  secondary: isHex(config.brand?.secondary) ? config.brand!.secondary! : DEFAULT_COLORS.secondary,
+                  accent: isHex(config.brand?.accent) ? config.brand!.accent! : DEFAULT_COLORS.accent,
+                }}
+                onChange={(k, hex) => set("brand", { [k]: hex })}
+              />
               <ImageList
                 label="Hero images"
                 hint="These slide across the top. The first one is what people see first."

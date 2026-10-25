@@ -895,13 +895,15 @@ grant execute on function public.submit_custom_page_inquiry(uuid, text, text, te
 -- ---- Storage: public bucket, writes confined to <user id>/… --------------------------------------------------
 insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
 values (
-  'custom-pages', 'custom-pages', true, 31457280,
+  'custom-pages', 'custom-pages', true, 104857600,
   array['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'application/pdf', 'application/msword',
         'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'application/vnd.ms-excel',
         'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'application/vnd.ms-powerpoint',
         'application/vnd.openxmlformats-officedocument.presentationml.presentation', 'text/csv', 'text/plain']
 )
 on conflict (id) do nothing;
+-- Files up to 100 MB (was 30 MB). `on conflict do nothing` won't touch an existing bucket, so set it explicitly.
+update storage.buckets set file_size_limit = 104857600 where id = 'custom-pages';
 
 drop policy if exists "Custom page files are publicly readable" on storage.objects;
 create policy "Custom page files are publicly readable" on storage.objects
