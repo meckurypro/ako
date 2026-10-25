@@ -12,6 +12,7 @@ import { CustomPageRenderer } from "../components/customPage/CustomPageRenderer"
 import { BrandColorFields } from "../components/customPage/ColorPicker";
 import { DesignPresets } from "../components/customPage/DesignPresets";
 import { FilePicker, Field, ImageList, INPUT, Section, SingleImage } from "../components/customPage/EditorParts";
+import { BackgroundEditor, ForegroundEditor, MenuEditor } from "../components/customPage/MediaEditors";
 import {
   ANIMATIONS,
   CTA_ACTIONS,
@@ -36,8 +37,10 @@ import {
 const STAGES = [
   { id: "identity", label: "Identity" },
   { id: "brand", label: "Brand" },
+  { id: "media", label: "Pictures" },
   { id: "content", label: "Content" },
   { id: "buttons", label: "Buttons" },
+  { id: "menu", label: "Menu" },
   { id: "contact", label: "Contact" },
   { id: "design", label: "Design" },
 ] as const;
@@ -263,6 +266,42 @@ export function CustomPageEditor() {
                 pageId={pageId}
                 onChange={(hero) => set("brand", { hero })}
               />
+            </Section>
+          )}
+
+          {stage === "media" && (
+            <Section title="Pictures" intro="A background behind your page, and a picture laid over the top of it.">
+              <BackgroundEditor
+                config={config}
+                ownerId={ownerId}
+                pageId={pageId}
+                onChange={(background) =>
+                  update((c) => {
+                    const { background: _gone, ...brand } = c.brand ?? {};
+                    void _gone;
+                    return { ...c, brand: background ? { ...brand, background } : brand };
+                  })
+                }
+              />
+              <div className="my-6 border-t border-border" />
+              <ForegroundEditor
+                config={config}
+                ownerId={ownerId}
+                pageId={pageId}
+                onChange={(foreground) =>
+                  update((c) => {
+                    const { foreground: _gone, ...rest } = c;
+                    void _gone;
+                    return foreground ? { ...rest, foreground } : rest;
+                  })
+                }
+              />
+            </Section>
+          )}
+
+          {stage === "menu" && (
+            <Section title="Menu" intro="Links that glide visitors to a part of your page.">
+              <MenuEditor config={config} onChange={(nav) => update((c) => ({ ...c, nav }))} />
             </Section>
           )}
 

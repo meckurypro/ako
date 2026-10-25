@@ -46,7 +46,36 @@ begin
     ('download file of another owner',      jsonb_build_object('ctas', jsonb_build_array(jsonb_build_object('id','a','label','x','action','download','file_path', other_id || '/p/f.pdf'))), false, 'not valid'),
     ('email button needs contact email',    '{"ctas":[{"id":"a","label":"x","action":"email"}]}',                      true,  'contact email'),
     ('call button needs contact phone',     '{"ctas":[{"id":"a","label":"x","action":"call"}]}',                       true,  'contact phone'),
-    ('oversized config',                    jsonb_build_object('identity', jsonb_build_object('intro', repeat('a', 1500)), 'junk', repeat('x', 61000)), false, 'too much content');
+    ('oversized config',                    jsonb_build_object('identity', jsonb_build_object('intro', repeat('a', 1500)), 'junk', repeat('x', 61000)), false, 'too much content'),
+    -- Background picture
+    ('background ok',                       jsonb_build_object('brand', jsonb_build_object('background', jsonb_build_object('path', own_id || '/p/a.png', 'fit', 'cover', 'look', 'soft'))), true, null),
+    ('background of another owner',         jsonb_build_object('brand', jsonb_build_object('background', jsonb_build_object('path', other_id || '/p/a.png'))), false, 'not valid'),
+    ('background path traversal',           jsonb_build_object('brand', jsonb_build_object('background', jsonb_build_object('path', own_id || '/../a.png'))), false, 'not valid'),
+    ('background junk look',                '{"brand":{"background":{"look":"Bad Look"}}}',                            false, 'Invalid background setting'),
+    ('background not an object',            '{"brand":{"background":"x"}}',                                            false, 'Invalid background'),
+    -- Foreground picture
+    ('foreground ok',                       jsonb_build_object('foreground', jsonb_build_object('path', own_id || '/p/a.png', 'shape', 'star', 'size', 60, 'x', 50, 'y', 40, 'rotation', -15, 'crop', jsonb_build_object('zoom', 1.5, 'x', 40, 'y', 60), 'shadow', jsonb_build_object('enabled', true, 'intensity', 45, 'angle', 60))), true, null),
+    ('foreground of another owner',         jsonb_build_object('foreground', jsonb_build_object('path', other_id || '/p/a.png')), false, 'not valid'),
+    ('foreground shape none ok',            '{"foreground":{"shape":"none"}}',                                         false, null),
+    ('foreground junk shape',               '{"foreground":{"shape":"Star!"}}',                                        false, 'Invalid foreground shape'),
+    ('foreground size out of range',        '{"foreground":{"size":500}}',                                             false, 'out of range'),
+    ('foreground size not a number',        '{"foreground":{"size":"big"}}',                                           false, 'out of range'),
+    ('foreground rotation out of range',    '{"foreground":{"rotation":999}}',                                         false, 'out of range'),
+    ('foreground crop zoom out of range',   '{"foreground":{"crop":{"zoom":50}}}',                                     false, 'crop is out of range'),
+    ('foreground shadow angle out of range','{"foreground":{"shadow":{"angle":400}}}',                                 false, 'shadow is out of range'),
+    ('foreground shadow flag not boolean',  '{"foreground":{"shadow":{"enabled":"yes"}}}',                             false, 'shadow is out of range'),
+    ('foreground not an object',            '{"foreground":[]}',                                                       false, 'Invalid foreground picture'),
+    -- Menu
+    ('menu ok',                             '{"nav":{"enabled":true,"scroll":"spring","position":"top","look":"pill","items":[{"id":"nav-1","label":"About","target":"about"},{"id":"nav-2","label":"Contact","target":"contact"}]}}', true, null),
+    ('seven menu items',                    jsonb_build_object('nav', jsonb_build_object('items', (select jsonb_agg(jsonb_build_object('id', 'n' || i, 'label', 'x', 'target', 'top')) from generate_series(1, 7) i))), false, 'up to 6'),
+    ('duplicate menu item ids',             '{"nav":{"items":[{"id":"a","label":"x","target":"top"},{"id":"a","label":"y","target":"top"}]}}', false, 'share an id'),
+    ('menu label too long',                 jsonb_build_object('nav', jsonb_build_object('items', jsonb_build_array(jsonb_build_object('id', 'a', 'label', repeat('x', 25), 'target', 'top')))), false, '24 characters'),
+    ('empty menu label ok in draft',        '{"nav":{"items":[{"id":"a","label":"","target":"top"}]}}',                false, null),
+    ('empty menu label blocked on publish', '{"nav":{"items":[{"id":"a","label":"","target":"top"}]}}',                true,  'needs a label'),
+    ('menu item without a target',          '{"nav":{"items":[{"id":"a","label":"x"}]}}',                              false, 'section to go to'),
+    ('junk scroll animation',               '{"nav":{"scroll":"Fast!"}}',                                              false, 'Invalid menu setting'),
+    ('menu not an object',                  '{"nav":"x"}',                                                             false, 'Invalid menu'),
+    ('menu ids do not clash with buttons',  '{"nav":{"items":[{"id":"a","label":"x","target":"top"}]},"ctas":[{"id":"a","label":"x","action":"inquiry"}]}', false, null);
 
   declare r record; got text;
   begin
