@@ -19,6 +19,7 @@ import {
   STYLES,
   TEMPLATES,
   SHARE_LOOKS,
+  SHARE_POSITIONS,
   resolveShare,
   ctaProblem,
   draftProblem,
@@ -407,7 +408,7 @@ export function CustomPageEditor() {
                   ))}
                 </div>
               </Field>
-              <Field label="Share button" hint="A small button on your page that lets visitors send it on. The template decides where it sits.">
+              <Field label="Share button" hint="A small button on your page that lets visitors send it on.">
                 <label className="flex items-center justify-between gap-3 rounded-2xl bg-surface border border-border p-4 cursor-pointer">
                   <span className="text-sm font-medium text-ink">Show a share button</span>
                   <input
@@ -423,6 +424,17 @@ export function CustomPageEditor() {
                     {SHARE_LOOKS.map((l) => (
                       <Choice key={l.id} active={resolveShare(config).look === l.id} title={l.label} blurb={l.blurb} onClick={() => set("share", { look: l.id })} />
                     ))}
+                  </div>
+                )}
+                {resolveShare(config).enabled && (
+                  <div className="mt-4">
+                    <p className="text-sm font-medium text-ink">Position</p>
+                    <p className="text-xs text-ink-muted mt-0.5">Your template places it neatly near that spot, clear of your title and logo.</p>
+                    <div className="grid gap-2.5 mt-2.5">
+                      {SHARE_POSITIONS.map((x) => (
+                        <Choice key={x.id} active={resolveShare(config).position === x.id} title={x.label} blurb={x.blurb} onClick={() => set("share", { position: x.id })} />
+                      ))}
+                    </div>
                   </div>
                 )}
               </Field>

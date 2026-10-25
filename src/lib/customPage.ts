@@ -68,7 +68,7 @@ export interface CustomPageConfig {
   design?: { style?: string; template?: string; animation?: string };
   seo?: { share_image_path?: string };
   /** Optional share button on the public page. Off unless the creator turns it on. */
-  share?: { enabled?: boolean; look?: ShareLook };
+  share?: { enabled?: boolean; look?: ShareLook; position?: SharePosition };
 }
 
 export interface CustomPageRow {
@@ -178,9 +178,23 @@ export const SHARE_LOOKS: { id: ShareLook; label: string; blurb: string }[] = [
   { id: "pill", label: "With a label", blurb: "Icon and the word Share." },
 ];
 
-export function resolveShare(config: CustomPageConfig): { enabled: boolean; look: ShareLook } {
+/** Where the creator wants the share button. The template decides the exact spot so it stays findable and clear of content. */
+export type SharePosition = "top-left" | "top-right" | "bottom-left" | "bottom-right" | "center";
+export const SHARE_POSITIONS: { id: SharePosition; label: string; blurb: string }[] = [
+  { id: "top-right", label: "Top right", blurb: "Where most people look first for a share icon." },
+  { id: "top-left", label: "Top left", blurb: "Top corner on the left." },
+  { id: "bottom-right", label: "Bottom right", blurb: "Floats near the thumb and follows visitors as they scroll." },
+  { id: "bottom-left", label: "Bottom left", blurb: "Floats bottom left and follows visitors as they scroll." },
+  { id: "center", label: "Centre", blurb: "Centred horizontally, in the clearest spot your template has." },
+];
+
+export function resolveShare(config: CustomPageConfig): { enabled: boolean; look: ShareLook; position: SharePosition } {
   const sh = config.share ?? {};
-  return { enabled: sh.enabled === true, look: SHARE_LOOKS.some((l) => l.id === sh.look) ? (sh.look as ShareLook) : "auto" };
+  return {
+    enabled: sh.enabled === true,
+    look: SHARE_LOOKS.some((l) => l.id === sh.look) ? (sh.look as ShareLook) : "auto",
+    position: SHARE_POSITIONS.some((x) => x.id === sh.position) ? (sh.position as SharePosition) : "top-right",
+  };
 }
 
 export const ANIMATIONS: { id: AnimationId; label: string }[] = [

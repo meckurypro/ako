@@ -11,7 +11,7 @@
 // design values are just short slugs in the config.
 import { useState, type CSSProperties, type ReactNode } from "react";
 import { Link } from "react-router-dom";
-import { Download, FileText, Loader2, Mail, MapPin, MessageCircle, Phone, ExternalLink, Share2, X } from "lucide-react";
+import { Download, FileText, Loader2, Mail, MapPin, MessageCircle, Phone, ExternalLink, X } from "lucide-react";
 import {
   customPageUrl,
   publicFileUrl,
@@ -1267,29 +1267,46 @@ function Poster({ ctx, slug }: { ctx: Ctx; slug?: string }) {
 }
 
 // ── Share button ────────────────────────────────────────────────────────────────────────────────────────────
-// Optional, creator-controlled (config.share). The template decides where it sits; the creator picks its look, or
-// "auto" lets it inherit the page style's own button shape. Uses the phone's share sheet where there is one and
-// falls back to copying the link.
-const SHARE_PLACEMENT: Record<TemplateId, { top: string; media?: boolean }> = {
-  // Full-bleed hero first: the button floats over the picture.
-  showcase: { top: "14px", media: true },
-  spotlight: { top: "14px", media: true },
-  // Plain top-of-page layouts.
-  stacked: { top: "14px" },
-  brochure: { top: "14px" },
-  linkcard: { top: "14px" },
-  split: { top: "14px" },
-  portfolio: { top: "14px" },
-  bento: { top: "14px" },
+// Optional, creator-controlled (config.share). The creator picks a position and a look; the template decides the exact
+// spot so the button stays where a visitor would look for it and never lands on the title or logo.
+//  · top-left / top-right: a corner at the top of the page, offset per template (the poster sits under its banner).
+//  · bottom-left / bottom-right: floats just above the bottom edge and follows the visitor as they scroll.
+//  · center: horizontally centred, in whichever of top or bottom is clear in that template.
+// Uses the phone's share sheet where there is one and falls back to copying the link.
+
+/** The share glyph (traced from the supplied artwork). Fills with the current text colour. */
+function ShareIcon({ size }: { size: number }) {
+  return (
+    <svg width={size} height={size} viewBox="97 97 360 360" fill="currentColor" aria-hidden="true" focusable="false">
+      <path d="M105.6 449.2C140 373.4 197.2 329.9 271.2 323.4L279 322.8L279.2 365.5C279.5 403.7 279.7 408.4 281.1 409.3C282.6 410.2 305.5 390.8 340.5 358.9C342.7 356.9 364.1 337.8 388 316.5C455.2 256.5 457 254.9 457 253.6C457 252.9 438.2 235.5 415.3 214.9C392.3 194.3 370.8 175 367.5 172C364.1 169 353.3 159.3 343.5 150.4C333.6 141.6 316.1 125.9 304.7 115.6C291.7 104 283.2 97 282.2 97.2C280.6 97.5 280.5 101.1 280.2 139.7L280 181.9L275.7 182.4C273.4 182.7 268.8 183.2 265.5 183.5C246.7 185.4 226.1 191.4 207.5 200.5C148 229.4 110.2 292.3 99.3 380.5C97.5 395.3 96.8 448.7 98.3 454.2C99.6 459 101.9 457.5 105.6 449.2Z" />
+    </svg>
+  );
+}
+
+const SHARE_PLACEMENT: Record<TemplateId, { top: string; media?: boolean; center: "top" | "bottom" }> = {
+  // Full-bleed hero first: the top floats over the picture and the title sits low, so top-centre is clear.
+  showcase: { top: "14px", media: true, center: "top" },
+  spotlight: { top: "14px", media: true, center: "top" },
+  // A centred logo and title start right under the top edge, so a centred button goes to the bottom instead.
+  stacked: { top: "14px", center: "bottom" },
+  brochure: { top: "14px", center: "bottom" },
+  linkcard: { top: "14px", center: "bottom" },
+  // Left-aligned headers leave the top edge clear.
+  split: { top: "14px", center: "top" },
+  portfolio: { top: "14px", center: "top" },
+  bento: { top: "14px", center: "top" },
   // Poster opens with the scrolling banner, so the button sits just beneath it, clear of the headline.
-  poster: { top: "calc(1.5rem + 1.2 * clamp(1.6rem, 6vw, 3.2rem) + 1rem + 18px)" },
+  poster: { top: "calc(1.5rem + 1.2 * clamp(1.6rem, 6vw, 3.2rem) + 1rem + 18px)", center: "top" },
 };
 
 function ShareButton({ ctx, slug }: { ctx: Ctx; slug?: string }) {
-  const { look } = resolveShare(ctx.config);
+  const { look, position } = resolveShare(ctx.config);
   const template = resolveDesign(ctx.config).template;
   const place = SHARE_PLACEMENT[template];
-  const onMedia = !!place.media && (ctx.config.brand?.hero?.length ?? 0) > 0;
+  const edge: "top" | "bottom" = position === "center" ? place.center : position.startsWith("bottom") ? "bottom" : "top";
+  const side: "left" | "right" | "center" = position === "center" ? "center" : position.endsWith("left") ? "left" : "right";
+  const floating = edge === "bottom";
+  const onMedia = !floating && !!place.media && (ctx.config.brand?.hero?.length ?? 0) > 0;
   const [copied, setCopied] = useState(false);
   const name = ctx.config.identity?.name?.trim() || "this page";
 
@@ -1320,10 +1337,11 @@ function ShareButton({ ctx, slug }: { ctx: Ctx; slug?: string }) {
   let style: CSSProperties;
   let label: string | null = null;
   if (look === "minimal") {
-    style = { width: size, height: size, borderRadius: 999, color: onMedia ? "#fff" : text, background: "transparent", filter: onMedia ? "drop-shadow(0 1px 3px rgba(0,0,0,.55))" : undefined };
+    style = { width: size, height: size, borderRadius: 999, color: onMedia ? "#fff" : text, background: "transparent", filter: onMedia ? "drop-shadow(0 1px 3px rgba(0,0,0,.55))" : floating ? "drop-shadow(0 1px 4px rgba(0,0,0,.35))" : undefined };
   } else if (look === "round") {
-    style = onMedia
-      ? { width: size, height: size, borderRadius: 999, color: "#fff", background: "rgba(0,0,0,.38)", backdropFilter: "blur(8px)", WebkitBackdropFilter: "blur(8px)" }
+    // Floating over unknown content needs a surface that reads on anything, so it gets the dark glass chip too.
+    style = onMedia || floating
+      ? { width: size, height: size, borderRadius: 999, color: "#fff", background: "rgba(0,0,0,.5)", backdropFilter: "blur(8px)", WebkitBackdropFilter: "blur(8px)", boxShadow: floating ? "0 6px 18px rgba(0,0,0,.25)" : undefined }
       : { width: size, height: size, borderRadius: 999, color: text, background: withAlpha(text, 0.1) };
   } else if (look === "pill") {
     label = "Share";
@@ -1333,8 +1351,12 @@ function ShareButton({ ctx, slug }: { ctx: Ctx; slug?: string }) {
     style = { ...ctx.t.secondaryBtn, width: size, height: size, padding: 0, borderRadius: btnRadius(ctx.t) };
   }
 
-  return (
-    <div className="absolute z-10" style={{ top: `calc(env(safe-area-inset-top, 0px) + ${place.top})`, right: 14 }}>
+  const horizontal: CSSProperties = side === "left" ? { left: 14 } : side === "right" ? { right: 14 } : { left: "50%", transform: "translateX(-50%)" };
+  const toastPos = floating ? "bottom-full mb-2" : "top-full mt-2";
+  const toastSide = side === "left" ? "left-0" : side === "right" ? "right-0" : "left-1/2 -translate-x-1/2";
+
+  const button = (
+    <>
       <button
         type="button"
         onClick={() => void run()}
@@ -1342,14 +1364,30 @@ function ShareButton({ ctx, slug }: { ctx: Ctx; slug?: string }) {
         className={`cp-btn ${look === "auto" || look === "pill" ? `cp-${ctx.t.fx}` : ""} inline-flex items-center justify-center`}
         style={style}
       >
-        <Share2 size={look === "minimal" ? 22 : 18} />
+        <ShareIcon size={look === "minimal" ? 22 : 18} />
         {label}
       </button>
       {copied && (
-        <span role="status" className="absolute right-0 top-full mt-2 whitespace-nowrap rounded-full bg-black/80 text-white text-xs px-3 py-1.5">
+        <span role="status" className={`absolute ${toastSide} ${toastPos} whitespace-nowrap rounded-full bg-black/80 text-white text-xs px-3 py-1.5`}>
           Link copied
         </span>
       )}
+    </>
+  );
+
+  if (!floating) {
+    return (
+      <div className="absolute z-10" style={{ top: `calc(env(safe-area-inset-top, 0px) + ${place.top})`, ...horizontal }}>
+        {button}
+      </div>
+    );
+  }
+  // Zero-height sticky rail at the end of the page: the button rides the bottom edge of whatever is scrolling.
+  return (
+    <div className="sticky z-10 pointer-events-none" style={{ bottom: 0, height: 0 }}>
+      <div className="absolute pointer-events-auto" style={{ bottom: "calc(env(safe-area-inset-bottom, 0px) + 18px)", ...horizontal }}>
+        {button}
+      </div>
     </div>
   );
 }
@@ -1374,7 +1412,7 @@ export function CustomPageRenderer({ config, preview = false, actions = {}, slug
   const Layout = LAYOUTS[template];
   return (
     <div
-      className={`cp-root relative min-h-full w-full overflow-x-hidden ${t.drift ? "cp-drift" : ""} ${t.grain ? "cp-grain" : ""}`}
+      className={`cp-root relative min-h-full w-full overflow-x-hidden overflow-x-clip ${t.drift ? "cp-drift" : ""} ${t.grain ? "cp-grain" : ""}`}
       style={{ ...t.pageStyle, ["--cp-glow" as string]: t.glow ?? "rgba(0,0,0,.25)", ["--cp-ink" as string]: t.ink ?? "#14120F" }}
     >
       <style>{CP_CSS}</style>
