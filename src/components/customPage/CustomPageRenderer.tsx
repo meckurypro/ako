@@ -4,8 +4,8 @@
 // (pages/CustomPageView.tsx) and the editor's live preview both use it, so what a person previews is what visitors get.
 //
 // Three decisions are kept apart on purpose:
-//   • style     — the visual language (minimalist / glass / elegant / midnight / aurora / bold / soft / neo): surfaces, type, corners, micro-interactions.
-//   • template  — the arrangement of sections (showcase / stacked / brochure / spotlight / linkcard / split / portfolio).
+//   • style     — the visual language (minimalist / glass / elegant / midnight / aurora / bold / soft / neo / clay / chrome / mono / organic): surfaces, type, corners, micro-interactions.
+//   • template  — the arrangement of sections (showcase / stacked / brochure / spotlight / linkcard / split / portfolio / bento / poster).
 //   • animation — how sections arrive (a preset, applied uniformly; never per element).
 // Add a style by extending styleTokens(); add a template by adding an entry to LAYOUTS. Neither touches the database —
 // design values are just short slugs in the config.
@@ -65,7 +65,12 @@ interface Tokens {
   /** Button corner radius override (px). */
   btnRadius?: number;
   /** Micro-interaction family for buttons. */
-  fx: "lift" | "shine" | "glow" | "hard";
+  fx: "lift" | "shine" | "glow" | "hard" | "squish";
+  /** Card corner radius override (px or a CSS blob radius). */
+  cardRadius?: number | string;
+  /** Gradient painted into big headings (Chrome). */
+  headingGradient?: string;
+  grain?: boolean;
   /** Fraction of the logo size used as its corner radius (0.5 = circle). */
   logoRound?: number;
   float?: boolean;
@@ -92,6 +97,13 @@ const CP_CSS = `
 .cp-root .cp-shine:hover::after{animation-duration:1.1s}
 .cp-root .cp-float{animation:cp-float 5.5s ease-in-out infinite}
 .cp-root.cp-drift{animation:cp-drift 22s ease-in-out infinite alternate}
+.cp-root .cp-squish{transition:transform .35s cubic-bezier(.34,1.56,.64,1),box-shadow .25s ease}
+@media (hover:hover){.cp-root .cp-squish:hover{transform:scale(1.04)}}
+.cp-root .cp-squish:active{transform:scale(.93)}
+.cp-root.cp-grain{position:relative}
+.cp-root.cp-grain::after{content:"";position:absolute;inset:0;pointer-events:none;opacity:.1;mix-blend-mode:multiply;z-index:5;background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.8' numOctaves='2' stitchTiles='stitch'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>")}
+.cp-root .cp-marquee{display:flex;width:max-content;animation:cp-marquee 24s linear infinite}
+@keyframes cp-marquee{to{transform:translateX(-50%)}}
 @keyframes cp-shine{0%,55%{left:-60%}100%{left:140%}}
 @keyframes cp-float{0%,100%{transform:translateY(0)}50%{transform:translateY(-6px)}}
 @keyframes cp-drift{0%{background-position:0% 0%}100%{background-position:100% 100%}}
@@ -131,6 +143,120 @@ function styleTokens(style: StyleId, p: Palette): Tokens {
       },
       rule: `rgba(${tint},0.28)`,
       fx: "shine",
+    };
+  }
+  if (style === "clay") {
+    const darkBg = p.onSecondary === "#FFFFFF";
+    const puff = darkBg
+      ? "inset 0 6px 12px rgba(255,255,255,0.1), inset 0 -8px 14px rgba(0,0,0,0.3), 0 20px 36px -16px rgba(0,0,0,0.6)"
+      : "inset 0 6px 12px rgba(255,255,255,0.95), inset 0 -8px 14px rgba(0,0,0,0.07), 0 20px 36px -16px rgba(20,20,40,0.25)";
+    return {
+      pageStyle: { background: `radial-gradient(70% 35% at 15% 0%, ${withAlpha(p.accent, 0.22)}, transparent 70%), radial-gradient(60% 30% at 100% 40%, ${withAlpha(p.primary, 0.14)}, transparent 70%), ${p.secondary}`, color: p.onSecondary, fontFamily: sans },
+      text: p.onSecondary,
+      muted: withAlpha(p.onSecondary === "#FFFFFF" ? "#FFFFFF" : "#000000", 0.66),
+      heading: sans,
+      headingWeight: 800,
+      headingTracking: "-0.03em",
+      card: { background: darkBg ? "rgba(255,255,255,0.08)" : "rgba(255,255,255,0.78)", boxShadow: puff },
+      radius: 36,
+      primaryBtn: {
+        background: `linear-gradient(180deg, rgba(255,255,255,0.3), rgba(255,255,255,0) 55%), ${p.primary}`,
+        color: p.onPrimary,
+        border: "none",
+        boxShadow: `inset 0 3px 6px rgba(255,255,255,0.45), inset 0 -5px 10px rgba(0,0,0,0.18), 0 14px 26px -10px ${withAlpha(p.primary, 0.75)}`,
+      },
+      secondaryBtn: { background: darkBg ? "rgba(255,255,255,0.12)" : "#FFFFFF", color: p.onSecondary, border: "none", boxShadow: darkBg ? "inset 0 3px 6px rgba(255,255,255,0.12), 0 10px 20px -10px rgba(0,0,0,0.6)" : "inset 0 3px 6px rgba(255,255,255,1), inset 0 -4px 8px rgba(0,0,0,0.06), 0 10px 22px -10px rgba(20,20,40,0.3)" },
+      rule: withAlpha(p.onSecondary === "#FFFFFF" ? "#FFFFFF" : "#000000", 0.12),
+      btnRadius: 999,
+      fx: "squish",
+      logoRound: 0.38,
+      float: true,
+    };
+  }
+  if (style === "chrome") {
+    const ink = "#1A1D29";
+    return {
+      pageStyle: {
+        background: `radial-gradient(60% 38% at 18% 0%, ${withAlpha(p.accent, 0.5)}, transparent 72%), radial-gradient(50% 36% at 92% 18%, rgba(90,200,255,0.5), transparent 72%), radial-gradient(60% 45% at 50% 100%, rgba(255,150,225,0.42), transparent 72%), linear-gradient(180deg, #EEF1F8, #D7DDEA)`,
+        color: ink,
+        fontFamily: sans,
+      },
+      text: ink,
+      muted: "rgba(26,29,41,0.66)",
+      heading: sans,
+      headingWeight: 800,
+      headingTracking: "-0.035em",
+      headingGradient: "linear-gradient(180deg, #2B3050 0%, #8A93B3 48%, #1A1D29 100%)",
+      card: {
+        background: "linear-gradient(180deg, rgba(255,255,255,0.88), rgba(255,255,255,0.4))",
+        border: "1px solid rgba(255,255,255,0.95)",
+        backdropFilter: "blur(14px)",
+        WebkitBackdropFilter: "blur(14px)",
+        boxShadow: "inset 0 1px 0 #fff, 0 22px 44px -22px rgba(40,50,90,0.4)",
+      },
+      radius: 22,
+      primaryBtn: {
+        background: "linear-gradient(180deg, #FDFEFF 0%, #CBD1E0 47%, #AFB7CB 53%, #E8ECF5 100%)",
+        color: ink,
+        border: "1px solid #8F98B0",
+        textShadow: "0 1px 0 rgba(255,255,255,0.8)",
+        boxShadow: "inset 0 1px 0 #fff, 0 8px 16px -8px rgba(30,40,80,0.55)",
+      },
+      secondaryBtn: { background: "rgba(255,255,255,0.45)", color: ink, border: "1px solid rgba(255,255,255,0.9)", backdropFilter: "blur(10px)", WebkitBackdropFilter: "blur(10px)", boxShadow: "inset 0 1px 0 rgba(255,255,255,0.9)" },
+      rule: "rgba(26,29,41,0.18)",
+      btnRadius: 999,
+      fx: "shine",
+      logoRound: 0.3,
+      float: true,
+    };
+  }
+  if (style === "mono") {
+    const dark = p.onSecondary === "#FFFFFF";
+    const paper = dark ? "#0A0A0A" : "#F6F6F3";
+    const ink = dark ? "#F6F6F3" : "#0A0A0A";
+    return {
+      pageStyle: { background: paper, color: ink, fontFamily: sans },
+      text: ink,
+      muted: withAlpha(ink, 0.6),
+      heading: sans,
+      headingWeight: 600,
+      headingTracking: "-0.045em",
+      card: { background: "transparent", borderTop: `1px solid ${ink}` },
+      radius: 0,
+      primaryBtn: { background: ink, color: paper, border: `1px solid ${ink}`, letterSpacing: "0.12em", textTransform: "uppercase", fontSize: 12 },
+      secondaryBtn: { background: "transparent", color: ink, border: `1px solid ${ink}`, letterSpacing: "0.12em", textTransform: "uppercase", fontSize: 12 },
+      rule: withAlpha(ink, 0.25),
+      btnRadius: 0,
+      fx: "lift",
+      logoRound: 0,
+      cardRadius: 0,
+      ink,
+    };
+  }
+  if (style === "organic") {
+    const darkBg = p.onSecondary === "#FFFFFF";
+    return {
+      pageStyle: {
+        background: `radial-gradient(45% 28% at 92% 6%, ${withAlpha(p.accent, 0.26)}, transparent 72%), radial-gradient(50% 32% at 0% 58%, ${withAlpha(p.primary, 0.16)}, transparent 72%), ${p.secondary}`,
+        color: p.onSecondary,
+        fontFamily: '"Newsreader", Georgia, serif',
+      },
+      text: p.onSecondary,
+      muted: withAlpha(darkBg ? "#FFFFFF" : "#000000", 0.64),
+      heading: serif,
+      headingWeight: 700,
+      headingTracking: "-0.02em",
+      card: { background: withAlpha(p.primary, darkBg ? 0.22 : 0.07), border: `1px solid ${withAlpha(darkBg ? "#FFFFFF" : "#000000", 0.1)}` },
+      radius: 36,
+      cardRadius: "46px 66px 40px 70px / 54px 42px 62px 46px",
+      primaryBtn: { background: p.primary, color: p.onPrimary, border: `1px solid ${p.primary}` },
+      secondaryBtn: { background: "transparent", color: p.onSecondary, border: `1px solid ${withAlpha(darkBg ? "#FFFFFF" : "#000000", 0.28)}` },
+      rule: withAlpha(darkBg ? "#FFFFFF" : "#000000", 0.16),
+      btnRadius: 999,
+      fx: "lift",
+      logoRound: 0.42,
+      float: true,
+      grain: true,
     };
   }
   if (style === "midnight") {
@@ -302,12 +428,14 @@ interface Ctx {
 }
 
 const btnRadius = (t: Tokens) => t.btnRadius ?? (t.radius > 20 ? 999 : Math.min(t.radius, 12));
-const hStyle = (ctx: { t: Tokens }): CSSProperties => ({
+const hStyle = (ctx: { t: Tokens }, plain?: boolean): CSSProperties => ({
   fontFamily: ctx.t.heading,
   fontWeight: ctx.t.headingWeight ?? 700,
   letterSpacing: ctx.t.headingTracking,
   textTransform: ctx.t.headingCase,
+  ...(ctx.t.headingGradient && !plain ? { backgroundImage: ctx.t.headingGradient, WebkitBackgroundClip: "text", backgroundClip: "text", color: "transparent", WebkitTextFillColor: "transparent" } : null),
 });
+const cardStyle = (ctx: { t: Tokens }): CSSProperties => ({ ...ctx.t.card, borderRadius: ctx.t.cardRadius ?? ctx.t.radius });
 
 function ctaHref(cta: CustomPageCta, config: CustomPageConfig): string | null {
   switch (cta.action) {
@@ -399,7 +527,7 @@ function Heading({ ctx, children, small }: { ctx: Ctx; children: ReactNode; smal
   return (
     <h2
       className={`${small ? "text-xl" : "text-3xl sm:text-4xl"} font-bold leading-tight tracking-tight`}
-      style={{ ...hStyle(ctx), color: ctx.t.text }}
+      style={{ ...hStyle(ctx, true), color: ctx.t.text }}
     >
       {children}
     </h2>
@@ -443,7 +571,7 @@ function DocumentCard({ ctx }: { ctx: Ctx }) {
   const dl = publicFileUrl(doc.path, { download: doc.file_name || `${doc.title || "document"}.pdf` });
   const block = (e: React.MouseEvent) => ctx.preview && e.preventDefault();
   return (
-    <div className="cp-card p-6 sm:p-8 text-center" style={{ ...ctx.t.card, borderRadius: ctx.t.radius }}>
+    <div className="cp-card p-6 sm:p-8 text-center" style={cardStyle(ctx)}>
       <FileText size={34} className="mx-auto mb-3" style={{ color: ctx.t.text, opacity: 0.85 }} />
       <h3 className="text-xl font-semibold mb-1" style={hStyle(ctx)}>
         {doc.title || "Read the document"}
@@ -551,7 +679,7 @@ function Contact({ ctx }: { ctx: Ctx }) {
     );
   };
   return (
-    <div className="cp-card p-6 sm:p-8" style={{ ...ctx.t.card, borderRadius: ctx.t.radius }}>
+    <div className="cp-card p-6 sm:p-8" style={cardStyle(ctx)}>
       <Heading ctx={ctx} small>
         Get in touch
       </Heading>
@@ -612,7 +740,7 @@ function Showcase({ ctx, slug }: { ctx: Ctx; slug?: string }) {
   const titleBlock = (
     <div className="absolute inset-0 flex flex-col items-center justify-end text-center text-white px-6 pb-12" style={{ background: "linear-gradient(to top, rgba(0,0,0,.62), rgba(0,0,0,.08) 62%)" }}>
       <Logo ctx={ctx} size={56} />
-      <h1 className="mt-3 text-3xl sm:text-5xl font-bold leading-tight drop-shadow" style={hStyle(ctx)}>
+      <h1 className="mt-3 text-3xl sm:text-5xl font-bold leading-tight drop-shadow" style={hStyle(ctx, true)}>
         {id.name}
       </h1>
       {id.tagline && <p className="mt-2 text-base sm:text-lg text-white/90 max-w-xl">{id.tagline}</p>}
@@ -768,7 +896,7 @@ function Spotlight({ ctx, slug }: { ctx: Ctx; slug?: string }) {
   const content = (
     <div className="max-w-5xl w-full mx-auto">
       <Logo ctx={ctx} size={52} />
-      <h1 className="mt-4 leading-[0.92] drop-shadow-lg break-words" style={{ ...hStyle(ctx), fontSize: "clamp(2.75rem, 13vw, 7.5rem)" }}>
+      <h1 className="mt-4 leading-[0.92] drop-shadow-lg break-words" style={{ ...hStyle(ctx, hero.length > 0), fontSize: "clamp(2.75rem, 13vw, 7.5rem)" }}>
         {id.name}
       </h1>
       {id.tagline && <p className="mt-4 text-lg sm:text-2xl max-w-2xl opacity-90">{id.tagline}</p>}
@@ -973,6 +1101,141 @@ function Portfolio({ ctx, slug }: { ctx: Ctx; slug?: string }) {
   );
 }
 
+function Bento({ ctx, slug }: { ctx: Ctx; slug?: string }) {
+  const id = ctx.config.identity ?? {};
+  const hero = ctx.config.brand?.hero ?? [];
+  const hasHero = hero.length > 0;
+  const icon = publicFileUrl(id.icon_path);
+  const tile = (extra: CSSProperties = {}): CSSProperties => ({ ...cardStyle(ctx), overflow: "hidden", ...extra });
+  return (
+    <>
+      <div className="px-4 pt-8 sm:pt-14 w-full max-w-5xl mx-auto flex flex-col gap-3">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 auto-rows-[150px] sm:auto-rows-[190px]">
+          <Reveal animation={ctx.animation} index={0} className="col-span-2 row-span-2 sm:col-span-3">
+            <div className="cp-card relative h-full w-full flex flex-col justify-end p-6 sm:p-8" style={tile(hasHero ? { color: "#fff" } : { background: ctx.p.accent, color: ctx.p.onAccent, border: "none" })}>
+              {hasHero && (
+                <>
+                  <HeroSlides images={hero} className="absolute inset-0" />
+                  <div className="absolute inset-0 pointer-events-none" style={{ background: "linear-gradient(to top, rgba(0,0,0,.72), rgba(0,0,0,.05) 62%)" }} />
+                </>
+              )}
+              <h1 className="relative leading-[0.98] break-words" style={{ ...hStyle(ctx, true), color: "inherit", fontSize: "clamp(2rem, 7vw, 4rem)" }}>
+                {id.name}
+              </h1>
+            </div>
+          </Reveal>
+          <Reveal animation={ctx.animation} index={1} className="col-span-1">
+            <div className="cp-card h-full w-full flex items-center justify-center" style={tile()}>
+              {icon ? <Logo ctx={ctx} size={84} /> : <span className="text-4xl font-bold" style={hStyle(ctx, true)}>{(id.name ?? "•").slice(0, 1)}</span>}
+            </div>
+          </Reveal>
+          <Reveal animation={ctx.animation} index={2} className="col-span-1">
+            <div className="cp-card h-full w-full flex items-end p-4" style={tile({ background: ctx.p.primary, color: ctx.p.onPrimary, border: "none" })}>
+              <p className="text-[15px] sm:text-base font-semibold leading-snug">{id.tagline || "Welcome"}</p>
+            </div>
+          </Reveal>
+        </div>
+        <Reveal animation={ctx.animation} index={3}>
+          <div className="cp-card p-6 sm:p-8" style={tile({ overflow: "visible" })}>
+            <Intro ctx={ctx} left />
+            <div className="mt-6">
+              <CtaGroup ctx={ctx} left />
+            </div>
+          </div>
+        </Reveal>
+        {(ctx.config.gallery?.length ?? 0) > 0 && (
+          <Reveal animation={ctx.animation} index={4}>
+            <Gallery ctx={ctx} variant="bento" />
+          </Reveal>
+        )}
+        <div className={`grid gap-3 ${ctx.config.document?.path ? "sm:grid-cols-2" : ""}`}>
+          {ctx.config.document?.path && (
+            <Reveal animation={ctx.animation} index={5}>
+              <DocumentCard ctx={ctx} />
+            </Reveal>
+          )}
+          <Reveal animation={ctx.animation} index={6}>
+            <Contact ctx={ctx} />
+          </Reveal>
+        </div>
+      </div>
+      <Footer ctx={ctx} slug={slug} />
+    </>
+  );
+}
+
+function Poster({ ctx, slug }: { ctx: Ctx; slug?: string }) {
+  const id = ctx.config.identity ?? {};
+  const hero = ctx.config.brand?.hero ?? [];
+  const word = id.name || "";
+  const line = [word, id.tagline || word];
+  const strip = (
+    <div className="flex items-center shrink-0">
+      {[0, 1, 2, 3].map((n) => (
+        <span key={n} className="flex items-center whitespace-nowrap" style={{ ...hStyle(ctx, true), fontSize: "clamp(1.6rem, 6vw, 3.2rem)", padding: "0.5rem 0" }}>
+          {line.map((t, i) => (
+            <span key={i} className="px-5">
+              {t} <span className="px-3 opacity-70">✦</span>
+            </span>
+          ))}
+        </span>
+      ))}
+    </div>
+  );
+  return (
+    <>
+      <div className="mt-6 overflow-hidden -rotate-1 scale-[1.04]" style={{ background: ctx.p.accent, color: ctx.p.onAccent }}>
+        <div className="cp-marquee">
+          {strip}
+          {strip}
+        </div>
+      </div>
+      <div className="flex flex-col gap-8 pt-12 sm:pt-16">
+        <Section ctx={ctx} i={0} wide>
+          <div className="flex flex-col gap-4 items-start text-left">
+            <Logo ctx={ctx} size={52} />
+            <h1 className="leading-[0.84] break-words w-full" style={{ ...hStyle(ctx), fontSize: "clamp(3.4rem, 19vw, 11rem)" }}>
+              {word}
+            </h1>
+            {id.tagline && (
+              <p className="text-xl sm:text-2xl max-w-xl font-medium" style={{ color: ctx.t.muted }}>
+                {id.tagline}
+              </p>
+            )}
+          </div>
+        </Section>
+        {hero.length > 0 && (
+          <Section ctx={ctx} i={1} wide>
+            <div className="overflow-hidden -rotate-2 sm:mx-10 shadow-2xl" style={{ borderRadius: Math.min(ctx.t.radius + 4, 28) }}>
+              <HeroSlides images={hero} className="w-full aspect-[4/3]" />
+            </div>
+          </Section>
+        )}
+        <Section ctx={ctx} i={2} wide>
+          <div className="flex flex-col gap-6 items-start">
+            <Intro ctx={ctx} left />
+            <CtaGroup ctx={ctx} left />
+          </div>
+        </Section>
+        {ctx.config.document?.path && (
+          <Section ctx={ctx} i={3}>
+            <DocumentCard ctx={ctx} />
+          </Section>
+        )}
+        {(ctx.config.gallery?.length ?? 0) > 0 && (
+          <Section ctx={ctx} i={4} wide>
+            <Gallery ctx={ctx} variant="bento" />
+          </Section>
+        )}
+        <Section ctx={ctx} i={5}>
+          <Contact ctx={ctx} />
+        </Section>
+      </div>
+      <Footer ctx={ctx} slug={slug} />
+    </>
+  );
+}
+
 const LAYOUTS: Record<TemplateId, (props: { ctx: Ctx; slug?: string }) => ReactNode> = {
   showcase: Showcase,
   stacked: Stacked,
@@ -981,6 +1244,8 @@ const LAYOUTS: Record<TemplateId, (props: { ctx: Ctx; slug?: string }) => ReactN
   linkcard: Linkcard,
   split: Split,
   portfolio: Portfolio,
+  bento: Bento,
+  poster: Poster,
 };
 
 export function CustomPageRenderer({ config, preview = false, actions = {}, slug }: Props) {
@@ -991,7 +1256,7 @@ export function CustomPageRenderer({ config, preview = false, actions = {}, slug
   const Layout = LAYOUTS[template];
   return (
     <div
-      className={`cp-root min-h-full w-full overflow-x-hidden ${t.drift ? "cp-drift" : ""}`}
+      className={`cp-root min-h-full w-full overflow-x-hidden ${t.drift ? "cp-drift" : ""} ${t.grain ? "cp-grain" : ""}`}
       style={{ ...t.pageStyle, ["--cp-glow" as string]: t.glow ?? "rgba(0,0,0,.25)", ["--cp-ink" as string]: t.ink ?? "#14120F" }}
     >
       <style>{CP_CSS}</style>

@@ -16,11 +16,13 @@ const HIDDEN: Record<Exclude<AnimationId, "none" | "stagger">, CSSProperties> = 
   pop: { opacity: 0, transform: "scale(0.86) translateY(14px)" },
   "slide-left": { opacity: 0, transform: "translateX(-36px)" },
   tilt: { opacity: 0, transform: "perspective(900px) rotateX(10deg) translateY(26px)" },
+  bounce: { opacity: 0, transform: "translateY(-36px) scale(0.96)" },
 };
 
 const EASE: Partial<Record<AnimationId, string>> = {
   pop: "cubic-bezier(.34,1.56,.64,1)",
   tilt: "cubic-bezier(.2,.8,.2,1)",
+  bounce: "cubic-bezier(.34,1.8,.64,1)",
 };
 
 export function Reveal({
@@ -67,7 +69,7 @@ export function Reveal({
         opacity: 1,
         transform: "none",
         filter: "none",
-        transition: `opacity 700ms ease ${animation === "stagger" ? index * 90 : 0}ms, transform ${animation === "pop" ? 650 : 750}ms ${EASE[animation] ?? "cubic-bezier(.2,.7,.2,1)"} ${animation === "stagger" ? index * 90 : 0}ms, filter 800ms ease`,
+        transition: `opacity 700ms ease ${animation === "stagger" ? index * 90 : 0}ms, transform ${animation === "pop" ? 650 : animation === "bounce" ? 800 : 750}ms ${EASE[animation] ?? "cubic-bezier(.2,.7,.2,1)"} ${animation === "stagger" ? index * 90 : 0}ms, filter 800ms ease`,
       }
     : hidden;
 
