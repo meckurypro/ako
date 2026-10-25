@@ -10,7 +10,7 @@ import { useToast } from "../Toast";
 export const INPUT =
   "w-full rounded-xl bg-surface border border-border text-ink placeholder:text-ink-muted/50 px-4 py-3 text-[15px] focus:outline-none focus:ring-2 focus:ring-accent/40";
 
-export interface SelectOption {
+export interface ChoiceOption {
   id: string;
   label: string;
   blurb?: string;
@@ -21,7 +21,7 @@ export interface SelectOption {
  * its one-line description; the open list scrolls, shows every option's description and supports the keyboard
  * (arrows, Home/End, Enter, Escape).
  */
-export function SelectField({ label, value, options, onChange }: { label: string; value: string; options: SelectOption[]; onChange: (id: string) => void }) {
+export function ChoiceSelect({ label, value, options, onChange }: { label: string; value: string; options: ChoiceOption[]; onChange: (id: string) => void }) {
   const [open, setOpen] = useState(false);
   const [cursor, setCursor] = useState(0);
   const root = useRef<HTMLDivElement>(null);

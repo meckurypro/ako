@@ -11,7 +11,7 @@ import { friendlyError } from "../lib/friendlyError";
 import { CustomPageRenderer } from "../components/customPage/CustomPageRenderer";
 import { BrandColorFields } from "../components/customPage/ColorPicker";
 import { DesignPresets } from "../components/customPage/DesignPresets";
-import { FilePicker, Field, ImageList, INPUT, Section, SelectField, SingleImage } from "../components/customPage/EditorParts";
+import { FilePicker, Field, ImageList, INPUT, Section, ChoiceSelect, SingleImage } from "../components/customPage/EditorParts";
 import { BackgroundEditor, ForegroundEditor, MenuEditor } from "../components/customPage/MediaEditors";
 import {
   ANIMATIONS,
@@ -422,10 +422,10 @@ export function CustomPageEditor() {
             <Section title="Design" intro="Pick a style, a layout and how sections appear.">
               <DesignPresets config={config} onChange={update} />
               <Field label="Style">
-                <SelectField label="Style" value={design.style} options={STYLES} onChange={(id) => set("design", { style: id })} />
+                <ChoiceSelect label="Style" value={design.style} options={STYLES} onChange={(id) => set("design", { style: id })} />
               </Field>
               <Field label="Template">
-                <SelectField label="Template" value={design.template} options={TEMPLATES} onChange={(id) => set("design", { template: id })} />
+                <ChoiceSelect label="Template" value={design.template} options={TEMPLATES} onChange={(id) => set("design", { template: id })} />
               </Field>
               <Field label="Animation" hint="Applied to sections as they scroll into view. Turned off automatically for people who prefer reduced motion.">
                 <div className="flex flex-wrap gap-2">
