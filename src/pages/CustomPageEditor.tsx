@@ -405,6 +405,14 @@ export function CustomPageEditor() {
                   ))}
                 </div>
               </Field>
+              <SingleImage
+                label="Link preview image"
+                hint="Shown when the link is shared on WhatsApp and other apps. Leave empty to use your first top image."
+                path={config.seo?.share_image_path}
+                ownerId={ownerId}
+                pageId={pageId}
+                onChange={(p) => set("seo", { share_image_path: p })}
+              />
             </Section>
           )}
         </main>
