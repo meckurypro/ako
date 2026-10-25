@@ -3,7 +3,8 @@
 // number. Everything stays in sync and the parent gets a valid #RRGGBB on every change, so the live preview updates
 // while the person drags.
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Check, ChevronDown } from "lucide-react";
+import { Check, ChevronDown, ImagePlus, Undo2 } from "lucide-react";
+import { paletteErrorMessage, paletteFromImage } from "../../lib/imagePalette";
 
 type Hsv = { h: number; s: number; v: number }; // h 0–360, s/v 0–1
 
@@ -267,9 +268,65 @@ export function BrandColorFields({
   onChange: (key: "primary" | "secondary" | "accent", hex: string) => void;
 }) {
   const [open, setOpen] = useState<"primary" | "secondary" | "accent" | null>("primary");
+  const [busy, setBusy] = useState(false);
+  const [note, setNote] = useState<{ text: string; error?: boolean } | null>(null);
+  const [before, setBefore] = useState<typeof colors | null>(null);
+  const fileInput = useRef<HTMLInputElement>(null);
   const keys = ["primary", "secondary", "accent"] as const;
+
+  const fromImage = async (file: File) => {
+    setBusy(true);
+    setNote(null);
+    try {
+      const found = await paletteFromImage(file);
+      setBefore(colors);
+      keys.forEach((k) => onChange(k, found[k]));
+      setNote({ text: "Colours picked from your image. Tap any swatch to fine-tune." });
+    } catch (err) {
+      setNote({ text: paletteErrorMessage(err), error: true });
+    } finally {
+      setBusy(false);
+    }
+  };
+  const undo = () => {
+    if (!before) return;
+    keys.forEach((k) => onChange(k, before[k]));
+    setBefore(null);
+    setNote(null);
+  };
   return (
     <div className="mb-6">
+      <div className="mb-3 rounded-xl bg-surface border border-border p-3">
+        <div className="flex items-center gap-2 flex-wrap">
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() => fileInput.current?.click()}
+            className="inline-flex items-center gap-2 rounded-full bg-accent-soft text-accent text-sm font-medium px-4 py-2 disabled:opacity-50"
+          >
+            <ImagePlus size={15} /> {busy ? "Reading image…" : "Pick colours from an image"}
+          </button>
+          {before && !busy && (
+            <button type="button" onClick={undo} className="inline-flex items-center gap-1.5 text-sm font-medium text-ink-muted px-2 py-2">
+              <Undo2 size={14} /> Undo
+            </button>
+          )}
+        </div>
+        <p className={`text-xs mt-2 leading-snug ${note?.error ? "text-danger" : "text-ink-muted"}`} role={note?.error ? "alert" : "status"}>
+          {note?.text ?? "Upload a logo or photo and we'll fill Primary, Secondary and Accent from it. The image stays on your device."}
+        </p>
+        <input
+          ref={fileInput}
+          type="file"
+          accept="image/*"
+          className="hidden"
+          onChange={(e) => {
+            const f = e.target.files?.[0];
+            e.target.value = "";
+            if (f) void fromImage(f);
+          }}
+        />
+      </div>
       <div className="grid grid-cols-3 gap-3">
         {keys.map((k) => {
           const active = open === k;
