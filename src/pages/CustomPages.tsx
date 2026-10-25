@@ -60,7 +60,7 @@ export function CustomPages() {
       <main className="px-4 max-w-xl mx-auto">
         <p className="text-sm text-ink-muted leading-relaxed mb-5">
           A custom page is a small website that lives at its own link on Akọ, like <span className="text-ink">myako.site/your-name</span>. Use it
-          for an event, a church, a shop, a brochure or a portfolio.
+          for a product, a business, a brand, a shop, a brochure or a portfolio.
         </p>
 
         {isLoading && <p className="text-ink-muted text-sm">Loading…</p>}
@@ -181,7 +181,7 @@ function CreateDialog({ onClose, onCreated }: { onClose: () => void; onCreated: 
     <Modal onClose={onClose} title="New custom page" maxWidthClass="max-w-md">
       <form onSubmit={submit} className="flex flex-col gap-3">
         <label className="text-xs text-overlay-ink-muted">Page name</label>
-        <input className={field} value={name} onChange={(e) => setName(e.target.value)} maxLength={80} placeholder="St. Anne's Harvest" autoFocus />
+        <input className={field} value={name} onChange={(e) => setName(e.target.value)} maxLength={80} placeholder="PromptIQ" autoFocus />
         <label className="text-xs text-overlay-ink-muted mt-1">Page link</label>
         <div className="flex items-center rounded-xl bg-overlay-surface-raised pl-4 focus-within:ring-2 focus-within:ring-overlay-accent">
           <span className="text-overlay-ink-muted text-[15px] shrink-0">myako.site/</span>
@@ -193,7 +193,7 @@ function CreateDialog({ onClose, onCreated }: { onClose: () => void; onCreated: 
               setSlug(e.target.value.toLowerCase().replace(/\s+/g, "-"));
             }}
             maxLength={60}
-            placeholder="st-anne"
+            placeholder="promptiq"
             autoCapitalize="none"
             autoCorrect="off"
           />

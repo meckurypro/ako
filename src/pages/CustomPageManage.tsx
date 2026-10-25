@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import QRCode from "qrcode";
-import { ArrowLeft, Copy, Download, ExternalLink, Pencil, Trash2 } from "lucide-react";
+import { ArrowLeft, Copy, Download, ExternalLink, Pencil, Printer, Trash2, X } from "lucide-react";
 import {
   checkCustomPageSlugAvailable,
   useCustomPage,
@@ -44,9 +44,21 @@ export function CustomPageManage() {
   const inquiries = useCustomPageInquiries(id);
   const [qr, setQr] = useState<string | null>(null);
   const [slugOpen, setSlugOpen] = useState(false);
+  const [showcase, setShowcase] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
 
   const url = page ? customPageUrl(page.slug) : "";
+  useEffect(() => {
+    if (!showcase) return;
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && setShowcase(false);
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    window.addEventListener("keydown", onKey);
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      document.body.style.overflow = prev;
+    };
+  }, [showcase]);
   useEffect(() => {
     if (!url) return;
     let alive = true;
@@ -132,6 +144,9 @@ export function CustomPageManage() {
                 <a href={qr} download={`${page.slug}-qr.png`} className="inline-flex items-center gap-1.5 text-accent text-sm font-medium">
                   <Download size={14} /> Download
                 </a>
+                <button onClick={() => setShowcase(true)} className="ml-4 inline-flex items-center gap-1.5 text-accent text-sm font-medium">
+                  <Printer size={14} /> Print
+                </button>
               </div>
             </div>
           )}
@@ -235,6 +250,17 @@ export function CustomPageManage() {
           <Trash2 size={15} /> Delete this page
         </button>
       </main>
+      {showcase && qr && (
+        <div className="fixed inset-0 z-[100] bg-white text-black flex flex-col items-center justify-center px-6 py-10 gap-8 print:gap-6" role="dialog" aria-label="Print view">
+          <button onClick={() => setShowcase(false)} aria-label="Close" className="print:hidden absolute top-4 right-4 rounded-full bg-black/5 p-3">
+            <X size={22} />
+          </button>
+          <p className="text-center font-extrabold leading-tight break-all text-[clamp(2rem,9vw,5rem)]">{url.replace("https://", "")}</p>
+          <img src={qr} alt={`QR code for ${url}`} className="w-[min(78vw,60vh)] h-[min(78vw,60vh)]" />
+          <p className="text-center text-base text-black/60">Scan to open</p>
+        </div>
+      )}
+
 
       {slugOpen && <SlugDialog pageId={page.id} current={page.slug} onClose={() => setSlugOpen(false)} />}
       {confirmDelete && (
