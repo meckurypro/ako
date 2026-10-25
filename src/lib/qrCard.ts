@@ -14,31 +14,58 @@ export const QR_CARD_SIZES: Record<QrCardFormat, { width: number; height: number
 
 const FONT = `-apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif`;
 
-/** Break `text` into lines that fit `maxWidth`, splitting anywhere (URLs have no spaces). */
-function wrapChars(ctx: CanvasRenderingContext2D, text: string, maxWidth: number): string[] {
+/** Break at natural URL boundaries (after "/", "." or "-") so a slug is never torn apart. */
+function tokens(text: string): string[] {
+  return text.match(/[^/.\-]*[/.\-]?/g)?.filter(Boolean) ?? [text];
+}
+
+/** Greedy wrap on URL boundaries; a single token wider than the box is split by character as a last resort. */
+function wrapTokens(ctx: CanvasRenderingContext2D, text: string, maxWidth: number): string[] {
   const lines: string[] = [];
   let line = "";
-  for (const ch of text) {
-    if (line && ctx.measureText(line + ch).width > maxWidth) {
-      lines.push(line);
-      line = ch;
+  for (const tok of tokens(text)) {
+    if (ctx.measureText(line + tok).width <= maxWidth) {
+      line += tok;
+      continue;
+    }
+    if (line) lines.push(line);
+    line = "";
+    if (ctx.measureText(tok).width <= maxWidth) {
+      line = tok;
     } else {
-      line += ch;
+      for (const ch of tok) {
+        if (line && ctx.measureText(line + ch).width > maxWidth) {
+          lines.push(line);
+          line = ch;
+        } else line += ch;
+      }
     }
   }
   if (line) lines.push(line);
   return lines;
 }
 
-/** Largest font size (≤ maxSize) at which the URL fits in `maxLines` lines within the box. */
-function fitText(ctx: CanvasRenderingContext2D, text: string, maxWidth: number, maxHeight: number, maxLines: number, maxSize: number) {
+const MIN_ORPHAN = 6; // a last line shorter than this ("s", "gs") looks like a mistake — keep it with the rest
+
+/**
+ * Pick the font size for the URL.
+ *  1. Prefer ONE line: shrink the text until the whole URL fits (down to `minSingle`).
+ *  2. Only if that would make it too small (a long URL), wrap on "/", "." and "-" boundaries at the largest size
+ *     that fits the box, and never leave a tiny dangling tail on the last line.
+ */
+function fitText(ctx: CanvasRenderingContext2D, text: string, maxWidth: number, maxHeight: number, maxLines: number, maxSize: number, minSingle: number) {
+  for (let size = maxSize; size >= minSingle; size -= 2) {
+    ctx.font = `800 ${size}px ${FONT}`;
+    if (ctx.measureText(text).width <= maxWidth) return { size, lines: [text] };
+  }
   for (let size = maxSize; size >= 28; size -= 2) {
     ctx.font = `800 ${size}px ${FONT}`;
-    const lines = wrapChars(ctx, text, maxWidth);
-    if (lines.length <= maxLines && lines.length * size * 1.2 <= maxHeight) return { size, lines };
+    const lines = wrapTokens(ctx, text, maxWidth);
+    const orphan = lines.length > 1 && lines[lines.length - 1].length < MIN_ORPHAN;
+    if (!orphan && lines.length <= maxLines && lines.length * size * 1.2 <= maxHeight) return { size, lines };
   }
   ctx.font = `800 28px ${FONT}`;
-  return { size: 28, lines: wrapChars(ctx, text, maxWidth) };
+  return { size: 28, lines: wrapTokens(ctx, text, maxWidth) };
 }
 
 function drawLines(ctx: CanvasRenderingContext2D, lines: string[], size: number, x: number, top: number, align: CanvasTextAlign) {
@@ -69,7 +96,7 @@ export async function renderQrCard(url: string, format: QrCardFormat): Promise<B
     const textW = W - pad * 2;
     // URL on top…
     ctx.fillStyle = "#000000";
-    const { size, lines } = fitText(ctx, display, textW, 520, 4, 132);
+    const { size, lines } = fitText(ctx, display, textW, 520, 4, 132, 64);
     const textH = lines.length * size * 1.2;
     const qrSize = 800;
     const captionSize = 44;
@@ -95,7 +122,7 @@ export async function renderQrCard(url: string, format: QrCardFormat): Promise<B
     // URL on the left…
     ctx.fillStyle = "#000000";
     const captionSize = 44;
-    const { size, lines } = fitText(ctx, display, textW, 640, 5, 120);
+    const { size, lines } = fitText(ctx, display, textW, 640, 5, 120, 56);
     const textH = lines.length * size * 1.2;
     const blockH = textH + 50 + captionSize;
     const top = (H - blockH) / 2;
