@@ -11,10 +11,12 @@
 // design values are just short slugs in the config.
 import { useState, type CSSProperties, type ReactNode } from "react";
 import { Link } from "react-router-dom";
-import { Download, FileText, Loader2, Mail, MapPin, MessageCircle, Phone, ExternalLink, X } from "lucide-react";
+import { Download, FileText, Loader2, Mail, MapPin, MessageCircle, Phone, ExternalLink, Share2, X } from "lucide-react";
 import {
+  customPageUrl,
   publicFileUrl,
   resolveDesign,
+  resolveShare,
   resolvePalette,
   withAlpha,
   type AnimationId,
@@ -36,6 +38,8 @@ export interface CustomPageActions {
   onMessageOwner?: () => void;
   onDocumentRead?: () => void;
   onDocumentDownload?: () => void;
+  /** The share button was used. Analytics hook only. */
+  onShare?: () => void;
   /** "Create your own custom page" footer link. */
   onCreateYours?: () => void;
 }
@@ -1262,6 +1266,94 @@ function Poster({ ctx, slug }: { ctx: Ctx; slug?: string }) {
   );
 }
 
+// ── Share button ────────────────────────────────────────────────────────────────────────────────────────────
+// Optional, creator-controlled (config.share). The template decides where it sits; the creator picks its look, or
+// "auto" lets it inherit the page style's own button shape. Uses the phone's share sheet where there is one and
+// falls back to copying the link.
+const SHARE_PLACEMENT: Record<TemplateId, { top: string; media?: boolean }> = {
+  // Full-bleed hero first: the button floats over the picture.
+  showcase: { top: "14px", media: true },
+  spotlight: { top: "14px", media: true },
+  // Plain top-of-page layouts.
+  stacked: { top: "14px" },
+  brochure: { top: "14px" },
+  linkcard: { top: "14px" },
+  split: { top: "14px" },
+  portfolio: { top: "14px" },
+  bento: { top: "14px" },
+  // Poster opens with the scrolling banner, so the button sits just beneath it, clear of the headline.
+  poster: { top: "calc(1.5rem + 1.2 * clamp(1.6rem, 6vw, 3.2rem) + 1rem + 18px)" },
+};
+
+function ShareButton({ ctx, slug }: { ctx: Ctx; slug?: string }) {
+  const { look } = resolveShare(ctx.config);
+  const template = resolveDesign(ctx.config).template;
+  const place = SHARE_PLACEMENT[template];
+  const onMedia = !!place.media && (ctx.config.brand?.hero?.length ?? 0) > 0;
+  const [copied, setCopied] = useState(false);
+  const name = ctx.config.identity?.name?.trim() || "this page";
+
+  const run = async () => {
+    if (ctx.preview) return;
+    ctx.actions.onShare?.();
+    const url = slug ? customPageUrl(slug) : window.location.href;
+    const text = ctx.config.identity?.tagline?.trim() || undefined;
+    if (typeof navigator.share === "function") {
+      try {
+        await navigator.share({ title: name, text, url });
+        return;
+      } catch (err) {
+        if (err instanceof DOMException && err.name === "AbortError") return; // they closed the sheet
+      }
+    }
+    try {
+      await navigator.clipboard.writeText(url);
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 2200);
+    } catch {
+      window.prompt("Copy this link", url);
+    }
+  };
+
+  const size = 44;
+  const text = ctx.t.text;
+  let style: CSSProperties;
+  let label: string | null = null;
+  if (look === "minimal") {
+    style = { width: size, height: size, borderRadius: 999, color: onMedia ? "#fff" : text, background: "transparent", filter: onMedia ? "drop-shadow(0 1px 3px rgba(0,0,0,.55))" : undefined };
+  } else if (look === "round") {
+    style = onMedia
+      ? { width: size, height: size, borderRadius: 999, color: "#fff", background: "rgba(0,0,0,.38)", backdropFilter: "blur(8px)", WebkitBackdropFilter: "blur(8px)" }
+      : { width: size, height: size, borderRadius: 999, color: text, background: withAlpha(text, 0.1) };
+  } else if (look === "pill") {
+    label = "Share";
+    style = { ...ctx.t.secondaryBtn, height: size, padding: "0 16px", borderRadius: 999, gap: 8, fontSize: 14, fontWeight: 600, letterSpacing: "normal", textTransform: "none" };
+  } else {
+    // auto — the page style's own secondary button, squared into a chip, with its own corner radius.
+    style = { ...ctx.t.secondaryBtn, width: size, height: size, padding: 0, borderRadius: btnRadius(ctx.t) };
+  }
+
+  return (
+    <div className="absolute z-10" style={{ top: `calc(env(safe-area-inset-top, 0px) + ${place.top})`, right: 14 }}>
+      <button
+        type="button"
+        onClick={() => void run()}
+        aria-label="Share this page"
+        className={`cp-btn ${look === "auto" || look === "pill" ? `cp-${ctx.t.fx}` : ""} inline-flex items-center justify-center`}
+        style={style}
+      >
+        <Share2 size={look === "minimal" ? 22 : 18} />
+        {label}
+      </button>
+      {copied && (
+        <span role="status" className="absolute right-0 top-full mt-2 whitespace-nowrap rounded-full bg-black/80 text-white text-xs px-3 py-1.5">
+          Link copied
+        </span>
+      )}
+    </div>
+  );
+}
+
 const LAYOUTS: Record<TemplateId, (props: { ctx: Ctx; slug?: string }) => ReactNode> = {
   showcase: Showcase,
   stacked: Stacked,
@@ -1282,11 +1374,12 @@ export function CustomPageRenderer({ config, preview = false, actions = {}, slug
   const Layout = LAYOUTS[template];
   return (
     <div
-      className={`cp-root min-h-full w-full overflow-x-hidden ${t.drift ? "cp-drift" : ""} ${t.grain ? "cp-grain" : ""}`}
+      className={`cp-root relative min-h-full w-full overflow-x-hidden ${t.drift ? "cp-drift" : ""} ${t.grain ? "cp-grain" : ""}`}
       style={{ ...t.pageStyle, ["--cp-glow" as string]: t.glow ?? "rgba(0,0,0,.25)", ["--cp-ink" as string]: t.ink ?? "#14120F" }}
     >
       <style>{CP_CSS}</style>
       <Layout ctx={ctx} slug={slug} />
+      {resolveShare(config).enabled && <ShareButton ctx={ctx} slug={slug} />}
     </div>
   );
 }

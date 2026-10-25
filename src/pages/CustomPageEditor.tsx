@@ -18,6 +18,8 @@ import {
   LIMITS,
   STYLES,
   TEMPLATES,
+  SHARE_LOOKS,
+  resolveShare,
   ctaProblem,
   draftProblem,
   publishProblem,
@@ -404,6 +406,25 @@ export function CustomPageEditor() {
                     </button>
                   ))}
                 </div>
+              </Field>
+              <Field label="Share button" hint="A small button on your page that lets visitors send it on. The template decides where it sits.">
+                <label className="flex items-center justify-between gap-3 rounded-2xl bg-surface border border-border p-4 cursor-pointer">
+                  <span className="text-sm font-medium text-ink">Show a share button</span>
+                  <input
+                    type="checkbox"
+                    role="switch"
+                    className="w-5 h-5 accent-[var(--color-accent)]"
+                    checked={resolveShare(config).enabled}
+                    onChange={(e) => set("share", { enabled: e.target.checked })}
+                  />
+                </label>
+                {resolveShare(config).enabled && (
+                  <div className="grid gap-2.5 mt-2.5">
+                    {SHARE_LOOKS.map((l) => (
+                      <Choice key={l.id} active={resolveShare(config).look === l.id} title={l.label} blurb={l.blurb} onClick={() => set("share", { look: l.id })} />
+                    ))}
+                  </div>
+                )}
               </Field>
               <SingleImage
                 label="Link preview image"

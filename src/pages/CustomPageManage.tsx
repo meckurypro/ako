@@ -119,7 +119,7 @@ export function CustomPageManage() {
   };
 
   const maxDaily = Math.max(1, ...(stats.data?.daily.map((d) => d.views) ?? [1]));
-  const ctaLabel = (cta: string) => (cta === "document" ? "Document" : (page.draft.ctas ?? []).find((c) => c.id === cta)?.label ?? cta);
+  const ctaLabel = (cta: string) => (cta === "document" ? "Document" : cta === "share" ? "Share button" : (page.draft.ctas ?? []).find((c) => c.id === cta)?.label ?? cta);
 
   return (
     <div className="min-h-screen bg-canvas pb-24">
