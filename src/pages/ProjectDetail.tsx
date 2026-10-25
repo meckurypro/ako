@@ -48,6 +48,7 @@ import { TierBadge } from "../components/TierBadge";
 import { RoleTags } from "../components/RoleTags";
 import { pageModeLabel } from "../lib/pageRoles";
 import { ProjectCard } from "../components/ProjectCard";
+import { CoursePromo } from "../components/course/CoursePromo";
 import { BottomNav } from "../components/BottomNav";
 import { AffiliateShareSheet } from "../components/AffiliateShareSheet";
 import { useAffiliateProgram, useMyAffiliateRelationship, useUnforkAffiliateRelationship } from "../hooks/useAffiliates";
@@ -574,6 +575,7 @@ export function ProjectDetail({ resolvedProjectId }: { resolvedProjectId?: strin
           <p className="text-ink-muted">Loading…</p>
         ) : (
           <>
+            {project.project_type === "course" && <CoursePromo projectId={project.id} />}
             <ProjectCard
               project={project}
               isDetailView

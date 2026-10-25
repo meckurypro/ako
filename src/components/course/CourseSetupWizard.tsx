@@ -11,6 +11,8 @@ import {
   type CourseDetails,
 } from "../../hooks/useCourseBuilder";
 import { COURSE_LEVELS, MAX_OBJECTIVES, MIN_OBJECTIVES } from "../../lib/courseTypes";
+import { removeCourseVideos } from "../../lib/courseVideo";
+import { LessonVideoField, type VideoValue } from "./LessonVideoField";
 import { friendlyError } from "../../lib/friendlyError";
 
 const inputCls = "w-full px-3 py-2.5 rounded-xl border border-border bg-surface text-sm text-ink";
@@ -77,7 +79,21 @@ export function CourseSetupWizard({
   includeSections: boolean;
   onClose: () => void;
 }) {
-  useBackDismiss(onClose);
+  const [promo, setPromo] = useState<VideoValue>({
+    videoPath: details?.promo_video_path ?? null,
+    videoWidth: details?.promo_width ?? null,
+    videoHeight: details?.promo_height ?? null,
+    videoDuration: details?.promo_duration ?? null,
+    mediaUrl: details?.promo_url ?? "",
+  });
+  const [promoBusy, setPromoBusy] = useState(false);
+  const savedPromoPath = details?.promo_video_path ?? null;
+  // Closing without saving throws away a promo uploaded in this session.
+  const close = (saved = false) => {
+    if (!saved && promo.videoPath && promo.videoPath !== savedPromoPath) void removeCourseVideos([promo.videoPath]);
+    onClose();
+  };
+  useBackDismiss(() => close());
   const toast = useToast();
   const saveDetails = useSaveCourseDetails(projectId);
   const addModule = useAddModule(projectId);
@@ -100,14 +116,27 @@ export function CourseSetupWizard({
   async function finish() {
     setSaving(true);
     try {
-      await saveDetails.mutateAsync({ subtitle, level, language, objectives, requirements, audience });
+      await saveDetails.mutateAsync({
+        subtitle,
+        level,
+        language,
+        objectives,
+        requirements,
+        audience,
+        promo_video_path: promo.videoPath,
+        promo_url: promo.mediaUrl,
+        promo_width: promo.videoWidth,
+        promo_height: promo.videoHeight,
+        promo_duration: promo.videoDuration,
+        previousPromoPath: savedPromoPath,
+      });
       if (includeSections) {
         const titles = sections.map((s) => s.trim()).filter(Boolean);
         for (let i = 0; i < titles.length; i++) {
           await addModule.mutateAsync({ title: titles[i], sortOrder: existingSections + i });
         }
       }
-      onClose();
+      close(true);
     } catch (err) {
       toast(friendlyError(err, "Couldn't save."), { variant: "error" });
     } finally {
@@ -118,7 +147,7 @@ export function CourseSetupWizard({
   return (
     <div className="fixed inset-0 z-[70] flex flex-col bg-canvas">
       <div className="mx-auto flex w-full max-w-md items-center gap-3 px-4 pb-2 pt-4">
-        <button onClick={() => (step === 0 ? onClose() : setStep(step - 1))} aria-label={step === 0 ? "Close" : "Back"} className="text-ink-muted">
+        <button onClick={() => (step === 0 ? close() : setStep(step - 1))} aria-label={step === 0 ? "Close" : "Back"} className="text-ink-muted">
           {step === 0 ? <X size={22} /> : <ArrowLeft size={22} />}
         </button>
         <div className="flex flex-1 gap-1.5">
@@ -153,7 +182,13 @@ export function CourseSetupWizard({
               ))}
             </div>
             <label className="mb-1 block text-sm font-semibold text-ink">Language</label>
-            <input value={language} onChange={(e) => setLanguage(e.target.value)} maxLength={40} className={inputCls} />
+            <input value={language} onChange={(e) => setLanguage(e.target.value)} maxLength={40} className={`${inputCls} mb-5`} />
+            <label className="mb-0.5 block text-sm font-semibold text-ink">Promo video</label>
+            <p className="mb-2 text-xs text-ink-muted">Optional. Under 2 minutes: what they'll get, and why you.</p>
+            <LessonVideoField projectId={projectId} value={promo} savedPath={savedPromoPath} onChange={setPromo} onBusyChange={setPromoBusy} />
+            {promo.videoDuration && promo.videoDuration > 180 ? (
+              <p className="mt-1.5 text-xs text-ink-muted">Promos over 2–3 minutes lose viewers. Consider trimming it.</p>
+            ) : null}
           </>
         )}
 
@@ -189,7 +224,7 @@ export function CourseSetupWizard({
         )}
         <button
           onClick={() => (last ? void finish() : setStep(step + 1))}
-          disabled={!canNext || saving}
+          disabled={!canNext || saving || promoBusy}
           className="h-12 w-full rounded-2xl bg-accent text-[15px] font-semibold text-canvas disabled:opacity-40"
         >
           {saving ? "Saving…" : last ? (includeSections ? "Start building" : "Save") : "Next"}

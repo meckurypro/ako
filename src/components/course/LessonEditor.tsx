@@ -138,6 +138,7 @@ export function LessonEditor({
   initialVideo,
   isNew,
   sections,
+  suggestFreePreview = false,
   submitLabel,
   pending,
   onSubmit,
@@ -149,6 +150,8 @@ export function LessonEditor({
   isNew: boolean;
   /** Sections the lesson can live in (the locked Foreword section is left out). */
   sections: { id: string; title: string }[];
+  /** True while the course has no free preview yet: a new video lesson then starts as one. */
+  suggestFreePreview?: boolean;
   submitLabel: string;
   pending: boolean;
   onSubmit: (value: LessonSubmit) => void;
@@ -208,7 +211,7 @@ export function LessonEditor({
                 key={t}
                 type="button"
                 onClick={() => {
-                  setValue({ ...value, lessonType: t }, { step: true });
+                  setValue({ ...value, lessonType: t, isFreePreview: t === "video" && suggestFreePreview }, { step: true });
                   setTypeChosen(true);
                 }}
                 className="flex flex-col items-start gap-1 rounded-xl border border-border bg-surface p-3 text-left active:bg-accent-soft/50"

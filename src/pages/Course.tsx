@@ -42,6 +42,7 @@ import { LessonEditor, type LessonSubmit } from "../components/course/LessonEdit
 import { EMPTY_VIDEO } from "../components/course/LessonVideoField";
 import { QuizPlayer } from "../components/course/QuizPlayer";
 import { CourseAbout } from "../components/course/CourseAbout";
+import { CoursePromo } from "../components/course/CoursePromo";
 import { CourseSetupWizard } from "../components/course/CourseSetupWizard";
 import { ReorderPanel } from "../components/course/ReorderPanel";
 import {
@@ -450,6 +451,8 @@ export function Course() {
     { done: objectivesOk, label: `Learning objectives (${MIN_OBJECTIVES}+)`, action: isCreator ? () => setWizard("details") : undefined },
     { done: lessonsOk, label: "At least one lesson", action: undefined },
     { done: descriptionOk, label: "Course description", action: isCreator ? () => navigate(`/projects/${projectId}/edit`) : undefined },
+    { done: !!(details?.promo_video_path || details?.promo_url), label: "Promo video", optional: true, action: isCreator ? () => setWizard("details") : undefined },
+    { done: flatLessons.some((l) => l.is_free_preview), label: "A free preview lesson", optional: true, action: undefined },
     { done: !!project?.thumbnail_url, label: "Cover image", optional: true, action: isCreator ? () => navigate(`/projects/${projectId}/edit`) : undefined },
   ];
 
@@ -547,6 +550,8 @@ export function Course() {
             </button>
           </div>
         )}
+
+        {(!hasAccess || isOwner) && (view === "outline" || (typeof window !== "undefined" && window.matchMedia("(min-width: 1024px)").matches)) && <CoursePromo projectId={projectId} />}
 
         {view === "outline" || (typeof window !== "undefined" && window.matchMedia("(min-width: 1024px)").matches) ? (
           <CourseAbout details={details} lessons={totalLessons} minutes={(modules ?? []).flatMap((m) => m.lessons).reduce((n, l) => n + lessonMinutes(l), 0)} />
@@ -808,11 +813,12 @@ export function Course() {
                           title: "",
                           content: "",
                           quiz: { questions: [], pass_mark: DEFAULT_PASS_MARK },
-                          isFreePreview: m.lessons.length === 0,
+                          isFreePreview: false,
                           moduleId: m.id,
                         }}
                         initialVideo={EMPTY_VIDEO}
                         sections={editableSections}
+                        suggestFreePreview={!flatLessons.some((l) => l.is_free_preview)}
                         submitLabel="Add lesson"
                         pending={addLesson.isPending}
                         onCancel={() => setLessonDraftFor(null)}
