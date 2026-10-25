@@ -892,6 +892,11 @@ grant execute on function public.get_public_custom_page(text) to anon, authentic
 grant execute on function public.record_custom_page_event(uuid, text, text, text) to anon, authenticated;
 grant execute on function public.submit_custom_page_inquiry(uuid, text, text, text, text, text) to anon, authenticated;
 
+-- Internal helpers and trigger functions are never callable from the API (migration custom_pages_revoke_trigger_fn_execute).
+revoke all on function public.public_slug_in_use(text, uuid, uuid) from public, anon, authenticated;
+revoke all on function public.guard_custom_page_slug_vs_projects() from public, anon, authenticated;
+revoke all on function public.guard_project_slug_vs_pages() from public, anon, authenticated;
+
 -- ---- Storage: public bucket, writes confined to <user id>/… --------------------------------------------------
 insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
 values (
