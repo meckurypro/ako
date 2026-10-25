@@ -4,7 +4,8 @@
 import { ArrowLeft, ArrowRight, CheckCircle2, ChevronLeft, Circle, Clock, Eye, Lock } from "lucide-react";
 import { useMemo, type ReactNode } from "react";
 import type { CourseLesson } from "../../hooks/useCourseBuilder";
-import { parseLesson, readMinutes } from "../../lib/lessonFormat";
+import { parseLesson } from "../../lib/lessonFormat";
+import { formatDuration, lessonMinutes, lessonTypeLabel, lessonTypeOf, parseQuiz } from "../../lib/courseTypes";
 import { LessonRenderer } from "./LessonRenderer";
 import { ProgressBar } from "./ProgressBar";
 
@@ -24,6 +25,8 @@ interface LessonReaderProps {
   nextLocked: boolean;
   /** The lesson's video/embed, already rendered by the page. */
   media: ReactNode;
+  /** Quiz questions etc., shown under the lesson text. */
+  interactive?: ReactNode;
   onOutline: () => void;
   onPrev: () => void;
   onPrimary: () => void;
@@ -33,11 +36,20 @@ interface LessonReaderProps {
 export function LessonReader(props: LessonReaderProps) {
   const { lesson, hasAccess, completed, hasNext, nextLocked } = props;
   const emoji = useMemo(() => parseLesson(lesson.content).emoji, [lesson.content]);
-  const minutes = lesson.media_url ? null : readMinutes(lesson.content);
+  const type = lessonTypeOf(lesson);
+  const hasVideo = !!(lesson.video_path || lesson.media_url);
+  const minutes = type === "text" ? lessonMinutes(lesson) : null;
+  const questions = type === "quiz" ? parseQuiz(lesson.data).questions.length : 0;
+  // A quiz is finished by passing it, not by pressing continue.
+  const mustPass = type === "quiz" && hasAccess && !completed;
   const isLast = !hasNext;
   const canAdvance = hasNext && !nextLocked;
 
-  const primary = !hasAccess
+  const primary = mustPass
+    ? "Pass the quiz to continue"
+    : type === "assignment" && hasAccess && !completed
+      ? "Mark as done"
+      : !hasAccess
     ? canAdvance
       ? "Next lesson"
       : "Unlock the full course"
@@ -76,6 +88,17 @@ export function LessonReader(props: LessonReaderProps) {
             <Clock size={13} /> {minutes} min read
           </span>
         ) : null}
+        {type === "video" && lesson.video_duration ? (
+          <span className="flex items-center gap-1.5 text-ink-muted">
+            <Clock size={13} /> {formatDuration(lesson.video_duration)}
+          </span>
+        ) : null}
+        {type === "quiz" || type === "assignment" ? (
+          <span className="flex items-center gap-1.5 text-ink-muted">
+            {lessonTypeLabel(type)}
+            {questions > 0 ? ` · ${questions} question${questions === 1 ? "" : "s"}` : ""}
+          </span>
+        ) : null}
         {!hasAccess && lesson.is_free_preview ? (
           <span className="flex items-center gap-1.5 font-medium text-accent">
             <Eye size={13} /> Free preview
@@ -89,9 +112,10 @@ export function LessonReader(props: LessonReaderProps) {
       </div>
 
       {props.media}
-      {lesson.content ? <LessonRenderer content={lesson.content} /> : !lesson.media_url ? <p className="text-ink-muted">No content yet.</p> : null}
+      {lesson.content ? <LessonRenderer content={lesson.content} /> : !hasVideo && type !== "quiz" ? <p className="text-ink-muted">No content yet.</p> : null}
+      {props.interactive}
 
-      {hasAccess ? (
+      {hasAccess && type !== "quiz" ? (
         <button
           onClick={props.onToggleComplete}
           disabled={props.pending}
@@ -113,7 +137,7 @@ export function LessonReader(props: LessonReaderProps) {
         </button>
         <button
           onClick={props.onPrimary}
-          disabled={props.pending}
+          disabled={props.pending || mustPass}
           className="flex h-12 flex-1 items-center justify-center gap-2 rounded-2xl bg-accent text-[15px] font-semibold text-canvas transition-colors hover:bg-accent-hover disabled:opacity-60"
         >
           {!hasAccess && !canAdvance ? <Lock size={16} /> : null}

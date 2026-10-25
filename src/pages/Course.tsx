@@ -1,6 +1,4 @@
 // src/pages/Course.tsx
-import { EditorToolbar, editorKeyHandler } from "../components/EditorToolbar";
-import { useUndoRedo } from "../hooks/useUndoRedo";
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useSmartBack } from "../hooks/useSmartBack";
@@ -14,10 +12,14 @@ import {
   ChevronUp,
   Pencil,
   Trash2,
-  Eye,
   PlayCircle,
   FileText,
   PenLine,
+  ListChecks,
+  ClipboardList,
+  ArrowUpDown,
+  Settings2,
+  Circle as CircleIcon,
 } from "lucide-react";
 import { useAuth } from "../hooks/useAuth";
 import { useProjectOwnership } from "../hooks/useProjectOwnership";
@@ -34,18 +36,34 @@ import { ForewordsSheet } from "../components/ForewordsSheet";
 import { useForewordPreview, useProjectForewords } from "../hooks/useForewords";
 import { useToast } from "../components/Toast";
 import { useReturnAfterSave } from "../hooks/useReturnAfterSave";
-import { buildReaderModel, readMinutes } from "../lib/lessonFormat";
+import { buildReaderModel } from "../lib/lessonFormat";
+import { LessonVideo } from "../components/course/LessonVideo";
+import { LessonEditor, type LessonSubmit } from "../components/course/LessonEditor";
+import { EMPTY_VIDEO } from "../components/course/LessonVideoField";
+import { QuizPlayer } from "../components/course/QuizPlayer";
+import { CourseAbout } from "../components/course/CourseAbout";
+import { CourseSetupWizard } from "../components/course/CourseSetupWizard";
+import { ReorderPanel } from "../components/course/ReorderPanel";
+import {
+  DEFAULT_PASS_MARK,
+  MIN_OBJECTIVES,
+  formatDuration,
+  lessonMinutes,
+  lessonTypeOf,
+  parseQuiz,
+  type LessonType,
+} from "../lib/courseTypes";
 import {
   useCourseModules,
   useAddModule,
   useUpdateModuleTitle,
-  useMoveModule,
   useDeleteModule,
   useAddLesson,
   useUpdateLesson,
   useDeleteLesson,
-  useMoveLesson,
   usePublishCourse,
+  useSaveOutline,
+  useCourseDetails,
   useCourseProgress,
   useCourseResume,
   useSaveCourseResume,
@@ -54,183 +72,41 @@ import {
 } from "../hooks/useCourseBuilder";
 import { friendlyError } from "../lib/friendlyError";
 
-// ---------------------------------------------------------------
-// Lesson video embedding — a course lesson's media_url is a plain
-// pasted link (YouTube, Vimeo, or a direct video file), not an Ako
-// storage upload. There's no lesson-video upload pipeline; hosting
-// stays on whichever platform the instructor already uses, same as
-// how Udemy instructors mostly upload once to Udemy's own encoder,
-// but plenty of course tools (and this one, for now) just take a URL.
-// ---------------------------------------------------------------
+const TYPE_ICONS: Record<LessonType, typeof PlayCircle> = {
+  video: PlayCircle,
+  text: FileText,
+  quiz: ListChecks,
+  assignment: ClipboardList,
+};
 
-type EmbedKind = { type: "youtube" | "vimeo"; embedUrl: string } | { type: "video" } | { type: "link" };
-
-function resolveEmbed(url: string): EmbedKind {
-  const yt = url.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/)([a-zA-Z0-9_-]{6,})/);
-  if (yt) return { type: "youtube", embedUrl: `https://www.youtube.com/embed/${yt[1]}` };
-  const vimeo = url.match(/vimeo\.com\/(\d+)/);
-  if (vimeo) return { type: "vimeo", embedUrl: `https://player.vimeo.com/video/${vimeo[1]}` };
-  if (/\.(mp4|webm|ogg|mov)(\?.*)?$/i.test(url)) return { type: "video" };
-  return { type: "link" };
-}
-
-function LessonMedia({
-  url,
-  onWatched,
-  startAt,
-  onTime,
-}: {
-  url: string;
-  onWatched: () => void;
-  /** Direct video only: second to resume from. (YouTube/Vimeo embeds are cross-origin: they can't be seeked or read.) */
-  startAt?: number | null;
-  /** Direct video only: called every few seconds with the playback position. */
-  onTime?: (seconds: number) => void;
-}) {
-  const embed = resolveEmbed(url);
-  const lastReported = useRef(0);
-  if (embed.type === "youtube" || embed.type === "vimeo") {
-    return (
-      <div className="w-full aspect-video rounded-xl overflow-hidden bg-canvas mb-2">
-        <iframe
-          src={embed.embedUrl}
-          className="w-full h-full"
-          allow="autoplay; fullscreen; picture-in-picture"
-          allowFullScreen
-          title="Lesson video"
-        />
-      </div>
-    );
+/** Short right-hand label in the curriculum list. */
+function lessonMeta(l: CourseLesson): string {
+  const type = lessonTypeOf(l);
+  if (type === "video") return formatDuration(l.video_duration) || "video";
+  if (type === "quiz") {
+    const n = parseQuiz(l.data).questions.length;
+    return `quiz · ${n} q`;
   }
-  if (embed.type === "video") {
-    return (
-      // Udemy auto-marks a lecture complete once you've watched all
-      // of it — onEnded is the direct equivalent for a file we can
-      // actually observe playback on (YouTube/Vimeo iframes are
-      // cross-origin, so there's no "ended" event to listen for there;
-      // those rely on the manual Mark complete button instead).
-      <video
-        controls
-        src={url}
-        onEnded={onWatched}
-        onLoadedMetadata={(e) => {
-          if (startAt && startAt > 1 && startAt < e.currentTarget.duration - 2) e.currentTarget.currentTime = startAt;
-        }}
-        onTimeUpdate={(e) => {
-          const t = e.currentTarget.currentTime;
-          if (onTime && Math.abs(t - lastReported.current) >= 4) {
-            lastReported.current = t;
-            onTime(t);
-          }
-        }}
-        className="w-full rounded-xl max-h-80 mb-2 bg-canvas"
-      />
-    );
-  }
-  return (
-    <a
-      href={url}
-      target="_blank"
-      rel="noopener noreferrer"
-      className="flex items-center gap-1.5 text-sm text-accent font-medium mb-2"
-    >
-      <PlayCircle size={15} />
-      Open lesson video
-    </a>
-  );
+  if (type === "assignment") return "task";
+  return `${lessonMinutes(l)} min`;
 }
 
-// ---------------------------------------------------------------
-// Owner's add/edit form for a single lesson.
-// ---------------------------------------------------------------
-
-interface LessonFormValue {
-  title: string;
-  content: string;
-  mediaUrl: string;
-  isFreePreview: boolean;
-}
-
-function LessonForm({
-  initial,
-  submitLabel,
-  pending,
-  onSubmit,
-  onCancel,
-}: {
-  initial: LessonFormValue;
-  submitLabel: string;
-  pending: boolean;
-  onSubmit: (value: LessonFormValue) => void;
-  onCancel: () => void;
-}) {
-  const history = useUndoRedo(initial);
-  const value = history.value;
-  const setValue = history.set;
-  const submit = () => {
-    if (!value.title.trim()) return;
-    onSubmit(value);
-    history.markSaved();
+/** Form value → what the hooks write. Fields that don't belong to the chosen type are cleared. */
+function lessonPayload(value: LessonSubmit) {
+  const type = value.lessonType;
+  const isVideo = type === "video";
+  return {
+    title: value.title.trim(),
+    content: value.content.trim() || undefined,
+    isFreePreview: value.isFreePreview,
+    lessonType: type,
+    mediaUrl: isVideo && !value.video.videoPath ? value.video.mediaUrl.trim() || undefined : undefined,
+    videoPath: isVideo ? value.video.videoPath : null,
+    videoWidth: isVideo ? value.video.videoWidth : null,
+    videoHeight: isVideo ? value.video.videoHeight : null,
+    videoDuration: isVideo ? value.video.videoDuration : null,
+    data: type === "quiz" ? value.quiz : null,
   };
-
-  return (
-    <form
-      onSubmit={(e) => {
-        e.preventDefault();
-        submit();
-      }}
-      onKeyDown={editorKeyHandler({ undo: history.undo, redo: history.redo, save: submit })}
-      className="mt-2 flex flex-col gap-1.5"
-    >
-      <input
-        type="text"
-        placeholder="Lesson title"
-        value={value.title}
-        onChange={(e) => setValue({ ...value, title: e.target.value })}
-        required
-        className="w-full px-3 py-2 rounded-lg border border-border bg-canvas text-sm text-ink"
-      />
-      <input
-        type="url"
-        placeholder="Video link (YouTube, Vimeo, or a direct video URL) — optional"
-        value={value.mediaUrl}
-        onChange={(e) => setValue({ ...value, mediaUrl: e.target.value })}
-        className="w-full px-3 py-2 rounded-lg border border-border bg-canvas text-sm text-ink"
-      />
-      <textarea
-        placeholder={"Lesson text (optional)\nTip: # heading, - list, 1. steps, > note, ``` code ```, **bold**, `code`"}
-        value={value.content}
-        onChange={(e) => setValue({ ...value, content: e.target.value })}
-        rows={6}
-        className="w-full px-3 py-2 rounded-lg border border-border bg-canvas text-sm text-ink resize-none"
-      />
-      <button
-        type="button"
-        onClick={() => setValue({ ...value, isFreePreview: !value.isFreePreview })}
-        aria-pressed={value.isFreePreview}
-        className={`self-start flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border transition-colors ${
-          value.isFreePreview ? "bg-accent text-canvas border-accent" : "bg-surface text-ink-muted border-border"
-        }`}
-      >
-        <Eye size={12} />
-        Free preview
-      </button>
-      <div className="mt-0.5">
-        <EditorToolbar
-          onUndo={history.undo}
-          onRedo={history.redo}
-          canUndo={history.canUndo}
-          canRedo={history.canRedo}
-          onSave={submit}
-          saving={pending}
-          dirty={history.isDirty || !initial.title}
-          canSave={!!value.title.trim()}
-          saveLabel={submitLabel}
-          onCancel={onCancel}
-        />
-      </div>
-    </form>
-  );
 }
 
 // ---------------------------------------------------------------
@@ -271,12 +147,12 @@ export function Course() {
 
   const addModule = useAddModule(projectId ?? "");
   const updateModuleTitle = useUpdateModuleTitle(projectId ?? "");
-  const moveModule = useMoveModule(projectId ?? "");
   const deleteModule = useDeleteModule(projectId ?? "");
   const addLesson = useAddLesson(projectId ?? "");
   const updateLesson = useUpdateLesson(projectId ?? "");
   const deleteLesson = useDeleteLesson(projectId ?? "");
-  const moveLesson = useMoveLesson(projectId ?? "");
+  const saveOutline = useSaveOutline(projectId ?? "");
+  const detailsQuery = useCourseDetails(projectId);
   const publishCourse = usePublishCourse(projectId ?? "");
   const returnAfterSave = useReturnAfterSave();
 
@@ -287,16 +163,30 @@ export function Course() {
   const [editingLessonId, setEditingLessonId] = useState<string | null>(null);
   const [selectedLessonId, setSelectedLessonId] = useState<string | null>(null);
   const [collapsedModules, setCollapsedModules] = useState<Set<string>>(new Set());
+  const [reordering, setReordering] = useState(false);
+  // "setup" = the first-run wizard (basics, goals, sections); "details" = the same first two steps, reopened later.
+  const [wizard, setWizard] = useState<null | "setup" | "details">(null);
+  const wizardOffered = useRef(false);
 
   const model = useMemo(() => buildReaderModel(modules ?? [], completedIds), [modules, completedIds]);
   const { flat: flatLessons, total: totalLessons, done: completedCount, pct: progressPct, allDone: allComplete } = model;
   const toast = useToast();
+  const details = detailsQuery.data;
+  const editableSections = (modules ?? []).filter((m) => !m.is_foreword_managed).map((m) => ({ id: m.id, title: m.title }));
   // "outline" = hero + module list; "lesson" = focused reader (on wide screens both show side by side).
   const [view, setView] = useState<"outline" | "lesson">("outline");
   // Milestone completion only — deliberately not wired to individual
   // lesson completion (spec: "avoid showing the invitation after
   // every lesson; prefer milestone completion over micro-completion").
   const courseDoorway = useFeedDoorway("course_complete");
+
+  // A brand-new, empty draft opens the setup wizard once.
+  useEffect(() => {
+    if (wizardOffered.current || !isCreator || !project || project.published_at) return;
+    if (modules === undefined || detailsQuery.isLoading) return;
+    wizardOffered.current = true;
+    if (!modules.some((m) => !m.is_foreword_managed) && !details) setWizard("setup");
+  }, [isCreator, project, modules, detailsQuery.isLoading, details]);
 
   // "Continue where you left off": once the course and progress have
   // loaded, land on the first not-yet-completed lesson (or the very
@@ -552,6 +442,17 @@ export function Course() {
     return `${n}.${li + 1}`;
   };
 
+  const objectivesOk = (details?.objectives.length ?? 0) >= MIN_OBJECTIVES;
+  const lessonsOk = totalLessons > 0;
+  const descriptionOk = !!project?.description?.trim();
+  const publishReady = objectivesOk && lessonsOk && descriptionOk;
+  const checklist = [
+    { done: objectivesOk, label: `Learning objectives (${MIN_OBJECTIVES}+)`, action: isCreator ? () => setWizard("details") : undefined },
+    { done: lessonsOk, label: "At least one lesson", action: undefined },
+    { done: descriptionOk, label: "Course description", action: isCreator ? () => navigate(`/projects/${projectId}/edit`) : undefined },
+    { done: !!project?.thumbnail_url, label: "Cover image", optional: true, action: isCreator ? () => navigate(`/projects/${projectId}/edit`) : undefined },
+  ];
+
   if (!project) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-canvas">
@@ -583,7 +484,7 @@ export function Course() {
             {!project.published_at && (
               <button
                 onClick={handlePublishCourse}
-                disabled={publishCourse.isPending || (modules ?? []).length === 0}
+                disabled={publishCourse.isPending || !publishReady}
                 className="text-xs font-medium px-3 py-1.5 rounded-full bg-accent text-canvas disabled:opacity-50"
               >
                 {publishCourse.isPending ? "Publishing…" : "Publish"}
@@ -606,6 +507,50 @@ export function Course() {
             )}
           </button>
         )}
+
+        {isOwner && !project.published_at && (
+          <div className="mb-4 rounded-xl border border-border bg-surface p-3">
+            <p className="mb-2 text-sm font-semibold text-ink">Before you publish</p>
+            <ul className="flex flex-col gap-1.5">
+              {checklist.map((c) => (
+                <li key={c.label} className="flex items-center gap-2 text-sm">
+                  {c.done ? <CheckCircle2 size={16} className="flex-shrink-0 text-accent" /> : <CircleIcon size={16} className="flex-shrink-0 text-ink-muted" />}
+                  <span className={c.done ? "text-ink-muted line-through decoration-border" : "text-ink"}>
+                    {c.label}
+                    {c.optional && !c.done ? <span className="text-ink-muted"> · optional</span> : null}
+                  </span>
+                  {!c.done && c.action && (
+                    <button onClick={c.action} className="ml-auto text-xs font-medium text-accent">
+                      Add
+                    </button>
+                  )}
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+
+        {isCreator && !reordering && (
+          <div className="mb-4 flex gap-2">
+            <button
+              onClick={() => setWizard("details")}
+              className="flex flex-1 items-center justify-center gap-1.5 rounded-xl border border-border py-2.5 text-sm font-medium text-ink"
+            >
+              <Settings2 size={15} /> Course details
+            </button>
+            <button
+              onClick={() => setReordering(true)}
+              disabled={(modules ?? []).length === 0}
+              className="flex flex-1 items-center justify-center gap-1.5 rounded-xl border border-border py-2.5 text-sm font-medium text-ink disabled:opacity-40"
+            >
+              <ArrowUpDown size={15} /> Reorder
+            </button>
+          </div>
+        )}
+
+        {view === "outline" || (typeof window !== "undefined" && window.matchMedia("(min-width: 1024px)").matches) ? (
+          <CourseAbout details={details} lessons={totalLessons} minutes={(modules ?? []).flatMap((m) => m.lessons).reduce((n, l) => n + lessonMinutes(l), 0)} />
+        ) : null}
 
         {hasAccess && totalLessons > 0 && (
           <div className={view === "lesson" ? "hidden lg:block" : ""}>
@@ -642,8 +587,23 @@ export function Course() {
         {/* Curriculum outline — always visible so a prospective buyer
             can see what's inside, same as a Udemy course landing page;
             locked rows just can't be opened. */}
+        {reordering ? (
+          <ReorderPanel
+            modules={modules ?? []}
+            saving={saveOutline.isPending}
+            onCancel={() => setReordering(false)}
+            onSave={async (draft) => {
+              try {
+                await saveOutline.mutateAsync({ draft, current: modules ?? [] });
+                setReordering(false);
+              } catch (err) {
+                toast(friendlyError(err, "Couldn't save the new order."), { variant: "error" });
+              }
+            }}
+          />
+        ) : (
         <div className="flex flex-col gap-3">
-          {(modules ?? []).map((m, moduleIdx) => {
+          {(modules ?? []).map((m) => {
             const collapsed = collapsedModules.has(m.id);
             const prog = model.perModule.get(m.id);
             return (
@@ -702,12 +662,6 @@ export function Course() {
 
                   {isOwner && editingModuleId !== m.id && (
                     <div className="flex items-center gap-2 flex-shrink-0">
-                      <button onClick={() => moveModule.mutate({ modules: modules ?? [], moduleId: m.id, direction: "up" })} disabled={moduleIdx === 0} className="text-ink-muted disabled:opacity-30">
-                        <ChevronUp size={14} />
-                      </button>
-                      <button onClick={() => moveModule.mutate({ modules: modules ?? [], moduleId: m.id, direction: "down" })} disabled={moduleIdx === (modules ?? []).length - 1} className="text-ink-muted disabled:opacity-30">
-                        <ChevronDown size={14} />
-                      </button>
                       {m.is_foreword_managed ? (
                         <button onClick={() => setShowForewords(true)} className="text-xs font-medium text-accent">
                           Manage
@@ -747,23 +701,36 @@ export function Course() {
                       return (
                         <div key={l.id}>
                           {editingLessonId === l.id ? (
-                            <LessonForm
+                            <LessonEditor
+                              projectId={projectId ?? ""}
+                              isNew={false}
                               initial={{
+                                lessonType: lessonTypeOf(l),
                                 title: l.title,
                                 content: l.content ?? "",
-                                mediaUrl: l.media_url ?? "",
+                                quiz: parseQuiz(l.data),
                                 isFreePreview: l.is_free_preview,
+                                moduleId: m.id,
                               }}
+                              initialVideo={{
+                                videoPath: l.video_path,
+                                videoWidth: l.video_width,
+                                videoHeight: l.video_height,
+                                videoDuration: l.video_duration,
+                                mediaUrl: l.media_url ?? "",
+                              }}
+                              sections={editableSections}
                               submitLabel="Save lesson"
                               pending={updateLesson.isPending}
                               onCancel={() => setEditingLessonId(null)}
                               onSubmit={async (value) => {
                                 await updateLesson.mutateAsync({
                                   lessonId: l.id,
-                                  title: value.title.trim(),
-                                  content: value.content.trim() || undefined,
-                                  mediaUrl: value.mediaUrl.trim() || undefined,
-                                  isFreePreview: value.isFreePreview,
+                                  ...lessonPayload(value),
+                                  previousVideoPath: l.video_path,
+                                  ...(value.moduleId !== m.id
+                                    ? { moduleId: value.moduleId, sortOrder: (modules ?? []).find((x) => x.id === value.moduleId)?.lessons.length ?? 0 }
+                                    : {}),
                                 });
                                 setEditingLessonId(null);
                               }}
@@ -793,31 +760,30 @@ export function Course() {
                                 disabled={locked}
                                 className="flex-1 flex items-center gap-1.5 text-left min-w-0 disabled:cursor-not-allowed"
                               >
-                                {l.media_url ? (
-                                  <PlayCircle size={13} className="text-ink-muted flex-shrink-0" />
-                                ) : (
-                                  <FileText size={13} className="text-ink-muted flex-shrink-0" />
-                                )}
+                                {(() => {
+                                  const Icon = TYPE_ICONS[lessonTypeOf(l)];
+                                  return <Icon size={13} className="text-ink-muted flex-shrink-0" />;
+                                })()}
                                 <span className={`text-sm truncate ${locked ? "text-ink-muted" : "text-ink"}`}>
                                   {m.is_foreword_managed ? "" : `${moduleNumberOf(m.id)}.${lessonIdx + 1}\u00A0\u00A0`}{l.title}
                                 </span>
-                                <span className="text-[11px] text-ink-muted flex-shrink-0">{l.media_url ? "video" : `${readMinutes(l.content)} min`}</span>
+                                <span className="text-[11px] text-ink-muted flex-shrink-0">{lessonMeta(l)}</span>
                                 {!hasAccess && l.is_free_preview && (
                                   <span className="text-[11px] text-accent font-medium flex-shrink-0">Preview</span>
                                 )}
                               </button>
                               {isOwner && !m.is_foreword_managed && (
                                 <div className="flex items-center gap-1.5 flex-shrink-0">
-                                  <button onClick={() => moveLesson.mutate({ lessons: m.lessons, lessonId: l.id, direction: "up" })} disabled={lessonIdx === 0} className="text-ink-muted disabled:opacity-30">
-                                    <ChevronUp size={13} />
-                                  </button>
-                                  <button onClick={() => moveLesson.mutate({ lessons: m.lessons, lessonId: l.id, direction: "down" })} disabled={lessonIdx === m.lessons.length - 1} className="text-ink-muted disabled:opacity-30">
-                                    <ChevronDown size={13} />
-                                  </button>
                                   <button onClick={() => setEditingLessonId(l.id)} className="text-ink-muted">
                                     <Pencil size={13} />
                                   </button>
-                                  <button onClick={() => deleteLesson.mutate(l.id)} className="text-danger">
+                                  <button
+                                    onClick={() => {
+                                      if (window.confirm(`Delete "${l.title}"?${l.video_path ? " Its uploaded video is deleted too." : ""}`)) deleteLesson.mutate(l.id);
+                                    }}
+                                    className="text-danger"
+                                    aria-label="Delete lesson"
+                                  >
                                     <Trash2 size={13} />
                                   </button>
                                 </div>
@@ -834,19 +800,28 @@ export function Course() {
                 {isOwner && !collapsed && !m.is_foreword_managed && (
                   <>
                     {lessonDraftFor === m.id ? (
-                      <LessonForm
-                        initial={{ title: "", content: "", mediaUrl: "", isFreePreview: m.lessons.length === 0 }}
+                      <LessonEditor
+                        projectId={projectId ?? ""}
+                        isNew
+                        initial={{
+                          lessonType: "video",
+                          title: "",
+                          content: "",
+                          quiz: { questions: [], pass_mark: DEFAULT_PASS_MARK },
+                          isFreePreview: m.lessons.length === 0,
+                          moduleId: m.id,
+                        }}
+                        initialVideo={EMPTY_VIDEO}
+                        sections={editableSections}
                         submitLabel="Add lesson"
                         pending={addLesson.isPending}
                         onCancel={() => setLessonDraftFor(null)}
                         onSubmit={async (value) => {
+                          const target = (modules ?? []).find((x) => x.id === value.moduleId) ?? m;
                           await addLesson.mutateAsync({
-                            moduleId: m.id,
-                            title: value.title.trim(),
-                            content: value.content.trim() || undefined,
-                            mediaUrl: value.mediaUrl.trim() || undefined,
-                            isFreePreview: value.isFreePreview,
-                            sortOrder: m.lessons.length,
+                            ...lessonPayload(value),
+                            moduleId: target.id,
+                            sortOrder: target.lessons.length,
                           });
                           setLessonDraftFor(null);
                         }}
@@ -883,6 +858,7 @@ export function Course() {
 
           {!isOwner && (modules ?? []).length === 0 && <p className="text-sm text-ink-muted">No content yet — check back later.</p>}
         </div>
+        )}
           </div>
 
           {/* Reader pane — the lesson currently open. Only ever shows a locked lesson's content if it's
@@ -903,12 +879,28 @@ export function Course() {
                 hasNext={!!nextLesson}
                 nextLocked={!!nextLesson && !canOpen(nextLesson)}
                 media={
-                  selectedLesson.media_url ? (
-                    <LessonMedia
-                      url={selectedLesson.media_url}
+                  selectedLesson.video_path || selectedLesson.media_url ? (
+                    <LessonVideo
+                      videoPath={selectedLesson.video_path}
+                      mediaUrl={selectedLesson.media_url}
+                      width={selectedLesson.video_width}
+                      height={selectedLesson.video_height}
+                      title={selectedLesson.title}
                       startAt={resumeAt && resumeAt.lessonId === selectedLesson.id ? resumeAt.mediaSeconds : null}
                       onTime={tracking ? handleMediaTime : undefined}
                       onWatched={() => {
+                        if (hasAccess) setLessonComplete.mutate({ lessonId: selectedLesson.id, completed: true });
+                      }}
+                    />
+                  ) : null
+                }
+                interactive={
+                  lessonTypeOf(selectedLesson) === "quiz" ? (
+                    <QuizPlayer
+                      key={selectedLesson.id}
+                      data={selectedLesson.data}
+                      completed={completedIds.has(selectedLesson.id)}
+                      onPassed={() => {
                         if (hasAccess) setLessonComplete.mutate({ lessonId: selectedLesson.id, completed: true });
                       }}
                     />
@@ -945,6 +937,15 @@ export function Course() {
             />
           );
         })()}
+      {wizard && projectId && (
+        <CourseSetupWizard
+          projectId={projectId}
+          details={details}
+          existingSections={(modules ?? []).length}
+          includeSections={wizard === "setup"}
+          onClose={() => setWizard(null)}
+        />
+      )}
       {showForewords && projectId && (
         <ForewordsSheet projectId={projectId} projectType="course" onClose={() => setShowForewords(false)} />
       )}

@@ -655,6 +655,11 @@ export function CreateProject() {
       if (projectType === "book" && bookFields.content_source === "upload" && bookFields.allow_read_in_app && created?.id) {
         void extractBookPdf(created.id).catch(() => {});
       }
+      if (projectType === "course" && created?.id) {
+        // Straight into the builder, where the setup wizard opens for the new draft.
+        navigate(`/courses/${created.id}`, { replace: true });
+        return;
+      }
       if (postingAsPage) {
         navigate(`/page/${postingAsPage.username}?tab=projects`);
         toast(`${title.trim()} created successfully.`, { variant: "success" });
