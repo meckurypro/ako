@@ -1,12 +1,13 @@
 // src/pages/admin/AutomationSourcesPanel.tsx
-// News sources for one automated account (pipeline "news"): add a feed, paste its key, edit its request list, switch it
-// on or off, and "Fetch now" to see what each feed returns without publishing anything. Keys are write only: they go
-// to Supabase Vault and can only be replaced or removed here. See supabase/ako_post_automation_news.sql.
+// Sources for one automated account whose template reads from feeds: add one, paste its key, edit its configuration,
+// switch it on or off, and "Fetch now" to see what each returns without publishing anything. The providers and presets
+// come from the catalog (supabase/ako_automation_catalog.sql), so nothing here names a provider. Keys are write only:
+// they go to Supabase Vault and can only be replaced or removed here. See supabase/ako_post_automation_news.sql.
 import { useState } from "react";
 import { Plus, RefreshCw, Trash2 } from "lucide-react";
 import {
-  SOURCE_PROVIDERS,
   useAddAutomationSource,
+  useAutomationCatalog,
   useAutomationSources,
   useClearSourceKey,
   useDeleteAutomationSource,
@@ -17,7 +18,6 @@ import {
   type SourceProvider,
   type SourceReport,
 } from "../../hooks/useAutomation";
-import { BLANK_CONFIG, SOURCE_PRESETS } from "../../lib/automationSources";
 import { friendlyError } from "../../lib/friendlyError";
 import { formatInZone } from "./AdminAutomation";
 
@@ -29,11 +29,6 @@ function parseConfig(text: string): { ok: true; value: Record<string, unknown> }
   try {
     const value = JSON.parse(text);
     if (!value || typeof value !== "object" || Array.isArray(value)) return { ok: false, error: "The config must be a JSON object." };
-    const requests = (value as { requests?: unknown }).requests;
-    if (!Array.isArray(requests) || requests.length === 0) {
-      return { ok: false, error: "Add a \"requests\" list with at least one request." };
-    }
-    if (requests.length > 6) return { ok: false, error: "A source reads at most 6 requests." };
     return { ok: true, value };
   } catch {
     return { ok: false, error: "That isn't valid JSON." };
@@ -42,19 +37,28 @@ function parseConfig(text: string): { ok: true; value: Record<string, unknown> }
 
 export function AutomationSourcesPanel({ accountId, timezone }: { accountId: string; timezone: string }) {
   const { data: sources = [] } = useAutomationSources(accountId);
+  const { data: catalog } = useAutomationCatalog();
+  const providers = catalog?.providers ?? [];
+  const presets = catalog?.presets ?? [];
   const add = useAddAutomationSource();
   const fetchNow = useFetchAutomationSources();
 
   const [adding, setAdding] = useState(false);
-  const [provider, setProvider] = useState<SourceProvider>("newsdata");
+  const [provider, setProvider] = useState<SourceProvider>("");
   const [label, setLabel] = useState("");
-  const [configText, setConfigText] = useState(JSON.stringify(BLANK_CONFIG.newsdata, null, 2));
+  const [configText, setConfigText] = useState("{}");
   const [apiKey, setApiKey] = useState("");
   const [addError, setAddError] = useState<string | null>(null);
   const [reports, setReports] = useState<SourceReport[] | null>(null);
   const [fetchError, setFetchError] = useState<string | null>(null);
 
-  const needsKey = SOURCE_PROVIDERS.find((p) => p.value === provider)?.needsKey ?? false;
+  const providerInfo = providers.find((p) => p.id === provider);
+  const needsKey = providerInfo?.needs_key ?? false;
+
+  function startBlank() {
+    const first = providers[0];
+    if (first) startFrom(first.id, "", first.blank_config);
+  }
 
   function startFrom(nextProvider: SourceProvider, nextLabel: string, config: Record<string, unknown>) {
     setProvider(nextProvider);
@@ -71,7 +75,7 @@ export function AutomationSourcesPanel({ accountId, timezone }: { accountId: str
     if (!label.trim()) return setAddError("Give this source a name.");
     if (needsKey && !apiKey.trim()) return setAddError("Paste this provider's API key.");
     try {
-      await add.mutateAsync({ accountId, provider, label: label.trim(), config: parsed.value, apiKey });
+      await add.mutateAsync({ accountId, provider, label: label.trim(), config: parsed.value, apiKey, needsKey });
       setAdding(false);
       setLabel("");
       setApiKey("");
@@ -91,9 +95,9 @@ export function AutomationSourcesPanel({ accountId, timezone }: { accountId: str
   }
 
   return (
-    <section className="mt-6">
+    <section>
       <div className="flex items-center justify-between mb-1">
-        <h3 className="text-sm font-medium text-ink">News sources</h3>
+        <h3 className="text-sm font-medium text-ink">Sources</h3>
         <button
           type="button"
           onClick={handleFetch}
@@ -105,8 +109,7 @@ export function AutomationSourcesPanel({ accountId, timezone }: { accountId: str
         </button>
       </div>
       <p className="text-xs text-ink-muted mb-3">
-        The feeds this account writes from. Each run collects fresh articles, groups them into stories and writes about the
-        best uncovered one. Fetching here only fills the article cache; nothing is published.
+        The feeds this account collects from before each post. Fetching here only fills the cache; nothing is published.
       </p>
 
       {fetchError && <p className="text-xs text-danger mb-2">{fetchError}</p>}
@@ -115,7 +118,7 @@ export function AutomationSourcesPanel({ accountId, timezone }: { accountId: str
           {reports.length === 0 && <li className="text-ink-muted">No sources are switched on.</li>}
           {reports.map((r) => (
             <li key={r.source_id} className={r.ok ? "text-ink-muted" : "text-danger"}>
-              {r.label}: {r.ok ? `${r.fetched} articles` : r.error}
+              {r.label}: {r.ok ? `${r.fetched} items` : r.error}
             </li>
           ))}
         </ul>
@@ -132,24 +135,24 @@ export function AutomationSourcesPanel({ accountId, timezone }: { accountId: str
 
       {!adding && (
         <div className="mt-3 space-y-2">
-          {SOURCE_PRESETS.map((preset) => (
+          {presets.map((preset) => (
             <button
               key={preset.id}
               type="button"
-              onClick={() => startFrom(preset.provider, preset.label, preset.config)}
+              onClick={() => startFrom(preset.provider_id, preset.label, preset.config)}
               className="w-full text-left border border-border rounded-xl px-3 py-2.5 bg-surface"
             >
               <span className="block text-sm text-ink">{preset.label}</span>
               <span className="block text-xs text-ink-muted">{preset.note}</span>
             </button>
           ))}
-          <button
-            type="button"
-            onClick={() => startFrom(provider, "", BLANK_CONFIG[provider])}
-            className="flex items-center gap-1 text-sm text-accent"
-          >
-            <Plus size={15} /> Add a source
-          </button>
+          {providers.length > 0 ? (
+            <button type="button" onClick={startBlank} className="flex items-center gap-1 text-sm text-accent">
+              <Plus size={15} /> Add a source
+            </button>
+          ) : (
+            <p className="text-xs text-ink-muted">No source providers are set up yet.</p>
+          )}
         </div>
       )}
 
@@ -161,14 +164,15 @@ export function AutomationSourcesPanel({ accountId, timezone }: { accountId: str
               <select
                 value={provider}
                 onChange={(e) => {
-                  const next = e.target.value as SourceProvider;
-                  setProvider(next);
-                  setConfigText(JSON.stringify(BLANK_CONFIG[next], null, 2));
+                  const next = providers.find((p) => p.id === e.target.value);
+                  if (!next) return;
+                  setProvider(next.id);
+                  setConfigText(JSON.stringify(next.blank_config, null, 2));
                 }}
                 className="mt-1 w-full px-3 py-2.5 rounded-xl border border-border bg-canvas text-ink"
               >
-                {SOURCE_PROVIDERS.map((p) => (
-                  <option key={p.value} value={p.value}>
+                {providers.map((p) => (
+                  <option key={p.id} value={p.id}>
                     {p.label}
                   </option>
                 ))}
@@ -200,7 +204,7 @@ export function AutomationSourcesPanel({ accountId, timezone }: { accountId: str
             </label>
           )}
           <label className="block">
-            <span className="text-xs text-ink-muted">Requests (JSON)</span>
+            <span className="text-xs text-ink-muted">Configuration (JSON)</span>
             <textarea
               value={configText}
               onChange={(e) => setConfigText(e.target.value)}
@@ -210,6 +214,7 @@ export function AutomationSourcesPanel({ accountId, timezone }: { accountId: str
               autoCorrect="off"
               className="mt-1 w-full px-3 py-2.5 rounded-xl border border-border bg-canvas text-ink text-xs font-mono"
             />
+            {providerInfo?.config_help && <span className="block text-xs text-ink-muted mt-1">{providerInfo.config_help}</span>}
           </label>
           {addError && <p className="text-xs text-danger">{addError}</p>}
           <div className="flex gap-2">
@@ -241,13 +246,15 @@ function SourceCard({ source, timezone }: { source: AutomationSource; timezone: 
   const clearKey = useClearSourceKey();
   const remove = useDeleteAutomationSource();
 
-  const needsKey = SOURCE_PROVIDERS.find((p) => p.value === source.provider)?.needsKey ?? false;
+  const { data: catalog } = useAutomationCatalog();
+  const providerInfo = catalog?.providers.find((p) => p.id === source.provider);
+  const needsKey = providerInfo?.needs_key ?? false;
   const [open, setOpen] = useState(false);
   const [configText, setConfigText] = useState(JSON.stringify(source.config, null, 2));
   const [newKey, setNewKey] = useState("");
   const [message, setMessage] = useState<{ text: string; error: boolean } | null>(null);
 
-  const providerLabel = SOURCE_PROVIDERS.find((p) => p.value === source.provider)?.label ?? source.provider;
+  const providerLabel = providerInfo?.label ?? source.provider;
   const configDirty = configText !== JSON.stringify(source.config, null, 2);
 
   async function run(action: () => Promise<unknown>, done: string) {
@@ -286,7 +293,7 @@ function SourceCard({ source, timezone }: { source: AutomationSource; timezone: 
             {source.last_fetched_at
               ? source.last_status === "error"
                 ? `Last fetch failed: ${source.last_error ?? "unknown error"}`
-                : `${source.last_count ?? 0} articles, ${formatInZone(source.last_fetched_at, timezone)}`
+                : `${source.last_count ?? 0} items, ${formatInZone(source.last_fetched_at, timezone)}`
               : "Not fetched yet"}
           </span>
         </button>
@@ -353,7 +360,7 @@ function SourceCard({ source, timezone }: { source: AutomationSource; timezone: 
           )}
 
           <label className="block">
-            <span className="text-xs text-ink-muted">Requests (JSON)</span>
+            <span className="text-xs text-ink-muted">Configuration (JSON)</span>
             <textarea
               value={configText}
               onChange={(e) => setConfigText(e.target.value)}
@@ -363,6 +370,7 @@ function SourceCard({ source, timezone }: { source: AutomationSource; timezone: 
               autoCorrect="off"
               className="mt-1 w-full px-3 py-2.5 rounded-xl border border-border bg-canvas text-ink text-xs font-mono"
             />
+            {providerInfo?.config_help && <span className="block text-xs text-ink-muted mt-1">{providerInfo.config_help}</span>}
           </label>
 
           <div className="flex gap-2">
@@ -372,7 +380,7 @@ function SourceCard({ source, timezone }: { source: AutomationSource; timezone: 
               disabled={!configDirty || update.isPending}
               className="flex-1 bg-accent text-canvas rounded-xl py-2 text-sm font-medium disabled:opacity-40"
             >
-              Save requests
+              Save configuration
             </button>
             <button
               type="button"

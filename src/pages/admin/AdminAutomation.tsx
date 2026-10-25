@@ -7,7 +7,7 @@ import { ArrowLeft, ChevronRight, Search } from "lucide-react";
 import { useSmartBack } from "../../hooks/useSmartBack";
 import { Avatar } from "../../components/Avatar";
 import { useAdminSearchUsers } from "../../hooks/useAdminComms";
-import { useAutomatedAccounts, useCreateAutomatedAccount, type AutomationPipeline } from "../../hooks/useAutomation";
+import { useAutomatedAccounts, useAutomationCatalog, useCreateAutomatedAccount } from "../../hooks/useAutomation";
 import { useToast } from "../../components/Toast";
 import { useErrorNotice } from "../../components/ErrorNotice";
 
@@ -36,14 +36,18 @@ export function AdminAutomation() {
   const createAccount = useCreateAutomatedAccount();
 
   const [query, setQuery] = useState("");
-  const [pipeline, setPipeline] = useState<AutomationPipeline>("knowledge");
+  const { data: catalog } = useAutomationCatalog();
+  const templates = catalog?.templates ?? [];
+  const [templateId, setTemplateId] = useState("");
+  const template = templates.find((t) => t.id === templateId) ?? templates[0];
   const { data: results = [], isFetching } = useAdminSearchUsers(query);
 
   const taken = new Set(accounts.map((a) => a.user_id));
 
   async function handlePick(userId: string) {
+    if (!template) return;
     try {
-      const id = await createAccount.mutateAsync({ userId, pipeline });
+      const id = await createAccount.mutateAsync({ userId, pipeline: template.id });
       navigate(`/admin/automation/${id}`);
     } catch (err) {
       const e = err as { code?: string; message?: string };
@@ -88,9 +92,10 @@ export function AdminAutomation() {
                     {a.is_enabled ? `Next ${formatInZone(a.next_run_at, a.timezone)}` : "Paused"}
                   </p>
                   <p className="text-xs text-ink-muted">
-                    {a.pipeline === "news"
-                      ? "News account"
-                      : `Knowledge account · ${a.pending_ideas} idea${a.pending_ideas === 1 ? "" : "s"} waiting`}
+                    {templates.find((t) => t.id === a.pipeline)?.label ?? a.pipeline}
+                    {templates.find((t) => t.id === a.pipeline)?.uses_idea_vault
+                      ? ` · ${a.pending_ideas} idea${a.pending_ideas === 1 ? "" : "s"} waiting`
+                      : ""}
                   </p>
                 </div>
                 <span
@@ -111,15 +116,20 @@ export function AdminAutomation() {
           Create the user account the normal way first, then find it here by name or username.
         </p>
         <label className="block mb-3">
-          <span className="text-xs text-ink-muted">Account type</span>
+          <span className="text-xs text-ink-muted">Template</span>
           <select
-            value={pipeline}
-            onChange={(e) => setPipeline(e.target.value as AutomationPipeline)}
+            value={template?.id ?? ""}
+            onChange={(e) => setTemplateId(e.target.value)}
+            disabled={templates.length === 0}
             className="mt-1 w-full px-3 py-2.5 rounded-xl border border-border bg-surface text-ink"
           >
-            <option value="knowledge">Knowledge (writes from a brief and an idea vault)</option>
-            <option value="news">News (writes from collected articles)</option>
+            {templates.map((t) => (
+              <option key={t.id} value={t.id}>
+                {t.label}
+              </option>
+            ))}
           </select>
+          {template?.description && <span className="block text-xs text-ink-muted mt-1">{template.description}</span>}
         </label>
         <div className="relative mb-2">
           <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-ink-muted" />
@@ -139,7 +149,7 @@ export function AdminAutomation() {
               return (
                 <button
                   key={u.id}
-                  disabled={already || createAccount.isPending}
+                  disabled={already || createAccount.isPending || !template}
                   onClick={() => handlePick(u.id)}
                   className="w-full flex items-center gap-3 bg-surface rounded-xl p-3 border border-border text-left disabled:opacity-50"
                 >
