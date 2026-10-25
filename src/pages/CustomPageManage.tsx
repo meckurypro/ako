@@ -22,6 +22,7 @@ import { useToast } from "../components/Toast";
 import { friendlyError } from "../lib/friendlyError";
 import { isReservedProjectSlug, isValidProjectSlugFormat } from "../lib/projectLinks";
 import { customPageUrl, type CustomPageInquiry } from "../lib/customPage";
+import { downloadBlob, renderQrCard, type QrCardFormat } from "../lib/qrCard";
 import { timeAgo } from "../lib/timeAgo";
 
 const VISIBILITY = [
@@ -45,6 +46,8 @@ export function CustomPageManage() {
   const [qr, setQr] = useState<string | null>(null);
   const [slugOpen, setSlugOpen] = useState(false);
   const [showcase, setShowcase] = useState(false);
+  const [downloadOpen, setDownloadOpen] = useState(false);
+  const [downloading, setDownloading] = useState<QrCardFormat | null>(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
 
   const url = page ? customPageUrl(page.slug) : "";
@@ -88,6 +91,21 @@ export function CustomPageManage() {
       toast(ok, { variant: "success" });
     } catch (err) {
       toast(friendlyError(err, "Something went wrong. Please try again."), { variant: "error", duration: 3500 });
+    }
+  };
+
+  const downloadQr = async (format: QrCardFormat) => {
+    if (!page || downloading) return;
+    setDownloading(format);
+    try {
+      const blob = await renderQrCard(url, format);
+      downloadBlob(blob, `${page.slug}-qr-${format === "portrait" ? "9x16" : "16x9"}.png`);
+      setDownloadOpen(false);
+      toast("Download started.", { variant: "success" });
+    } catch {
+      toast("Couldn't create the image. Please try again.", { variant: "error", duration: 3500 });
+    } finally {
+      setDownloading(null);
     }
   };
 
@@ -141,9 +159,9 @@ export function CustomPageManage() {
               <div>
                 <p className="text-sm text-ink font-medium">QR code</p>
                 <p className="text-xs text-ink-muted mt-0.5 mb-2 leading-snug">For flyers, banners and screens. It always points to your page's current link.</p>
-                <a href={qr} download={`${page.slug}-qr.png`} className="inline-flex items-center gap-1.5 text-accent text-sm font-medium">
+                <button onClick={() => setDownloadOpen(true)} className="inline-flex items-center gap-1.5 text-accent text-sm font-medium">
                   <Download size={14} /> Download
-                </a>
+                </button>
                 <button onClick={() => setShowcase(true)} className="ml-4 inline-flex items-center gap-1.5 text-accent text-sm font-medium">
                   <Printer size={14} /> Print
                 </button>
@@ -262,6 +280,30 @@ export function CustomPageManage() {
       )}
 
 
+      {downloadOpen && (
+        <Modal onClose={() => setDownloadOpen(false)} title="Download QR code">
+          <p className="text-sm text-overlay-ink-muted mb-4">Your link and QR code on a white card. Pick a shape.</p>
+          <div className="grid grid-cols-2 gap-3">
+            {([
+              { f: "portrait", label: "Portrait", ratio: "9:16", box: "w-[54px] h-24", hint: "Link on top" },
+              { f: "landscape", label: "Landscape", ratio: "16:9", box: "w-24 h-[54px]", hint: "Link beside code" },
+            ] as const).map((o) => (
+              <button
+                key={o.f}
+                onClick={() => void downloadQr(o.f)}
+                disabled={!!downloading}
+                className="rounded-2xl bg-overlay-surface-raised p-3 flex flex-col items-center gap-2 text-overlay-ink disabled:opacity-60"
+              >
+                <div className="h-24 flex items-center">
+                  <div className={`${o.box} rounded-md bg-white border border-overlay-border`} />
+                </div>
+                <span className="text-sm font-medium">{downloading === o.f ? "Preparing…" : `${o.label} · ${o.ratio}`}</span>
+                <span className="text-xs text-overlay-ink-muted">{o.hint}</span>
+              </button>
+            ))}
+          </div>
+        </Modal>
+      )}
       {slugOpen && <SlugDialog pageId={page.id} current={page.slug} onClose={() => setSlugOpen(false)} />}
       {confirmDelete && (
         <ConfirmDialog

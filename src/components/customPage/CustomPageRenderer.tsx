@@ -727,7 +727,15 @@ function Footer({ ctx, slug }: { ctx: Ctx; slug?: string }) {
       {copyright && <p className="mb-5 whitespace-pre-line">{copyright}</p>}
       {/* Fixed by Akọ — not part of the config, so a page owner can't remove or restyle it. */}
       <div className="inline-flex flex-col items-center gap-1 pt-4" style={{ borderTop: `1px solid ${ctx.t.rule}` }}>
-        <span>Powered by Akọ</span>
+        <span className="inline-flex items-center gap-1.5">
+          Powered by
+          {/* Icon matches the page's own surface: the dark-surface artwork on dark pages, the light one on light pages. */}
+          <img
+            src={ctx.p.onSecondary === "#FFFFFF" ? "/app_icon_dark_without_tagline.png" : "/app_icon_light_without_tagline.png"}
+            alt="Akọ"
+            className="h-4 w-auto"
+          />
+        </span>
         {ctx.preview ? (
           <span className="underline underline-offset-2">Create your own custom page</span>
         ) : (
