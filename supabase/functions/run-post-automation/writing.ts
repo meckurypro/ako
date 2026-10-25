@@ -43,6 +43,23 @@ export const MODE_GUIDE = `CONTENT MODES (choose one per post, and vary it acros
 - discuss: an open conversation starter that invites people to share their view.
 - story: a short, plainly illustrative scenario. Make it general, never a claimed personal experience.`;
 
+export const FORMATTING_RULES = `FORMATTING (the app shows these markers as real formatting, so use them exactly as described)
+
+Paragraphs:
+- Write the body as short paragraphs with one blank line between them. Any post longer than about 250 characters must have at least two paragraphs.
+- Keep each paragraph to one to three sentences and under 350 characters. A very short post may be a single paragraph.
+- Use a blank line between paragraphs, never a single line break inside one.
+
+Emphasis markers:
+- Bold: put single asterisks around the words, like *this*.
+- Italics: put single underscores around the words, like _this_.
+- Use them sparingly and with a purpose. Bold marks the one or two phrases a reader should remember. Italics suit a book title, a foreign or technical term, a thought being quoted, or gentle stress on a word.
+- At most 3 bold phrases and 3 italic phrases in a post. Each is a few words long, never a whole sentence.
+- Put the markers tight against the words, with no space just inside them.
+- Never nest one marker inside another, never leave one open, and never use double asterisks, double underscores, backticks, hash headings or bullet lists.
+- The header is plain text with no markers.
+- The markers count towards the character limit.`;
+
 // ---------------------------------------------------------------------------------------------------------------
 // Validation
 // ---------------------------------------------------------------------------------------------------------------
@@ -54,6 +71,8 @@ export interface GeneratedPost {
   content_angle: string;
   mode: string;
   source_idea_id: string | null;
+  /** News pipeline: the cached articles this post was built from. */
+  source_article_ids?: string[];
 }
 
 export interface ValidationContext {
@@ -110,7 +129,7 @@ function words(text: string): string[] {
 }
 
 export function openingOf(body: string): string {
-  const flat = body.replace(/\s+/g, " ").trim();
+  const flat = stripMarkers(body).replace(/\s+/g, " ").trim();
   const match = flat.match(/^.*?[.!?](?=\s|$)/);
   return (match ? match[0] : flat).slice(0, 140);
 }
@@ -128,12 +147,78 @@ function jaccard(a: string, b: string): number {
   return shared / (sa.size + sb.size - shared);
 }
 
+const BOLD_RE = /\*([^*\n]+)\*/g;
+const ITALIC_RE = /_([^_\n]+)_/g;
+const MAX_EMPHASIS_PER_KIND = 3;
+const MAX_EMPHASIS_CHARS = 60;
+const MAX_PARAGRAPH_CHARS = 400;
+const LONG_POST_NEEDS_PARAGRAPHS = 250;
+
+// Remove the display markers so checks on wording (banned phrases, openings, similarity) see plain text.
+export function stripMarkers(text: string): string {
+  return text.replace(BOLD_RE, "$1").replace(ITALIC_RE, "$1");
+}
+
+// Hashtags, mentions and links can legitimately contain an underscore, so they are set aside before looking for
+// stray markers.
+function withoutLinksAndTags(text: string): string {
+  return text.replace(/https?:\/\/\S+/g, " ").replace(/[#@][A-Za-z0-9_]+/g, " ");
+}
+
+export function formattingProblems(header: string, body: string): string[] {
+  const problems: string[] = [];
+
+  if (/[*_~]|\[\/?u\]/.test(withoutLinksAndTags(header))) {
+    problems.push("The header must be plain text with no formatting markers.");
+  }
+
+  const scan = withoutLinksAndTags(body);
+  const bold = [...scan.matchAll(BOLD_RE)].map((m) => m[1]);
+  const italic = [...scan.matchAll(ITALIC_RE)].map((m) => m[1]);
+
+  if (bold.some((t) => t.includes("_")) || italic.some((t) => t.includes("*"))) {
+    problems.push("Bold and italic markers are nested. Use only one marker around a phrase.");
+  }
+  if (bold.some((t) => t !== t.trim()) || italic.some((t) => t !== t.trim())) {
+    problems.push("Put bold and italic markers tight against the words, with no space just inside them.");
+  }
+  if (bold.length > MAX_EMPHASIS_PER_KIND) {
+    problems.push(`There are ${bold.length} bold phrases; use at most ${MAX_EMPHASIS_PER_KIND}.`);
+  }
+  if (italic.length > MAX_EMPHASIS_PER_KIND) {
+    problems.push(`There are ${italic.length} italic phrases; use at most ${MAX_EMPHASIS_PER_KIND}.`);
+  }
+  if ([...bold, ...italic].some((t) => t.length > MAX_EMPHASIS_CHARS)) {
+    problems.push(`Keep each bold or italic phrase under ${MAX_EMPHASIS_CHARS} characters. Never format whole sentences.`);
+  }
+
+  // Whatever is left after taking out the matched pairs is an unclosed or stray marker.
+  const leftover = scan.replace(BOLD_RE, " ").replace(ITALIC_RE, " ");
+  if (/[*_]/.test(leftover)) {
+    problems.push("A bold or italic marker is unclosed or stray. Close every marker or remove it.");
+  }
+
+  const paragraphs = body.split(/\n{2,}/).map((p) => p.trim()).filter(Boolean);
+  if (body.length > LONG_POST_NEEDS_PARAGRAPHS && paragraphs.length < 2) {
+    problems.push("The body is one block. Split it into short paragraphs separated by a blank line.");
+  }
+  if (paragraphs.some((p) => p.length > MAX_PARAGRAPH_CHARS)) {
+    problems.push(`A paragraph is longer than ${MAX_PARAGRAPH_CHARS} characters. Break it into shorter paragraphs.`);
+  }
+  if (/[^\n]\n[^\n]/.test(body)) {
+    problems.push("Paragraphs must be separated by a blank line, not a single line break.");
+  }
+
+  return problems;
+}
+
 export function validatePost(post: GeneratedPost, ctx: ValidationContext): string[] {
   const problems: string[] = [];
   const header = post.header;
   const body = post.body;
   const both = `${header}\n${body}`;
-  const lowered = normaliseApostrophes(both).toLowerCase();
+  const plainBoth = stripMarkers(both);
+  const lowered = normaliseApostrophes(plainBoth).toLowerCase();
 
   if (!header.trim()) problems.push("The header is empty.");
   if (!body.trim()) problems.push("The body is empty.");
@@ -152,15 +237,16 @@ export function validatePost(post: GeneratedPost, ctx: ValidationContext): strin
   for (const phrase of BANNED_PHRASES) {
     if (lowered.includes(phrase)) problems.push(`It uses the banned phrase "${phrase}".`);
   }
-  if (NEGATION_LIST_RE.test(normaliseApostrophes(both))) {
+  if (NEGATION_LIST_RE.test(normaliseApostrophes(plainBoth))) {
     problems.push('It uses the "No this. No that. Just this." pattern.');
   }
-  if (NOT_ABOUT_RE.test(normaliseApostrophes(both))) {
+  if (NOT_ABOUT_RE.test(normaliseApostrophes(plainBoth))) {
     problems.push('It uses the "It\'s not about X. It\'s about Y" contrast.');
   }
-  if (MARKDOWN_LIST_RE.test(body) || /\*\*|__|^#{1,6}\s/m.test(body)) {
-    problems.push("It uses list or markdown formatting. Write plain prose.");
+  if (MARKDOWN_LIST_RE.test(body) || /\*\*|__|`|^#{1,6}\s/m.test(body)) {
+    problems.push("It uses a list, heading, backticks or double markers. Use plain paragraphs with single *bold* and _italic_ markers only.");
   }
+  problems.push(...formattingProblems(header, body));
   if ((both.match(/\?/g) ?? []).length > 2) problems.push("It asks too many questions.");
 
   const opening = openingOf(body);
@@ -171,7 +257,7 @@ export function validatePost(post: GeneratedPost, ctx: ValidationContext): strin
   if (opening.endsWith("?") && ctx.recentOpenings.slice(0, 4).filter((o) => o.endsWith("?")).length >= 2) {
     problems.push("Too many recent posts opened with a question. Do not open with one.");
   }
-  if (ctx.recentBodies.slice(0, 3).some((b) => jaccard(b, body) > 0.55)) {
+  if (ctx.recentBodies.slice(0, 3).some((b) => jaccard(stripMarkers(b), stripMarkers(body)) > 0.55)) {
     problems.push("It is too similar to a recent post.");
   }
 

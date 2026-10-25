@@ -24,10 +24,12 @@ import {
   useUpdateAutomationIdea,
   type AiProvider,
   type AutomationIdea,
+  type AutomationPipeline,
   type GeneratedPreview,
   type ScheduleSlot,
 } from "../../hooks/useAutomation";
 import { formatInZone } from "./AdminAutomation";
+import { AutomationSourcesPanel } from "./AutomationSourcesPanel";
 import { friendlyError } from "../../lib/friendlyError";
 
 const DAY_LABELS = ["S", "M", "T", "W", "T", "F", "S"];
@@ -116,6 +118,9 @@ export function AdminAutomationAccount() {
   const [maxHeader, setMaxHeader] = useState(50);
   const [timezone, setTimezone] = useState("Africa/Lagos");
   const [slots, setSlots] = useState<SlotDraft[]>([]);
+  const [pipeline, setPipeline] = useState<AutomationPipeline>("knowledge");
+  const [lookback, setLookback] = useState(36);
+  const [minOutlets, setMinOutlets] = useState(2);
   const [seededFor, setSeededFor] = useState<string | null>(null);
 
   useEffect(() => {
@@ -125,6 +130,9 @@ export function AdminAutomationAccount() {
       setMaxHeader(account.max_heading_chars);
       setTimezone(account.timezone);
       setSlots(toDrafts(account.schedule ?? []));
+      setPipeline(account.pipeline ?? "knowledge");
+      setLookback(account.news_settings?.lookback_hours ?? 36);
+      setMinOutlets(account.news_settings?.min_sources ?? 2);
       setSeededFor(account.id);
     }
   }, [account, seededFor]);
@@ -153,16 +161,29 @@ export function AdminAutomationAccount() {
   const [ideaError, setIdeaError] = useState<string | null>(null);
   const [ideaTab, setIdeaTab] = useState<AutomationIdea["status"]>("pending");
 
+  const newsSettings = useMemo(
+    () => ({
+      ...(account?.news_settings ?? {}),
+      lookback_hours: Math.min(120, Math.max(6, Math.round(lookback) || 36)),
+      min_sources: Math.min(5, Math.max(1, Math.round(minOutlets) || 2)),
+    }),
+    [account?.news_settings, lookback, minOutlets],
+  );
+
   const dirty = useMemo(() => {
     if (!account) return false;
     return (
+      pipeline !== (account.pipeline ?? "knowledge") ||
+      (pipeline === "news" &&
+        (newsSettings.lookback_hours !== (account.news_settings?.lookback_hours ?? 36) ||
+          newsSettings.min_sources !== (account.news_settings?.min_sources ?? 2))) ||
       prompt !== account.system_prompt ||
       maxPost !== account.max_post_chars ||
       maxHeader !== account.max_heading_chars ||
       timezone !== account.timezone ||
       JSON.stringify(toSchedule(slots)) !== JSON.stringify(account.schedule ?? [])
     );
-  }, [account, prompt, maxPost, maxHeader, timezone, slots]);
+  }, [account, prompt, maxPost, maxHeader, timezone, slots, pipeline, newsSettings]);
 
   const zones = useMemo(() => zoneList(account?.timezone ?? "Africa/Lagos"), [account?.timezone]);
 
@@ -192,6 +213,8 @@ export function AdminAutomationAccount() {
           max_heading_chars: Math.min(50, Math.max(10, Math.round(maxHeader) || 50)),
           timezone,
           schedule: toSchedule(slots),
+          pipeline,
+          news_settings: pipeline === "news" ? newsSettings : (account!.news_settings ?? {}),
         },
       });
       // Re-seed from what was saved (the DB clamps nothing, but we do).
@@ -453,6 +476,8 @@ export function AdminAutomationAccount() {
           </div>
         </section>
 
+        {account.pipeline === "news" && <AutomationSourcesPanel accountId={account.id} timezone={account.timezone} />}
+
         <form onSubmit={handleSave} className="mt-6 space-y-6">
           {/* Brief */}
           <section>
@@ -470,6 +495,52 @@ export function AdminAutomationAccount() {
               className="w-full px-4 py-3 rounded-xl border border-border bg-surface text-ink text-sm leading-relaxed"
             />
             <p className="text-xs text-ink-muted text-right">{prompt.length}/6000</p>
+          </section>
+
+          {/* Content source */}
+          <section>
+            <h3 className="text-sm font-medium text-ink mb-1">Where posts come from</h3>
+            <p className="text-xs text-ink-muted mb-2">
+              Knowledge accounts write from the brief and the idea vault. News accounts write from fresh articles collected
+              from the sources below, grouped into stories, with a sources line added under each post. Save, then add
+              sources.
+            </p>
+            <select
+              value={pipeline}
+              onChange={(e) => setPipeline(e.target.value as AutomationPipeline)}
+              className="w-full px-3 py-2.5 rounded-xl border border-border bg-surface text-ink"
+            >
+              <option value="knowledge">Knowledge (brief and ideas)</option>
+              <option value="news">News (collected articles)</option>
+            </select>
+            {pipeline === "news" && (
+              <div className="grid grid-cols-2 gap-3 mt-3">
+                <label className="block">
+                  <span className="text-xs text-ink-muted">Look back (hours)</span>
+                  <input
+                    type="number"
+                    inputMode="numeric"
+                    min={6}
+                    max={120}
+                    value={lookback}
+                    onChange={(e) => setLookback(Number(e.target.value))}
+                    className="mt-1 w-full px-3 py-2.5 rounded-xl border border-border bg-surface text-ink"
+                  />
+                </label>
+                <label className="block">
+                  <span className="text-xs text-ink-muted">Outlets to trust a story</span>
+                  <input
+                    type="number"
+                    inputMode="numeric"
+                    min={1}
+                    max={5}
+                    value={minOutlets}
+                    onChange={(e) => setMinOutlets(Number(e.target.value))}
+                    className="mt-1 w-full px-3 py-2.5 rounded-xl border border-border bg-surface text-ink"
+                  />
+                </label>
+              </div>
+            )}
           </section>
 
           {/* Limits */}

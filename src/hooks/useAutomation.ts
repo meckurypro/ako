@@ -17,8 +17,17 @@ export type AiProvider = "anthropic" | "openai" | "gemini";
 export const AI_PROVIDERS: { value: AiProvider; label: string; defaultModel: string }[] = [
   { value: "anthropic", label: "Anthropic", defaultModel: "claude-sonnet-5-5" },
   { value: "openai", label: "OpenAI", defaultModel: "gpt-4.1" },
-  { value: "gemini", label: "Gemini", defaultModel: "gemini-2.5-flash" },
+  { value: "gemini", label: "Gemini", defaultModel: "gemini-3.5-flash" },
 ];
+
+export type AutomationPipeline = "knowledge" | "news";
+
+/** Tuning for the news pipeline. All optional; the engine applies its own defaults. */
+export interface NewsSettings {
+  lookback_hours?: number;
+  min_sources?: number;
+  max_stories?: number;
+}
 
 export interface AutomatedAccount {
   id: string;
@@ -31,6 +40,8 @@ export interface AutomatedAccount {
   schedule: ScheduleSlot[];
   ai_provider: AiProvider;
   ai_model: string | null;
+  pipeline: AutomationPipeline;
+  news_settings: NewsSettings;
   /** Last four characters of the saved key, or null when none is saved. The key itself is never readable here. */
   api_key_last4: string | null;
   next_run_at: string | null;
@@ -82,10 +93,12 @@ export interface GeneratedPreview {
   content_angle: string;
   mode: string;
   source_idea_id: string | null;
+  /** News pipeline: the cached articles the post was built from. Sent back unchanged when publishing the draft. */
+  source_article_ids?: string[];
 }
 
 const ACCOUNT_SELECT =
-  "id, user_id, system_prompt, is_enabled, max_post_chars, max_heading_chars, timezone, schedule, ai_provider, ai_model, api_key_last4, next_run_at, last_run_at, locked_until, created_at, profile:profiles(username, display_name, avatar_url, is_verified)";
+  "id, user_id, system_prompt, is_enabled, max_post_chars, max_heading_chars, timezone, schedule, ai_provider, ai_model, pipeline, news_settings, api_key_last4, next_run_at, last_run_at, locked_until, created_at, profile:profiles(username, display_name, avatar_url, is_verified)";
 
 function invalidate(queryClient: ReturnType<typeof useQueryClient>) {
   queryClient.invalidateQueries({ queryKey: ["automation"] });
@@ -147,7 +160,10 @@ export function useCreateAutomatedAccount() {
 }
 
 export type AutomatedAccountPatch = Partial<
-  Pick<AutomatedAccount, "system_prompt" | "is_enabled" | "max_post_chars" | "max_heading_chars" | "timezone" | "schedule">
+  Pick<
+    AutomatedAccount,
+    "system_prompt" | "is_enabled" | "max_post_chars" | "max_heading_chars" | "timezone" | "schedule" | "pipeline" | "news_settings"
+  >
 >;
 
 export function useUpdateAutomatedAccount() {
@@ -338,6 +354,163 @@ export function useRunAutomationNow() {
       if (error) throw new Error("Couldn't reach the generator. Please try again.");
       if (!data?.ok) throw new Error(data?.error ?? "The post wasn't published.");
       return { post_id: data.post_id as string };
+    },
+    onSettled: () => invalidate(queryClient),
+  });
+}
+
+// ---- News sources ----------------------------------------------------------------------------------------------
+// Feeds a news account reads (supabase/ako_post_automation_news.sql). A feed's key goes straight into Supabase Vault and
+// can't be read back, only replaced or removed, exactly like the AI key.
+
+export type SourceProvider = "newsdata" | "gdelt";
+
+export const SOURCE_PROVIDERS: { value: SourceProvider; label: string; needsKey: boolean }[] = [
+  { value: "newsdata", label: "NewsData.io", needsKey: true },
+  { value: "gdelt", label: "GDELT", needsKey: false },
+];
+
+export interface AutomationSource {
+  id: string;
+  account_id: string;
+  provider: SourceProvider;
+  label: string;
+  is_enabled: boolean;
+  config: Record<string, unknown>;
+  api_key_last4: string | null;
+  last_fetched_at: string | null;
+  last_status: "ok" | "error" | null;
+  last_error: string | null;
+  last_count: number | null;
+  created_at: string;
+}
+
+export interface SourceReport {
+  source_id: string;
+  label: string;
+  provider: SourceProvider;
+  ok: boolean;
+  fetched: number;
+  error?: string;
+}
+
+export function useAutomationSources(accountId: string | undefined) {
+  return useQuery({
+    queryKey: ["automation", "sources", accountId],
+    enabled: !!accountId,
+    queryFn: async (): Promise<AutomationSource[]> => {
+      const { data, error } = await supabase
+        .from("automation_sources")
+        .select(
+          "id, account_id, provider, label, is_enabled, config, api_key_last4, last_fetched_at, last_status, last_error, last_count, created_at",
+        )
+        .eq("account_id", accountId!)
+        .order("created_at", { ascending: true });
+      if (error) throw error;
+      return (data ?? []) as AutomationSource[];
+    },
+  });
+}
+
+export function useAddAutomationSource() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({
+      accountId,
+      provider,
+      label,
+      config,
+      apiKey,
+    }: {
+      accountId: string;
+      provider: SourceProvider;
+      label: string;
+      config: Record<string, unknown>;
+      apiKey: string;
+    }) => {
+      const needsKey = SOURCE_PROVIDERS.find((p) => p.value === provider)?.needsKey ?? false;
+      // A keyed source can't be enabled until it has a key, so it is created off and switched on after the key lands.
+      const { data, error } = await supabase
+        .from("automation_sources")
+        .insert({ account_id: accountId, provider, label, config, is_enabled: !needsKey })
+        .select("id")
+        .single();
+      if (error) throw error;
+      if (needsKey && apiKey.trim()) {
+        const { error: keyError } = await supabase.rpc("automation_set_source_key", {
+          p_source_id: data.id,
+          p_key: apiKey.trim(),
+        });
+        if (keyError) throw keyError;
+        const { error: onError } = await supabase.from("automation_sources").update({ is_enabled: true }).eq("id", data.id);
+        if (onError) throw onError;
+      }
+    },
+    onSuccess: () => invalidate(queryClient),
+  });
+}
+
+export function useUpdateAutomationSource() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({
+      id,
+      patch,
+    }: {
+      id: string;
+      patch: Partial<Pick<AutomationSource, "label" | "is_enabled" | "config">>;
+    }) => {
+      const { error } = await supabase.from("automation_sources").update(patch).eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => invalidate(queryClient),
+  });
+}
+
+export function useSaveSourceKey() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, apiKey }: { id: string; apiKey: string }) => {
+      const { error } = await supabase.rpc("automation_set_source_key", { p_source_id: id, p_key: apiKey.trim() });
+      if (error) throw error;
+    },
+    onSuccess: () => invalidate(queryClient),
+  });
+}
+
+export function useClearSourceKey() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase.rpc("automation_clear_source_key", { p_source_id: id });
+      if (error) throw error;
+    },
+    onSuccess: () => invalidate(queryClient),
+  });
+}
+
+export function useDeleteAutomationSource() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase.from("automation_sources").delete().eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => invalidate(queryClient),
+  });
+}
+
+/** Pulls every enabled source into the article cache now and reports what each one returned. Publishes nothing. */
+export function useFetchAutomationSources() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (accountId: string): Promise<SourceReport[]> => {
+      const { data, error } = await supabase.functions.invoke("run-post-automation", {
+        body: { mode: "fetch_sources", account_id: accountId },
+      });
+      if (error) throw new Error("Couldn't reach the generator. Please try again.");
+      if (!data?.ok) throw new Error(data?.error ?? "Couldn't fetch the sources.");
+      return data.reports as SourceReport[];
     },
     onSettled: () => invalidate(queryClient),
   });

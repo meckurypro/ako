@@ -23,7 +23,7 @@ export const PROVIDER_LABEL: Record<Provider, string> = {
 export const DEFAULT_MODELS: Record<Provider, string> = {
   anthropic: "claude-sonnet-5-5",
   openai: "gpt-4.1",
-  gemini: "gemini-2.5-flash",
+  gemini: "gemini-3.5-flash",
 };
 
 export function isProvider(value: unknown): value is Provider {
@@ -44,6 +44,8 @@ export interface LlmRequest {
   user: string;
   /** Allowed values for the `mode` field. */
   modes: readonly string[];
+  /** News pipeline: also ask for `sources`, the labels of the articles the post relied on. */
+  includeSources?: boolean;
   fetchFn?: typeof fetch;
 }
 
@@ -60,7 +62,10 @@ interface FieldSpec {
 function fieldSpecs(modes: readonly string[]): Record<string, FieldSpec> {
   return {
     header: { description: "The post header." },
-    body: { description: "The post body, plain prose." },
+    body: {
+      description:
+        "The post body: short paragraphs separated by a blank line, with single asterisk bold and single underscore italic markers used sparingly.",
+    },
     topic: { description: "The subject in a few words, for the account's topic history." },
     content_angle: { description: "The specific angle taken, one short sentence." },
     mode: { description: "The content mode used.", enum: modes },
@@ -70,16 +75,24 @@ function fieldSpecs(modes: readonly string[]): Record<string, FieldSpec> {
 
 const REQUIRED = ["header", "body", "topic", "content_angle", "mode"];
 
-function jsonSchema(modes: readonly string[]) {
+const SOURCES_DESCRIPTION =
+  'The labels of every supplied article the post relied on, for example ["A1", "A3"]. Use only labels that were provided.';
+
+function jsonSchema(modes: readonly string[], includeSources = false) {
   const properties: Record<string, unknown> = {};
   for (const [name, spec] of Object.entries(fieldSpecs(modes))) {
     properties[name] = { type: "string", description: spec.description, ...(spec.enum ? { enum: [...spec.enum] } : {}) };
+  }
+  if (includeSources) {
+    delete properties.source_idea_id;
+    properties.sources = { type: "array", items: { type: "string" }, description: SOURCES_DESCRIPTION };
+    return { type: "object", properties, required: [...REQUIRED, "sources"] };
   }
   return { type: "object", properties, required: REQUIRED };
 }
 
 // Gemini's response schema takes the OpenAPI subset with upper case type names and no `required` beyond the list.
-function geminiSchema(modes: readonly string[]) {
+function geminiSchema(modes: readonly string[], includeSources = false) {
   const properties: Record<string, unknown> = {};
   for (const [name, spec] of Object.entries(fieldSpecs(modes))) {
     properties[name] = {
@@ -87,6 +100,11 @@ function geminiSchema(modes: readonly string[]) {
       description: spec.description,
       ...(spec.enum ? { enum: [...spec.enum] } : {}),
     };
+  }
+  if (includeSources) {
+    delete properties.source_idea_id;
+    properties.sources = { type: "ARRAY", items: { type: "STRING" }, description: SOURCES_DESCRIPTION };
+    return { type: "OBJECT", properties, required: [...REQUIRED, "sources"] };
   }
   properties.source_idea_id = { ...(properties.source_idea_id as object), nullable: true };
   return { type: "OBJECT", properties, required: REQUIRED };
@@ -146,7 +164,7 @@ function buildRequest(req: LlmRequest): [string, RequestInit] {
             max_tokens: 1500,
             system: req.system,
             messages: [{ role: "user", content: req.user }],
-            tools: [{ name: TOOL_NAME, description: TOOL_DESCRIPTION, input_schema: jsonSchema(req.modes) }],
+            tools: [{ name: TOOL_NAME, description: TOOL_DESCRIPTION, input_schema: jsonSchema(req.modes, req.includeSources) }],
             tool_choice: { type: "tool", name: TOOL_NAME },
           }),
           signal,
@@ -169,7 +187,7 @@ function buildRequest(req: LlmRequest): [string, RequestInit] {
             tools: [
               {
                 type: "function",
-                function: { name: TOOL_NAME, description: TOOL_DESCRIPTION, parameters: jsonSchema(req.modes) },
+                function: { name: TOOL_NAME, description: TOOL_DESCRIPTION, parameters: jsonSchema(req.modes, req.includeSources) },
               },
             ],
             tool_choice: { type: "function", function: { name: TOOL_NAME } },
@@ -189,7 +207,7 @@ function buildRequest(req: LlmRequest): [string, RequestInit] {
             contents: [{ role: "user", parts: [{ text: req.user }] }],
             generationConfig: {
               responseMimeType: "application/json",
-              responseSchema: geminiSchema(req.modes),
+              responseSchema: geminiSchema(req.modes, req.includeSources),
               // Gemini 2.5 spends part of this budget on thinking, so leave room.
               maxOutputTokens: 4096,
             },
