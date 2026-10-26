@@ -11,7 +11,9 @@ import { X } from "lucide-react";
 import { SafeCover } from "../MediaPlaceholder";
 import { Portal } from "../Portal";
 import { Avatar } from "../Avatar";
-import { useBackDismiss } from "../../hooks/useBackDismiss";
+import { runAfterDismiss, useBackDismiss } from "../../hooks/useBackDismiss";
+import { useIsRestricted } from "../../hooks/useAccountAccess";
+import { getProjectPath } from "../../lib/projectLinks";
 import { useScrollLock } from "../../hooks/useScrollLock";
 import { useMusicCatalogueEntry, useRecordMusicUsageEvent } from "../../hooks/useMusicCatalogue";
 import { CONTRIBUTOR_ROLE_LABELS } from "../../types/music";
@@ -25,6 +27,10 @@ export function MusicDiscoverySheet({ catalogueId, onClose }: MusicDiscoveryShee
   const navigate = useNavigate();
   const { data: entry } = useMusicCatalogueEntry(catalogueId);
   const recordUsage = useRecordMusicUsageEvent();
+  // Restricted (consumer-only) accounts can't reach /compose — the app
+  // never offers them creation surfaces, silently, so hide rather than
+  // send them to a redirect.
+  const restricted = useIsRestricted();
 
   useBackDismiss(onClose);
   useScrollLock();
@@ -34,22 +40,28 @@ export function MusicDiscoverySheet({ catalogueId, onClose }: MusicDiscoveryShee
   const artist = entry.contributors.find((c) => c.role === "artist");
   const featured = entry.contributors.filter((c) => c.role === "featured_artist");
 
+  // Every action navigates, and this sheet's useBackDismiss pops a dummy
+  // history entry when it unmounts. Calling navigate() and then onClose()
+  // lets that pop race the navigation and revert it (the tap "does
+  // nothing"), so each action waits for the dismiss to settle first —
+  // see runAfterDismiss.
   function visitProfile() {
     if (!artist) return;
     recordUsage.mutate({ catalogueId: entry!.id, eventType: "profile_visit" });
-    navigate(`/profile/${artist.contributor.username}`);
-    onClose();
+    // The artist's Akọ profile is the one public, always-present creator
+    // page. A Gig is a private management hub (/gigs), not a public page.
+    runAfterDismiss(onClose, () => navigate(`/profile/${artist.contributor.username}`));
   }
 
   function visitProject() {
     recordUsage.mutate({ catalogueId: entry!.id, eventType: "project_visit" });
-    navigate(`/projects/${entry!.project_id}`);
-    onClose();
+    // Prefer the project's public /:slug address, falling back to the
+    // immutable id route when no slug is set (see lib/projectLinks).
+    runAfterDismiss(onClose, () => navigate(getProjectPath({ id: entry!.project_id, slug: entry!.project_slug })));
   }
 
   function useInPost() {
-    navigate("/compose", { state: { attachMusicCatalogueId: entry!.id } });
-    onClose();
+    runAfterDismiss(onClose, () => navigate("/compose", { state: { attachMusicCatalogueId: entry!.id } }));
   }
 
   return (
@@ -92,9 +104,11 @@ export function MusicDiscoverySheet({ catalogueId, onClose }: MusicDiscoveryShee
             )}
 
             <div className="space-y-2">
-              <button onClick={useInPost} className="w-full py-3 rounded-full bg-accent text-canvas text-sm font-medium">
-                Use in my post
-              </button>
+              {!restricted && (
+                <button onClick={useInPost} className="w-full py-3 rounded-full bg-accent text-canvas text-sm font-medium">
+                  Use in my post
+                </button>
+              )}
               {artist && (
                 <button onClick={visitProfile} className="w-full py-3 rounded-full bg-accent-soft text-accent text-sm font-medium">
                   View creator
