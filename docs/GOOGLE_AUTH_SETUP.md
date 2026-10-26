@@ -19,7 +19,10 @@ The native app (`Ako.native`) uses the same Supabase project and the same Google
 2. Authentication → **URL Configuration**
    - Site URL: `https://myako.site`
    - Redirect URLs (add all): `https://myako.site/auth/callback`, `http://localhost:5173/auth/callback`
-     (local dev), and for the native app `ako://auth/oauth`.
+     (local dev), and for the native app **both** `ako://auth/oauth` (Google) and `ako://auth/callback` (email
+     confirmation / password reset). Native entries must match what the app sends *exactly* — see
+     `Ako.native/docs/GOOGLE_AUTH_SETUP.md`. If a redirect isn't on this list Supabase silently uses the Site URL,
+     so the native in-app browser would land on this website instead of returning to the app.
 
 ## 3. Database
 Run `supabase/ako_google_auth_signup_defaults.sql` once (SQL editor). Google gives us a name and email but no
