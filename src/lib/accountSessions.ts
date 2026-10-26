@@ -38,17 +38,32 @@ export function listSavedAccounts(): SavedAccount[] {
   }
 }
 
+const listeners = new Set<() => void>();
+
+/** Subscribe to any change of the saved-accounts list (returns the unsubscribe). */
+export function subscribeSavedAccounts(listener: () => void): () => void {
+  listeners.add(listener);
+  return () => {
+    listeners.delete(listener);
+  };
+}
+
+function writeAccounts(accounts: SavedAccount[]): void {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(accounts));
+  listeners.forEach((l) => l());
+}
+
 // Upserts by user_id — re-adding an account you've already saved just
 // refreshes its cached tokens/profile snapshot rather than duplicating it.
 export function saveAccount(account: SavedAccount): void {
   const accounts = listSavedAccounts().filter((a) => a.user_id !== account.user_id);
   accounts.push(account);
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(accounts));
+  writeAccounts(accounts);
 }
 
 export function removeSavedAccount(userId: string): void {
   const accounts = listSavedAccounts().filter((a) => a.user_id !== userId);
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(accounts));
+  writeAccounts(accounts);
 }
 
 export function getSavedAccount(userId: string): SavedAccount | undefined {
@@ -70,7 +85,7 @@ export function updateSavedAccountTokens(
   const idx = accounts.findIndex((a) => a.user_id === userId);
   if (idx === -1) return;
   accounts[idx] = { ...accounts[idx], ...tokens };
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(accounts));
+  writeAccounts(accounts);
 }
 
 // ------------------------------------------------------------

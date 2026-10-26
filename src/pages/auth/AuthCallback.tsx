@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
 import { supabase } from "../../lib/supabase";
+import { resetCacheForAccountChange } from "../../lib/queryReset";
 import { saveAccount, takePendingAddAccount } from "../../lib/accountSessions";
 import { Wordmark } from "../../components/Wordmark";
 import { Button } from "../../components/Button";
@@ -84,7 +85,7 @@ export function AuthCallback() {
           })();
         }
 
-        queryClient.clear();
+        resetCacheForAccountChange(queryClient);
 
         // Where to go next depends on whether this person has finished
         // onboarding, which an email confirmation (always a brand-new

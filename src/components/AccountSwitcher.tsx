@@ -73,7 +73,7 @@ export function AccountSwitcher({ onClose }: { onClose: () => void }) {
             switchAccount.mutate(account, {
               onSuccess: () => {
                 onClose();
-                navigate(`/profile/${account.username}`);
+                navigate("/me");
               },
               onError: (err) => {
                 setSwitchError(friendlyError(err, "Couldn't switch accounts."));
