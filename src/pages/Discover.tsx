@@ -1,41 +1,37 @@
 import { useNavigate } from "react-router-dom";
 import { useCategories } from "../hooks/useCategories";
-import { useSuggestedPages, useSuggestedPeople } from "../hooks/useSearch";
+import { useSuggestedPeople } from "../hooks/useSearch";
 import { usePageSuggestedPeople } from "../hooks/usePageDiscover";
 import { useActiveIdentity } from "../hooks/usePages";
 import { useIsRestricted } from "../hooks/useAccountAccess";
-import { PersonRow } from "../components/PersonRow";
-import { PageRow } from "../components/PageRow";
 import { DiscoverShell } from "../components/discover/DiscoverShell";
-import { SectionHeader } from "../components/discover/SectionHeader";
+import { DiscoverBrowse } from "../components/discover/DiscoverBrowse";
+import { DiscoverAvatarTile, DiscoverRail } from "../components/discover/DiscoverRail";
 import { RestrictedDiscover } from "./RestrictedDiscover";
 
-// How many suggestions each section shows (search is the way to find more),
-// and how many topic chips.
-const SUGGESTION_LIMIT = 6;
+// How many topic chips and people the lead section shows (search is the way to find more).
 const TOPIC_LIMIT = 16;
+const PEOPLE_LIMIT = 10;
 
-function FullBrowse() {
+// What full accounts get on top of the shared page: topic chips, and people to follow.
+// Everything below it — the rows per kind of content, and Pages — is the same for every account.
+function FullLead() {
   const navigate = useNavigate();
   const { data: categories } = useCategories();
   const { data: identity } = useActiveIdentity();
   const activePageId = identity?.mode === "page" ? identity.page.id : undefined;
   const personalSuggestions = useSuggestedPeople();
   const pageSuggestions = usePageSuggestedPeople(activePageId);
-  const { data: suggestedPeople, isLoading: suggestedLoading } = activePageId
-    ? pageSuggestions
-    : personalSuggestions;
-  const { data: suggestedPages, isLoading: suggestedPagesLoading } = useSuggestedPages();
+  const { data: suggestedPeople } = activePageId ? pageSuggestions : personalSuggestions;
 
-  // One flat row of interests across every category — tapping one filters the
-  // Feed by it. (This used to be an accordion of every category, which buried
-  // the page.)
+  // One flat row of interests across every category — tapping one filters the Feed by it.
   const topics = (categories ?? []).flatMap((c) => c.interests).slice(0, TOPIC_LIMIT);
+  const people = (suggestedPeople ?? []).slice(0, PEOPLE_LIMIT);
 
   return (
-    <div className="animate-ako-fade-up">
+    <>
       {topics.length > 0 && (
-        <div className="-mx-4 mb-8 overflow-x-auto no-scrollbar">
+        <div className="-mx-4 mb-7 overflow-x-auto no-scrollbar">
           <div className="flex gap-2 px-4 w-max">
             {topics.map((interest) => (
               <button
@@ -50,39 +46,20 @@ function FullBrowse() {
         </div>
       )}
 
-      <section className="mb-9">
-        <SectionHeader
-          title="People to follow"
-          subtitle={activePageId ? "Based on this page's network and activity." : "Based on your network and activity."}
-        />
-        {suggestedLoading ? (
-          <p className="text-ink-muted text-sm py-4">Loading…</p>
-        ) : suggestedPeople && suggestedPeople.length > 0 ? (
-          <div className="divide-y divide-border">
-            {suggestedPeople.slice(0, SUGGESTION_LIMIT).map((p) => (
-              <PersonRow key={p.id} profile={p} />
-            ))}
-          </div>
-        ) : (
-          <p className="text-ink-muted text-sm py-4">No suggestions right now.</p>
-        )}
-      </section>
-
-      <section>
-        <SectionHeader title="Pages to follow" subtitle="Organisations, brands and products worth a look." />
-        {suggestedPagesLoading ? (
-          <p className="text-ink-muted text-sm py-4">Loading…</p>
-        ) : suggestedPages && suggestedPages.length > 0 ? (
-          <div className="divide-y divide-border">
-            {suggestedPages.slice(0, SUGGESTION_LIMIT).map((p) => (
-              <PageRow key={p.id} page={p} />
-            ))}
-          </div>
-        ) : (
-          <p className="text-ink-muted text-sm py-4">No pages to suggest right now.</p>
-        )}
-      </section>
-    </div>
+      {people.length > 0 && (
+        <DiscoverRail title="People to follow">
+          {people.map((p) => (
+            <DiscoverAvatarTile
+              key={p.id}
+              to={`/profile/${p.username}`}
+              name={p.display_name}
+              avatarUrl={p.avatar_url}
+              caption={`@${p.username}`}
+            />
+          ))}
+        </DiscoverRail>
+      )}
+    </>
   );
 }
 
@@ -94,7 +71,7 @@ export function Discover() {
       scope="all"
       placeholder="Search Akọ"
       ariaLabel="Search people, pages, posts and projects"
-      browse={<FullBrowse />}
+      browse={<DiscoverBrowse lead={<FullLead />} />}
     />
   );
 }

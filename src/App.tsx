@@ -43,6 +43,7 @@ import { CommentDetail } from "./pages/CommentDetail";
 import { PromoteComposer } from "./pages/PromoteComposer";
 import { HashtagFeed } from "./pages/HashtagFeed";
 import { Discover } from "./pages/Discover";
+import { DiscoverMore } from "./pages/DiscoverMore";
 
 import { ProfilePage } from "./pages/ProfilePage";
 import { FollowListPage } from "./pages/FollowListPage";
@@ -387,6 +388,14 @@ function AppRoutes() {
               element={
                 <RequireAuth>
                   <Discover />
+                </RequireAuth>
+              }
+            />
+            <Route
+              path="/topics/:section"
+              element={
+                <RequireAuth>
+                  <DiscoverMore />
                 </RequireAuth>
               }
             />
