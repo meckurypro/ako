@@ -13,7 +13,7 @@ import {
   validateCourseVideo,
 } from "../../lib/courseVideo";
 import { UPLOAD_CANCELLED, type ResumableUploadHandle } from "../../lib/resumableUpload";
-import { formatDuration, isPortraitVideo } from "../../lib/courseTypes";
+import { formatDuration, isPortraitVideo, videoLinkProblem } from "../../lib/courseTypes";
 import { friendlyError } from "../../lib/friendlyError";
 import { useCourseVideoUrl } from "./LessonVideo";
 
@@ -220,6 +220,9 @@ export function LessonVideoField({
         />
       )}
 
+      {!hasFile && !uploading && mode === "link" && videoLinkProblem(value.mediaUrl) && (
+        <p className="text-xs text-danger">{videoLinkProblem(value.mediaUrl)}</p>
+      )}
       {error && <p className="text-xs text-danger">{error}</p>}
     </div>
   );

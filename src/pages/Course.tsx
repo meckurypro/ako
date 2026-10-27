@@ -50,8 +50,12 @@ import {
   MIN_OBJECTIVES,
   formatDuration,
   lessonMinutes,
+  countCourseLessons,
+  coursePublishChecks,
   lessonTypeOf,
+  nextSortOrder,
   parseQuiz,
+  safeHttpUrl,
   type LessonType,
 } from "../lib/courseTypes";
 import {
@@ -101,7 +105,7 @@ function lessonPayload(value: LessonSubmit) {
     content: value.content.trim() || undefined,
     isFreePreview: value.isFreePreview,
     lessonType: type,
-    mediaUrl: isVideo && !value.video.videoPath ? value.video.mediaUrl.trim() || undefined : undefined,
+    mediaUrl: isVideo && !value.video.videoPath ? safeHttpUrl(value.video.mediaUrl) ?? undefined : undefined,
     videoPath: isVideo ? value.video.videoPath : null,
     videoWidth: isVideo ? value.video.videoWidth : null,
     videoHeight: isVideo ? value.video.videoHeight : null,
@@ -336,7 +340,7 @@ export function Course() {
   async function handleAddModule(e: FormEvent) {
     e.preventDefault();
     if (!newModuleTitle.trim()) return;
-    await addModule.mutateAsync({ title: newModuleTitle.trim(), sortOrder: modules?.length ?? 0 });
+    await addModule.mutateAsync({ title: newModuleTitle.trim(), sortOrder: nextSortOrder(modules ?? []) });
     setNewModuleTitle("");
   }
 
@@ -443,10 +447,11 @@ export function Course() {
     return `${n}.${li + 1}`;
   };
 
-  const objectivesOk = (details?.objectives.length ?? 0) >= MIN_OBJECTIVES;
-  const lessonsOk = totalLessons > 0;
-  const descriptionOk = !!project?.description?.trim();
-  const publishReady = objectivesOk && lessonsOk && descriptionOk;
+  const { objectivesOk, lessonsOk, descriptionOk, ready: publishReady } = coursePublishChecks({
+    objectives: details?.objectives,
+    lessons: countCourseLessons(modules ?? []),
+    description: project?.description,
+  });
   const checklist = [
     { done: objectivesOk, label: `Learning objectives (${MIN_OBJECTIVES}+)`, action: isCreator ? () => setWizard("details") : undefined },
     { done: lessonsOk, label: "At least one lesson", action: undefined },
@@ -682,7 +687,18 @@ export function Course() {
                           >
                             <Pencil size={14} />
                           </button>
-                          <button onClick={() => deleteModule.mutate(m.id)} className="text-danger">
+                          <button
+                            onClick={() => {
+                              const n = m.lessons.length;
+                              const videos = m.lessons.filter((l) => l.video_path).length;
+                              const detail =
+                                n === 0
+                                  ? ""
+                                  : ` Its ${n} lesson${n === 1 ? "" : "s"}${videos ? ` and ${videos === 1 ? "uploaded video" : `${videos} uploaded videos`}` : ""} will be deleted too.`;
+                              if (window.confirm(`Delete the section "${m.title}"?${detail}`)) deleteModule.mutate(m.id);
+                            }}
+                            className="text-danger"
+                          >
                             <Trash2 size={14} />
                           </button>
                         </>
@@ -734,7 +750,7 @@ export function Course() {
                                   ...lessonPayload(value),
                                   previousVideoPath: l.video_path,
                                   ...(value.moduleId !== m.id
-                                    ? { moduleId: value.moduleId, sortOrder: (modules ?? []).find((x) => x.id === value.moduleId)?.lessons.length ?? 0 }
+                                    ? { moduleId: value.moduleId, sortOrder: nextSortOrder((modules ?? []).find((x) => x.id === value.moduleId)?.lessons ?? []) }
                                     : {}),
                                 });
                                 setEditingLessonId(null);
@@ -827,7 +843,7 @@ export function Course() {
                           await addLesson.mutateAsync({
                             ...lessonPayload(value),
                             moduleId: target.id,
-                            sortOrder: target.lessons.length,
+                            sortOrder: nextSortOrder(target.lessons),
                           });
                           setLessonDraftFor(null);
                         }}
@@ -947,7 +963,7 @@ export function Course() {
         <CourseSetupWizard
           projectId={projectId}
           details={details}
-          existingSections={(modules ?? []).length}
+          nextSectionOrder={nextSortOrder(modules ?? [])}
           includeSections={wizard === "setup"}
           onClose={() => setWizard(null)}
         />

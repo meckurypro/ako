@@ -6,11 +6,11 @@ import { ArrowLeft, Plus, X } from "lucide-react";
 import { useBackDismiss } from "../../hooks/useBackDismiss";
 import { useToast } from "../Toast";
 import {
-  useAddModule,
+  useAddModules,
   useSaveCourseDetails,
   type CourseDetails,
 } from "../../hooks/useCourseBuilder";
-import { COURSE_LEVELS, MAX_OBJECTIVES, MIN_OBJECTIVES } from "../../lib/courseTypes";
+import { COURSE_LEVELS, MAX_OBJECTIVES, MIN_OBJECTIVES, videoLinkProblem } from "../../lib/courseTypes";
 import { removeCourseVideos } from "../../lib/courseVideo";
 import { LessonVideoField, type VideoValue } from "./LessonVideoField";
 import { friendlyError } from "../../lib/friendlyError";
@@ -69,13 +69,14 @@ function ListField({
 export function CourseSetupWizard({
   projectId,
   details,
-  existingSections,
+  nextSectionOrder,
   includeSections,
   onClose,
 }: {
   projectId: string;
   details: CourseDetails | null | undefined;
-  existingSections: number;
+  /** Position for the first new section: one past the highest existing position (not the section count). */
+  nextSectionOrder: number;
   includeSections: boolean;
   onClose: () => void;
 }) {
@@ -96,7 +97,7 @@ export function CourseSetupWizard({
   useBackDismiss(() => close());
   const toast = useToast();
   const saveDetails = useSaveCourseDetails(projectId);
-  const addModule = useAddModule(projectId);
+  const addModules = useAddModules(projectId);
 
   const [step, setStep] = useState(0);
   const [subtitle, setSubtitle] = useState(details?.subtitle ?? "");
@@ -111,7 +112,8 @@ export function CourseSetupWizard({
   const steps = includeSections ? ["Basics", "Goals", "Sections"] : ["Basics", "Goals"];
   const last = step === steps.length - 1;
   const objectiveCount = objectives.filter((o) => o.trim()).length;
-  const canNext = step === 1 ? objectiveCount >= MIN_OBJECTIVES : true;
+  const promoLinkBad = !promo.videoPath && !!videoLinkProblem(promo.mediaUrl);
+  const canNext = step === 1 ? objectiveCount >= MIN_OBJECTIVES : step === 0 ? !promoLinkBad : true;
 
   async function finish() {
     setSaving(true);
@@ -132,9 +134,8 @@ export function CourseSetupWizard({
       });
       if (includeSections) {
         const titles = sections.map((s) => s.trim()).filter(Boolean);
-        for (let i = 0; i < titles.length; i++) {
-          await addModule.mutateAsync({ title: titles[i], sortOrder: existingSections + i });
-        }
+        // One insert for all of them: if it fails nothing was added, so a retry can't duplicate sections.
+        await addModules.mutateAsync({ titles, startOrder: nextSectionOrder });
       }
       close(true);
     } catch (err) {

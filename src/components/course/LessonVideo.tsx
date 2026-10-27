@@ -4,18 +4,11 @@
 import { useQuery } from "@tanstack/react-query";
 import { PlayCircle } from "lucide-react";
 import { signedCourseVideoUrl } from "../../lib/courseVideo";
+import { resolveEmbed } from "../../lib/courseTypes";
 import { VideoPlayer } from "./VideoPlayer";
 
-type EmbedKind = { type: "youtube" | "vimeo"; embedUrl: string } | { type: "video" } | { type: "link" };
-
-export function resolveEmbed(url: string): EmbedKind {
-  const yt = url.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/)([a-zA-Z0-9_-]{6,})/);
-  if (yt) return { type: "youtube", embedUrl: `https://www.youtube.com/embed/${yt[1]}` };
-  const vimeo = url.match(/vimeo\.com\/(\d+)/);
-  if (vimeo) return { type: "vimeo", embedUrl: `https://player.vimeo.com/video/${vimeo[1]}` };
-  if (/\.(mp4|webm|ogg|mov|m4v)(\?.*)?$/i.test(url)) return { type: "video" };
-  return { type: "link" };
-}
+// Re-exported so existing imports keep working; the logic lives in lib/courseTypes.ts (shared with the native app).
+export { resolveEmbed };
 
 export function useCourseVideoUrl(path: string | null | undefined) {
   return useQuery({
@@ -55,8 +48,8 @@ export function LessonVideo({ videoPath, mediaUrl, width, height, title, startAt
     return <VideoPlayer src={signed.data} width={width} height={height} title={title} startAt={startAt} onTime={onTime} onEnded={onWatched} />;
   }
 
-  if (!mediaUrl) return null;
   const embed = resolveEmbed(mediaUrl);
+  if (embed.type === "none") return null;
   if (embed.type === "youtube" || embed.type === "vimeo") {
     return (
       <div className="mb-2 aspect-video w-full overflow-hidden rounded-xl bg-canvas">
@@ -65,10 +58,11 @@ export function LessonVideo({ videoPath, mediaUrl, width, height, title, startAt
     );
   }
   if (embed.type === "video") {
-    return <VideoPlayer src={mediaUrl} width={width} height={height} title={title} startAt={startAt} onTime={onTime} onEnded={onWatched} />;
+    return <VideoPlayer src={embed.url} width={width} height={height} title={title} startAt={startAt} onTime={onTime} onEnded={onWatched} />;
   }
+  if (embed.type !== "link") return null;
   return (
-    <a href={mediaUrl} target="_blank" rel="noopener noreferrer" className="mb-2 flex items-center gap-1.5 text-sm font-medium text-accent">
+    <a href={embed.url} target="_blank" rel="noopener noreferrer" className="mb-2 flex items-center gap-1.5 text-sm font-medium text-accent">
       <PlayCircle size={15} />
       Open lesson video
     </a>

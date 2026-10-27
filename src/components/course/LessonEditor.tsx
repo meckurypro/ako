@@ -16,6 +16,7 @@ import {
   lessonTypeLabel,
   type LessonType,
   type QuizData,
+  videoLinkProblem,
 } from "../../lib/courseTypes";
 import { EMPTY_VIDEO, LessonVideoField, type VideoValue } from "./LessonVideoField";
 
@@ -173,7 +174,9 @@ export function LessonEditor({
       ? "Wait for the upload to finish."
       : type === "video" && !video.videoPath && !video.mediaUrl.trim()
         ? "Add a video."
-        : type === "text" && !value.content.trim()
+        : type === "video" && !video.videoPath && videoLinkProblem(video.mediaUrl)
+          ? (videoLinkProblem(video.mediaUrl) as string)
+          : type === "text" && !value.content.trim()
           ? "Write the lesson."
           : type === "assignment" && !value.content.trim()
             ? "Describe the task."
@@ -184,6 +187,9 @@ export function LessonEditor({
   const submit = () => {
     if (missing) return;
     const quiz = type === "quiz" ? cleanQuiz(value.quiz) : value.quiz;
+    // A video uploaded in this form that the lesson won't keep (the type was switched away from video before saving)
+    // would otherwise sit in storage with nothing pointing at it.
+    if (type !== "video" && video.videoPath && video.videoPath !== savedPath) void removeCourseVideos([video.videoPath]);
     onSubmit({ ...value, quiz, video });
     history.markSaved();
   };
