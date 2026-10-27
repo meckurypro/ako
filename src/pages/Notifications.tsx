@@ -123,9 +123,9 @@ const TYPE_CONFIG: Record<string, { icon: typeof Heart; verb: string }> = {
   withdrawal_status: { icon: Banknote, verb: "" },
   // System-generated (actor_id null) — see find_or_create_role_gig /
   // auto_create_gig_on_collaboration_accept. target_id is the new
-  // Gig's project id, so this already routes to it via the generic
+  // Talent's project id, so this already routes to it via the generic
   // target_type==="project" case in notificationLink().
-  gig_created_from_collaboration: { icon: Briefcase, verb: "A Gig was started from your collaboration" },
+  gig_created_from_collaboration: { icon: Briefcase, verb: "A Talent was started from your collaboration" },
   // publish-music tags a non-publisher contributor 'pending' — see
   // respond_to_music_credit(). Same "needs accept/decline, not a
   // plain link" case as collaboration_invite below.
@@ -155,7 +155,7 @@ const TYPE_CONFIG: Record<string, { icon: typeof Heart; verb: string }> = {
 //     with the conversation above it for context.
 // Rooms, courses, books, and meetings each have a dedicated page
 // distinct from the generic project detail page — see project_type
-// on NotificationWithActor. Anything else (media/file/url/event/gig/
+// on NotificationWithActor. Anything else (media/file/url/event/talent/
 // pitch) still uses the generic page, same as before.
 const PROJECT_TYPE_ROUTE: Record<string, (id: string) => string> = {
   room: (id) => `/rooms/${id}`,

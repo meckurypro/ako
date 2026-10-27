@@ -1,21 +1,21 @@
-// src/components/project-types/GigFields.tsx
+// src/components/project-types/TalentFields.tsx
 import { ImageIcon, Check, Plus, X } from "lucide-react";
 import { FormField } from "../FormField";
 import { PROJECT_TYPE_LABELS } from "../../hooks/useProjects";
-import { useGigRolesByCategory, useEligibleGigSampleProjects } from "../../hooks/usePortfolio";
-import type { GigFaqItem } from "../../hooks/useProjectTypeDetails";
+import { useTalentRolesByCategory, useEligibleTalentSampleProjects } from "../../hooks/usePortfolio";
+import type { TalentFaqItem } from "../../hooks/useProjectTypeDetails";
 
-export interface GigFieldsValue {
+export interface TalentFieldsValue {
   role_id: string;
   tagline: string;
   delivery_estimate: string;
   sample_project_ids: string[];
   revisions_included: string; // "" = unspecified, kept as text for the input
   deliverables: string[];
-  faq: GigFaqItem[];
+  faq: TalentFaqItem[];
 }
 
-export const EMPTY_GIG_FIELDS: GigFieldsValue = {
+export const EMPTY_TALENT_FIELDS: TalentFieldsValue = {
   role_id: "",
   tagline: "",
   delivery_estimate: "",
@@ -25,36 +25,36 @@ export const EMPTY_GIG_FIELDS: GigFieldsValue = {
   faq: [],
 };
 
-export const MAX_GIG_SAMPLES = 6;
+export const MAX_TALENT_SAMPLES = 6;
 
-interface GigFieldsProps {
-  value: GigFieldsValue;
-  onChange: (value: GigFieldsValue) => void;
-  // When editing an existing gig, exclude it from its own sample
-  // picker — a gig can't showcase itself.
+interface TalentFieldsProps {
+  value: TalentFieldsValue;
+  onChange: (value: TalentFieldsValue) => void;
+  // When editing an existing talent, exclude it from its own sample
+  // picker — a talent can't showcase itself.
   excludeProjectId?: string;
 }
 
 // Grounded in what Fiverr's own seller guidance calls out as the
-// difference between a gig that converts and one that doesn't: a
+// difference between a talent that converts and one that doesn't: a
 // clear list of what's actually delivered, the number of revisions
 // included, and an FAQ that heads off the questions buyers would
 // otherwise have to DM to ask. All optional — a bare tagline still
 // works, same as before — but each one a host fills in removes a
 // reason to bounce before messaging.
-export function GigFields({ value, onChange, excludeProjectId }: GigFieldsProps) {
-  const { grouped: roleGroups } = useGigRolesByCategory();
+export function TalentFields({ value, onChange, excludeProjectId }: TalentFieldsProps) {
+  const { grouped: roleGroups } = useTalentRolesByCategory();
   // Own projects plus anything with an accepted collaboration credit
-  // (spec section 13) — the hook already excludes gig projects and
-  // this gig itself.
-  const { data: candidates } = useEligibleGigSampleProjects(excludeProjectId);
+  // (spec section 13) — the hook already excludes talent projects and
+  // this talent itself.
+  const { data: candidates } = useEligibleTalentSampleProjects(excludeProjectId);
 
   function toggleSample(id: string) {
     const isSelected = value.sample_project_ids.includes(id);
     if (isSelected) {
       onChange({ ...value, sample_project_ids: value.sample_project_ids.filter((s) => s !== id) });
     } else {
-      if (value.sample_project_ids.length >= MAX_GIG_SAMPLES) return;
+      if (value.sample_project_ids.length >= MAX_TALENT_SAMPLES) return;
       onChange({ ...value, sample_project_ids: [...value.sample_project_ids, id] });
     }
   }
@@ -69,7 +69,7 @@ export function GigFields({ value, onChange, excludeProjectId }: GigFieldsProps)
     onChange({ ...value, deliverables: value.deliverables.filter((_, i) => i !== index) });
   }
 
-  function updateFaq(index: number, field: keyof GigFaqItem, text: string) {
+  function updateFaq(index: number, field: keyof TalentFaqItem, text: string) {
     const next = value.faq.map((item, i) => (i === index ? { ...item, [field]: text } : item));
     onChange({ ...value, faq: next });
   }
@@ -99,8 +99,8 @@ export function GigFields({ value, onChange, excludeProjectId }: GigFieldsProps)
           ))}
         </select>
         <p className="text-xs text-ink-muted mt-1.5">
-          What this gig represents professionally — it's how your work shows up as a tab on your profile
-          (e.g. a Cinematographer gig surfaces under "Film").
+          What this talent represents professionally — it's how your work shows up as a tab on your profile
+          (e.g. a Cinematographer talent surfaces under "Film").
         </p>
       </div>
 
@@ -207,7 +207,7 @@ export function GigFields({ value, onChange, excludeProjectId }: GigFieldsProps)
 
       <div>
         <label className="block text-sm font-medium text-ink-muted mb-1.5">
-          Work samples <span className="font-normal">(optional, up to {MAX_GIG_SAMPLES})</span>
+          Work samples <span className="font-normal">(optional, up to {MAX_TALENT_SAMPLES})</span>
         </label>
         {!candidates || candidates.length === 0 ? (
           <p className="text-xs text-ink-muted px-4 py-3 rounded-xl border border-border bg-surface">
@@ -218,7 +218,7 @@ export function GigFields({ value, onChange, excludeProjectId }: GigFieldsProps)
           <div className="flex flex-col gap-2 max-h-72 overflow-y-auto">
             {candidates.map((p) => {
               const selected = value.sample_project_ids.includes(p.id);
-              const atCap = !selected && value.sample_project_ids.length >= MAX_GIG_SAMPLES;
+              const atCap = !selected && value.sample_project_ids.length >= MAX_TALENT_SAMPLES;
               return (
                 <button
                   key={p.id}
@@ -247,7 +247,7 @@ export function GigFields({ value, onChange, excludeProjectId }: GigFieldsProps)
           </div>
         )}
         <p className="text-xs text-ink-muted mt-1.5">
-          Pick from your own projects to show as proof of work on this gig.
+          Pick from your own projects to show as proof of work on this talent.
         </p>
       </div>
     </div>

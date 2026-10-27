@@ -30,7 +30,7 @@ import type { ProjectType } from "../hooks/useProjects";
 import {
   usePortfolioCategories,
   usePortfolioCategoryProjects,
-  usePortfolioCategoryGigs,
+  usePortfolioCategoryTalents,
   useCategorizedProjectIds,
   useTypePortfolioCategories,
   useTypeCategoryProjects,
@@ -51,7 +51,7 @@ import { TierBadge } from "../components/TierBadge";
 import { RoleTags } from "../components/RoleTags";
 import { PostCard } from "../components/PostCard";
 import { ProjectCard } from "../components/ProjectCard";
-import { ProjectMiniCard, ProjectMiniGrid } from "../components/ProjectMiniCard";
+import { ProjectMiniGrid } from "../components/ProjectMiniCard";
 import { PostListSkeleton, ProfilePageSkeleton, ProjectMiniGridSkeleton } from "../components/ProfileSkeletons";
 import { BottomNav } from "../components/BottomNav";
 import { ProfileAdSlot } from "../components/ProfileAdSlot";
@@ -84,8 +84,8 @@ function getWebsiteDomain(url: string): string {
 // AKỌ_DYNAMIC_PROFILE_PORTFOLIOS_AND_GIG_SYSTEM spec: Posts is present for
 // every full-access account (restricted consumer-only accounts see projects
 // only); everything else is derived per-profile from the account's
-// active Gigs (see usePortfolioCategories) plus a "projects" fallback
-// for non-gig work that hasn't been categorized yet (spec section 44
+// active Talents (see usePortfolioCategories) plus a "projects" fallback
+// for non-talent work that hasn't been categorized yet (spec section 44
 // — a deliberate fallback, never a dumping ground merely because
 // migration is inconvenient). The owner's tickets/meetings/room
 // activity has its own home in the Activity hub, not a tab here.
@@ -108,14 +108,16 @@ function PortfolioCategoryPane({
   showOwnerView: boolean;
 }) {
   const { data: projects, isLoading } = usePortfolioCategoryProjects(accountId, category);
-  // The gig page(s) this category's work samples are proof-of-work
-  // for (e.g. the "Music Artist" gig behind an "Artist" tab) —
+  // The talent page(s) this category's work samples are proof-of-work
+  // for (e.g. the "Music Artist" talent behind an "Artist" tab) —
   // previously nothing on the profile linked to these at all, only
   // to the samples below. Shown as a compact rail up top so a
   // visitor can reach "Message to inquire" / pricing / the full
-  // sample set from the gig's own page, not only piece by piece.
-  const { data: gigs } = usePortfolioCategoryGigs(accountId, category);
-  if (isLoading) return <ProjectMiniGridSkeleton />;
+  // sample set from the talent's own page, not only piece by piece.
+  const { data: talents, isLoading: talentsLoading } = usePortfolioCategoryTalents(accountId, category);
+  if (isLoading || talentsLoading) return <ProjectMiniGridSkeleton />;
+  // The tab shows the talent thumbnails only. Tapping one opens the talent's own page, which lists the media/work under it.
+  if (talents && talents.length > 0) return <ProjectMiniGrid projects={talents} />;
   if (!projects || projects.length === 0) {
     // Shouldn't normally be reachable — the tab itself only appears
     // when the aggregate query found eligible work — but cache
@@ -123,17 +125,9 @@ function PortfolioCategoryPane({
     // rather than showing a broken-looking empty tab.
     return <EmptyNote icon={Layers}>Nothing here yet.</EmptyNote>;
   }
+  // Fallback: work exists but no talent page is eligible to show (e.g. incomplete) — list the work directly.
   return (
     <>
-      {gigs && gigs.length > 0 && (
-        <div className="mb-4 -mt-1">
-          <div className="flex gap-3 overflow-x-auto pb-1">
-            {gigs.map((gig) => (
-              <ProjectMiniCard key={gig.id} project={gig} />
-            ))}
-          </div>
-        </div>
-      )}
       {projects.map((project) => (
         <ProjectCard key={project.id} project={project} isOwnerView={showOwnerView} manageContent={showOwnerView} />
       ))}
@@ -143,7 +137,7 @@ function PortfolioCategoryPane({
 
 // The type-based half of the dynamic tab set (spec section 2/44) —
 // for Book/Course/Event/Room/File, which don't route through a
-// professional Gig role at all. See useTypePortfolioCategories.
+// professional Talent role at all. See useTypePortfolioCategories.
 function TypeCategoryPane({
   accountId,
   projectType,
@@ -417,13 +411,13 @@ export function ProfilePage() {
   // and dedupe by id since — in principle — someone could show up in
   // both lists across an ownership transfer or similar edge case.
   // Once a Media project is published to the Akọ music catalogue and
-  // attached as a gig sample (e.g. under "Artist"), it moves there —
+  // attached as a talent sample (e.g. under "Artist"), it moves there —
   // it should no longer also show in Media, or it appears twice on
   // the same profile (categorizedProjectIds already exists for this
   // exact purpose; the Media tab just wasn't checking it before).
-  // The owner's own songs aren't listed here at all any more: every song lives under one of their artist gigs
-  // (parent_gig_id) and shows there — on the gig and in its category tab. Only songs you're credited on, on someone
-  // else's gig, still land in this tab.
+  // The owner's own songs aren't listed here at all any more: every song lives under one of their artist talents
+  // (parent_gig_id) and shows there — on the talent and in its category tab. Only songs you're credited on, on someone
+  // else's talent, still land in this tab.
   const ownedMedia = (visibleProjects ?? []).filter(
     (p) => p.project_type === "media" && !p.parent_gig_id && !p.is_private && !categorizedProjectIds?.has(p.id)
   );
@@ -444,7 +438,7 @@ export function ProfilePage() {
   const TYPE_CATEGORY_TYPES = new Set<ProjectType>(["book", "course", "event", "room", "file"]);
   const typeCategoriesPresent = new Set((typeCategories ?? []).map((c) => c.project_type));
 
-  // Non-gig, non-type-categorized work with no category home yet — a
+  // Non-talent, non-type-categorized work with no category home yet — a
   // deliberate fallback (spec section 44), never shown when empty.
   // Also excludes anything already surfaced under a dynamic
   // role-based category tab (e.g. a published song showing under
@@ -452,7 +446,7 @@ export function ProfilePage() {
   // duplicate of a category tab.
   const fallbackProjects = visibleProjects?.filter((p) => {
     if (p.project_type === "gig") return false;
-    // A song lives under its gig — never a loose card in the Projects tab.
+    // A song lives under its talent — never a loose card in the Projects tab.
     if (p.parent_gig_id) return false;
     // Only drop it here once it actually has the Media tab as a home
     // (active + public, same as ownedMedia above) — a draft or
@@ -473,7 +467,7 @@ export function ProfilePage() {
   });
 
   // Posts first (full-access accounts only), then dynamic categories from the account's
-  // active Gigs (spec sections 2-5), then the type-based categories
+  // active Talents (spec sections 2-5), then the type-based categories
   // (Books/Courses/Events/Rooms/Files) — never an empty one either
   // way. The uncategorized-work fallback comes last, only if there's
   // anything left in it.
@@ -701,10 +695,10 @@ export function ProfilePage() {
                         ? []
                         : ([
                           {
-                            key: "gigs",
-                            label: "Your Gigs",
+                            key: "talents",
+                            label: "Your Talents",
                             icon: <Briefcase />,
-                            onSelect: () => navigate("/gigs"),
+                            onSelect: () => navigate("/talents"),
                           },
                           {
                             key: "page",
@@ -1203,7 +1197,7 @@ export function ProfilePage() {
                   );
                 }
                 // A dynamic portfolio category — everything published
-                // under an active Gig in this category.
+                // under an active Talent in this category.
                 return (
                   <div key={tab.id}>
                     <PortfolioCategoryPane

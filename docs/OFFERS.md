@@ -14,7 +14,7 @@ No edge function is involved: the client calls the RPCs directly (they are `SECU
 ## How access works
 
 Access to a paid project *is* a row in `purchases (buyer_id, project_id)` — book chapters, course modules/lessons,
-meetings and gig reviews all gate on it. `process_offer_purchase()` therefore creates **one `purchases` row per project**
+meetings and talent reviews all gate on it. `process_offer_purchase()` therefore creates **one `purchases` row per project**
 (stamped with the new `purchases.offer_id`), in a single transaction, mirroring `process_project_purchase()` per project:
 
 - the offer price is split across the projects in proportion to their effective (promo-aware) prices; the last project

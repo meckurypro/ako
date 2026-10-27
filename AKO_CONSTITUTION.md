@@ -50,19 +50,19 @@ Akọ should feel simple, soft, premium, lightweight, intelligent, expressive, c
 
 **Project** = canonical work, experience, knowledge product, media or other thing being created/distributed.
 
-**Gig** = professional/service identity through which an account presents work, services, catalogue and portfolio.
+**Talent** = professional/service identity through which an account presents work, services, catalogue and portfolio.
 
-A Project is not a Gig. A Gig is not a Project. A profile is not a personal library.
+A Project is not a Talent. A Talent is not a Project. A profile is not a personal library.
 
 ## 8. Project is the work
 
-Projects remain canonical. Gigs, portfolios, music catalogue, affiliates, purchases, library/access, posts and notifications may reference Projects.
+Projects remain canonical. Talents, portfolios, music catalogue, affiliates, purchases, library/access, posts and notifications may reference Projects.
 
 Do not duplicate the underlying Project merely because another surface displays it.
 
-## 9. Gig is professional identity
+## 9. Talent is professional identity
 
-One account can have multiple independent Gigs.
+One account can have multiple independent Talents.
 
 Example:
 
@@ -74,7 +74,7 @@ Account
 └── Graphics Designer — Obi Creative
 ```
 
-Each Gig may have its own professional name, description, services, pricing, FAQ, portfolio and catalogue.
+Each Talent may have its own professional name, description, services, pricing, FAQ, portfolio and catalogue.
 
 ## 10. Role vs work category
 
@@ -100,7 +100,7 @@ Collaborator accepts
 ↓
 Akọ establishes accepted contribution
 ↓
-Relevant Gig/portfolio can reference the canonical work
+Relevant Talent/portfolio can reference the canonical work
 ```
 
 Contribution does not transfer ownership.
@@ -341,7 +341,7 @@ Attribution
 ↓
 Artist
 ↓
-Gig/Profile
+Talent/Profile
 ↓
 Projects
 ```
@@ -440,7 +440,7 @@ RLS and server-side authorization remain authoritative.
 
 ## 48. No duplicate systems
 
-Before creating a new table, service, graph, recommendation engine, wallet, ledger, Project system, messaging system or Gig system, search the repository.
+Before creating a new table, service, graph, recommendation engine, wallet, ledger, Project system, messaging system or Talent system, search the repository.
 
 If an existing system is strong:
 
@@ -466,7 +466,7 @@ Examples:
 
 - server authority over money;
 - Project is canonical work;
-- Gig is professional identity;
+- Talent is professional identity;
 - Contact Graph affects For You only;
 - Contact is not Follow;
 - acquired content has a home;
@@ -530,7 +530,7 @@ Access / Library
 ↓
 Collaboration
 ↓
-Gigs / Portfolio
+Talents / Portfolio
 ↓
 Money
 ↓
@@ -592,7 +592,7 @@ A social/product platform for people who have something to say, make, teach, hos
 Say → Discuss → Gather → Build → Participate → Value.
 
 ### THE OBJECTS
-Account → Project → Gig → Portfolio → Access → Wallet.
+Account → Project → Talent → Portfolio → Access → Wallet.
 
 ### THE FEED
 For You → Following → Top Discussions.
@@ -604,7 +604,7 @@ Contact Graph / Discover Radar affects For You only.
 Everyone can participate. Creation is earned progressively.
 
 ### THE PROFESSIONAL RULE
-One account can have many independent Gigs.
+One account can have many independent Talents.
 
 ### THE PORTFOLIO RULE
 Role describes contribution. Work type determines portfolio category.

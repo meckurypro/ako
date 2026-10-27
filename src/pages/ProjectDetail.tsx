@@ -23,11 +23,11 @@ import { useProjectDetail, useSimilarProjects, type Project } from "../hooks/use
 import {
   useEventDetails,
   useMeetingDetails,
-  useGigDetails,
-  useGigSamples,
-  useGigsFeaturingProject,
+  useTalentDetails,
+  useTalentSamples,
+  useTalentsFeaturingProject,
 } from "../hooks/useProjectTypeDetails";
-import { ProjectMiniCard } from "../components/ProjectMiniCard";
+import { ProjectMiniCard, ProjectMiniGrid } from "../components/ProjectMiniCard";
 import { useMarkProjectSeen } from "../hooks/useMarkProjectSeen";
 import { useAuth } from "../hooks/useAuth";
 import { usePrefetchBookChapters } from "../hooks/useBookBuilder";
@@ -41,7 +41,7 @@ import {
   useDeleteEventHighlight,
   type EventHighlight,
 } from "../hooks/useEventHighlights";
-import { useGigReviews, useGigRatingSummary, useCanReviewGig, useAddGigReview } from "../hooks/useGigReviews";
+import { useTalentReviews, useTalentRatingSummary, useCanReviewTalent, useAddTalentReview } from "../hooks/useTalentReviews";
 import { BookReviewsSection } from "../components/book/BookReviewsSection";
 import { Avatar } from "../components/Avatar";
 import { TierBadge } from "../components/TierBadge";
@@ -129,7 +129,7 @@ function HighlightTile({
 
 // Collapsed-by-default FAQ list — reduces the repetitive "wait, does
 // this include X?" DMs a host would otherwise field one at a time.
-function GigFaqSection({ faq }: { faq: { question: string; answer: string }[] }) {
+function TalentFaqSection({ faq }: { faq: { question: string; answer: string }[] }) {
   const [openIndex, setOpenIndex] = useState<number | null>(null);
   return (
     <div className="mb-4">
@@ -174,14 +174,14 @@ function StarRow({ rating, size = 14 }: { rating: number; size?: number }) {
 // a seller they've never worked with — the single highest-leverage
 // addition a small service listing can make (this is Fiverr's own
 // stated view of what its "primary quality signal" is). Anyone can
-// read them; only someone who's actually booked the gig (checked
+// read them; only someone who's actually booked the talent (checked
 // against `purchases`, enforced by RLS, not just this UI) can leave
 // one, once.
-function GigReviewsSection({ projectId }: { projectId: string }) {
-  const { data: reviews } = useGigReviews(projectId);
-  const { average, count } = useGigRatingSummary(projectId);
-  const canReview = useCanReviewGig(projectId);
-  const addReview = useAddGigReview(projectId);
+function TalentReviewsSection({ projectId }: { projectId: string }) {
+  const { data: reviews } = useTalentReviews(projectId);
+  const { average, count } = useTalentRatingSummary(projectId);
+  const canReview = useCanReviewTalent(projectId);
+  const addReview = useAddTalentReview(projectId);
   const [showForm, setShowForm] = useState(false);
   const [rating, setRating] = useState(5);
   const [reviewText, setReviewText] = useState("");
@@ -350,13 +350,13 @@ export function ProjectDetail({ resolvedProjectId }: { resolvedProjectId?: strin
   const { data: similar } = useSimilarProjects(user ? project : undefined);
   const { data: eventDetails } = useEventDetails(project?.project_type === "event" ? projectId : undefined);
   const { data: meetingDetails } = useMeetingDetails(project?.project_type === "meeting" ? projectId : undefined);
-  const { data: gigDetails } = useGigDetails(project?.project_type === "gig" ? projectId : undefined);
-  const { data: gigSamples } = useGigSamples(project?.project_type === "gig" ? projectId : undefined);
-  // The reverse direction: gig page(s) this project is featured as a
-  // work sample on. Never applies to a gig itself (a gig can't be its
+  const { data: talentDetails } = useTalentDetails(project?.project_type === "gig" ? projectId : undefined);
+  const { data: talentSamples } = useTalentSamples(project?.project_type === "gig" ? projectId : undefined);
+  // The reverse direction: talent page(s) this project is featured as a
+  // work sample on. Never applies to a talent itself (a talent can't be its
   // own sample), only to whatever type it was attached as — Media,
   // File, etc.
-  const { data: featuringGigs } = useGigsFeaturingProject(
+  const { data: featuringTalents } = useTalentsFeaturingProject(
     project && project.project_type !== "gig" ? projectId : undefined
   );
   const ownership = useProjectOwnership();
@@ -466,55 +466,51 @@ export function ProjectDetail({ resolvedProjectId }: { resolvedProjectId?: strin
           </div>
         )}
 
-        {/* Gig browsing info — tagline/delivery estimate up top,
+        {/* Talent browsing info — tagline/delivery estimate up top,
             proof-of-work samples as a rail below. Message/Book
             CTAs live on the ProjectCard above, not here. */}
-        {project.project_type === "gig" && gigDetails?.tagline && (
-          <p className={`mb-2 text-sm font-medium text-ink`}>{gigDetails.tagline}</p>
+        {project.project_type === "gig" && talentDetails?.tagline && (
+          <p className={`mb-2 text-sm font-medium text-ink`}>{talentDetails.tagline}</p>
         )}
-        {project.project_type === "gig" && gigDetails?.delivery_estimate && (
+        {project.project_type === "gig" && talentDetails?.delivery_estimate && (
           <div className="flex items-center gap-1.5 mb-1.5 text-sm text-ink-muted">
-            <Clock size={14} /> {gigDetails.delivery_estimate}
-            {gigDetails.revisions_included !== null && gigDetails.revisions_included !== undefined && (
+            <Clock size={14} /> {talentDetails.delivery_estimate}
+            {talentDetails.revisions_included !== null && talentDetails.revisions_included !== undefined && (
               <span className="flex items-center gap-1">
-                · <RefreshCw size={12} /> {gigDetails.revisions_included} revision
-                {gigDetails.revisions_included === 1 ? "" : "s"}
+                · <RefreshCw size={12} /> {talentDetails.revisions_included} revision
+                {talentDetails.revisions_included === 1 ? "" : "s"}
               </span>
             )}
           </div>
         )}
         {project.project_type === "gig" &&
-          !gigDetails?.delivery_estimate &&
-          gigDetails?.revisions_included !== null &&
-          gigDetails?.revisions_included !== undefined && (
+          !talentDetails?.delivery_estimate &&
+          talentDetails?.revisions_included !== null &&
+          talentDetails?.revisions_included !== undefined && (
             <div className="flex items-center gap-1.5 mb-1.5 text-sm text-ink-muted">
-              <RefreshCw size={12} /> {gigDetails.revisions_included} revision
-              {gigDetails.revisions_included === 1 ? "" : "s"}
+              <RefreshCw size={12} /> {talentDetails.revisions_included} revision
+              {talentDetails.revisions_included === 1 ? "" : "s"}
             </div>
           )}
-        {project.project_type === "gig" && gigDetails?.deliverables && gigDetails.deliverables.length > 0 && (
+        {project.project_type === "gig" && talentDetails?.deliverables && talentDetails.deliverables.length > 0 && (
           <ul className="mb-4 flex flex-col gap-1">
-            {gigDetails.deliverables.map((item, i) => (
+            {talentDetails.deliverables.map((item, i) => (
               <li key={i} className="text-sm text-ink-muted flex items-start gap-1.5">
                 <span className="text-accent mt-0.5">✓</span> {item}
               </li>
             ))}
           </ul>
         )}
-        {project.project_type === "gig" && gigSamples && gigSamples.length > 0 && (
+        {project.project_type === "gig" && talentSamples && talentSamples.length > 0 && (
           <div className="mb-4">
             <h3 className="font-display text-lg font-semibold tracking-tight text-ink mb-3">Work samples</h3>
-            <div className="flex gap-3 overflow-x-auto pb-1 -mx-4 px-4">
-              {gigSamples.map((sample) => (
-                <ProjectMiniCard key={sample.id} project={sample} />
-              ))}
-            </div>
+            <ProjectMiniGrid projects={talentSamples} />
           </div>
         )}
-        {project.project_type === "gig" && gigDetails?.faq && gigDetails.faq.length > 0 && (
-          <GigFaqSection faq={gigDetails.faq} />
+        {project.project_type === "gig" && talentDetails?.faq && talentDetails.faq.length > 0 && (
+          <TalentFaqSection faq={talentDetails.faq} />
         )}
-        {project.project_type === "gig" && <GigReviewsSection projectId={project.id} />}
+        {project.project_type === "gig" && <TalentReviewsSection projectId={project.id} />}
 
         {/* Book reviews: signed-in users only (RLS enforces it too); reviewing happens in the reader. */}
         {project.project_type === "book" && !isGuest && <BookReviewsSection projectId={project.id} />}
@@ -584,21 +580,21 @@ export function ProjectDetail({ resolvedProjectId }: { resolvedProjectId?: strin
               detailsSlot={detailBlocks}
             />
 
-            {/* Reverse link to the gig(s) this is proof-of-work for —
+            {/* Reverse link to the talent(s) this is proof-of-work for —
                 otherwise a visitor who lands here directly (a feed
-                post, a share) has no way to discover the gig page
+                post, a share) has no way to discover the talent page
                 itself ("Message to inquire", pricing, the rest of the
                 sample rail) short of finding a link to it elsewhere. */}
-            {!isGuest && featuringGigs && featuringGigs.length > 0 && (
+            {!isGuest && featuringTalents && featuringTalents.length > 0 && (
               <div className="-mt-2 mb-4 flex flex-wrap gap-2">
-                {featuringGigs.map((gig) => (
+                {featuringTalents.map((talent) => (
                   <Link
-                    key={gig.id}
-                    to={`/projects/${gig.id}`}
+                    key={talent.id}
+                    to={`/projects/${talent.id}`}
                     className="inline-flex items-center gap-1.5 text-sm font-medium text-accent bg-accent-soft px-3 py-1.5 rounded-full transition-transform active:scale-[0.98]"
                   >
                     <Briefcase size={14} />
-                    {gig.role_label ? `Featured in ${gig.role_label} gig` : "View the gig this is part of"}
+                    {talent.role_label ? `Featured in ${talent.role_label} talent` : "View the talent this is part of"}
                   </Link>
                 ))}
               </div>

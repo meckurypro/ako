@@ -49,7 +49,7 @@ export function MusicDiscoverySheet({ catalogueId, onClose }: MusicDiscoveryShee
     if (!artist) return;
     recordUsage.mutate({ catalogueId: entry!.id, eventType: "profile_visit" });
     // The artist's Akọ profile is the one public, always-present creator
-    // page. A Gig is a private management hub (/gigs), not a public page.
+    // page. A Talent is a private management hub (/talents), not a public page.
     runAfterDismiss(onClose, () => navigate(`/profile/${artist.contributor.username}`));
   }
 

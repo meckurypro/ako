@@ -49,7 +49,7 @@ import { renderFormattedText } from "../lib/formatText";
 import {
   useHasPurchased,
   usePurchaseProject,
-  useBookGig,
+  useBookTalent,
   useGetProjectFile,
   useSetProjectStatus,
   useDeleteProject,
@@ -416,7 +416,7 @@ export function ProjectCard({
   // first suggests the bundle (see OfferNudgeSheet). Looked up on tap, not on render.
   const offerNudge = useOfferNudge(project.id);
   const buyBusy = purchaseProject.isPending || offerNudge.checking;
-  const bookGig = useBookGig();
+  const bookTalent = useBookTalent();
   const downloadProjectFile = useDownloadProjectFile();
   const downloadAllFiles = useDownloadAllProjectFiles();
   const [downloadAllOpen, setDownloadAllOpen] = useState(false);
@@ -461,9 +461,9 @@ export function ProjectCard({
   // Same gate as ProjectDetail's "Share & earn" button — pitches never
   // route through process_project_purchase, so there's no sale for a
   // commission to attach to. This is the ONLY reachable entry point
-  // for media/file/url/gig: those four types never navigate into
+  // for media/file/url/talent: those four types never navigate into
   // ProjectDetail from this card at all (media/file/url resolve fully
-  // inline; gig's card action is Message/Book, not a page link), so
+  // inline; talent's card action is Message/Book, not a page link), so
   // without this, a real, enabled affiliate program on one of those
   // project types was completely unreachable — the toggle worked
   // server-side, there was just no UI path to "fork" it from anywhere
@@ -582,23 +582,23 @@ export function ProjectCard({
     void handleBuy();
   }
 
-  // Booking a gig pays the deposit AND drops the buyer straight into a
+  // Booking a talent pays the deposit AND drops the buyer straight into a
   // conversation with the host — book-gig hands back the conversation
   // id for exactly that, unlike handleBuy above.
-  async function handleBookGig() {
+  async function handleBookTalent() {
     if (!user) {
       goToLogin();
       return;
     }
     try {
-      const { conversationId } = await bookGig.mutateAsync(project.id);
+      const { conversationId } = await bookTalent.mutateAsync(project.id);
       navigate(`/messages/${conversationId}`);
     } catch (err) {
       notifyError(err, "Booking failed.");
     }
   }
 
-  // Gigs are lead-gen first — Message is always available regardless
+  // Talents are lead-gen first — Message is always available regardless
   // of whether a booking fee has been paid, unlike the buy/unlock CTAs
   // for every other type.
   async function handleMessage() {
@@ -1097,7 +1097,7 @@ export function ProjectCard({
     isBook && bookDetails?.content_source === "upload" && !!bookDetails.allow_read_in_app;
   const bookCanDownload =
     isBook && bookDetails?.content_source === "upload" && !!bookDetails.allow_download;
-  const gigBookable = project.project_type === "gig" && !isOwner && !isFree && !hasPurchased;
+  const talentBookable = project.project_type === "gig" && !isOwner && !isFree && !hasPurchased;
 
   const hasMediaLink =
     isMedia && ((!!mediaDetails?.has_audio && !!mediaDetails.audio_url) || (!!mediaDetails?.has_video && !!mediaDetails.video_url));
@@ -1141,11 +1141,11 @@ export function ProjectCard({
     if (!isOwner) detailCta = { label: "Support", icon: <Heart size={18} />, onClick: () => handleOpenSupport() };
   } else if (project.project_type === "gig") {
     if (!isOwner) {
-      detailCta = gigBookable
+      detailCta = talentBookable
         ? {
-            label: bookGig.isPending ? "Booking…" : `Book for ${priceLabel}`,
-            onClick: handleBookGig,
-            disabled: bookGig.isPending,
+            label: bookTalent.isPending ? "Booking…" : `Book for ${priceLabel}`,
+            onClick: handleBookTalent,
+            disabled: bookTalent.isPending,
           }
         : {
             label: startConversation.isPending ? "Opening…" : "Message",
@@ -1296,7 +1296,7 @@ export function ProjectCard({
     if (isMedia) {
       items.push({ key: "gift", label: "Gift", icon: <GiftIcon />, onSelect: () => handleOpenGift() });
     }
-    if (project.project_type === "gig" && gigBookable) {
+    if (project.project_type === "gig" && talentBookable) {
       items.push({ key: "message", label: "Message", icon: <MessageCircle />, onSelect: () => void handleMessage() });
     }
     if (project.project_type === "url" && hasAccess) {
@@ -1801,7 +1801,7 @@ export function ProjectCard({
             <span className="text-sm text-ink-muted">Not published yet</span>
           )}
 
-          {/* Gig — Message is always available (lead-gen first), plus an
+          {/* Talent — Message is always available (lead-gen first), plus an
               optional "Book for $X" once a booking fee is set and hasn't
               been paid yet. Independent of hasAccess/isFree, unlike every
               other type's CTA. */}
@@ -1844,12 +1844,12 @@ export function ProjectCard({
             !isCourseUnpublished &&
             !isBookDraftUnpublished && (
             <button
-              onClick={project.project_type === "gig" ? handleBookGig : handleBuy}
-              disabled={project.project_type === "gig" ? bookGig.isPending : buyBusy}
+              onClick={project.project_type === "gig" ? handleBookTalent : handleBuy}
+              disabled={project.project_type === "gig" ? bookTalent.isPending : buyBusy}
               className="ml-auto bg-accent text-canvas px-4 py-1.5 rounded-full text-sm font-semibold shadow-[0_4px_14px_-4px_rgba(var(--shadow-ink-rgb),0.35)] transition-transform active:scale-[0.97] disabled:opacity-50 disabled:active:scale-100"
             >
               {project.project_type === "gig"
-                ? bookGig.isPending
+                ? bookTalent.isPending
                   ? "Booking…"
                   : `Book for $${effectivePrice.toFixed(2)}`
                 : purchaseProject.isPending

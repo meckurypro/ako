@@ -4,8 +4,8 @@
 // Notifications.tsx) — same shape as CollaborationInviteResponseModal,
 // for the same reason: this needs a synchronous accept/decline step,
 // not a plain link. Accepting runs respond_to_music_credit() server-
-// side, which may start an incomplete Gig for this role (section 11)
-// — declining never creates any Gig relationship (section 9).
+// side, which may start an incomplete Talent for this role (section 11)
+// — declining never creates any Talent relationship (section 9).
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Avatar } from "./Avatar";
@@ -43,7 +43,7 @@ export function MusicCreditResponseModal({
         onSuccess: (result) => {
           onClose();
           if (accept && result.gig_created && result.gig_id) {
-            toast("Credit accepted — a Gig was started for you.", { variant: "success" });
+            toast("Credit accepted — a Talent was started for you.", { variant: "success" });
             navigate(`/projects/${result.gig_id}`);
           } else if (accept) {
             toast("Credit accepted.", { variant: "success" });
@@ -106,7 +106,7 @@ export function MusicCreditResponseModal({
               </div>
 
               <p className="text-xs text-ink-muted mt-3">
-                Accepting may start a {CONTRIBUTOR_ROLE_LABELS[credit.role]} Gig for you if you don't already
+                Accepting may start a {CONTRIBUTOR_ROLE_LABELS[credit.role]} Talent for you if you don't already
                 have one, with this song added as a portfolio sample.
               </p>
 

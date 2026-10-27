@@ -38,8 +38,8 @@ const BLOCKED_BY: Record<string, string> = {
     "People have accepted the licence for this music, and that record has to stay. Archive it instead to hide it.",
   assignment_submissions:
     "Students have submitted work for this project, and those submissions have to stay. Archive it instead to hide it.",
-  // projects_parent_gig_id_fkey: a gig that still has songs under it (the blocking child is another projects row).
-  projects: "This gig still has songs. Move or delete them first.",
+  // projects_parent_gig_id_fkey: a talent that still has songs under it (the blocking child is another projects row).
+  projects: "This talent still has songs. Move or delete them first.",
 };
 const BLOCKED_DEFAULT =
   "This project is still linked to other records and can't be deleted yet. Archive it instead to hide it.";

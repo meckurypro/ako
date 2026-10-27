@@ -7,7 +7,7 @@ import {
   useRemoveCollaborator,
   type CollaborationTarget,
 } from "../hooks/useCollaboration";
-import { useGigRolesByCategory } from "../hooks/usePortfolio";
+import { useTalentRolesByCategory } from "../hooks/usePortfolio";
 import { useBackDismiss } from "../hooks/useBackDismiss";
 import { useScrollLock } from "../hooks/useScrollLock";
 import { Portal } from "./Portal";
@@ -35,12 +35,12 @@ export function CollaboratorsSheet({
   const { data: collaborators, isLoading } = useCollaborators(target, targetId);
   const sendRequest = useSendCollaborationRequest(target);
   const removeCollaborator = useRemoveCollaborator(target);
-  const { grouped: roleGroups } = useGigRolesByCategory();
+  const { grouped: roleGroups } = useTalentRolesByCategory();
   const [showPicker, setShowPicker] = useState(false);
   // Projects only: after picking people, a short "assign a role"
   // step before anything is sent (spec §11 — role is what lets an
   // accepted invite surface as "Chidi — Cinematographer" and can
-  // trigger automatic Gig setup for them). Posts skip straight to
+  // trigger automatic Talent setup for them). Posts skip straight to
   // sending, same as before — collaboration on a post has no role
   // concept. Untouched entries in this map just mean "no role
   // assigned", which is fine; role-tagging is optional.

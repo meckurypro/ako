@@ -44,7 +44,7 @@ const TYPE_LABELS: Record<string, string> = {
   meeting: "Meeting",
   room: "Cohort",
   course: "Course",
-  gig: "Gig",
+  gig: "Talent",
   pitch: "Pitch",
   book: "Book",
 };

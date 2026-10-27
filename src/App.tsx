@@ -127,7 +127,7 @@ import { SavedHub } from "./pages/SavedHub";
 import { LikedHub } from "./pages/LikedHub";
 import { Connect } from "./pages/Connect";
 import { LibraryActivity } from "./pages/LibraryActivity";
-import { MyGigs } from "./pages/MyGigs";
+import { MyTalents } from "./pages/MyTalents";
 import { Offers } from "./pages/Offers";
 import { HistoryActivity } from "./pages/HistoryActivity";
 import { registerOfflineMutations } from "./lib/offlineMutations";
@@ -1138,16 +1138,17 @@ function AppRoutes() {
             />
             <Route path="/activity/events" element={<Navigate to="/connect" replace />} />
             <Route path="/activity/affiliates" element={<Navigate to="/connect?tab=affiliates" replace />} />
-            {/* "Your Gigs" management hub — see AKO_GIG_ROLE_EXPANSION_
+            <Route path="/gigs" element={<Navigate to="/talents" replace />} />
+            {/* "Your Talents" management hub — see AKO_GIG_ROLE_EXPANSION_
                 AND_COLLABORATION_SYSTEM.md section 21. Reached from the
                 profile owner menu (ProfilePage.tsx), not Activity — a
-                Gig is a professional identity you manage, not a log of
+                Talent is a professional identity you manage, not a log of
                 something that happened. */}
             <Route
-              path="/gigs"
+              path="/talents"
               element={
                 <RequireAuth>
-                  <MyGigs />
+                  <MyTalents />
                 </RequireAuth>
               }
             />

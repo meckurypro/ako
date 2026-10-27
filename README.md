@@ -45,7 +45,7 @@ own access model and, where it needs one, its own dedicated page:
 | **Media** | Audio and/or video, each channel a link (Spotify, YouTube) or a hosted upload | `components/project-types/MediaFields.tsx`, unlocked inline from `ProjectCard` |
 | **File** | A file uploaded and hosted here; one-click download once unlocked | `components/project-types/FileFields.tsx`, unlocked inline from `ProjectCard` |
 | **URL** | A bare link being sold access to (a WhatsApp group, a gated page, anything) | `components/project-types/UrlFields.tsx`, unlocked inline from `ProjectCard` |
-| **Gig** | A skill or service offered — tagline, deliverables, delivery estimate, revisions, FAQ, sample work; buyers message/book rather than "unlock" | `components/project-types/GigFields.tsx` |
+| **Talent** | A skill or service offered — tagline, deliverables, delivery estimate, revisions, FAQ, sample work; buyers message/book rather than "unlock" | `components/project-types/TalentFields.tsx` |
 | **Pitch** | Support-based fundraising — no price tag, no unlock; supporters back it for any amount and the creator keeps whatever's raised whether or not the goal is hit | `components/project-types/PitchFields.tsx` |
 
 All nine share the same base fields (title, thumbnail, description,
@@ -58,8 +58,8 @@ either — is enforced per type (`PROJECT_TYPE_ACCESS` in
 
 **Access model:** every project can be viewed freely; unlocking the
 actual content (file, link, ticket, room, course) costs the price the
-host set, or is free if price is 0. Gig and Pitch sit outside this
-unlock model — a Gig is booked/messaged rather than unlocked, and a
+host set, or is free if price is 0. Talent and Pitch sit outside this
+unlock model — a Talent is booked/messaged rather than unlocked, and a
 Pitch has no lock to begin with. Every unlock — paid or free — is
 logged to `project_access_events` and surfaced as a public count on
 `ProjectCard` and `ProjectDetail` (see `hooks/useProjectAccess.ts`).
