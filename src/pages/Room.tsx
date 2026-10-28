@@ -1,6 +1,6 @@
 // src/pages/Room.tsx
 import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams, useNavigate, useSearchParams, Link } from "react-router-dom";
 import { useSmartBack } from "../hooks/useSmartBack";
 import {
   ArrowLeft,
@@ -28,6 +28,9 @@ import {
   XCircle,
   Circle,
   Square,
+  UserPlus,
+  LogOut,
+  Ban,
 } from "lucide-react";
 import { useProjectOwnership } from "../hooks/useProjectOwnership";
 import { useProject } from "../hooks/useProjects";
@@ -69,6 +72,18 @@ import {
   useSubmitAssignment,
   useAssignmentSubmissions,
   useReviewSubmission,
+  useMyRoomJoinRequest,
+  useRoomJoinRequests,
+  useRequestRoomJoin,
+  useCancelRoomJoinRequest,
+  useReviewRoomJoinRequest,
+  useAddRoomMember,
+  useLeaveRoom,
+  useRemoveRoomMember,
+  useRoomBlocklist,
+  useUnblacklistRoomUser,
+  findProfileByUsername,
+  type RoomHistoryMode,
   type RoomMeeting,
 } from "../hooks/useRoom";
 import { SafeAudio } from "../components/MediaPlaceholder";
@@ -752,23 +767,131 @@ function AssignmentsTab({ projectId, isHost }: { projectId: string; isHost: bool
 // Host-only settings sheet — co-hosts + chat moderation toggles.
 // ---------------------------------------------------------------
 
-function HostSettingsPanel({ projectId }: { projectId: string }) {
+const HISTORY_OPTIONS: { value: RoomHistoryMode; label: string; hint: string }[] = [
+  { value: "anchored", label: "Anchored only", hint: "New members see anchored messages and anything from when they joined." },
+  { value: "admins_and_anchored", label: "Hosts + anchored", hint: "New members also see everything the hosts wrote." },
+  { value: "all", label: "Everything", hint: "New members can read the whole chat history." },
+];
+
+function errorMessage(err: unknown, fallback: string): string {
+  return err instanceof Error && err.message ? err.message : fallback;
+}
+
+function PersonLink({ username, name, avatar }: { username: string; name: string; avatar: string | null }) {
+  return (
+    <Link to={`/profile/${username}`} className="flex items-center gap-1.5 min-w-0">
+      <Avatar src={avatar} name={name} size="sm" />
+      <span className="min-w-0">
+        <span className="block text-sm text-ink truncate">{name}</span>
+        <span className="block text-[11px] text-ink-muted truncate">@{username}</span>
+      </span>
+    </Link>
+  );
+}
+
+function HostSettingsPanel({ projectId, isOwner }: { projectId: string; isOwner: boolean }) {
   const { data: details } = useRoomDetails(projectId);
   const { data: members } = useRoomMembersList(projectId);
   const { data: moderators } = useRoomModerators(projectId);
+  const { data: requests } = useRoomJoinRequests(projectId);
+  const { data: blocklist } = useRoomBlocklist(projectId);
   const updateDetails = useUpdateRoomDetails(projectId);
   const addModerator = useAddRoomModerator(projectId);
   const removeModerator = useRemoveRoomModerator(projectId);
+  const review = useReviewRoomJoinRequest(projectId);
+  const addMember = useAddRoomMember(projectId);
+  const removeMember = useRemoveRoomMember(projectId);
+  const unblacklist = useUnblacklistRoomUser(projectId);
   const toast = useToast();
+  const [username, setUsername] = useState("");
+  const [adding, setAdding] = useState(false);
 
   const moderatorIds = new Set((moderators ?? []).map((m) => m.user_id));
+  const historyMode = details?.history_mode ?? "anchored";
+
+  async function handleAdd(e: FormEvent) {
+    e.preventDefault();
+    if (!username.trim()) return;
+    setAdding(true);
+    try {
+      const profile = await findProfileByUsername(username);
+      if (!profile) {
+        toast("No one has that username.", { variant: "error" });
+        return;
+      }
+      await addMember.mutateAsync(profile.id);
+      toast(`${profile.display_name} was added.`, { variant: "success" });
+      setUsername("");
+    } catch (err) {
+      toast(errorMessage(err, "Couldn't add them."), { variant: "error" });
+    } finally {
+      setAdding(false);
+    }
+  }
+
+  function decide(userId: string, name: string, approve: boolean) {
+    review.mutate(
+      { userId, approve },
+      {
+        onSuccess: () => toast(approve ? `${name} joined the room.` : `Declined ${name}.`, { variant: "success" }),
+        onError: (err) => toast(errorMessage(err, "Couldn't update that request."), { variant: "error" }),
+      }
+    );
+  }
+
+  function remove(userId: string, name: string, blacklist: boolean) {
+    const ok = window.confirm(
+      blacklist ? `Remove ${name} and stop them from joining again?` : `Remove ${name} from this room?`
+    );
+    if (!ok) return;
+    removeMember.mutate(
+      { userId, blacklist },
+      {
+        onSuccess: () => toast(blacklist ? `${name} was removed and blacklisted.` : `${name} was removed.`, { variant: "success" }),
+        onError: (err) => toast(errorMessage(err, "Couldn't remove them."), { variant: "error" }),
+      }
+    );
+  }
 
   return (
-    <div className="p-3 rounded-xl border border-border bg-surface mb-4 flex flex-col gap-3">
+    <div className="p-3 rounded-xl border border-border bg-surface mb-4 flex flex-col gap-4">
       <div className="flex items-center gap-1.5">
         <Shield size={14} className="text-ink-muted" />
-        <p className="text-sm font-medium text-ink">Cohort settings</p>
+        <p className="text-sm font-medium text-ink">Room settings</p>
       </div>
+
+      {(requests ?? []).length > 0 && (
+        <div>
+          <p className="text-xs text-ink-muted mb-1.5">Requests to join ({requests!.length})</p>
+          <div className="flex flex-col gap-2">
+            {requests!.map((r) => (
+              <div key={r.user_id} className="flex flex-col gap-1.5 p-2 rounded-lg bg-canvas">
+                <div className="flex items-center justify-between gap-2">
+                  <PersonLink username={r.profile.username} name={r.profile.display_name} avatar={r.profile.avatar_url} />
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    <button
+                      onClick={() => decide(r.user_id, r.profile.display_name, false)}
+                      disabled={review.isPending}
+                      className="px-2.5 py-1 rounded-full border border-border text-xs text-ink-muted"
+                    >
+                      Decline
+                    </button>
+                    <button
+                      onClick={() => decide(r.user_id, r.profile.display_name, true)}
+                      disabled={review.isPending}
+                      className="px-2.5 py-1 rounded-full bg-cta text-white text-xs font-medium"
+                    >
+                      Accept
+                    </button>
+                  </div>
+                </div>
+                {r.message && <p className="text-xs text-ink-muted px-1">“{r.message}”</p>}
+              </div>
+            ))}
+          </div>
+          <p className="text-[11px] text-ink-muted mt-1">Tap a name or photo to see their profile first.</p>
+        </div>
+      )}
 
       <div className="flex flex-col gap-2">
         <button
@@ -792,43 +915,202 @@ function HostSettingsPanel({ projectId }: { projectId: string }) {
       </div>
 
       <div>
-        <p className="text-xs text-ink-muted mb-1.5">Co-hosts</p>
-        <div className="flex flex-col gap-1.5">
-          {(members ?? []).map((m) => (
-            <div key={m.user_id} className="flex items-center justify-between">
-              <div className="flex items-center gap-1.5">
-                <Avatar src={m.profile.avatar_url} name={m.profile.display_name} size="sm" />
-                <span className="text-sm text-ink">{m.profile.display_name}</span>
-              </div>
-              {moderatorIds.has(m.user_id) ? (
-                <button
-                  onClick={() =>
-                    removeModerator.mutate(m.user_id, {
-                      onSuccess: () => toast(`${m.profile.display_name} is no longer a co-host.`, { variant: "success" }),
-                    })
-                  }
-                  className="text-xs text-danger font-medium"
-                >
-                  Remove
-                </button>
-              ) : (
-                <button
-                  onClick={() =>
-                    addModerator.mutate(m.user_id, {
-                      onSuccess: () => toast(`${m.profile.display_name} is now a co-host.`, { variant: "success" }),
-                    })
-                  }
-                  className="text-xs text-accent font-medium"
-                >
-                  Make co-host
-                </button>
-              )}
-            </div>
+        <p className="text-xs text-ink-muted mb-1.5">What new members see</p>
+        <div className="flex flex-col gap-1">
+          {HISTORY_OPTIONS.map((o) => (
+            <button
+              key={o.value}
+              onClick={() => updateDetails.mutate({ history_mode: o.value })}
+              className={`text-left px-2.5 py-1.5 rounded-lg border text-sm ${
+                historyMode === o.value ? "border-accent bg-accent-soft/40 text-ink" : "border-border text-ink-muted"
+              }`}
+            >
+              <span className="font-medium">{o.label}</span>
+              <span className="block text-[11px] text-ink-muted">{o.hint}</span>
+            </button>
           ))}
+        </div>
+        <p className="text-[11px] text-ink-muted mt-1">Anchored messages are always visible to new members.</p>
+      </div>
+
+      <form onSubmit={handleAdd}>
+        <p className="text-xs text-ink-muted mb-1.5">Add someone</p>
+        <div className="flex items-center gap-2">
+          <input
+            value={username}
+            onChange={(e) => setUsername(e.target.value)}
+            placeholder="@username"
+            autoCapitalize="none"
+            autoCorrect="off"
+            className="flex-1 min-w-0 px-3 py-2 rounded-lg border border-border bg-canvas text-sm text-ink"
+          />
+          <button
+            type="submit"
+            disabled={adding || !username.trim()}
+            className="flex items-center gap-1 px-3 py-2 rounded-lg bg-cta text-white text-sm font-medium disabled:opacity-50"
+          >
+            <UserPlus size={14} /> Add
+          </button>
+        </div>
+      </form>
+
+      <div>
+        <p className="text-xs text-ink-muted mb-1.5">Members</p>
+        <div className="flex flex-col gap-2">
+          {(members ?? []).map((m) => {
+            const isMod = moderatorIds.has(m.user_id);
+            return (
+              <div key={m.user_id} className="flex items-center justify-between gap-2">
+                <PersonLink username={m.profile.username} name={m.profile.display_name} avatar={m.profile.avatar_url} />
+                <div className="flex items-center gap-2 shrink-0 text-xs font-medium">
+                  {isMod ? (
+                    isOwner && (
+                      <button
+                        onClick={() =>
+                          removeModerator.mutate(m.user_id, {
+                            onSuccess: () => toast(`${m.profile.display_name} is no longer a co-host.`, { variant: "success" }),
+                          })
+                        }
+                        className="text-danger"
+                      >
+                        Remove co-host
+                      </button>
+                    )
+                  ) : (
+                    <>
+                      {isOwner && (
+                        <button
+                          onClick={() =>
+                            addModerator.mutate(m.user_id, {
+                              onSuccess: () => toast(`${m.profile.display_name} is now a co-host.`, { variant: "success" }),
+                            })
+                          }
+                          className="text-accent"
+                        >
+                          Co-host
+                        </button>
+                      )}
+                      <button onClick={() => remove(m.user_id, m.profile.display_name, false)} className="text-danger">
+                        Remove
+                      </button>
+                      <button
+                        onClick={() => remove(m.user_id, m.profile.display_name, true)}
+                        className="text-danger"
+                        aria-label={`Remove ${m.profile.display_name} and blacklist`}
+                      >
+                        <Ban size={14} />
+                      </button>
+                    </>
+                  )}
+                </div>
+              </div>
+            );
+          })}
           {(members ?? []).length === 0 && <p className="text-xs text-ink-muted">No members yet.</p>}
         </div>
       </div>
+
+      {(blocklist ?? []).length > 0 && (
+        <div>
+          <p className="text-xs text-ink-muted mb-1.5">Blacklisted ({blocklist!.length})</p>
+          <div className="flex flex-col gap-2">
+            {blocklist!.map((b) => (
+              <div key={b.user_id} className="flex items-center justify-between gap-2">
+                <PersonLink username={b.profile.username} name={b.profile.display_name} avatar={b.profile.avatar_url} />
+                <button
+                  onClick={() =>
+                    unblacklist.mutate(b.user_id, {
+                      onSuccess: () => toast(`${b.profile.display_name} can request to join again.`, { variant: "success" }),
+                      onError: (err) => toast(errorMessage(err, "Couldn't update the blacklist."), { variant: "error" }),
+                    })
+                  }
+                  className="text-xs text-accent font-medium shrink-0"
+                >
+                  Unblock
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
+  );
+}
+
+// Shown to someone who isn't in the room yet. Public free rooms take a request the host reviews; paid
+// rooms are bought from the project page; private rooms are invitation-only (the host adds people).
+function JoinGate({ projectId, title, isPrivate, isFree }: { projectId: string; title: string; isPrivate: boolean; isFree: boolean }) {
+  const navigate = useNavigate();
+  const toast = useToast();
+  const { data: myRequest } = useMyRoomJoinRequest(projectId);
+  const requestJoin = useRequestRoomJoin(projectId);
+  const cancelRequest = useCancelRoomJoinRequest(projectId);
+  const status = myRequest?.status;
+
+  if (isPrivate) {
+    return (
+      <>
+        <Lock size={28} className="text-ink-muted" />
+        <p className="text-ink font-medium">Private room</p>
+        <p className="text-sm text-ink-muted">“{title}” is invitation-only. The host adds the people who can join.</p>
+      </>
+    );
+  }
+
+  if (!isFree) {
+    return (
+      <>
+        <Lock size={28} className="text-ink-muted" />
+        <p className="text-ink font-medium">Members only</p>
+        <p className="text-sm text-ink-muted">Buy access to “{title}” from its project page to join this room.</p>
+        <button onClick={() => navigate(`/projects/${projectId}`)} className="mt-2 text-accent text-sm font-medium">
+          Go to project page
+        </button>
+      </>
+    );
+  }
+
+  return (
+    <>
+      <Users size={28} className="text-ink-muted" />
+      <p className="text-ink font-medium">{title}</p>
+      {status === "pending" ? (
+        <>
+          <p className="text-sm text-ink-muted">Your request is waiting for a host to review it.</p>
+          <button
+            onClick={() =>
+              cancelRequest.mutate(undefined, {
+                onSuccess: () => toast("Request cancelled.", { variant: "success" }),
+              })
+            }
+            disabled={cancelRequest.isPending}
+            className="mt-2 text-sm text-ink-muted font-medium"
+          >
+            Cancel request
+          </button>
+        </>
+      ) : (
+        <>
+          <p className="text-sm text-ink-muted">
+            {status === "declined"
+              ? "Your last request wasn't accepted. You can ask again."
+              : "A host reviews every request to join this room."}
+          </p>
+          <button
+            onClick={() =>
+              requestJoin.mutate(undefined, {
+                onSuccess: () => toast("Request sent.", { variant: "success" }),
+                onError: (err) => toast(errorMessage(err, "Couldn't send your request."), { variant: "error" }),
+              })
+            }
+            disabled={requestJoin.isPending}
+            className="mt-2 px-5 py-2 rounded-full bg-cta text-white text-sm font-medium disabled:opacity-50"
+          >
+            {status === "declined" ? "Ask again" : "Request to join"}
+          </button>
+        </>
+      )}
+    </>
   );
 }
 
@@ -856,7 +1138,14 @@ export function Room() {
   const notYetStarted = !!details?.start_date && startCountdownMs !== null && startCountdownMs > 0;
 
   const [tab, setTab] = useState<Tab>("classroom");
-  const [showSettings, setShowSettings] = useState(false);
+  // Kept in the URL so coming back from a requester's profile lands on the open panel again.
+  const [searchParams, setSearchParams] = useSearchParams();
+  const showSettings = searchParams.get("settings") === "1";
+  const setShowSettings = (open: boolean) =>
+    setSearchParams(open ? { settings: "1" } : {}, { replace: true });
+  const { data: pendingRequests } = useRoomJoinRequests(projectId, isHost);
+  const leaveRoom = useLeaveRoom(projectId ?? "");
+  const toast = useToast();
   const [viewArchivedChat, setViewArchivedChat] = useState(false);
   const getConversationId = useRoomConversationId(projectId ?? "");
   const [conversationId, setConversationId] = useState<string | null>(null);
@@ -884,14 +1173,12 @@ export function Room() {
             <ArrowLeft size={22} />
           </button>
           <div className="flex flex-col items-center text-center gap-3 mt-16">
-            <Lock size={28} className="text-ink-muted" />
-            <p className="text-ink font-medium">Members only</p>
-            <p className="text-sm text-ink-muted">
-              Buy access to "{project.title}" from its project page to join this cohort.
-            </p>
-            <button onClick={() => navigate(`/projects/${projectId}`)} className="mt-2 text-accent text-sm font-medium">
-              Go to project page
-            </button>
+            <JoinGate
+              projectId={project.id}
+              title={project.title}
+              isPrivate={project.is_private}
+              isFree={Number(project.promo_price_usd ?? project.price_usd) <= 0}
+            />
           </div>
         </div>
       </div>
@@ -925,11 +1212,36 @@ export function Room() {
           <button onClick={smartBack} className="text-ink-muted">
             <ArrowLeft size={22} />
           </button>
-          {isHost && (
-            <button onClick={() => setShowSettings((s) => !s)} className="text-ink-muted" aria-label="Cohort settings">
-              <Settings size={20} />
-            </button>
-          )}
+          <div className="flex items-center gap-3">
+            {!isOwner && !isHost && isMember && (
+              <button
+                onClick={() => {
+                  if (!window.confirm(`Leave “${project.title}”?`)) return;
+                  leaveRoom.mutate(undefined, {
+                    onSuccess: () => {
+                      toast("You left the room.", { variant: "success" });
+                      navigate("/connect", { replace: true });
+                    },
+                    onError: (err) => toast(errorMessage(err, "Couldn't leave the room."), { variant: "error" }),
+                  });
+                }}
+                className="flex items-center gap-1 text-xs text-ink-muted"
+                aria-label="Leave room"
+              >
+                <LogOut size={16} /> Leave
+              </button>
+            )}
+            {isHost && (
+              <button onClick={() => setShowSettings(!showSettings)} className="relative text-ink-muted" aria-label="Room settings">
+                <Settings size={20} />
+                {(pendingRequests ?? []).length > 0 && (
+                  <span className="absolute -top-1.5 -right-1.5 min-w-[16px] h-4 px-1 rounded-full bg-accent text-white text-[10px] leading-4 text-center">
+                    {pendingRequests!.length}
+                  </span>
+                )}
+              </button>
+            )}
+          </div>
         </div>
 
         <div className="flex items-center justify-between mb-3">
@@ -942,7 +1254,7 @@ export function Room() {
 
         {isClosed && (
           <div className="flex items-center justify-between mb-3 px-3 py-2 rounded-xl bg-accent-soft/60 text-sm text-ink-muted">
-            <span>This cohort has ended — media stays here for people who were in it.</span>
+            <span>This room has ended — media stays here for people who were in it.</span>
             {isHost && (
               <button
                 onClick={() => setViewArchivedChat((v) => !v)}
@@ -955,7 +1267,7 @@ export function Room() {
           </div>
         )}
 
-        {showSettings && isHost && <HostSettingsPanel projectId={project.id} />}
+        {showSettings && isHost && <HostSettingsPanel projectId={project.id} isOwner={isOwner} />}
 
         <div className="flex gap-1 mb-4 border-b border-border">
           {(
@@ -988,6 +1300,7 @@ export function Room() {
               <RoomChat
                 projectId={project.id}
                 conversationId={conversationId}
+                isHost={isHost}
                 canPost={!isClosed && (isHost || !details?.hosts_only_chat) && !(details?.chat_muted && !isHost)}
                 cantPostReason={
                   isClosed

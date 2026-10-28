@@ -9,6 +9,7 @@
 // when there's nothing at all the page shows a single empty state instead of
 // a tab bar.
 import { useMemo, useState, type ReactNode } from "react";
+import { useCountdown, formatCountdown } from "../hooks/useCountdown";
 import { Link } from "react-router-dom";
 import { CalendarClock, ImageIcon, Users, X } from "lucide-react";
 import { useActivity, type ActivityItem } from "../hooks/useActivity";
@@ -28,23 +29,39 @@ const TAB_LABEL: Record<ConnectTab, string> = {
   rooms: "Rooms",
 };
 
-const KIND_FOR_TAB: Record<ConnectTab, ActivityItem["kind"]> = {
-  events: "event",
-  meetings: "meeting",
-  rooms: "room_meeting",
+// Room meetings sit with the other meetings (name of the room + a countdown); the Rooms tab lists the rooms themselves.
+const KINDS_FOR_TAB: Record<ConnectTab, ActivityItem["kind"][]> = {
+  events: ["event"],
+  meetings: ["meeting", "room_meeting"],
+  rooms: ["room"],
 };
 
 const ROUTE_FOR: Record<ActivityItem["kind"], (item: ActivityItem) => string> = {
   event: (item) => `/projects/${item.projectId}/ticket`,
   meeting: (item) => `/meetings/${item.projectId}`,
   room_meeting: (item) => `/rooms/${item.projectId}`,
+  room: (item) => `/rooms/${item.projectId}`,
 };
 
 const LABEL_FOR: Record<ActivityItem["kind"], string> = {
   event: "Event",
   meeting: "Meeting",
   room_meeting: "Room meeting",
+  room: "Room",
 };
+
+// Live countdown for something that hasn't started. Shows "Live now" for a room meeting that is running.
+function MeetingCountdown({ item }: { item: ActivityItem }) {
+  const remaining = useCountdown(item.when);
+  if (!item.when || remaining === null) return null;
+  if (remaining > 0) {
+    return <p className="text-xs font-medium text-accent mt-0.5">Starts in {formatCountdown(remaining)}</p>;
+  }
+  if (item.kind === "room_meeting" && item.meetingStatus === "live") {
+    return <p className="text-xs font-medium text-accent mt-0.5">Live now</p>;
+  }
+  return null;
+}
 
 function ActivityRow({ item }: { item: ActivityItem }) {
   const remove = useRemoveFromLibrary();
@@ -66,8 +83,16 @@ function ActivityRow({ item }: { item: ActivityItem }) {
         <p className="text-sm text-ink truncate">{item.projectTitle}</p>
         <p className="text-xs text-ink-muted">
           {LABEL_FOR[item.kind]}
-          {item.when ? ` · ${new Date(item.when).toLocaleString()}` : " · Date TBA"}
+          {item.kind === "room"
+            ? ""
+            : item.when
+              ? ` · ${new Date(item.when).toLocaleString()}`
+              : " · Date TBA"}
         </p>
+        {item.kind === "room_meeting" && item.meetingTitle && (
+          <p className="text-xs text-ink-muted truncate">{item.meetingTitle}</p>
+        )}
+        {(item.kind === "meeting" || item.kind === "room_meeting") && <MeetingCountdown item={item} />}
       </div>
     </Link>
     <button
@@ -114,7 +139,7 @@ export function Connect() {
 
   // Only tabs that have something in them are shown.
   const tabs = useMemo(
-    () => ALL_TABS.filter((t) => (items ?? []).some((i) => i.kind === KIND_FOR_TAB[t])),
+    () => ALL_TABS.filter((t) => (items ?? []).some((i) => KINDS_FOR_TAB[t].includes(i.kind))),
     [items]
   );
   const [tab, setTab] = useTabState<ConnectTab>(ALL_TABS, tabs[0] ?? "events");
@@ -126,9 +151,20 @@ export function Connect() {
   const now = Date.now();
 
   function renderPane(t: ConnectTab): ReactNode {
-    const kindItems = (items ?? []).filter((i) => i.kind === KIND_FOR_TAB[t]);
-    const upcoming = kindItems.filter((i) => !i.when || new Date(i.when).getTime() >= now);
-    const past = kindItems.filter((i) => i.when && new Date(i.when).getTime() < now);
+    const kindItems = (items ?? []).filter((i) => KINDS_FOR_TAB[t].includes(i.kind));
+    if (t === "rooms") {
+      return (
+        <div className="flex flex-col gap-2">
+          {kindItems.map((item) => (
+            <ActivityRow key={`${item.kind}-${item.projectId}`} item={item} />
+          ))}
+        </div>
+      );
+    }
+    // A room meeting that is live right now still counts as upcoming, so it stays at the top with "Live now".
+    const isLive = (i: ActivityItem) => i.kind === "room_meeting" && i.meetingStatus === "live";
+    const upcoming = kindItems.filter((i) => !i.when || new Date(i.when).getTime() >= now || isLive(i));
+    const past = kindItems.filter((i) => i.when && new Date(i.when).getTime() < now && !isLive(i));
     return (
       <>
         <div className="mb-6">

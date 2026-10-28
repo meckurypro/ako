@@ -1,6 +1,6 @@
 // src/components/RoomChat.tsx
 import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
-import { Smile, Keyboard, Send, Lock, Mic } from "lucide-react";
+import { Smile, Keyboard, Send, Lock, Mic, Anchor } from "lucide-react";
 import { useAuth } from "../hooks/useAuth";
 import { useMessages, useSendMessage, useSendVoiceNote } from "../hooks/useMessaging";
 import { useVoiceRecorder } from "../hooks/useVoiceRecorder";
@@ -11,7 +11,8 @@ import { VoiceMessageBubble } from "./VoiceMessageBubble";
 import { EmojiPickerSheet } from "./EmojiPickerSheet";
 import { Avatar } from "./Avatar";
 import { decodeVoiceNote } from "../lib/voiceNotes";
-import { useRoomMembersList } from "../hooks/useRoom";
+import { useRoomMembersList, useSetMessageAnchor } from "../hooks/useRoom";
+import { useToast } from "./Toast";
 
 // The Cohort's group chat — deliberately built on the exact same
 // hooks/components a 1:1 DM uses (useMessages, useSendMessage,
@@ -28,19 +29,15 @@ import { useRoomMembersList } from "../hooks/useRoom";
 // thread that would need more UI here (long-press menus, reaction
 // trays) than a first version of group chat needs to prove out.
 interface RoomChatProps {
-  conversationId: string;
-  canPost: boolean;
-  cantPostReason?: string;
-}
-
-interface RoomChatProps {
   projectId: string;
   conversationId: string;
   canPost: boolean;
   cantPostReason?: string;
+  // Hosts can anchor messages (make them permanent for people who join later).
+  isHost?: boolean;
 }
 
-export function RoomChat({ projectId, conversationId, canPost, cantPostReason }: RoomChatProps) {
+export function RoomChat({ projectId, conversationId, canPost, cantPostReason, isHost }: RoomChatProps) {
   const { user } = useAuth();
   const { data: messages } = useMessages(conversationId);
   const { data: members } = useRoomMembersList(projectId);
@@ -48,6 +45,9 @@ export function RoomChat({ projectId, conversationId, canPost, cantPostReason }:
   const sendVoiceNote = useSendVoiceNote(conversationId);
   const [content, setContent] = useState("");
   const [emojiOpen, setEmojiOpen] = useState(false);
+  const [anchoredOnly, setAnchoredOnly] = useState(false);
+  const setAnchor = useSetMessageAnchor(conversationId);
+  const toast = useToast();
   const inputRef = useRef<HTMLInputElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
 
@@ -69,10 +69,34 @@ export function RoomChat({ projectId, conversationId, canPost, cantPostReason }:
     setContent("");
   }
 
+  const anchoredCount = (messages ?? []).filter((m) => m.anchored_at && !m.is_deleted).length;
+  const visibleMessages = (messages ?? []).filter((m) => !anchoredOnly || (m.anchored_at && !m.is_deleted));
+
+  function toggleAnchor(messageId: string, anchored: boolean) {
+    setAnchor.mutate(
+      { messageId, anchored },
+      {
+        onSuccess: () => toast(anchored ? "Anchored. New members will always see this." : "Unanchored.", { variant: "success" }),
+        onError: (err) => toast(err instanceof Error ? err.message : "Couldn't update the anchor.", { variant: "error" }),
+      }
+    );
+  }
+
   return (
     <div className="flex flex-col h-full">
+      {(anchoredCount > 0 || anchoredOnly) && (
+        <button
+          type="button"
+          onClick={() => setAnchoredOnly((v) => !v)}
+          className={`flex items-center gap-1.5 self-start mb-1 px-2.5 py-1 rounded-full text-xs font-medium ${
+            anchoredOnly ? "bg-accent text-white" : "bg-accent-soft/60 text-accent"
+          }`}
+        >
+          <Anchor size={12} /> {anchoredOnly ? "Showing anchored" : `Anchored (${anchoredCount})`}
+        </button>
+      )}
       <div className="flex-1 overflow-y-auto flex flex-col gap-2.5 px-1 py-2">
-        {(messages ?? []).map((m) => {
+        {visibleMessages.map((m) => {
           const isMine = m.sender_id === user?.id;
           const senderProfile = memberByUserId.get(m.sender_id);
           const voiceNote = decodeVoiceNote(m.content);
@@ -86,6 +110,11 @@ export function RoomChat({ projectId, conversationId, canPost, cantPostReason }:
                     {senderProfile?.display_name ?? "Member"}
                   </span>
                 )}
+                {m.anchored_at && !m.is_deleted && (
+                  <span className="flex items-center gap-1 text-[10px] text-accent font-medium mb-0.5 px-1">
+                    <Anchor size={10} /> Anchored
+                  </span>
+                )}
                 {voiceNote ? (
                   <VoiceMessageBubble url={voiceNote.url} durationSec={voiceNote.durationSec} peaks={voiceNote.peaks} isMine={isMine} />
                 ) : (
@@ -97,10 +126,21 @@ export function RoomChat({ projectId, conversationId, canPost, cantPostReason }:
                     {m.is_deleted ? <span className="italic opacity-70">Message deleted</span> : m.content}
                   </div>
                 )}
+                {isHost && !m.is_deleted && (
+                  <button
+                    type="button"
+                    onClick={() => toggleAnchor(m.id, !m.anchored_at)}
+                    disabled={setAnchor.isPending}
+                    className="mt-0.5 px-1 text-[10px] text-ink-muted"
+                  >
+                    {m.anchored_at ? "Unanchor" : "Anchor"}
+                  </button>
+                )}
               </div>
             </div>
           );
         })}
+        {visibleMessages.length === 0 && anchoredOnly && <p className="text-center text-sm text-ink-muted mt-6">Nothing anchored yet.</p>}
         {(messages ?? []).length === 0 && <p className="text-center text-sm text-ink-muted mt-6">No messages yet — say hello.</p>}
         <div ref={bottomRef} />
       </div>

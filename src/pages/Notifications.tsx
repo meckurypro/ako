@@ -118,6 +118,18 @@ const TYPE_CONFIG: Record<string, { icon: typeof Heart; verb: string }> = {
   promotion_declined: { icon: Megaphone, verb: "Your promotion needs changes" },
   post_published: { icon: Send, verb: "Your scheduled post is live" },
   room_meeting_scheduled: { icon: Users, verb: "scheduled a new Room meeting" },
+  // Meeting lifecycle + reminders (ako_rooms_group.sql). Reminders have no actor; target_type "project" routes to the room.
+  room_meeting_reminder: { icon: Bell, verb: "Room meeting tomorrow" },
+  room_meeting_soon: { icon: Bell, verb: "Room meeting starts in 15 minutes" },
+  room_meeting_starting: { icon: Bell, verb: "Room meeting is starting now" },
+  room_meeting_rescheduled: { icon: Users, verb: "rescheduled a Room meeting" },
+  room_meeting_cancelled: { icon: Users, verb: "cancelled a Room meeting" },
+  // Room membership (ako_rooms_membership.sql). Join requests open the room, where the host reviews them.
+  room_join_request: { icon: UserPlus, verb: "asked to join your Room" },
+  room_join_approved: { icon: UserCheck, verb: "approved your request to join" },
+  room_join_declined: { icon: UserX, verb: "declined your request to join" },
+  room_member_added: { icon: UserPlus, verb: "added you to a Room" },
+  room_member_removed: { icon: UserX, verb: "removed you from a Room" },
   project_purchased: { icon: Wallet2, verb: "bought your project" },
   affiliate_commission_earned: { icon: Coins, verb: "You earned an affiliate commission" },
   withdrawal_status: { icon: Banknote, verb: "" },
@@ -166,6 +178,8 @@ const PROJECT_TYPE_ROUTE: Record<string, (id: string) => string> = {
 
 function notificationLink(n: NotificationWithActor): string {
   if (n.type === "follow_request") return "/requests";
+  // A join request is answered in the room's settings panel, so open it there.
+  if (n.type === "room_join_request" && n.target_id) return `/rooms/${n.target_id}?settings=1`;
   // Creator-side foreword notices land on the project with the Forewords panel open, where the decision is made.
   if ((n.type === "foreword_submitted" || n.type === "foreword_declined") && n.target_id) {
     return `/projects/${n.target_id}?forewords=1`;
@@ -229,6 +243,9 @@ const NO_ACTOR_TYPES = new Set([
   "affiliate_commission_earned",
   "withdrawal_status",
   "gig_created_from_collaboration",
+  "room_meeting_reminder",
+  "room_meeting_soon",
+  "room_meeting_starting",
 ]);
 
 const PROJECT_TARGETABLE_TYPES = new Set(["like", "dislike", "share"]);

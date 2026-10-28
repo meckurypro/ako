@@ -66,6 +66,16 @@ const COPY: Record<string, Copy> = {
   promotion_approved: { body: "Your promotion was approved", systemTitle: true },
   promotion_declined: { body: "Your promotion was declined", systemTitle: true },
   room_meeting_scheduled: { body: "A meeting was scheduled", systemTitle: true },
+  room_meeting_reminder: { body: "A Room meeting is coming up tomorrow", systemTitle: true },
+  room_meeting_soon: { body: "A Room meeting starts in 15 minutes", systemTitle: true },
+  room_meeting_starting: { body: "A Room meeting is starting now", systemTitle: true },
+  room_meeting_rescheduled: { body: "A Room meeting was rescheduled", systemTitle: true },
+  room_meeting_cancelled: { body: "A Room meeting was cancelled", systemTitle: true },
+  room_join_request: { body: "asked to join your Room" },
+  room_join_approved: { body: "Your request to join a Room was approved", systemTitle: true },
+  room_join_declined: { body: "Your request to join a Room was declined", systemTitle: true },
+  room_member_added: { body: "You were added to a Room", systemTitle: true },
+  room_member_removed: { body: "You were removed from a Room", systemTitle: true },
   admin_message: { body: "You have a new message from the Akọ team", systemTitle: true },
 };
 // page_notifications is a narrower set. Goes to the page's active admins.
