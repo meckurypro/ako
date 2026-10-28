@@ -89,7 +89,7 @@ export function RoomChat({ projectId, conversationId, canPost, cantPostReason, i
           type="button"
           onClick={() => setAnchoredOnly((v) => !v)}
           className={`flex items-center gap-1.5 self-start mb-1 px-2.5 py-1 rounded-full text-xs font-medium ${
-            anchoredOnly ? "bg-accent text-white" : "bg-accent-soft/60 text-accent"
+            anchoredOnly ? "bg-cta text-white" : "bg-accent-soft/60 text-accent"
           }`}
         >
           <Anchor size={12} /> {anchoredOnly ? "Showing anchored" : `Anchored (${anchoredCount})`}

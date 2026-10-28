@@ -1235,7 +1235,7 @@ export function Room() {
               <button onClick={() => setShowSettings(!showSettings)} className="relative text-ink-muted" aria-label="Room settings">
                 <Settings size={20} />
                 {(pendingRequests ?? []).length > 0 && (
-                  <span className="absolute -top-1.5 -right-1.5 min-w-[16px] h-4 px-1 rounded-full bg-accent text-white text-[10px] leading-4 text-center">
+                  <span className="absolute -top-1.5 -right-1.5 min-w-[16px] h-4 px-1 rounded-full bg-cta text-white text-[10px] leading-4 text-center">
                     {pendingRequests!.length}
                   </span>
                 )}
