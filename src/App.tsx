@@ -1126,8 +1126,8 @@ function AppRoutes() {
               }
             />
             <Route path="/activity/library" element={<Navigate to="/library" replace />} />
-            {/* Events, Meetings, Rooms and Affiliates live under Connect
-                (bottom-nav tab) now — old Activity links redirect there. */}
+            {/* Events, Meetings and Rooms live under Connect (bottom-nav tab) now —
+                old Activity links redirect there. Affiliates live under Wallet. */}
             <Route
               path="/connect"
               element={
@@ -1137,7 +1137,7 @@ function AppRoutes() {
               }
             />
             <Route path="/activity/events" element={<Navigate to="/connect" replace />} />
-            <Route path="/activity/affiliates" element={<Navigate to="/connect?tab=affiliates" replace />} />
+            <Route path="/activity/affiliates" element={<Navigate to="/wallet/affiliate-links" replace />} />
             <Route path="/gigs" element={<Navigate to="/talents" replace />} />
             {/* "Your Talents" management hub — see AKO_GIG_ROLE_EXPANSION_
                 AND_COLLABORATION_SYSTEM.md section 21. Reached from the

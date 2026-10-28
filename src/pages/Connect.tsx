@@ -1,33 +1,34 @@
 // src/pages/Connect.tsx
 //
 // Bottom-nav home for everything you attend or earn from outside the
-// feed: Events, Meetings, Rooms and Forked projects. Replaces the old
-// "Events & meetings" and "Affiliates" rows in the Activity hub, and the
-// Messages tab (messages now live behind the floating chat button).
-import { useState, type ReactNode } from "react";
+// feed: Events, Meetings and Rooms. Replaces the old "Events & meetings" row
+// in the Activity hub, and the Messages tab (messages now live behind the
+// floating chat button). Forked (affiliate) projects live under Wallet.
+//
+// Tabs are dynamic: a tab only appears once the user has something in it, and
+// when there's nothing at all the page shows a single empty state instead of
+// a tab bar.
+import { useMemo, useState, type ReactNode } from "react";
 import { Link } from "react-router-dom";
-import { CalendarClock, ImageIcon, TrendingUp, Users, X } from "lucide-react";
+import { CalendarClock, ImageIcon, Users, X } from "lucide-react";
 import { useActivity, type ActivityItem } from "../hooks/useActivity";
-import { useMyAffiliateRelationships } from "../hooks/useAffiliates";
 import { useTabState } from "../hooks/useTabState";
 import { useRemoveFromLibrary } from "../hooks/useLibraryRemovals";
 import { ConfirmDialog } from "../components/ConfirmDialog";
-import { AffiliateLinkRow } from "./MyAffiliateLinks";
 import { BottomNav } from "../components/BottomNav";
 import { SwipeableTabs } from "../components/SwipeableTabs";
 import { SlidingTabBar } from "../components/SlidingTabBar";
 
-const TABS = ["events", "meetings", "rooms", "affiliates"] as const;
-type ConnectTab = (typeof TABS)[number];
+const ALL_TABS = ["events", "meetings", "rooms"] as const;
+type ConnectTab = (typeof ALL_TABS)[number];
 
 const TAB_LABEL: Record<ConnectTab, string> = {
   events: "Events",
   meetings: "Meetings",
   rooms: "Rooms",
-  affiliates: "Forked",
 };
 
-const KIND_FOR_TAB: Record<Exclude<ConnectTab, "affiliates">, ActivityItem["kind"]> = {
+const KIND_FOR_TAB: Record<ConnectTab, ActivityItem["kind"]> = {
   events: "event",
   meetings: "meeting",
   rooms: "room_meeting",
@@ -43,14 +44,6 @@ const LABEL_FOR: Record<ActivityItem["kind"], string> = {
   event: "Event",
   meeting: "Meeting",
   room_meeting: "Room meeting",
-};
-
-const EMPTY_COPY: Record<ConnectTab, string> = {
-  events: "Events you have tickets for will show up here.",
-  meetings: "Meetings you've joined or bought access to will show up here.",
-  rooms: "Room meetings for rooms you're a member of will show up here.",
-  affiliates:
-    "Projects you fork show up here. Tap \"Fork & earn\" on a project to start.",
 };
 
 function ActivityRow({ item }: { item: ActivityItem }) {
@@ -103,41 +96,37 @@ function ActivityRow({ item }: { item: ActivityItem }) {
   );
 }
 
-function Empty({ tab }: { tab: ConnectTab }) {
-  const Icon = tab === "affiliates" ? TrendingUp : CalendarClock;
+// Shown when the user has nothing in any tab.
+function EmptyConnect() {
   return (
     <div className="flex flex-col items-center text-center gap-2 mt-16 text-ink-muted">
-      <Icon size={24} className="text-brand-orange" />
-      <p className="text-sm">{EMPTY_COPY[tab]}</p>
+      <CalendarClock size={24} className="text-brand-orange" />
+      <p className="text-sm font-medium text-ink">Nothing here yet</p>
+      <p className="text-sm max-w-xs">
+        When you get tickets to events or join meetings and rooms, you'll find them here.
+      </p>
     </div>
   );
 }
 
 export function Connect() {
-  const [tab, setTab] = useTabState<ConnectTab>(TABS, "events");
-  const activeIndex = Math.max(TABS.indexOf(tab), 0);
+  const { data: items, isLoading } = useActivity();
+
+  // Only tabs that have something in them are shown.
+  const tabs = useMemo(
+    () => ALL_TABS.filter((t) => (items ?? []).some((i) => i.kind === KIND_FOR_TAB[t])),
+    [items]
+  );
+  const [tab, setTab] = useTabState<ConnectTab>(ALL_TABS, tabs[0] ?? "events");
+  // If the selected tab disappears (e.g. its last item was removed), fall back to the first one left.
+  const activeIndex = Math.max(tabs.indexOf(tab), 0);
   const [tabProgress, setTabProgress] = useState(activeIndex);
   const [tabDragging, setTabDragging] = useState(false);
-  const { data: items, isLoading: activityLoading } = useActivity();
-  const { data: relationships, isLoading: affiliatesLoading } = useMyAffiliateRelationships();
 
   const now = Date.now();
 
   function renderPane(t: ConnectTab): ReactNode {
-    if (t === "affiliates") {
-      if (affiliatesLoading) return <p className="text-ink-muted text-sm">Loading…</p>;
-      if ((relationships ?? []).length === 0) return <Empty tab={t} />;
-      return (
-        <div className="flex flex-col gap-2">
-          {relationships!.map((r) => (
-            <AffiliateLinkRow key={r.id} relationship={r} />
-          ))}
-        </div>
-      );
-    }
-    if (activityLoading) return <p className="text-ink-muted text-sm">Loading…</p>;
     const kindItems = (items ?? []).filter((i) => i.kind === KIND_FOR_TAB[t]);
-    if (kindItems.length === 0) return <Empty tab={t} />;
     const upcoming = kindItems.filter((i) => !i.when || new Date(i.when).getTime() >= now);
     const past = kindItems.filter((i) => i.when && new Date(i.when).getTime() < now);
     return (
@@ -178,30 +167,38 @@ export function Connect() {
           Connect
         </h2>
 
-        <SlidingTabBar
-          ariaLabel="Connect"
-          tabs={TABS.map((t) => ({ id: t, label: TAB_LABEL[t] }))}
-          activeIndex={activeIndex}
-          progress={tabProgress}
-          dragging={tabDragging}
-          onSelect={(i) => setTab(TABS[i])}
-          className="mb-5"
-        />
+        {isLoading ? (
+          <p className="text-ink-muted text-sm">Loading…</p>
+        ) : tabs.length === 0 ? (
+          <EmptyConnect />
+        ) : (
+          <>
+            <SlidingTabBar
+              ariaLabel="Connect"
+              tabs={tabs.map((t) => ({ id: t, label: TAB_LABEL[t] }))}
+              activeIndex={activeIndex}
+              progress={tabProgress}
+              dragging={tabDragging}
+              onSelect={(i) => setTab(tabs[i])}
+              className="mb-5"
+            />
 
-        {/* Swipe left/right to change tab — same carousel as Feed and Profile. */}
-        <SwipeableTabs
-          fillViewport
-          index={activeIndex}
-          onIndexChange={(i) => setTab(TABS[i])}
-          onProgress={(progress, dragging) => {
-            setTabProgress(progress);
-            setTabDragging(dragging);
-          }}
-        >
-          {TABS.map((t) => (
-            <div key={t}>{renderPane(t)}</div>
-          ))}
-        </SwipeableTabs>
+            {/* Swipe left/right to change tab — same carousel as Feed and Profile. */}
+            <SwipeableTabs
+              fillViewport
+              index={activeIndex}
+              onIndexChange={(i) => setTab(tabs[i])}
+              onProgress={(progress, dragging) => {
+                setTabProgress(progress);
+                setTabDragging(dragging);
+              }}
+            >
+              {tabs.map((t) => (
+                <div key={t}>{renderPane(t)}</div>
+              ))}
+            </SwipeableTabs>
+          </>
+        )}
       </div>
 
       <BottomNav />
