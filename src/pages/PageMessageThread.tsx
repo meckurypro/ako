@@ -138,14 +138,14 @@ export function PageMessageThread() {
                       <div
                         className={`max-w-[75%] rounded-2xl px-3.5 py-2 text-sm ${
                           m.sender_type === "page"
-                            ? "self-end bg-accent text-canvas"
+                            ? "self-end bg-cta text-white"
                             : "self-start bg-surface text-ink border border-border"
                         }`}
                       >
                         <p>{m.content}</p>
                         <p
                           className={`text-[10px] mt-0.5 ${
-                            m.sender_type === "page" ? "text-canvas/70" : "text-ink-muted"
+                            m.sender_type === "page" ? "text-white/70" : "text-ink-muted"
                           }`}
                         >
                           {timeAgo(m.created_at)}
@@ -182,7 +182,7 @@ export function PageMessageThread() {
             <button
               onClick={handleSend}
               disabled={!messagingEnabled || !canReply || !draft.trim() || sendMessage.isPending}
-              className="w-10 h-10 rounded-full bg-accent text-canvas flex items-center justify-center disabled:opacity-40 flex-shrink-0"
+              className="w-10 h-10 rounded-full bg-cta text-white flex items-center justify-center disabled:opacity-40 flex-shrink-0"
               aria-label="Send"
             >
               <Send size={16} />

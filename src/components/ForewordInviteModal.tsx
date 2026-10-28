@@ -217,7 +217,7 @@ export function ForewordInviteModal({ projectId, onClose }: { projectId: string;
                         >
                           Withdraw
                         </button>
-                        <button onClick={startCompose} className="flex-1 py-2.5 rounded-full bg-accent text-canvas text-sm font-medium">
+                        <button onClick={startCompose} className="flex-1 py-2.5 rounded-full bg-cta text-white text-sm font-medium">
                           Edit
                         </button>
                       </>
@@ -229,7 +229,7 @@ export function ForewordInviteModal({ projectId, onClose }: { projectId: string;
                         >
                           Decline
                         </button>
-                        <button onClick={startCompose} className="flex-1 py-2.5 rounded-full bg-accent text-canvas text-sm font-medium">
+                        <button onClick={startCompose} className="flex-1 py-2.5 rounded-full bg-cta text-white text-sm font-medium">
                           Write it
                         </button>
                       </>
@@ -303,7 +303,7 @@ export function ForewordInviteModal({ projectId, onClose }: { projectId: string;
                     <button
                       onClick={handleSubmit}
                       disabled={busy}
-                      className="flex-1 py-2.5 rounded-full bg-accent text-canvas text-sm font-medium disabled:opacity-60"
+                      className="flex-1 py-2.5 rounded-full bg-cta text-white text-sm font-medium disabled:opacity-60"
                     >
                       {submit.isPending ? "Sending…" : hasWritten ? "Send edit" : "Send foreword"}
                     </button>

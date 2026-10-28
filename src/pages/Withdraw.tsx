@@ -26,6 +26,7 @@ import { useToast } from "../components/Toast";
 import { formatNgn, formatUsd } from "../lib/money";
 import { friendlyError } from "../lib/friendlyError";
 
+import { BrandDot } from "../components/BrandDot";
 /**
  * Live bank list from Paystack, via the list-banks edge function —
  * replaces the earlier hardcoded 8-bank list. Cached for the session
@@ -217,7 +218,7 @@ export function Withdraw() {
           <ArrowLeft size={22} />
         </button>
 
-        <h2 className="font-display text-2xl text-ink mb-1">Withdraw</h2>
+        <h2 className="font-display text-2xl text-ink mb-1">Withdraw<BrandDot /></h2>
         <p className="text-ink-muted text-sm mb-1">
           Available balance: {formatUsd(wallet?.balance ?? 0)}
         </p>

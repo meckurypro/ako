@@ -88,7 +88,7 @@ export function RoomChat({ projectId, conversationId, canPost, cantPostReason }:
                 ) : (
                   <div
                     className={`px-3.5 py-2 rounded-2xl text-sm ${
-                      isMine ? "bg-accent text-canvas rounded-br-md" : "bg-surface text-ink rounded-bl-md"
+                      isMine ? "bg-cta text-white rounded-br-md" : "bg-surface text-ink rounded-bl-md"
                     }`}
                   >
                     {m.is_deleted ? <span className="italic opacity-70">Message deleted</span> : m.content}
@@ -156,7 +156,7 @@ export function RoomChat({ projectId, conversationId, canPost, cantPostReason }:
               <button
                 type="submit"
                 disabled={sendMessage.isPending}
-                className="bg-accent text-canvas rounded-full p-2.5 disabled:opacity-50 flex-shrink-0"
+                className="bg-cta text-white rounded-full p-2.5 disabled:opacity-50 flex-shrink-0"
                 aria-label="Send"
               >
                 <Send size={16} />
@@ -165,7 +165,7 @@ export function RoomChat({ projectId, conversationId, canPost, cantPostReason }:
               <button
                 type="button"
                 onPointerDown={voiceRecorder.micHandlers.onPointerDown}
-                className="bg-accent text-canvas rounded-full p-2.5 flex-shrink-0"
+                className="bg-cta text-white rounded-full p-2.5 flex-shrink-0"
                 aria-label="Hold to record a voice note"
               >
                 <Mic size={16} />

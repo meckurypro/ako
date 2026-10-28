@@ -61,7 +61,7 @@ export function PostCollaboratorsBadge({
           setOpen((o) => !o);
         }}
         aria-label={`Posted with ${accepted.length} ${accepted.length === 1 ? "collaborator" : "collaborators"}`}
-        className={`absolute -bottom-1 ${side === "left" ? "-left-1" : "-right-1"} w-5 h-5 rounded-full bg-accent text-canvas border-2 border-surface flex items-center justify-center`}
+        className={`absolute -bottom-1 ${side === "left" ? "-left-1" : "-right-1"} w-5 h-5 rounded-full bg-cta text-white border-2 border-surface flex items-center justify-center`}
       >
         <Users size={11} strokeWidth={2.5} />
       </button>

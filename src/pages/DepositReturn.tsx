@@ -45,7 +45,7 @@ export function DepositReturn() {
         </p>
         <a
           href={handoff}
-          className="inline-block bg-accent text-canvas font-medium rounded-xl px-6 py-3"
+          className="inline-block bg-cta text-white font-medium rounded-xl px-6 py-3"
         >
           Open the Akọ app
         </a>

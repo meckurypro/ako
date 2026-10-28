@@ -22,6 +22,7 @@ import { PROJECT_TYPE_LABELS } from "../hooks/useProjects";
 import { formatUsd } from "../lib/money";
 import { friendlyError } from "../lib/friendlyError";
 
+import { BrandDot } from "../components/BrandDot";
 // A creator's offers: bundles of their own paid projects at one price. Buying
 // an offer unlocks every project in it, and shoppers about to buy one of them
 // get the offer suggested (see OfferNudgeSheet). Rules live in ako_offers.sql.
@@ -56,7 +57,7 @@ export function Offers() {
         </button>
 
         <div className="flex items-end justify-between mb-2">
-          <h2 className="font-display text-2xl text-ink">Offers</h2>
+          <h2 className="font-display text-2xl text-ink">Offers<BrandDot /></h2>
           <span className="text-xs text-ink-muted pb-1">
             {count} of {MAX_OFFERS}
           </span>
@@ -278,7 +279,7 @@ function OfferEditorSheet({ offer, onClose }: { offer: Offer | null; onClose: ()
                           </span>
                         </span>
                         <span
-                          className={`w-5 h-5 rounded-md border flex items-center justify-center shrink-0 ${on ? "bg-accent border-accent text-canvas" : "border-border"}`}
+                          className={`w-5 h-5 rounded-md border flex items-center justify-center shrink-0 ${on ? "bg-cta border-cta text-white" : "border-border"}`}
                         >
                           {on && <Check size={13} />}
                         </span>

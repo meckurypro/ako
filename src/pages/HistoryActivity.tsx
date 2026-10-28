@@ -7,6 +7,7 @@ import { ArrowLeft, ImageIcon, History as HistoryIcon, FileText } from "lucide-r
 import { useViewHistory, type HistoryItem } from "../hooks/useViewHistory";
 import { BottomNav } from "../components/BottomNav";
 
+import { BrandDot } from "../components/BrandDot";
 // Compact rows rather than full PostCard/ProjectCard — History reads
 // more like a browsing log (what, when) than a feed, so it's kept
 // visually distinct from the full-card Saved/Liked tabs.
@@ -56,7 +57,7 @@ export function HistoryActivity() {
         <button onClick={smartBack} className="text-ink-muted mb-4">
           <ArrowLeft size={22} />
         </button>
-        <h2 className="font-display text-2xl text-ink mb-6">History</h2>
+        <h2 className="font-display text-2xl text-ink mb-6">History<BrandDot /></h2>
 
         {isLoading ? (
           <p className="text-ink-muted text-sm">Loading…</p>

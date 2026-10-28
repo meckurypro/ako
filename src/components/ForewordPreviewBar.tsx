@@ -23,7 +23,7 @@ export function ForewordPreviewBar({ projectId, isOwner = false }: { projectId: 
           </p>
           <button
             onClick={() => setOpen(true)}
-            className="flex items-center gap-1.5 flex-shrink-0 px-3.5 py-1.5 rounded-full bg-accent text-canvas text-xs font-medium"
+            className="flex items-center gap-1.5 flex-shrink-0 px-3.5 py-1.5 rounded-full bg-cta text-white text-xs font-medium"
           >
             <PenLine size={13} />
             {invited ? "Write it" : "View"}

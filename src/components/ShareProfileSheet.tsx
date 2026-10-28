@@ -237,7 +237,7 @@ export function ShareProfileSheet({
                 </p>
                 <button
                   onClick={onClose}
-                  className="w-full py-2.5 rounded-lg text-sm font-medium bg-accent text-canvas"
+                  className="w-full py-2.5 rounded-lg text-sm font-medium bg-cta text-white"
                 >
                   Done
                 </button>

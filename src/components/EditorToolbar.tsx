@@ -51,7 +51,7 @@ export function EditorToolbar({
         type="button"
         onClick={onSave}
         disabled={saving || !canSave || !dirty}
-        className="ml-1 flex items-center gap-1 px-3 py-1.5 rounded-lg bg-accent text-canvas text-sm font-medium disabled:opacity-40"
+        className="ml-1 flex items-center gap-1 px-3 py-1.5 rounded-lg bg-cta text-white text-sm font-medium disabled:opacity-40"
       >
         {!dirty && !saving && <Check size={14} />}
         {saving ? "Saving…" : dirty ? saveLabel : "Saved"}

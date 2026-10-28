@@ -79,7 +79,7 @@ export function AudiencePicker({ value, onChange }: Props) {
             onClick={() => setMode(mode.value)}
             className={`px-3 py-1.5 rounded-full text-sm font-medium border transition-colors ${
               value.audience_type === mode.value
-                ? "bg-accent text-canvas border-accent"
+                ? "bg-cta text-white border-cta"
                 : "bg-surface text-ink-muted border-border"
             }`}
           >

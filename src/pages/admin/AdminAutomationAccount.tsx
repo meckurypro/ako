@@ -609,7 +609,7 @@ export function AdminAutomationAccount() {
                     provider === account.ai_provider &&
                     model.trim() === (account.ai_model ?? ""))
                 }
-                className="flex-1 bg-accent text-canvas rounded-xl py-2.5 text-sm font-medium disabled:opacity-40"
+                className="flex-1 bg-cta text-white rounded-xl py-2.5 text-sm font-medium disabled:opacity-40"
               >
                 {saveAi.isPending ? "Saving…" : "Save AI settings"}
               </button>
@@ -658,7 +658,7 @@ export function AdminAutomationAccount() {
                       type="button"
                       onClick={() => setSlot(slot.key, { days: [] })}
                       className={`text-xs rounded-full px-3 py-1.5 border ${
-                        slot.days.length === 0 ? "bg-accent text-canvas border-accent" : "border-border text-ink-muted"
+                        slot.days.length === 0 ? "bg-cta text-white border-cta" : "border-border text-ink-muted"
                       }`}
                     >
                       Every day
@@ -683,7 +683,7 @@ export function AdminAutomationAccount() {
                           aria-pressed={on}
                           onClick={() => toggleDay(slot, day)}
                           className={`flex-1 h-9 rounded-lg text-xs font-medium border ${
-                            on ? "bg-accent text-canvas border-accent" : "border-border text-ink-muted"
+                            on ? "bg-cta text-white border-cta" : "border-border text-ink-muted"
                           }`}
                         >
                           {label}
@@ -740,7 +740,7 @@ export function AdminAutomationAccount() {
                   onClick={() => setIdeaHigh((v) => !v)}
                   aria-pressed={ideaHigh}
                   className={`text-xs rounded-full px-3 py-1.5 border flex items-center gap-1 ${
-                    ideaHigh ? "bg-accent text-canvas border-accent" : "border-border text-ink-muted"
+                    ideaHigh ? "bg-cta text-white border-cta" : "border-border text-ink-muted"
                   }`}
                 >
                   <Star size={13} /> High priority
@@ -748,7 +748,7 @@ export function AdminAutomationAccount() {
                 <button
                   type="submit"
                   disabled={addIdea.isPending || !ideaText.trim()}
-                  className="ml-auto bg-accent text-canvas rounded-lg px-4 py-2 text-sm font-medium disabled:opacity-40"
+                  className="ml-auto bg-cta text-white rounded-lg px-4 py-2 text-sm font-medium disabled:opacity-40"
                 >
                   Add idea
                 </button>
@@ -763,7 +763,7 @@ export function AdminAutomationAccount() {
                   type="button"
                   onClick={() => setIdeaTab(tab)}
                   className={`text-xs rounded-full px-3 py-1.5 border capitalize ${
-                    ideaTab === tab ? "bg-accent text-canvas border-accent" : "border-border text-ink-muted"
+                    ideaTab === tab ? "bg-cta text-white border-cta" : "border-border text-ink-muted"
                   }`}
                 >
                   {tab === "pending" ? "Waiting" : tab}
@@ -893,7 +893,7 @@ export function AdminAutomationAccount() {
                     type="button"
                     onClick={() => handlePublish(preview)}
                     disabled={busy}
-                    className="flex-1 bg-accent text-canvas rounded-lg py-2 text-sm font-medium disabled:opacity-50"
+                    className="flex-1 bg-cta text-white rounded-lg py-2 text-sm font-medium disabled:opacity-50"
                   >
                     Publish this
                   </button>
@@ -926,9 +926,9 @@ export function AdminAutomationAccount() {
                       <span
                         className={`text-[11px] font-medium rounded-full px-2 py-0.5 ${
                           run.status === "published"
-                            ? "bg-accent text-canvas"
+                            ? "bg-cta text-white"
                             : run.status === "failed"
-                              ? "bg-danger text-canvas"
+                              ? "bg-danger text-white"
                               : "border border-border text-ink-muted"
                         }`}
                       >
@@ -975,7 +975,7 @@ export function AdminAutomationAccount() {
               type="button"
               onClick={() => handleSave()}
               disabled={!dirty || update.isPending}
-              className="w-full bg-accent text-canvas rounded-xl py-3 font-medium disabled:opacity-40"
+              className="w-full bg-cta text-white rounded-xl py-3 font-medium disabled:opacity-40"
             >
               {update.isPending ? "Saving…" : "Save changes"}
             </button>

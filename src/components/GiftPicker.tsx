@@ -292,7 +292,7 @@ export function GiftPicker({
             <button
               onClick={handleConfirm}
               disabled={insufficientBalance || sendGift.isPending || sendMediaGift.isPending}
-              className="flex-1 py-3 rounded-full bg-accent text-canvas text-sm font-medium disabled:opacity-50"
+              className="flex-1 py-3 rounded-full bg-cta text-white text-sm font-medium disabled:opacity-50"
             >
               {sendGift.isPending || sendMediaGift.isPending ? "Sending…" : "Send gift"}
             </button>
@@ -301,7 +301,7 @@ export function GiftPicker({
 
         {step === "sent" && (
           <div className="px-4 py-4 border-t border-border flex-shrink-0">
-            <button onClick={onClose} className="w-full py-3 rounded-full bg-accent text-canvas text-sm font-medium">
+            <button onClick={onClose} className="w-full py-3 rounded-full bg-cta text-white text-sm font-medium">
               Done
             </button>
           </div>

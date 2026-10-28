@@ -111,7 +111,7 @@ export function TopicPicker({
                                     onClick={() => onToggle(interest.id)}
                                     className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-colors ${
                                       isSelected
-                                        ? "bg-accent text-canvas border-accent"
+                                        ? "bg-cta text-white border-cta"
                                         : disabled
                                         ? "bg-surface text-ink-muted/40 border-border cursor-not-allowed"
                                         : "bg-surface text-ink border-border hover:border-accent/50"

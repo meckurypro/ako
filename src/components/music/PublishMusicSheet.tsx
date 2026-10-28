@@ -266,7 +266,7 @@ export function PublishMusicSheet({ onClose, onPublished, projectId }: PublishMu
                         <button
                           onClick={() => setUsageMode("free")}
                           className={`flex-1 py-2.5 rounded-xl text-sm font-medium border ${
-                            usageMode === "free" ? "bg-accent text-canvas border-accent" : "bg-canvas text-ink-muted border-border"
+                            usageMode === "free" ? "bg-cta text-white border-cta" : "bg-canvas text-ink-muted border-border"
                           }`}
                         >
                           Free — discovery
@@ -274,7 +274,7 @@ export function PublishMusicSheet({ onClose, onPublished, projectId }: PublishMu
                         <button
                           onClick={() => setUsageMode("paid")}
                           className={`flex-1 py-2.5 rounded-xl text-sm font-medium border ${
-                            usageMode === "paid" ? "bg-accent text-canvas border-accent" : "bg-canvas text-ink-muted border-border"
+                            usageMode === "paid" ? "bg-cta text-white border-cta" : "bg-canvas text-ink-muted border-border"
                           }`}
                         >
                           Paid usage
@@ -323,7 +323,7 @@ export function PublishMusicSheet({ onClose, onPublished, projectId }: PublishMu
                     <button
                       onClick={handlePublish}
                       disabled={isPublishing}
-                      className="w-full py-3 rounded-full bg-accent text-canvas text-sm font-medium disabled:opacity-50"
+                      className="w-full py-3 rounded-full bg-cta text-white text-sm font-medium disabled:opacity-50"
                     >
                       {isPublishing ? "Publishing…" : "Publish to Akọ"}
                     </button>

@@ -14,6 +14,7 @@ import { ArrowLeft, Briefcase } from "lucide-react";
 import { useMyTalents, type MyTalent } from "../hooks/usePortfolio";
 import { BottomNav } from "../components/BottomNav";
 
+import { BrandDot } from "../components/BrandDot";
 const STATUS_LABEL: Record<string, string> = {
   draft: "Draft",
   archived: "Archived",
@@ -84,7 +85,7 @@ export function MyTalents() {
           <ArrowLeft size={22} />
         </button>
 
-        <h2 className="font-display text-2xl text-ink mb-1">Your Talents</h2>
+        <h2 className="font-display text-2xl text-ink mb-1">Your Talents<BrandDot /></h2>
         <p className="text-sm text-ink-muted mb-6">
           Every professional identity on your account — one Talent per role.
         </p>

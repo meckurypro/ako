@@ -222,7 +222,7 @@ export function AutomationSourcesPanel({ accountId, timezone }: { accountId: str
               type="button"
               onClick={handleAdd}
               disabled={add.isPending}
-              className="flex-1 bg-accent text-canvas rounded-xl py-2.5 text-sm font-medium disabled:opacity-40"
+              className="flex-1 bg-cta text-white rounded-xl py-2.5 text-sm font-medium disabled:opacity-40"
             >
               {add.isPending ? "Adding…" : "Add source"}
             </button>
@@ -338,7 +338,7 @@ function SourceCard({ source, timezone }: { source: AutomationSource; timezone: 
                       setNewKey("");
                     }, "Key saved.")
                   }
-                  className="bg-accent text-canvas rounded-xl px-3 text-sm disabled:opacity-40"
+                  className="bg-cta text-white rounded-xl px-3 text-sm disabled:opacity-40"
                 >
                   Save
                 </button>
@@ -378,7 +378,7 @@ function SourceCard({ source, timezone }: { source: AutomationSource; timezone: 
               type="button"
               onClick={handleSaveConfig}
               disabled={!configDirty || update.isPending}
-              className="flex-1 bg-accent text-canvas rounded-xl py-2 text-sm font-medium disabled:opacity-40"
+              className="flex-1 bg-cta text-white rounded-xl py-2 text-sm font-medium disabled:opacity-40"
             >
               Save configuration
             </button>

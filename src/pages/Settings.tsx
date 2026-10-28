@@ -680,7 +680,7 @@ export function Settings() {
                           disabled={disabled}
                           className={`px-3 py-1.5 rounded-full text-sm border transition-colors ${
                             selected
-                              ? "bg-accent text-canvas border-accent"
+                              ? "bg-cta text-white border-cta"
                               : disabled
                               ? "bg-canvas text-ink-muted/50 border-border cursor-not-allowed"
                               : "bg-canvas text-ink border-border"

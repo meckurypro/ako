@@ -105,7 +105,7 @@ export function MusicDiscoverySheet({ catalogueId, onClose }: MusicDiscoveryShee
 
             <div className="space-y-2">
               {!restricted && (
-                <button onClick={useInPost} className="w-full py-3 rounded-full bg-accent text-canvas text-sm font-medium">
+                <button onClick={useInPost} className="w-full py-3 rounded-full bg-cta text-white text-sm font-medium">
                   Use in my post
                 </button>
               )}

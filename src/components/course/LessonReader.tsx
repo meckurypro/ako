@@ -138,7 +138,7 @@ export function LessonReader(props: LessonReaderProps) {
         <button
           onClick={props.onPrimary}
           disabled={props.pending || mustPass}
-          className="flex h-12 flex-1 items-center justify-center gap-2 rounded-2xl bg-accent text-[15px] font-semibold text-canvas transition-colors hover:bg-accent-hover disabled:opacity-60"
+          className="flex h-12 flex-1 items-center justify-center gap-2 rounded-2xl bg-cta text-[15px] font-semibold text-white transition-colors hover:opacity-90 disabled:opacity-60"
         >
           {!hasAccess && !canAdvance ? <Lock size={16} /> : null}
           {primary}

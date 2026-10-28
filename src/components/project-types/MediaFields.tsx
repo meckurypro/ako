@@ -134,7 +134,7 @@ export function MediaFields({ value, onChange, onError, onUploadingChange }: Med
               onClick={() => onChange({ ...value, [key]: { ...channel, enabled: !channel.enabled } })}
               aria-pressed={channel.enabled}
               className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-xl text-sm font-medium border transition-colors ${
-                channel.enabled ? "bg-accent text-canvas border-accent" : "bg-surface text-ink-muted border-border"
+                channel.enabled ? "bg-cta text-white border-cta" : "bg-surface text-ink-muted border-border"
               }`}
             >
               <Icon size={14} />

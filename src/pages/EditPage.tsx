@@ -369,7 +369,7 @@ export function EditPage() {
             type="submit"
             form="edit-page-form"
             disabled={updatePage.isPending || uploadingAvatar || uploadingCover}
-            className="w-full rounded-xl bg-accent py-3 text-sm font-medium text-canvas disabled:opacity-60"
+            className="w-full rounded-xl bg-cta py-3 text-sm font-medium text-white disabled:opacity-60"
           >
             {updatePage.isPending ? "Saving…" : "Save changes"}
           </button>

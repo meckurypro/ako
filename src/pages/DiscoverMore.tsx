@@ -16,6 +16,7 @@ import { BottomNav } from "../components/BottomNav";
 import { PageRow } from "../components/PageRow";
 import { DiscoverTile } from "../components/discover/DiscoverRail";
 
+import { BrandDot } from "../components/BrandDot";
 function ShowMore({ onClick, loading }: { onClick: () => void; loading: boolean }) {
   return (
     <div className="mt-6 flex justify-center">
@@ -84,7 +85,7 @@ export function DiscoverMore() {
         <button onClick={smartBack} aria-label="Back" className="mb-4 text-ink-muted">
           <ArrowLeft size={22} />
         </button>
-        <h1 className="mb-5 font-display text-2xl text-ink">{title}</h1>
+        <h1 className="mb-5 font-display text-2xl text-ink">{title}<BrandDot /></h1>
         {section === "pages" ? <PagesMore /> : <ProjectsMore type={section as ProjectType} />}
       </div>
       <BottomNav />

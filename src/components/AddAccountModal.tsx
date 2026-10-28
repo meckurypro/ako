@@ -71,7 +71,7 @@ export function AddAccountModal({ onClose, onAdded }: AddAccountModalProps) {
         <button
           type="submit"
           disabled={addAccount.isPending || !email.trim() || !password}
-          className="w-full bg-accent text-canvas rounded-xl py-3 text-sm font-medium disabled:opacity-60"
+          className="w-full bg-cta text-white rounded-xl py-3 text-sm font-medium disabled:opacity-60"
         >
           {addAccount.isPending ? "Signing in…" : "Add account"}
         </button>

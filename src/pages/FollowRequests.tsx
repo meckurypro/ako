@@ -67,7 +67,7 @@ export function FollowRequests() {
                   <button
                     onClick={() => accept.mutate({ id: req.id, requesterId: req.requester.id })}
                     disabled={pending}
-                    className="text-sm bg-accent text-canvas rounded-full px-3.5 py-1.5 font-medium disabled:opacity-40"
+                    className="text-sm bg-cta text-white rounded-full px-3.5 py-1.5 font-medium disabled:opacity-40"
                   >
                     Accept
                   </button>

@@ -241,7 +241,7 @@ function SharedItemsPanel({ projectId }: { projectId: string }) {
         <button
           type="submit"
           disabled={postMessage.isPending || !draft.trim()}
-          className="p-2 rounded-full bg-accent text-canvas flex-shrink-0 disabled:opacity-50"
+          className="p-2 rounded-full bg-cta text-white flex-shrink-0 disabled:opacity-50"
           aria-label="Send"
         >
           <Send size={15} />
@@ -459,7 +459,7 @@ export function MeetingRoom() {
               </div>
             )}
 
-            <button onClick={() => void handleJoin()} className="w-full py-3 rounded-full bg-accent text-canvas font-medium">
+            <button onClick={() => void handleJoin()} className="w-full py-3 rounded-full bg-cta text-white font-medium">
               Join meeting
             </button>
           </div>
@@ -513,7 +513,7 @@ export function MeetingRoom() {
               </button>
               <button
                 onClick={() => void call.toggleScreenShare()}
-                className={`p-3 rounded-full ${call.screenShareEnabled ? "bg-accent text-canvas" : "bg-surface text-ink"}`}
+                className={`p-3 rounded-full ${call.screenShareEnabled ? "bg-cta text-white" : "bg-surface text-ink"}`}
                 aria-label="Toggle screen share"
               >
                 {call.screenShareEnabled ? <ScreenShareOff size={18} /> : <ScreenShare size={18} />}

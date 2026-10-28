@@ -76,7 +76,7 @@ function PassRow({
         <button
           onClick={() => void copy()}
           disabled={!live}
-          className="flex items-center gap-1.5 rounded-full bg-accent text-canvas px-3.5 py-1.5 text-sm font-medium disabled:opacity-50"
+          className="flex items-center gap-1.5 rounded-full bg-cta text-white px-3.5 py-1.5 text-sm font-medium disabled:opacity-50"
         >
           {copied ? <Check size={14} /> : <Copy size={14} />}
           {copied ? "Copied" : "Copy link"}

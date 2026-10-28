@@ -27,7 +27,7 @@ export function Button({
   const base = `${sizes[size]} font-body font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed`;
 
   const variants = {
-    primary: "bg-accent text-canvas hover:bg-accent-hover",
+    primary: "bg-cta text-white hover:opacity-90",
     secondary: "bg-accent-soft text-accent hover:bg-accent-soft/70",
     ghost: "bg-transparent text-ink-muted hover:text-ink",
   };

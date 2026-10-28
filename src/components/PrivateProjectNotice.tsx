@@ -27,7 +27,7 @@ export function PrivateProjectNotice({ onMessage, messagePending }: PrivateProje
       <button
         onClick={onMessage}
         disabled={messagePending}
-        className="mt-4 flex items-center gap-1.5 bg-accent text-canvas px-4 py-2 rounded-full text-sm font-medium disabled:opacity-50"
+        className="mt-4 flex items-center gap-1.5 bg-cta text-white px-4 py-2 rounded-full text-sm font-medium disabled:opacity-50"
       >
         <MessageCircle size={15} />
         {messagePending ? "Opening…" : "Message for access"}

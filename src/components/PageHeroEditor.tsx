@@ -254,7 +254,7 @@ export function PageHeroEditor({ page }: { page: Page }) {
                       onClick={() => saveSetting({ hero_interval_seconds: s })}
                       aria-pressed={interval === s}
                       className={`flex-1 rounded-xl py-2 text-sm font-medium ${
-                        interval === s ? "bg-accent text-canvas" : "bg-surface text-ink"
+                        interval === s ? "bg-cta text-white" : "bg-surface text-ink"
                       }`}
                     >
                       {s}s
@@ -278,7 +278,7 @@ export function PageHeroEditor({ page }: { page: Page }) {
                       onClick={() => saveSetting({ hero_direction: value })}
                       aria-pressed={direction === value}
                       className={`flex-1 rounded-xl py-2 text-sm font-medium ${
-                        direction === value ? "bg-accent text-canvas" : "bg-surface text-ink"
+                        direction === value ? "bg-cta text-white" : "bg-surface text-ink"
                       }`}
                     >
                       {label}

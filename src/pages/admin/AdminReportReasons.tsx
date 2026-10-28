@@ -40,7 +40,7 @@ export function AdminReportReasons() {
           <button
             type="submit"
             disabled={createReason.isPending}
-            className="bg-accent text-canvas px-4 rounded-xl flex items-center justify-center disabled:opacity-50"
+            className="bg-cta text-white px-4 rounded-xl flex items-center justify-center disabled:opacity-50"
           >
             <Plus size={18} />
           </button>

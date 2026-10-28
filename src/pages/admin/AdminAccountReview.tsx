@@ -183,7 +183,7 @@ export function AdminAccountReview() {
                 <button
                   onClick={() => void handleApprove(account.id)}
                   disabled={approvingId === account.id}
-                  className="flex items-center gap-1.5 bg-accent text-canvas text-sm font-medium px-3 py-2 rounded-lg disabled:opacity-50 flex-shrink-0"
+                  className="flex items-center gap-1.5 bg-cta text-white text-sm font-medium px-3 py-2 rounded-lg disabled:opacity-50 flex-shrink-0"
                 >
                   {approvingId === account.id ? (
                     <Loader2 size={14} className="animate-spin" />

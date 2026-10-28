@@ -96,7 +96,7 @@ export function ChoiceSelect({ label, value, options, onChange }: { label: strin
                 onClick={() => pick(o.id)}
                 className={`flex items-start gap-3 rounded-xl px-3 py-2.5 cursor-pointer ${i === cursor ? "bg-accent-soft" : ""}`}
               >
-                <span className={`mt-0.5 w-5 h-5 rounded-full flex items-center justify-center shrink-0 ${selected ? "bg-accent text-canvas" : "border border-border"}`}>{selected && <Check size={13} />}</span>
+                <span className={`mt-0.5 w-5 h-5 rounded-full flex items-center justify-center shrink-0 ${selected ? "bg-cta text-white" : "border border-border"}`}>{selected && <Check size={13} />}</span>
                 <span className="min-w-0">
                   <span className="block text-sm font-semibold text-ink">{o.label}</span>
                   {o.blurb && <span className="block text-xs text-ink-muted mt-0.5 leading-snug">{o.blurb}</span>}

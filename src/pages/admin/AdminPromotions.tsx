@@ -103,7 +103,7 @@ export function AdminPromotions() {
                         onClick={() => setDecision("approve")}
                         className={`flex-1 py-2 rounded-lg text-sm font-medium border ${
                           decision === "approve"
-                            ? "bg-accent text-canvas border-accent"
+                            ? "bg-cta text-white border-cta"
                             : "bg-canvas text-ink-muted border-border"
                         }`}
                       >
@@ -152,7 +152,7 @@ export function AdminPromotions() {
                       <button
                         onClick={() => handleConfirm(promo.id, promo.total_charged_usd)}
                         disabled={reviewPromotion.isPending}
-                        className="flex-1 bg-accent text-canvas py-2 rounded-lg text-sm font-medium disabled:opacity-50"
+                        className="flex-1 bg-cta text-white py-2 rounded-lg text-sm font-medium disabled:opacity-50"
                       >
                         Confirm {decision === "approve" ? "approval" : "decline"}
                       </button>
@@ -168,7 +168,7 @@ export function AdminPromotions() {
                   <div className="flex gap-2 mt-3">
                     <button
                       onClick={() => startDeciding(promo.id, "approve")}
-                      className="flex-1 bg-accent text-canvas py-2 rounded-lg text-sm font-medium"
+                      className="flex-1 bg-cta text-white py-2 rounded-lg text-sm font-medium"
                     >
                       Approve
                     </button>

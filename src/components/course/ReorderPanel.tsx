@@ -124,7 +124,7 @@ export function ReorderPanel({
           <button
             onClick={() => onSave(draft.map((m) => ({ id: m.id, lessons: m.lessons.map((l) => ({ id: l.id })) })))}
             disabled={saving}
-            className="rounded-full bg-accent px-4 py-1.5 text-sm font-medium text-canvas disabled:opacity-50"
+            className="rounded-full bg-cta px-4 py-1.5 text-sm font-medium text-white disabled:opacity-50"
           >
             {saving ? "Saving…" : "Save order"}
           </button>

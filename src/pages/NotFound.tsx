@@ -35,7 +35,7 @@ export function NotFound() {
         </button>
         <button
           onClick={() => navigate("/feed", { replace: true })}
-          className="px-5 py-2.5 rounded-full bg-accent text-canvas text-sm font-medium"
+          className="px-5 py-2.5 rounded-full bg-cta text-white text-sm font-medium"
         >
           Go to Feed
         </button>

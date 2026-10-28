@@ -141,7 +141,7 @@ export function BottomNav() {
         <Link
           to={inboxHref}
           aria-label={unreadCount > 0 ? `Chats, ${unreadCount} unread` : "Chats"}
-          className="absolute right-4 bottom-full mb-4 w-14 h-14 rounded-[18px] bg-accent text-canvas dark:bg-ink dark:text-accent flex items-center justify-center shadow-[0_4px_14px_rgba(var(--shadow-ink-rgb),0.25)] active:scale-95 transition-transform"
+          className="absolute right-4 bottom-full mb-4 w-14 h-14 rounded-[18px] bg-cta text-white dark:bg-ink dark:text-accent flex items-center justify-center shadow-[0_4px_14px_rgba(var(--shadow-ink-rgb),0.25)] active:scale-95 transition-transform"
         >
           <ChatIcon size={30} />
           {unreadCount > 0 && (

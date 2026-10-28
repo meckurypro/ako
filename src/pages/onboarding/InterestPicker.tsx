@@ -150,7 +150,7 @@ export function InterestPicker() {
             {selectedInterests.map((interest) => (
               <span
                 key={interest.id}
-                className="inline-flex items-center gap-1 pl-2.5 pr-1.5 py-1 rounded-full bg-accent text-canvas text-xs font-medium"
+                className="inline-flex items-center gap-1 pl-2.5 pr-1.5 py-1 rounded-full bg-cta text-white text-xs font-medium"
               >
                 {interest.name}
                 <button

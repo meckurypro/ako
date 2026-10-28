@@ -202,7 +202,7 @@ export function DownloadAppModal({ onClose }: { onClose: () => void }) {
           onClick={handleApkDownload}
           disabled={apkStarting}
           aria-busy={apkStarting}
-          className="mt-4 w-full flex items-center justify-center gap-2 rounded-xl bg-accent py-3 text-sm font-medium text-canvas hover:bg-accent-hover transition-colors disabled:opacity-80 disabled:cursor-wait"
+          className="mt-4 w-full flex items-center justify-center gap-2 rounded-xl bg-cta py-3 text-sm font-medium text-white hover:opacity-90 transition-colors disabled:opacity-80 disabled:cursor-wait"
         >
           {apkStarting ? <Loader2 size={16} className="animate-spin" /> : <Download size={16} />}
           {apkStarting ? "Starting download…" : "Download Android APK"}

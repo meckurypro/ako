@@ -105,7 +105,7 @@ export function SupportPitchSheet({ projectId, projectTitle, onClose, onSupporte
             <button
               type="submit"
               disabled={supportPitch.isPending}
-              className="w-full flex items-center justify-center gap-1.5 bg-accent text-canvas px-4 py-3 rounded-xl text-sm font-medium disabled:opacity-50"
+              className="w-full flex items-center justify-center gap-1.5 bg-cta text-white px-4 py-3 rounded-xl text-sm font-medium disabled:opacity-50"
             >
               <Heart size={15} />
               {supportPitch.isPending ? "Sending support…" : "Support"}

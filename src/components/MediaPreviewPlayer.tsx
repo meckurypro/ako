@@ -146,7 +146,7 @@ export function MediaPreviewPlayer({ kind, src }: MediaPreviewPlayerProps) {
           type="button"
           onClick={togglePlay}
           aria-label={isPlaying ? "Pause preview" : "Play preview"}
-          className="flex items-center justify-center w-8 h-8 rounded-full bg-accent text-canvas flex-shrink-0"
+          className="flex items-center justify-center w-8 h-8 rounded-full bg-cta text-white flex-shrink-0"
         >
           {isPlaying ? (
             <Pause size={14} fill="currentColor" />

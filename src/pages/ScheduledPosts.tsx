@@ -7,6 +7,7 @@ import { useMyScheduledPosts, useDeleteDraftOrScheduledPost } from "../hooks/use
 import { useToast } from "../components/Toast";
 import { clearJustSaved, peekJustSaved } from "../lib/justSaved";
 
+import { BrandDot } from "../components/BrandDot";
 function timeUntil(iso: string): string {
   const diffMs = new Date(iso).getTime() - Date.now();
   if (diffMs <= 0) return "publishing shortly";
@@ -64,7 +65,7 @@ export function ScheduledPosts() {
         <button onClick={smartBack} className="text-ink-muted">
           <ArrowLeft size={22} />
         </button>
-        <h2 className="font-display text-2xl text-ink">Scheduled</h2>
+        <h2 className="font-display text-2xl text-ink">Scheduled<BrandDot /></h2>
       </header>
 
       <div className="max-w-xl mx-auto px-4 pt-2">
@@ -91,7 +92,7 @@ export function ScheduledPosts() {
                     <Send size={12} />
                     Publishes {post.scheduled_for ? timeUntil(post.scheduled_for) : ""}
                     {post.id === highlightId && (
-                      <span className="ml-1 rounded-full bg-accent px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-canvas">
+                      <span className="ml-1 rounded-full bg-cta px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-white">
                         Just scheduled
                       </span>
                     )}
@@ -121,7 +122,7 @@ export function ScheduledPosts() {
                 <div className="flex items-center gap-2 mt-3">
                   <button
                     onClick={() => navigate("/compose", { state: { scheduledId: post.id } })}
-                    className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-full bg-accent text-canvas text-sm font-medium"
+                    className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-full bg-cta text-white text-sm font-medium"
                   >
                     <FileEdit size={14} />
                     Resume

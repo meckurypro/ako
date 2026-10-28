@@ -41,7 +41,7 @@ export function CourseHero({ pct, done, total, minutesLeft, nextTitle, onContinu
       <ProgressBar pct={pct} height={10} />
       <button
         onClick={onContinue}
-        className="mt-4 flex w-full items-center justify-between gap-3 rounded-2xl bg-accent px-4 py-3.5 text-left text-canvas transition-colors hover:bg-accent-hover"
+        className="mt-4 flex w-full items-center justify-between gap-3 rounded-2xl bg-cta px-4 py-3.5 text-left text-white transition-colors hover:opacity-90"
       >
         <span className="min-w-0 flex-1">
           <span className="block text-[15px] font-semibold">{cta}</span>

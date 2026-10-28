@@ -279,7 +279,7 @@ export function EditPost() {
         <button
           onClick={handleSubmit}
           disabled={!canSave || updatePost.isPending}
-          className="bg-accent text-canvas px-5 py-2 rounded-full text-sm font-medium disabled:opacity-50"
+          className="bg-cta text-white px-5 py-2 rounded-full text-sm font-medium disabled:opacity-50"
         >
           {updatePost.isPending ? "Saving…" : "Save"}
         </button>

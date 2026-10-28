@@ -85,6 +85,7 @@ import {
 } from "../lib/projectDraft";
 import { friendlyError } from "../lib/friendlyError";
 
+import { BrandDot } from "../components/BrandDot";
 export function CreateProject() {
   const navigate = useNavigate();
   const smartBack = useSmartBack();
@@ -691,7 +692,7 @@ export function CreateProject() {
           <button onClick={smartBack} className="text-ink-muted mb-4">
             <ArrowLeft size={22} />
           </button>
-          <h2 className="font-display text-2xl text-ink mb-6">New project</h2>
+          <h2 className="font-display text-2xl text-ink mb-6">New project<BrandDot /></h2>
           <p className="text-sm text-ink-muted">New projects aren't being created right now. Check back later.</p>
         </div>
       </div>
@@ -708,7 +709,7 @@ export function CreateProject() {
           <ArrowLeft size={22} />
         </button>
 
-        <h2 className="font-display text-2xl text-ink mb-6">New project</h2>
+        <h2 className="font-display text-2xl text-ink mb-6">New project<BrandDot /></h2>
 
         {restoredDraftNotice && (
           <div className="flex items-center justify-between gap-3 rounded-xl border border-border bg-surface px-4 py-3 mb-5">

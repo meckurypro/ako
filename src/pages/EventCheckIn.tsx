@@ -12,6 +12,7 @@ import {
   useEventTicketHolders,
 } from "../hooks/useEventTickets";
 
+import { BrandDot } from "../components/BrandDot";
 // Host-only door scanner. Camera scanning (via jsqr, pure client-side
 // — draws video frames to a hidden canvas and decodes them) is the
 // primary path; manual code entry is the fallback for when a camera
@@ -128,7 +129,7 @@ export function EventCheckIn() {
           <ArrowLeft size={22} />
         </button>
 
-        <h2 className="font-display text-2xl text-ink mb-1">Scan tickets</h2>
+        <h2 className="font-display text-2xl text-ink mb-1">Scan tickets<BrandDot /></h2>
         <p className="text-sm text-ink-muted mb-1">{project.title}</p>
         <div className="flex items-center gap-1.5 text-sm text-ink-muted mb-4">
           <Users size={14} />
@@ -140,7 +141,7 @@ export function EventCheckIn() {
             <button
               onClick={() => setMode("camera")}
               className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl text-sm font-medium border ${
-                mode === "camera" ? "bg-accent text-canvas border-accent" : "bg-surface text-ink-muted border-border"
+                mode === "camera" ? "bg-cta text-white border-cta" : "bg-surface text-ink-muted border-border"
               }`}
             >
               <Camera size={14} /> Camera
@@ -148,7 +149,7 @@ export function EventCheckIn() {
             <button
               onClick={() => setMode("manual")}
               className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl text-sm font-medium border ${
-                mode === "manual" ? "bg-accent text-canvas border-accent" : "bg-surface text-ink-muted border-border"
+                mode === "manual" ? "bg-cta text-white border-cta" : "bg-surface text-ink-muted border-border"
               }`}
             >
               <Keyboard size={14} /> Enter code
@@ -176,7 +177,7 @@ export function EventCheckIn() {
             <button
               type="submit"
               disabled={!manualCode.trim()}
-              className="px-4 py-2.5 rounded-full bg-accent text-canvas text-sm font-medium disabled:opacity-50"
+              className="px-4 py-2.5 rounded-full bg-cta text-white text-sm font-medium disabled:opacity-50"
             >
               Look up
             </button>
@@ -207,7 +208,7 @@ export function EventCheckIn() {
                     <button
                       onClick={() => checkIn.mutate(ticketQuery.data!.id)}
                       disabled={checkIn.isPending}
-                      className="px-4 py-2 rounded-full bg-accent text-canvas text-sm font-medium disabled:opacity-50"
+                      className="px-4 py-2 rounded-full bg-cta text-white text-sm font-medium disabled:opacity-50"
                     >
                       {checkIn.isPending ? "Checking in…" : "Check in"}
                     </button>

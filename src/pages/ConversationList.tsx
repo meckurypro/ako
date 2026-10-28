@@ -22,6 +22,7 @@ import { MediaViewer } from "../components/MediaViewer";
 import { MessagePreviewLine } from "../components/MessagePreviewLine";
 import { messagePlainText } from "../lib/chatMedia";
 
+import { BrandDot } from "../components/BrandDot";
 const MAX_PINNED = 3;
 
 function timeAgo(dateString: string): string {
@@ -324,7 +325,7 @@ export function ConversationList() {
           </p>
         </div>
         {c.unreadCount > 0 && (
-          <span className="min-w-[22px] h-[22px] px-1.5 rounded-full bg-accent text-canvas text-xs font-semibold flex items-center justify-center flex-shrink-0">
+          <span className="min-w-[22px] h-[22px] px-1.5 rounded-full bg-cta text-white text-xs font-semibold flex items-center justify-center flex-shrink-0">
             {c.unreadCount > 99 ? "99+" : c.unreadCount}
           </span>
         )}
@@ -344,7 +345,7 @@ export function ConversationList() {
       <div className="min-h-screen bg-canvas pb-24">
         <header className="px-4 pt-6 pb-3 flex items-center gap-3 sticky top-0 bg-canvas z-chrome border-b border-border">
           <MessageCircle size={22} className="text-ink-muted shrink-0" />
-          <h2 className="font-display text-2xl text-ink flex-1">Chats</h2>
+          <h2 className="font-display text-2xl text-ink flex-1">Chats<BrandDot /></h2>
         </header>
         <div className="max-w-xl md:max-w-2xl mx-auto px-4 pt-10 text-center">
           <p className="text-sm text-ink-muted">Messaging is temporarily unavailable. Check back later.</p>
@@ -383,7 +384,7 @@ export function ConversationList() {
         ) : (
           <div className="px-4 pt-6 pb-3 flex items-center gap-3">
             <MessageCircle size={22} className="text-ink-muted shrink-0" />
-            <h2 className="font-display text-2xl text-ink flex-1">Chats</h2>
+            <h2 className="font-display text-2xl text-ink flex-1">Chats<BrandDot /></h2>
             {conversations && conversations.length > 0 && (
               <button
                 onClick={() => setSelectMode(true)}
@@ -410,7 +411,7 @@ export function ConversationList() {
             </span>
             <span className="flex-1 text-left text-sm font-medium text-ink">Archive</span>
             {archiveBadgeCount > 0 && (
-              <span className="bg-accent text-canvas text-[11px] font-semibold rounded-full min-w-[20px] h-5 px-1.5 flex items-center justify-center flex-shrink-0">
+              <span className="bg-cta text-white text-[11px] font-semibold rounded-full min-w-[20px] h-5 px-1.5 flex items-center justify-center flex-shrink-0">
                 {archiveBadgeCount > 99 ? "99+" : archiveBadgeCount}
               </span>
             )}

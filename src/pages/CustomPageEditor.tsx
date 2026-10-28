@@ -516,7 +516,7 @@ function Choice({ active, title, blurb, onClick }: { active: boolean; title: str
       onClick={onClick}
       className={`flex items-start gap-3 text-left rounded-2xl p-4 border ${active ? "bg-accent-soft border-accent" : "bg-surface border-border"}`}
     >
-      <span className={`mt-0.5 w-5 h-5 rounded-full flex items-center justify-center shrink-0 ${active ? "bg-accent text-canvas" : "border border-border"}`}>{active && <Check size={13} />}</span>
+      <span className={`mt-0.5 w-5 h-5 rounded-full flex items-center justify-center shrink-0 ${active ? "bg-cta text-white" : "border border-border"}`}>{active && <Check size={13} />}</span>
       <span>
         <span className="block text-sm font-semibold text-ink">{title}</span>
         <span className="block text-xs text-ink-muted mt-0.5 leading-snug">{blurb}</span>

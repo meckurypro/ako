@@ -233,7 +233,7 @@ function TalentReviewsSection({ projectId }: { projectId: string }) {
             <button
               onClick={() => void handleSubmit()}
               disabled={addReview.isPending}
-              className="px-4 py-2 rounded-full bg-accent text-canvas text-sm font-medium disabled:opacity-50"
+              className="px-4 py-2 rounded-full bg-cta text-white text-sm font-medium disabled:opacity-50"
             >
               {addReview.isPending ? "Posting…" : "Post review"}
             </button>
@@ -550,7 +550,7 @@ export function ProjectDetail({ resolvedProjectId }: { resolvedProjectId?: strin
               </Link>
               <Link
                 to={signupPathFor(returnTo)}
-                className="px-4 py-2 rounded-full bg-accent text-canvas text-sm font-semibold shadow-sm"
+                className="px-4 py-2 rounded-full bg-cta text-white text-sm font-semibold shadow-sm"
               >
                 Sign up
               </Link>
@@ -630,7 +630,7 @@ export function ProjectDetail({ resolvedProjectId }: { resolvedProjectId?: strin
               >
                 Forewords
                 {forewordsToReview > 0 && (
-                  <span className="min-w-5 h-5 px-1.5 rounded-full bg-accent text-canvas text-[11px] flex items-center justify-center">
+                  <span className="min-w-5 h-5 px-1.5 rounded-full bg-cta text-white text-[11px] flex items-center justify-center">
                     {forewordsToReview}
                   </span>
                 )}

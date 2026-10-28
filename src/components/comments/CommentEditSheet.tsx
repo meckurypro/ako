@@ -53,7 +53,7 @@ export function CommentEditSheet({ comment, onClose }: { comment: CommentWithAut
         type="button"
         disabled={!canSave || update.isPending}
         onClick={() => void handleSave()}
-        className="w-full flex items-center justify-center gap-2 bg-accent text-canvas rounded-xl py-2.5 text-sm font-medium disabled:opacity-50"
+        className="w-full flex items-center justify-center gap-2 bg-cta text-white rounded-xl py-2.5 text-sm font-medium disabled:opacity-50"
       >
         {update.isPending && <Loader2 size={16} className="animate-spin" />}
         Save

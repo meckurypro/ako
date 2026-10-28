@@ -76,7 +76,7 @@ export function DepositCallback() {
             </p>
             <button
               onClick={() => navigate("/wallet")}
-              className="bg-accent text-canvas font-medium rounded-xl px-6 py-3"
+              className="bg-cta text-white font-medium rounded-xl px-6 py-3"
             >
               Go to wallet
             </button>
@@ -96,7 +96,7 @@ export function DepositCallback() {
             </p>
             <button
               onClick={() => navigate("/wallet/fund")}
-              className="bg-accent text-canvas font-medium rounded-xl px-6 py-3"
+              className="bg-cta text-white font-medium rounded-xl px-6 py-3"
             >
               Try again
             </button>
@@ -113,7 +113,7 @@ export function DepositCallback() {
             </p>
             <button
               onClick={() => navigate("/wallet")}
-              className="bg-accent text-canvas font-medium rounded-xl px-6 py-3"
+              className="bg-cta text-white font-medium rounded-xl px-6 py-3"
             >
               Go to wallet
             </button>

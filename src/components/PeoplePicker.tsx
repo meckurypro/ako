@@ -111,10 +111,10 @@ export function PeoplePicker({
                       </div>
                       <span
                         className={`w-5 h-5 rounded-full border flex-shrink-0 flex items-center justify-center ${
-                          isSelected ? "bg-accent border-accent" : "border-border"
+                          isSelected ? "bg-cta border-cta" : "border-border"
                         }`}
                       >
-                        {isSelected && <Check size={12} className="text-canvas" strokeWidth={3} />}
+                        {isSelected && <Check size={12} className="text-white" strokeWidth={3} />}
                       </span>
                     </button>
                   );
@@ -126,7 +126,7 @@ export function PeoplePicker({
           <div className="px-4 py-4 border-t border-border flex-shrink-0">
             <button
               onClick={() => onConfirm([...selected.values()])}
-              className="w-full py-3 rounded-full bg-accent text-canvas text-sm font-medium disabled:opacity-50"
+              className="w-full py-3 rounded-full bg-cta text-white text-sm font-medium disabled:opacity-50"
             >
               {confirmLabel}
               {selected.size > 0 ? ` (${selected.size})` : ""}

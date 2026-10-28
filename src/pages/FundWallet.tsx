@@ -10,6 +10,7 @@ import { useFeatureFlag } from "../hooks/useFeatureFlags";
 import { formatNgn, formatUsd } from "../lib/money";
 import { friendlyError } from "../lib/friendlyError";
 
+import { BrandDot } from "../components/BrandDot";
 // Deposits used to be Apple/Google in-app purchases (verify-iap-receipt).
 // That path never worked outside a native app shell, and per product
 // decision, it's been fully replaced with Paystack — NGN in, USD out,
@@ -113,7 +114,7 @@ export function FundWallet() {
           <button onClick={smartBack} className="text-ink-muted mb-4">
             <ArrowLeft size={22} />
           </button>
-          <h2 className="font-display text-2xl text-ink mb-2">Fund your wallet</h2>
+          <h2 className="font-display text-2xl text-ink mb-2">Fund your wallet<BrandDot /></h2>
           <p className="text-ink-muted text-sm">Deposits are temporarily unavailable. Check back later.</p>
         </div>
       </div>
@@ -127,7 +128,7 @@ export function FundWallet() {
           <ArrowLeft size={22} />
         </button>
 
-        <h2 className="font-display text-2xl text-ink mb-2">Fund your wallet</h2>
+        <h2 className="font-display text-2xl text-ink mb-2">Fund your wallet<BrandDot /></h2>
         <p className="text-ink-muted text-sm mb-6">
           Add money to your Akọ wallet via card, bank transfer, or USSD — powered by Paystack.
           Available any time, every day.
@@ -212,7 +213,7 @@ export function FundWallet() {
         <button
           onClick={handleContinue}
           disabled={initiateDeposit.isPending || checkoutOpen || !amountUsd}
-          className="w-full bg-accent text-canvas font-medium rounded-xl py-3.5 disabled:opacity-50 flex items-center justify-center gap-2"
+          className="w-full bg-cta text-white font-medium rounded-xl py-3.5 disabled:opacity-50 flex items-center justify-center gap-2"
         >
           {initiateDeposit.isPending || checkoutOpen ? (
             <>

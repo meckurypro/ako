@@ -104,7 +104,7 @@ function ForewordRow({
             <button
               onClick={onApprove}
               disabled={busy}
-              className="flex-1 py-2 rounded-full bg-accent text-canvas text-sm font-medium disabled:opacity-60"
+              className="flex-1 py-2 rounded-full bg-cta text-white text-sm font-medium disabled:opacity-60"
             >
               Approve
             </button>
@@ -314,7 +314,7 @@ export function ForewordsSheet({
                 <button
                   onClick={sendInvites}
                   disabled={sending}
-                  className="w-full py-3 rounded-full bg-accent text-canvas text-sm font-medium disabled:opacity-60"
+                  className="w-full py-3 rounded-full bg-cta text-white text-sm font-medium disabled:opacity-60"
                 >
                   {sending ? "Sending…" : pending.length > 1 ? "Send invites" : "Send invite"}
                 </button>
@@ -323,7 +323,7 @@ export function ForewordsSheet({
                   <button
                     onClick={() => setShowPicker(true)}
                     disabled={slotsLeft === 0}
-                    className="w-full flex items-center justify-center gap-2 py-3 rounded-full bg-accent text-canvas text-sm font-medium disabled:opacity-50"
+                    className="w-full flex items-center justify-center gap-2 py-3 rounded-full bg-cta text-white text-sm font-medium disabled:opacity-50"
                   >
                     <UserPlus size={16} />
                     Invite someone

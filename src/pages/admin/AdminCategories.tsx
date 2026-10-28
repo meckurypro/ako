@@ -62,7 +62,7 @@ function InterestsPanel({ categoryId }: { categoryId: string }) {
         <button
           type="submit"
           disabled={createInterest.isPending}
-          className="bg-accent text-canvas px-3 py-1.5 rounded-lg text-sm font-medium disabled:opacity-50"
+          className="bg-cta text-white px-3 py-1.5 rounded-lg text-sm font-medium disabled:opacity-50"
         >
           Add
         </button>
@@ -114,7 +114,7 @@ export function AdminCategories() {
           <button
             type="submit"
             disabled={createCategory.isPending}
-            className="bg-accent text-canvas px-4 rounded-xl flex items-center justify-center disabled:opacity-50"
+            className="bg-cta text-white px-4 rounded-xl flex items-center justify-center disabled:opacity-50"
           >
             <Plus size={18} />
           </button>

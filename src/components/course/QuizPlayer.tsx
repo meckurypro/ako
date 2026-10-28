@@ -96,7 +96,7 @@ export function QuizPlayer({
                 setAnswers({});
                 setSubmitted(false);
               }}
-              className="mt-3 flex items-center gap-1.5 rounded-xl bg-accent px-4 py-2 text-sm font-semibold text-canvas"
+              className="mt-3 flex items-center gap-1.5 rounded-xl bg-cta px-4 py-2 text-sm font-semibold text-white"
             >
               <RotateCcw size={14} /> Try again
             </button>
@@ -119,7 +119,7 @@ export function QuizPlayer({
           type="button"
           onClick={submit}
           disabled={!allAnswered}
-          className="h-12 rounded-2xl bg-accent text-[15px] font-semibold text-canvas disabled:opacity-40"
+          className="h-12 rounded-2xl bg-cta text-[15px] font-semibold text-white disabled:opacity-40"
         >
           Submit answers
         </button>

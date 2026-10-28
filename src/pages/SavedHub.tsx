@@ -10,6 +10,7 @@ import { ProjectCard } from "../components/ProjectCard";
 import { BottomNav } from "../components/BottomNav";
 import { SwipeableTabs } from "../components/SwipeableTabs";
 
+import { BrandDot } from "../components/BrandDot";
 const TABS = ["posts", "projects"] as const;
 type Tab = (typeof TABS)[number];
 
@@ -44,7 +45,7 @@ export function SavedHub() {
         <button onClick={smartBack} className="text-ink-muted">
           <ArrowLeft size={22} />
         </button>
-        <h2 className="font-display text-2xl text-ink">Saved</h2>
+        <h2 className="font-display text-2xl text-ink">Saved<BrandDot /></h2>
       </header>
 
       <div className="max-w-xl mx-auto px-4">

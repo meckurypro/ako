@@ -186,7 +186,7 @@ export function AdminEmailCampaignEditor() {
                     onClick={() => setScheduleType(opt.value)}
                     className={`px-3 py-1.5 rounded-full text-sm font-medium border transition-colors ${
                       scheduleType === opt.value
-                        ? "bg-accent text-canvas border-accent"
+                        ? "bg-cta text-white border-cta"
                         : "bg-surface text-ink-muted border-border"
                     }`}
                   >

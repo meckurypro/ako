@@ -145,7 +145,7 @@ export function AdminSmtpSettings() {
                 <button
                   onClick={handleTest}
                   disabled={sendTest.isPending || !testTo}
-                  className="bg-accent text-canvas px-4 rounded-xl text-sm font-medium disabled:opacity-50"
+                  className="bg-cta text-white px-4 rounded-xl text-sm font-medium disabled:opacity-50"
                 >
                   {sendTest.isPending ? "Sending…" : "Send"}
                 </button>

@@ -152,7 +152,7 @@ export function GiftVaultPage() {
                 setShowAll(false);
               }}
               className={`px-4 py-2 rounded-full text-sm border transition-colors ${
-                range === r.id ? "bg-accent text-canvas border-accent" : "bg-surface text-ink-muted border-border"
+                range === r.id ? "bg-cta text-white border-cta" : "bg-surface text-ink-muted border-border"
               }`}
             >
               {r.label}

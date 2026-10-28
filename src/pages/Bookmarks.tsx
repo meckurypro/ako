@@ -4,6 +4,7 @@ import { useBookmarkedPosts } from "../hooks/useBookmarks";
 import { PostCard } from "../components/PostCard";
 import { BottomNav } from "../components/BottomNav";
 
+import { BrandDot } from "../components/BrandDot";
 export function Bookmarks() {
   const smartBack = useSmartBack();
   const { data: posts, isLoading } = useBookmarkedPosts();
@@ -14,7 +15,7 @@ export function Bookmarks() {
         <button onClick={smartBack} className="text-ink-muted">
           <ArrowLeft size={22} />
         </button>
-        <h2 className="font-display text-2xl text-ink">Saved</h2>
+        <h2 className="font-display text-2xl text-ink">Saved<BrandDot /></h2>
       </header>
 
       <div className="max-w-xl mx-auto px-4 pt-4">

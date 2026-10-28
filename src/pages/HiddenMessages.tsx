@@ -6,6 +6,7 @@ import { useAuth } from "../hooks/useAuth";
 import { MessagePreviewLine } from "../components/MessagePreviewLine";
 import { useHiddenMessages, useUnhideMessage } from "../hooks/useMessageReactions";
 
+import { BrandDot } from "../components/BrandDot";
 function formatTime(dateString: string): string {
   return new Date(dateString).toLocaleString(undefined, {
     month: "short",
@@ -35,7 +36,7 @@ export function HiddenMessages() {
         <button onClick={smartBack} className="text-ink-muted" aria-label="Back">
           <ArrowLeft size={22} />
         </button>
-        <h2 className="font-display text-2xl text-ink">Hidden messages</h2>
+        <h2 className="font-display text-2xl text-ink">Hidden messages<BrandDot /></h2>
       </header>
 
       <div className="max-w-xl mx-auto px-4 pt-2">

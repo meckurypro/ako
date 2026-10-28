@@ -493,7 +493,7 @@ export function Course() {
               <button
                 onClick={handlePublishCourse}
                 disabled={publishCourse.isPending || !publishReady}
-                className="text-xs font-medium px-3 py-1.5 rounded-full bg-accent text-canvas disabled:opacity-50"
+                className="text-xs font-medium px-3 py-1.5 rounded-full bg-cta text-white disabled:opacity-50"
               >
                 {publishCourse.isPending ? "Publishing…" : "Publish"}
               </button>
@@ -509,7 +509,7 @@ export function Course() {
             <PenLine size={15} />
             Forewords
             {forewordsToReview > 0 && (
-              <span className="ml-1 min-w-5 h-5 px-1.5 rounded-full bg-accent text-canvas text-[11px] flex items-center justify-center">
+              <span className="ml-1 min-w-5 h-5 px-1.5 rounded-full bg-cta text-white text-[11px] flex items-center justify-center">
                 {forewordsToReview}
               </span>
             )}
@@ -871,7 +871,7 @@ export function Course() {
               <button
                 type="submit"
                 disabled={addModule.isPending || !newModuleTitle.trim()}
-                className="px-4 py-2.5 rounded-full bg-accent text-canvas text-sm font-medium disabled:opacity-50"
+                className="px-4 py-2.5 rounded-full bg-cta text-white text-sm font-medium disabled:opacity-50"
               >
                 Add
               </button>

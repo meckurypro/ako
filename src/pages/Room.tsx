@@ -189,7 +189,7 @@ function RoomCallView({ roomMeeting, isHost, onLeave }: { roomMeeting: RoomMeeti
         </button>
         <button
           onClick={() => void call.toggleScreenShare()}
-          className={`p-3 rounded-full ${call.screenShareEnabled ? "bg-accent text-canvas" : "bg-surface text-ink"}`}
+          className={`p-3 rounded-full ${call.screenShareEnabled ? "bg-cta text-white" : "bg-surface text-ink"}`}
           aria-label="Toggle screen share"
         >
           {call.screenShareEnabled ? <ScreenShareOff size={16} /> : <ScreenShare size={16} />}
@@ -268,7 +268,7 @@ function PollComposer({ onCreate, onCancel, pending }: { onCreate: (q: string, o
         <button
           disabled={pending || !question.trim() || options.filter((o) => o.trim()).length < 2}
           onClick={() => onCreate(question.trim(), options.map((o) => o.trim()).filter(Boolean), allowMultiple)}
-          className="px-4 py-2 rounded-full bg-accent text-canvas text-sm font-medium disabled:opacity-50"
+          className="px-4 py-2 rounded-full bg-cta text-white text-sm font-medium disabled:opacity-50"
         >
           {pending ? "Posting…" : "Post poll"}
         </button>
@@ -428,7 +428,7 @@ function ClassroomTab({ projectId, isHost }: { projectId: string; isHost: boolea
               <button
                 type="submit"
                 disabled={postToRoom.isPending}
-                className="p-2.5 rounded-full bg-accent text-canvas disabled:opacity-50"
+                className="p-2.5 rounded-full bg-cta text-white disabled:opacity-50"
                 aria-label="Post"
               >
                 <Send size={16} />
@@ -437,7 +437,7 @@ function ClassroomTab({ projectId, isHost }: { projectId: string; isHost: boolea
               <button
                 type="button"
                 onPointerDown={voiceRecorder.micHandlers.onPointerDown}
-                className="p-2.5 rounded-full bg-accent text-canvas"
+                className="p-2.5 rounded-full bg-cta text-white"
                 aria-label="Hold to record a voice lecture"
               >
                 <Mic size={16} />
@@ -513,7 +513,7 @@ function MeetingsTab({ projectId, isHost }: { projectId: string; isHost: boolean
           <button
             type="submit"
             disabled={scheduleMeeting.isPending}
-            className="w-full py-2 rounded-lg bg-accent text-canvas text-sm font-medium disabled:opacity-50"
+            className="w-full py-2 rounded-lg bg-cta text-white text-sm font-medium disabled:opacity-50"
           >
             {scheduleMeeting.isPending ? "Scheduling…" : "Schedule meeting"}
           </button>
@@ -538,7 +538,7 @@ function MeetingsTab({ projectId, isHost }: { projectId: string; isHost: boolean
                 ) : isLive ? (
                   <button
                     onClick={() => setActiveCallMeetingId(m.id)}
-                    className="mt-1.5 px-3 py-1.5 rounded-full bg-accent text-canvas text-xs font-medium"
+                    className="mt-1.5 px-3 py-1.5 rounded-full bg-cta text-white text-xs font-medium"
                   >
                     Join now
                   </button>
@@ -595,7 +595,7 @@ function SubmissionReview({ assignmentId }: { assignmentId: string }) {
                 <button
                   onClick={() => review.mutate({ submissionId: s.id, status: "approved", feedback: feedbackDraft[s.id] })}
                   disabled={review.isPending}
-                  className="px-3 py-1.5 rounded-full bg-accent text-canvas text-xs font-medium disabled:opacity-50"
+                  className="px-3 py-1.5 rounded-full bg-cta text-white text-xs font-medium disabled:opacity-50"
                 >
                   Approve
                 </button>
@@ -661,7 +661,7 @@ function AssignmentCard({ assignment, isHost }: { assignment: { id: string; titl
               <button
                 type="submit"
                 disabled={submitAssignment.isPending || !content.trim()}
-                className="self-start px-3 py-1.5 rounded-full bg-accent text-canvas text-xs font-medium disabled:opacity-50"
+                className="self-start px-3 py-1.5 rounded-full bg-cta text-white text-xs font-medium disabled:opacity-50"
               >
                 {submitAssignment.isPending ? "Submitting…" : "Submit"}
               </button>
@@ -725,7 +725,7 @@ function AssignmentsTab({ projectId, isHost }: { projectId: string; isHost: bool
           <button
             type="submit"
             disabled={createAssignment.isPending}
-            className="w-full py-2 rounded-lg bg-accent text-canvas text-sm font-medium disabled:opacity-50"
+            className="w-full py-2 rounded-lg bg-cta text-white text-sm font-medium disabled:opacity-50"
           >
             {createAssignment.isPending ? "Posting…" : "Post assignment"}
           </button>

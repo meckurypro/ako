@@ -18,7 +18,7 @@ export function AdminEmailTemplates() {
           <h2 className="font-display text-xl text-ink flex-1">Email templates</h2>
           <Link
             to="/admin/emails/templates/new"
-            className="bg-accent text-canvas w-9 h-9 rounded-xl flex items-center justify-center"
+            className="bg-cta text-white w-9 h-9 rounded-xl flex items-center justify-center"
           >
             <Plus size={18} />
           </Link>

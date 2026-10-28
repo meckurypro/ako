@@ -133,7 +133,7 @@ export function LessonVideoField({
               key={m}
               type="button"
               onClick={() => setMode(m)}
-              className={`flex items-center gap-1 rounded-full px-3 py-1 ${mode === m ? "bg-accent text-canvas" : "text-ink-muted"}`}
+              className={`flex items-center gap-1 rounded-full px-3 py-1 ${mode === m ? "bg-cta text-white" : "text-ink-muted"}`}
             >
               {m === "upload" ? <Upload size={12} /> : <Link2 size={12} />}
               {m === "upload" ? "Upload" : "Link"}

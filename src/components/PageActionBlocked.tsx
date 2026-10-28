@@ -20,7 +20,7 @@ export function PageActionBlocked({ pageName, action }: { pageName: string; acti
           type="button"
           disabled={switchMode.isPending}
           onClick={() => switchMode.mutate(null, { onSuccess: () => navigate("/me") })}
-          className="w-full bg-accent text-canvas rounded-xl py-2.5 text-sm font-medium disabled:opacity-60"
+          className="w-full bg-cta text-white rounded-xl py-2.5 text-sm font-medium disabled:opacity-60"
         >
           Switch to personal account
         </button>

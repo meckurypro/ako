@@ -74,7 +74,7 @@ export function DeliverableFields({ kind, value, onChange, onError }: Deliverabl
           aria-selected={mode === "link"}
           onClick={() => switchMode("link")}
           className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl text-sm font-medium border transition-colors ${
-            mode === "link" ? "bg-accent text-canvas border-accent" : "bg-surface text-ink-muted border-border"
+            mode === "link" ? "bg-cta text-white border-cta" : "bg-surface text-ink-muted border-border"
           }`}
         >
           <LinkIcon size={14} />
@@ -86,7 +86,7 @@ export function DeliverableFields({ kind, value, onChange, onError }: Deliverabl
           aria-selected={mode === "upload"}
           onClick={() => switchMode("upload")}
           className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl text-sm font-medium border transition-colors ${
-            mode === "upload" ? "bg-accent text-canvas border-accent" : "bg-surface text-ink-muted border-border"
+            mode === "upload" ? "bg-cta text-white border-cta" : "bg-surface text-ink-muted border-border"
           }`}
         >
           <FileUp size={14} />

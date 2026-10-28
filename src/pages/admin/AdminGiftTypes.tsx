@@ -129,7 +129,7 @@ export function AdminGiftTypes() {
             <button
               type="submit"
               disabled={createGiftType.isPending}
-              className="bg-accent text-canvas px-4 rounded-xl flex items-center justify-center disabled:opacity-50"
+              className="bg-cta text-white px-4 rounded-xl flex items-center justify-center disabled:opacity-50"
             >
               <Plus size={18} />
             </button>

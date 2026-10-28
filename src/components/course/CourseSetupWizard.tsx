@@ -176,7 +176,7 @@ export function CourseSetupWizard({
                   type="button"
                   onClick={() => setLevel(l.value)}
                   aria-pressed={level === l.value}
-                  className={`rounded-full border px-3.5 py-1.5 text-sm font-medium ${level === l.value ? "border-accent bg-accent text-canvas" : "border-border bg-surface text-ink-muted"}`}
+                  className={`rounded-full border px-3.5 py-1.5 text-sm font-medium ${level === l.value ? "border-cta bg-cta text-white" : "border-border bg-surface text-ink-muted"}`}
                 >
                   {l.label}
                 </button>
@@ -226,7 +226,7 @@ export function CourseSetupWizard({
         <button
           onClick={() => (last ? void finish() : setStep(step + 1))}
           disabled={!canNext || saving || promoBusy}
-          className="h-12 w-full rounded-2xl bg-accent text-[15px] font-semibold text-canvas disabled:opacity-40"
+          className="h-12 w-full rounded-2xl bg-cta text-[15px] font-semibold text-white disabled:opacity-40"
         >
           {saving ? "Saving…" : last ? (includeSections ? "Start building" : "Save") : "Next"}
         </button>

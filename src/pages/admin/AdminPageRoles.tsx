@@ -78,7 +78,7 @@ function RequestCard({ request }: { request: PageRoleRequest }) {
         <button
           onClick={() => decide(true)}
           disabled={review.isPending}
-          className="flex-1 bg-accent text-canvas rounded-lg py-2 text-sm font-medium flex items-center justify-center gap-1.5 disabled:opacity-50"
+          className="flex-1 bg-cta text-white rounded-lg py-2 text-sm font-medium flex items-center justify-center gap-1.5 disabled:opacity-50"
         >
           <Check size={15} /> Approve
         </button>
@@ -185,7 +185,7 @@ export function AdminPageRoles() {
             type="submit"
             disabled={createRole.isPending}
             aria-label="Add role"
-            className="bg-accent text-canvas px-4 rounded-xl flex items-center justify-center disabled:opacity-50"
+            className="bg-cta text-white px-4 rounded-xl flex items-center justify-center disabled:opacity-50"
           >
             <Plus size={18} />
           </button>

@@ -134,7 +134,7 @@ function PageRuleFields({ rule }: { rule: PageCreationRule | null | undefined })
           type="button"
           onClick={handleSave}
           disabled={!isDirty || updateRule.isPending}
-          className="bg-accent text-canvas px-3 py-1.5 rounded-lg text-sm font-medium disabled:opacity-50"
+          className="bg-cta text-white px-3 py-1.5 rounded-lg text-sm font-medium disabled:opacity-50"
         >
           {updateRule.isPending ? "Saving…" : "Save rule"}
         </button>

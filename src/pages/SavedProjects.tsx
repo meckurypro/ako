@@ -4,6 +4,7 @@ import { ArrowLeft, Bookmark } from "lucide-react";
 import { useSavedProjects } from "../hooks/useSavedProjects";
 import { ProjectCard } from "../components/ProjectCard";
 
+import { BrandDot } from "../components/BrandDot";
 export function SavedProjects() {
   const smartBack = useSmartBack();
   const { data: projects, isLoading } = useSavedProjects();
@@ -15,7 +16,7 @@ export function SavedProjects() {
           <ArrowLeft size={22} />
         </button>
 
-        <h2 className="font-display text-2xl text-ink mb-6">Saved projects</h2>
+        <h2 className="font-display text-2xl text-ink mb-6">Saved projects<BrandDot /></h2>
 
         {isLoading ? (
           <p className="text-ink-muted text-sm">Loading…</p>

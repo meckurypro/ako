@@ -210,7 +210,7 @@ function BookLockedView({
           }
         }}
         disabled={buying}
-        className="bg-accent text-canvas px-6 py-2.5 rounded-full text-sm font-medium disabled:opacity-50"
+        className="bg-cta text-white px-6 py-2.5 rounded-full text-sm font-medium disabled:opacity-50"
       >
         {buying ? "Processing…" : `Buy for $${price.toFixed(2)}`}
       </button>
@@ -489,7 +489,7 @@ function BookBuilder({
           <PenLine size={16} />
           Forewords
           {forewordsToReview > 0 && (
-            <span className="ml-1 min-w-5 h-5 px-1.5 rounded-full bg-accent text-canvas text-[11px] flex items-center justify-center">
+            <span className="ml-1 min-w-5 h-5 px-1.5 rounded-full bg-cta text-white text-[11px] flex items-center justify-center">
               {forewordsToReview}
             </span>
           )}

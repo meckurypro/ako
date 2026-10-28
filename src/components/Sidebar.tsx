@@ -263,7 +263,7 @@ export function Sidebar({ collapsed, onToggleCollapsed }: SidebarProps) {
           <Link
             to={restricted ? "/projects/new" : "/create"}
             state={restricted ? undefined : { background: location }}
-            className={`flex items-center gap-3 rounded-full bg-accent text-canvas font-semibold px-3 py-2.5 transition-opacity hover:opacity-90 ${
+            className={`flex items-center gap-3 rounded-full bg-cta text-white font-semibold px-3 py-2.5 transition-opacity hover:opacity-90 ${
               !showLabels ? "justify-center" : ""
             }`}
             title={!showLabels ? "Create" : undefined}

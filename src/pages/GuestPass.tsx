@@ -121,7 +121,7 @@ function EndedScreen({ view, signedIn }: { view: GuestPassView | undefined; sign
           {creatorUsername && status !== "not_found" && (
             <Link
               to={signedIn ? creatorProfilePath : signupPathFor(creatorProfilePath)}
-              className="rounded-xl bg-accent text-canvas py-3 text-sm font-medium"
+              className="rounded-xl bg-cta text-white py-3 text-sm font-medium"
             >
               {signedIn ? `Message ${creator ?? "the creator"} for a new link` : `Join Akọ to ask ${creator ?? "the creator"}`}
             </Link>
@@ -140,7 +140,7 @@ function EndedScreen({ view, signedIn }: { view: GuestPassView | undefined; sign
             </Link>
           )}
           {signedIn && !creatorUsername && (
-            <Link to="/feed" className="rounded-xl bg-accent text-canvas py-3 text-sm font-medium">
+            <Link to="/feed" className="rounded-xl bg-cta text-white py-3 text-sm font-medium">
               Go to your feed
             </Link>
           )}
@@ -158,7 +158,7 @@ function LinkButton({ href, children }: { href: string | null; children: React.R
       href={href}
       target="_blank"
       rel="noopener noreferrer"
-      className="inline-flex items-center gap-2 rounded-full bg-accent text-canvas px-5 py-2.5 text-sm font-medium"
+      className="inline-flex items-center gap-2 rounded-full bg-cta text-white px-5 py-2.5 text-sm font-medium"
     >
       <ExternalLink size={15} />
       {children}
@@ -216,7 +216,7 @@ function HostedMedia({
       <button
         onClick={() => void load()}
         disabled={pending}
-        className="flex items-center gap-2 rounded-full bg-accent text-canvas px-5 py-2.5 text-sm font-medium disabled:opacity-60"
+        className="flex items-center gap-2 rounded-full bg-cta text-white px-5 py-2.5 text-sm font-medium disabled:opacity-60"
       >
         <Play size={15} />
         {pending ? "Loading…" : kind === "audio" ? "Play audio" : "Play video"}
@@ -277,7 +277,7 @@ function FileContent({ detail, token, onExpired }: { detail: GuestPassView["deta
               setBusyId(null);
               if (r) startDownload(r.url, r.file_name ?? f.name);
             }}
-            className="flex items-center gap-1.5 rounded-full bg-accent text-canvas px-3.5 py-1.5 text-sm font-medium disabled:opacity-60"
+            className="flex items-center gap-1.5 rounded-full bg-cta text-white px-3.5 py-1.5 text-sm font-medium disabled:opacity-60"
           >
             <Download size={14} />
             {busyId === f.id ? "Preparing…" : "Download"}
@@ -320,7 +320,7 @@ function BookContent({ detail, token, onExpired }: { detail: GuestPassView["deta
               const r = await get({ kind: "book", action: "stream" });
               if (r) window.open(r.url, "_blank", "noopener,noreferrer");
             }}
-            className="flex items-center gap-2 rounded-full bg-accent text-canvas px-5 py-2.5 text-sm font-medium disabled:opacity-60"
+            className="flex items-center gap-2 rounded-full bg-cta text-white px-5 py-2.5 text-sm font-medium disabled:opacity-60"
           >
             <Play size={15} /> Read the book
           </button>
@@ -557,7 +557,7 @@ export function GuestPass() {
           <p className="text-xs text-ink-muted mt-1">Akọ is where people say, make, teach, host and share.</p>
           <Link
             to={signupPathFor(p.slug ? getProjectPath({ id: p.id, slug: p.slug }) : null)}
-            className="inline-flex mt-3 rounded-full bg-accent text-canvas px-5 py-2 text-sm font-medium"
+            className="inline-flex mt-3 rounded-full bg-cta text-white px-5 py-2 text-sm font-medium"
           >
             Join Akọ
           </Link>

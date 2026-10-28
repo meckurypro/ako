@@ -656,7 +656,7 @@ export function Compose() {
           <button
             onClick={handleSubmit}
             disabled={!canPost || createPost.isPending || publishPost.isPending}
-            className="bg-accent text-canvas px-5 py-2 rounded-full text-sm font-medium disabled:opacity-50"
+            className="bg-cta text-white px-5 py-2 rounded-full text-sm font-medium disabled:opacity-50"
           >
             {createPost.isPending || publishPost.isPending ? "Posting…" : "Post"}
           </button>

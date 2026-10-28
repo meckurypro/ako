@@ -225,7 +225,7 @@ export function ClipSelector({ audioUrl, onConfirm, onCancel }: ClipSelectorProp
         <button
           onClick={handleConfirm}
           disabled={!decoded || isEncoding}
-          className="flex-1 py-3 rounded-full bg-accent text-canvas text-sm font-medium disabled:opacity-50"
+          className="flex-1 py-3 rounded-full bg-cta text-white text-sm font-medium disabled:opacity-50"
         >
           {isEncoding ? "Preparing…" : "Use this clip"}
         </button>

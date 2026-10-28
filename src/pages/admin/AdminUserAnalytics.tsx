@@ -251,7 +251,7 @@ function UsersSection() {
                   onClick={() => setGranularity(p.key)}
                   className={`px-3 py-1 rounded-full text-xs font-medium border ${
                     granularity === p.key
-                      ? "bg-accent text-canvas border-accent"
+                      ? "bg-cta text-white border-cta"
                       : "bg-canvas text-ink-muted border-border"
                   }`}
                 >

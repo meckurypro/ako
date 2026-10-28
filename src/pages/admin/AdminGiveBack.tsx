@@ -120,7 +120,7 @@ export function AdminGiveBack() {
                   <button
                     onClick={() => settleGiveBack.mutate(promo.id)}
                     disabled={settleGiveBack.isPending}
-                    className="w-full mt-3 bg-accent text-canvas text-sm font-medium rounded-lg py-2 disabled:opacity-50"
+                    className="w-full mt-3 bg-cta text-white text-sm font-medium rounded-lg py-2 disabled:opacity-50"
                   >
                     {settleGiveBack.isPending ? "Settling…" : "Settle now"}
                   </button>

@@ -48,7 +48,7 @@ export function Pagination({
             aria-current={item === page ? "page" : undefined}
             className={`min-w-9 h-9 px-2 rounded-lg border text-sm font-medium ${
               item === page
-                ? "bg-accent text-canvas border-accent"
+                ? "bg-cta text-white border-cta"
                 : "bg-surface text-ink border-border"
             }`}
           >

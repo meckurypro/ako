@@ -21,7 +21,7 @@ export class ErrorBoundary extends Component<
           <p className="text-ink font-medium">Something went wrong.</p>
           <button
             onClick={() => (window.location.href = "/feed")}
-            className="bg-accent text-canvas px-5 py-2 rounded-full text-sm font-medium"
+            className="bg-cta text-white px-5 py-2 rounded-full text-sm font-medium"
           >
             Back to feed
           </button>

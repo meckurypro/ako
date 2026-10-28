@@ -1828,7 +1828,7 @@ export function ProjectCard({
           {isPitch && !isOwner && (
             <button
               onClick={() => handleOpenSupport()}
-              className="ml-auto flex items-center gap-1.5 bg-accent text-canvas px-4 py-1.5 rounded-full text-sm font-semibold shadow-[0_4px_14px_-4px_rgba(var(--shadow-ink-rgb),0.35)] transition-transform active:scale-[0.97]"
+              className="ml-auto flex items-center gap-1.5 bg-cta text-white px-4 py-1.5 rounded-full text-sm font-semibold shadow-[0_4px_14px_-4px_rgba(var(--shadow-ink-rgb),0.35)] transition-transform active:scale-[0.97]"
             >
               <Heart size={15} />
               Support
@@ -1846,7 +1846,7 @@ export function ProjectCard({
             <button
               onClick={project.project_type === "gig" ? handleBookTalent : handleBuy}
               disabled={project.project_type === "gig" ? bookTalent.isPending : buyBusy}
-              className="ml-auto bg-accent text-canvas px-4 py-1.5 rounded-full text-sm font-semibold shadow-[0_4px_14px_-4px_rgba(var(--shadow-ink-rgb),0.35)] transition-transform active:scale-[0.97] disabled:opacity-50 disabled:active:scale-100"
+              className="ml-auto bg-cta text-white px-4 py-1.5 rounded-full text-sm font-semibold shadow-[0_4px_14px_-4px_rgba(var(--shadow-ink-rgb),0.35)] transition-transform active:scale-[0.97] disabled:opacity-50 disabled:active:scale-100"
             >
               {project.project_type === "gig"
                 ? bookTalent.isPending

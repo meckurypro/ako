@@ -122,7 +122,7 @@ export function ForwardMessageSheet({ messages, onClose, onSent }: ForwardMessag
           <button
             onClick={handleSend}
             disabled={!selected.size || forwardMessages.isPending}
-            className="w-full flex items-center justify-center gap-2 bg-accent text-canvas rounded-full py-3 text-sm font-medium disabled:opacity-50"
+            className="w-full flex items-center justify-center gap-2 bg-cta text-white rounded-full py-3 text-sm font-medium disabled:opacity-50"
           >
             <Send size={16} />
             {forwardMessages.isPending

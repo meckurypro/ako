@@ -93,7 +93,7 @@ export function AdminReports() {
                       <button
                         onClick={() => handleResolve(report.id, report.target_type, report.target_id)}
                         disabled={resolveReport.isPending}
-                        className="flex-1 bg-accent text-canvas py-2 rounded-lg text-sm font-medium disabled:opacity-50"
+                        className="flex-1 bg-cta text-white py-2 rounded-lg text-sm font-medium disabled:opacity-50"
                       >
                         Confirm
                       </button>
@@ -109,7 +109,7 @@ export function AdminReports() {
                   <div className="flex gap-2 mt-3">
                     <button
                       onClick={() => setActioningId(report.id)}
-                      className="flex-1 bg-accent text-canvas py-2 rounded-lg text-sm font-medium"
+                      className="flex-1 bg-cta text-white py-2 rounded-lg text-sm font-medium"
                     >
                       Take action
                     </button>

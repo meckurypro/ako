@@ -436,7 +436,7 @@ export function CreatePage() {
           <button
             type="submit"
             disabled={createPage.isPending}
-            className="w-full bg-accent text-canvas rounded-xl py-3 text-sm font-medium disabled:opacity-60"
+            className="w-full bg-cta text-white rounded-xl py-3 text-sm font-medium disabled:opacity-60"
           >
             {createPage.isPending ? "Creating…" : presetParentId ? "Add Subsidiary" : `Create ${pageType}`}
           </button>

@@ -152,7 +152,7 @@ function ForYouTab({
     return (
       <div className="text-center py-16">
         <p className="text-ink-muted mb-4">No posts yet. Be the first to share a thought.</p>
-        <Link to="/compose" className="inline-block bg-accent text-canvas px-5 py-2.5 rounded-full text-sm font-medium">
+        <Link to="/compose" className="inline-block bg-cta text-white px-5 py-2.5 rounded-full text-sm font-medium">
           Write something
         </Link>
       </div>

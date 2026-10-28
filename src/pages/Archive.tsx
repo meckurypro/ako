@@ -22,6 +22,7 @@ import { BottomNav } from "../components/BottomNav";
 import { isPlainReshare, isQuote, type PostWithAuthor } from "../types/database";
 import { MessagePreviewLine } from "../components/MessagePreviewLine";
 
+import { BrandDot } from "../components/BrandDot";
 function timeAgo(dateString: string): string {
   const seconds = Math.floor((Date.now() - new Date(dateString).getTime()) / 1000);
   if (seconds < 60) return "now";
@@ -264,7 +265,7 @@ export function Archive() {
         </div>
 
         {c.unreadCount > 0 && (
-          <span className="min-w-[22px] h-[22px] px-1.5 rounded-full bg-accent text-canvas text-xs font-semibold flex items-center justify-center flex-shrink-0">
+          <span className="min-w-[22px] h-[22px] px-1.5 rounded-full bg-cta text-white text-xs font-semibold flex items-center justify-center flex-shrink-0">
             {c.unreadCount > 99 ? "99+" : c.unreadCount}
           </span>
         )}
@@ -310,7 +311,7 @@ export function Archive() {
             <button onClick={smartBack} className="text-ink-muted">
               <ArrowLeft size={22} />
             </button>
-            <h2 className="font-display text-2xl text-ink flex-1">Archive</h2>
+            <h2 className="font-display text-2xl text-ink flex-1">Archive<BrandDot /></h2>
             {(requests.length > 0 || archivedMessages.length > 0) && (
               <button onClick={() => setSelectMode(true)} className="text-ink-muted" aria-label="Select chats">
                 <CheckSquare size={20} />

@@ -77,7 +77,7 @@ function MemberPermissions({ pageId, member }: { pageId: string; member: PageMem
                 }
               )
             }
-            className="w-full bg-accent text-canvas rounded-xl py-2 text-sm font-medium disabled:opacity-50"
+            className="w-full bg-cta text-white rounded-xl py-2 text-sm font-medium disabled:opacity-50"
           >
             Save permissions
           </button>
@@ -309,7 +309,7 @@ export function PageTeam() {
           <button
             type="submit"
             disabled={submitting || !selectedUser || !inviteRole.trim()}
-            className="w-full bg-accent text-canvas rounded-xl py-2.5 text-sm font-medium disabled:opacity-60"
+            className="w-full bg-cta text-white rounded-xl py-2.5 text-sm font-medium disabled:opacity-60"
           >
             {submitting ? "Sending…" : "Send invite"}
           </button>

@@ -176,14 +176,14 @@ export function CollaboratorsSheet({
                 <button
                   onClick={() => sendInvites(pendingInvitees, roleAssignments)}
                   disabled={sending}
-                  className="w-full flex items-center justify-center gap-2 py-3 rounded-full bg-accent text-canvas text-sm font-medium disabled:opacity-60"
+                  className="w-full flex items-center justify-center gap-2 py-3 rounded-full bg-cta text-white text-sm font-medium disabled:opacity-60"
                 >
                   {sending ? "Sending…" : pendingInvitees.length > 1 ? "Send invites" : "Send invite"}
                 </button>
               ) : (
                 <button
                   onClick={() => setShowPicker(true)}
-                  className="w-full flex items-center justify-center gap-2 py-3 rounded-full bg-accent text-canvas text-sm font-medium"
+                  className="w-full flex items-center justify-center gap-2 py-3 rounded-full bg-cta text-white text-sm font-medium"
                 >
                   <UserPlus size={16} />
                   Invite collaborators

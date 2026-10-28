@@ -7,6 +7,7 @@ import { useMyDraftPosts, useDeleteDraftOrScheduledPost } from "../hooks/usePost
 import { useToast } from "../components/Toast";
 import { clearJustSaved, peekJustSaved } from "../lib/justSaved";
 
+import { BrandDot } from "../components/BrandDot";
 /**
  * Drafts don't render as PostCard — a draft was deliberately never
  * published, so giving it a like button, a share icon, a comment
@@ -46,7 +47,7 @@ export function DraftPosts() {
         <button onClick={smartBack} className="text-ink-muted">
           <ArrowLeft size={22} />
         </button>
-        <h2 className="font-display text-2xl text-ink">Drafts</h2>
+        <h2 className="font-display text-2xl text-ink">Drafts<BrandDot /></h2>
       </header>
 
       <div className="max-w-xl mx-auto px-4 pt-2">
@@ -72,7 +73,7 @@ export function DraftPosts() {
                     Draft
                   </span>
                   {draft.id === highlightId && (
-                    <span className="rounded-full bg-accent px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-canvas">
+                    <span className="rounded-full bg-cta px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-white">
                       Just saved
                     </span>
                   )}
@@ -92,7 +93,7 @@ export function DraftPosts() {
                 <div className="flex items-center gap-2 mt-3">
                   <button
                     onClick={() => navigate("/compose", { state: { draftId: draft.id } })}
-                    className="flex-1 py-2 rounded-full bg-accent text-canvas text-sm font-medium"
+                    className="flex-1 py-2 rounded-full bg-cta text-white text-sm font-medium"
                   >
                     Resume
                   </button>

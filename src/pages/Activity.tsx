@@ -6,6 +6,7 @@ import { BottomNav } from "../components/BottomNav";
 import { useMyDraftPosts, useMyScheduledPosts } from "../hooks/usePosts";
 import { useMyAffiliateRelationships } from "../hooks/useAffiliates";
 
+import { BrandDot } from "../components/BrandDot";
 const ROWS = [
   {
     to: "/activity/saved",
@@ -83,7 +84,7 @@ export function Activity() {
         <button onClick={smartBack} className="text-ink-muted">
           <ArrowLeft size={22} />
         </button>
-        <h2 className="font-display text-2xl text-ink">Activity</h2>
+        <h2 className="font-display text-2xl text-ink">Activity<BrandDot /></h2>
       </header>
 
       <div className="max-w-xl mx-auto px-4 pt-2">
@@ -108,7 +109,7 @@ export function Activity() {
                       toward the thing with an actual pending action
                       (finish this, or watch for that time to arrive). */}
                   {count > 0 && (
-                    <span className="flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full bg-accent text-canvas text-[10px] font-semibold">
+                    <span className="flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full bg-cta text-white text-[10px] font-semibold">
                       {count}
                     </span>
                   )}

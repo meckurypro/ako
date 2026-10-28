@@ -308,7 +308,7 @@ export function LessonEditor({
         onClick={() => setValue({ ...value, isFreePreview: !value.isFreePreview })}
         aria-pressed={value.isFreePreview}
         className={`flex items-center gap-1.5 self-start rounded-full border px-2.5 py-1 text-xs font-medium transition-colors ${
-          value.isFreePreview ? "border-accent bg-accent text-canvas" : "border-border bg-surface text-ink-muted"
+          value.isFreePreview ? "border-cta bg-cta text-white" : "border-border bg-surface text-ink-muted"
         }`}
       >
         <Eye size={12} />

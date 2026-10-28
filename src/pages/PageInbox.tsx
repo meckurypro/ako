@@ -46,7 +46,7 @@ function ConversationRow({ c }: { c: PageConversationSummary }) {
         </p>
       </div>
       {c.unreadCount > 0 && (
-        <span className="min-w-[22px] h-[22px] px-1.5 rounded-full bg-accent text-canvas text-xs font-semibold flex items-center justify-center flex-shrink-0">
+        <span className="min-w-[22px] h-[22px] px-1.5 rounded-full bg-cta text-white text-xs font-semibold flex items-center justify-center flex-shrink-0">
           {c.unreadCount > 99 ? "99+" : c.unreadCount}
         </span>
       )}

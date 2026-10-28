@@ -100,7 +100,7 @@ export function AdminAutomation() {
                 </div>
                 <span
                   className={`text-[11px] font-medium rounded-full px-2 py-0.5 ${
-                    a.is_enabled ? "bg-accent text-canvas" : "border border-border text-ink-muted"
+                    a.is_enabled ? "bg-cta text-white" : "border border-border text-ink-muted"
                   }`}
                 >
                   {a.is_enabled ? "Active" : "Paused"}

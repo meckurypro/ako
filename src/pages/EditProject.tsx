@@ -68,6 +68,7 @@ import {
 import { ProjectStatusSelect } from "../components/ProjectStatusSelect";
 import { friendlyError } from "../lib/friendlyError";
 
+import { BrandDot } from "../components/BrandDot";
 export function EditProject() {
   const { projectId } = useParams<{ projectId: string }>();
   const smartBack = useSmartBack();
@@ -654,7 +655,7 @@ export function EditProject() {
           <ArrowLeft size={22} />
         </button>
 
-        <h2 className="font-display text-2xl text-ink mb-6">Edit project</h2>
+        <h2 className="font-display text-2xl text-ink mb-6">Edit project<BrandDot /></h2>
 
         <form onSubmit={handleSubmit} className="space-y-3">
           <FormSection icon={CircleDot} title="Status" description="Whether people can find and open it.">

@@ -449,7 +449,7 @@ export function BookReflowReader({ projectId, title, chapters, userId, onBack, t
                   setChapterId(startChapter.id);
                   setView("chapter");
                 }}
-                className="mt-1 rounded-full bg-accent px-7 py-2.5 text-sm font-semibold text-canvas"
+                className="mt-1 rounded-full bg-cta px-7 py-2.5 text-sm font-semibold text-white"
               >
                 {savedIndex >= 0 ? "Continue reading" : "Start reading"}
               </button>
