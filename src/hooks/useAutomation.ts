@@ -44,6 +44,12 @@ export interface AutomatedAccount {
   next_run_at: string | null;
   last_run_at: string | null;
   locked_until: string | null;
+  /** Daily auto-like (supabase/ako_automation_daily_likes.sql): one like a day at daily_like_time in `timezone`. */
+  daily_like_enabled: boolean;
+  /** HH:MM, in the account's timezone. */
+  daily_like_time: string;
+  next_like_at: string | null;
+  last_like_at: string | null;
   created_at: string;
   profile: {
     username: string;
@@ -97,7 +103,7 @@ export interface GeneratedPreview {
 }
 
 const ACCOUNT_SELECT =
-  "id, user_id, system_prompt, is_enabled, max_post_chars, max_heading_chars, timezone, schedule, ai_provider, ai_model, pipeline, news_settings, api_key_last4, next_run_at, last_run_at, locked_until, created_at, profile:profiles(username, display_name, avatar_url, is_verified)";
+  "id, user_id, system_prompt, is_enabled, max_post_chars, max_heading_chars, timezone, schedule, ai_provider, ai_model, pipeline, news_settings, api_key_last4, next_run_at, last_run_at, locked_until, daily_like_enabled, daily_like_time, next_like_at, last_like_at, created_at, profile:profiles(username, display_name, avatar_url, is_verified)";
 
 // Returned on purpose: a mutation then resolves only after the refreshed data has arrived, so a screen that reads the
 // account straight after saving never sees the old values.
@@ -242,7 +248,7 @@ export function useCreateAutomatedAccount() {
 export type AutomatedAccountPatch = Partial<
   Pick<
     AutomatedAccount,
-    "system_prompt" | "is_enabled" | "max_post_chars" | "max_heading_chars" | "timezone" | "schedule" | "pipeline" | "news_settings"
+    "system_prompt" | "is_enabled" | "max_post_chars" | "max_heading_chars" | "timezone" | "schedule" | "pipeline" | "news_settings" | "daily_like_enabled" | "daily_like_time"
   >
 >;
 
@@ -399,6 +405,54 @@ export function useAutomationRuns(accountId: string | undefined) {
         .limit(30);
       if (error) throw error;
       return (data ?? []) as AutomationRun[];
+    },
+  });
+}
+
+// ---- Daily likes -----------------------------------------------------------------------------------------------
+
+export interface AutomationLikeLogEntry {
+  id: string;
+  account_id: string;
+  trigger: "schedule" | "manual";
+  status: "liked" | "nothing_to_like" | "skipped" | "failed";
+  target_type: "post" | "comment" | null;
+  post_id: string | null;
+  comment_id: string | null;
+  error: string | null;
+  created_at: string;
+}
+
+export function useAutomationLikeLog(accountId: string | undefined) {
+  return useQuery({
+    queryKey: ["automation", "like-log", accountId],
+    enabled: !!accountId,
+    refetchInterval: 60_000,
+    queryFn: async (): Promise<AutomationLikeLogEntry[]> => {
+      const { data, error } = await supabase
+        .from("automation_like_log")
+        .select("id, account_id, trigger, status, target_type, post_id, comment_id, error, created_at")
+        .eq("account_id", accountId!)
+        .order("created_at", { ascending: false })
+        .limit(8);
+      if (error) throw error;
+      return (data ?? []) as AutomationLikeLogEntry[];
+    },
+  });
+}
+
+/** One like right now, outside the daily slot (posts first, then questions and adds on comments). */
+export function useLikeNow() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (accountId: string): Promise<{ status: string; target_type?: "post" | "comment"; error?: string }> => {
+      const { data, error } = await supabase.rpc("admin_automation_like_now", { p_account_id: accountId });
+      if (error) throw error;
+      return data as { status: string; target_type?: "post" | "comment"; error?: string };
+    },
+    onSettled: () => {
+      invalidate(queryClient);
+      queryClient.invalidateQueries({ queryKey: ["automation", "like-log"] });
     },
   });
 }

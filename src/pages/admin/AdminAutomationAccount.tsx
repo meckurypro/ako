@@ -16,6 +16,8 @@ import {
   useAutomatedAccount,
   useAutomationCatalog,
   useAutomationIdeas,
+  useAutomationLikeLog,
+  useLikeNow,
   useAutomationRuns,
   useAutomationSources,
   useClearAutomationApiKey,
@@ -117,6 +119,7 @@ export function AdminAutomationAccount() {
   const { data: account, isLoading } = useAutomatedAccount(accountId);
   const { data: ideas = [] } = useAutomationIdeas(accountId);
   const { data: runs = [] } = useAutomationRuns(accountId);
+  const { data: likeLog = [] } = useAutomationLikeLog(accountId);
   const { data: catalog } = useAutomationCatalog();
   const { data: sources = [] } = useAutomationSources(accountId);
 
@@ -127,6 +130,7 @@ export function AdminAutomationAccount() {
   const deleteIdea = useDeleteAutomationIdea();
   const generate = useGenerateAutomationPreview();
   const runNow = useRunAutomationNow();
+  const likeNow = useLikeNow();
   const saveAi = useSaveAutomationAi();
   const clearKey = useClearAutomationApiKey();
 
@@ -136,6 +140,9 @@ export function AdminAutomationAccount() {
   const [maxHeader, setMaxHeader] = useState(50);
   const [timezone, setTimezone] = useState("Africa/Lagos");
   const [slots, setSlots] = useState<SlotDraft[]>([]);
+  const [likeEnabled, setLikeEnabled] = useState(false);
+  const [likeTime, setLikeTime] = useState("12:00");
+  const [likeMessage, setLikeMessage] = useState<{ text: string; error: boolean } | null>(null);
   const [settingEdits, setSettingEdits] = useState<Record<string, number>>({});
   const [chosenTemplate, setChosenTemplate] = useState<string | null>(null);
   const [seededFor, setSeededFor] = useState<string | null>(null);
@@ -147,6 +154,8 @@ export function AdminAutomationAccount() {
       setMaxHeader(account.max_heading_chars);
       setTimezone(account.timezone);
       setSlots(toDrafts(account.schedule ?? []));
+      setLikeEnabled(account.daily_like_enabled);
+      setLikeTime(account.daily_like_time);
       setSettingEdits({});
       setSeededFor(account.id);
     }
@@ -194,10 +203,12 @@ export function AdminAutomationAccount() {
       clampInt(maxPost, 50, 1200, 450) !== account.max_post_chars ||
       clampInt(maxHeader, 10, 50, 50) !== account.max_heading_chars ||
       timezone !== account.timezone ||
+      likeEnabled !== account.daily_like_enabled ||
+      likeTime !== account.daily_like_time ||
       JSON.stringify(toSchedule(slots)) !== JSON.stringify(savedSchedule) ||
       templateSettings.some((f) => settingNow(f, settingEdits, savedSettings) !== settingNow(f, {}, savedSettings))
     );
-  }, [account, seededFor, prompt, maxPost, maxHeader, timezone, slots, settingEdits, templateSettings]);
+  }, [account, seededFor, prompt, maxPost, maxHeader, timezone, slots, likeEnabled, likeTime, settingEdits, templateSettings]);
 
   // What is still missing before the account can be switched on. Shown as a list, so there are no cryptic errors.
   const missing: string[] = [];
@@ -236,6 +247,8 @@ export function AdminAutomationAccount() {
       max_heading_chars: clampInt(maxHeader, 10, 50, 50),
       timezone,
       schedule: toSchedule(slots),
+      daily_like_enabled: likeEnabled,
+      daily_like_time: likeTime || "12:00",
     };
     const savedSettings = account!.news_settings ?? {};
     const settingsPatch: Record<string, number> = {};
@@ -254,6 +267,7 @@ export function AdminAutomationAccount() {
       setMaxPost(next.max_post_chars);
       setMaxHeader(next.max_heading_chars);
       setSlots(toDrafts(next.schedule));
+      setLikeTime(next.daily_like_time);
       setSettingEdits(settingsPatch);
     } catch (err) {
       setSaveError(errorMessage(err));
@@ -374,6 +388,18 @@ export function AdminAutomationAccount() {
       navigate("/admin/automation", { replace: true });
     } catch (err) {
       setActionError(errorMessage(err));
+    }
+  }
+
+  async function handleLikeNow() {
+    setLikeMessage(null);
+    try {
+      const res = await likeNow.mutateAsync(account!.id);
+      if (res.status === "liked") setLikeMessage({ text: res.target_type === "comment" ? "Liked a comment." : "Liked a post.", error: false });
+      else if (res.status === "nothing_to_like") setLikeMessage({ text: "Nothing left to like right now.", error: false });
+      else setLikeMessage({ text: res.error ?? "The like didn't go through.", error: true });
+    } catch (err) {
+      setLikeMessage({ text: errorMessage(err), error: true });
     }
   }
 
@@ -712,6 +738,73 @@ export function AdminAutomationAccount() {
                 ))}
               </ul>
             )}
+          </section>
+
+          {/* Daily like */}
+          <section>
+            <h3 className="text-sm font-medium text-ink mb-2">Daily like</h3>
+            <p className="text-xs text-ink-muted mb-3">
+              Once a day this account likes one post by someone else. When there are no posts left to like, it likes
+              questions and adds on comments instead. It never likes pushbacks, its own posts, or the same thing twice.
+            </p>
+            <div className="bg-surface rounded-xl p-3 border border-border space-y-3">
+              <label className="flex items-center justify-between gap-3">
+                <span className="text-sm text-ink">Like something every day</span>
+                <input
+                  type="checkbox"
+                  role="switch"
+                  checked={likeEnabled}
+                  onChange={(e) => setLikeEnabled(e.target.checked)}
+                  className="h-5 w-5 accent-[var(--color-cta)]"
+                />
+              </label>
+              <label className="flex items-center justify-between gap-3">
+                <span className="text-sm text-ink">
+                  Time <span className="text-xs text-ink-muted">({timezone})</span>
+                </span>
+                <input
+                  type="time"
+                  value={likeTime}
+                  disabled={!likeEnabled}
+                  onChange={(e) => setLikeTime(e.target.value)}
+                  className="px-3 py-2 rounded-lg border border-border bg-canvas text-ink disabled:opacity-40"
+                />
+              </label>
+              <p className="text-xs text-ink-muted">
+                {account.daily_like_enabled && account.next_like_at
+                  ? `Next like ${formatInZone(account.next_like_at, account.timezone)}.`
+                  : "Not scheduled. Save to apply."}
+                {account.last_like_at ? ` Last like ${formatInZone(account.last_like_at, account.timezone)}.` : ""}
+              </p>
+              {likeMessage && (
+                <p className={`text-xs ${likeMessage.error ? "text-danger" : "text-ink-muted"}`}>{likeMessage.text}</p>
+              )}
+              <button
+                type="button"
+                onClick={handleLikeNow}
+                disabled={likeNow.isPending || dirty}
+                className="w-full border border-border rounded-xl py-2.5 text-sm font-medium text-ink disabled:opacity-40"
+              >
+                {likeNow.isPending ? "Liking…" : dirty ? "Save changes to like now" : "Like one thing now"}
+              </button>
+              {likeLog.length > 0 && (
+                <ul className="text-xs text-ink-muted space-y-0.5">
+                  {likeLog.slice(0, 5).map((l) => (
+                    <li key={l.id}>
+                      {formatInZone(l.created_at, account.timezone)} ·{" "}
+                      {l.status === "liked"
+                        ? `liked a ${l.target_type}`
+                        : l.status === "nothing_to_like"
+                          ? "nothing left to like"
+                          : l.status === "skipped"
+                            ? "skipped (missed its time)"
+                            : `failed${l.error ? `: ${l.error}` : ""}`}
+                      {l.trigger === "manual" ? " (manual)" : ""}
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
           </section>
 
           {template?.uses_sources && <AutomationSourcesPanel accountId={account.id} timezone={account.timezone} />}
