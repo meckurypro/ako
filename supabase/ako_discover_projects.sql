@@ -9,14 +9,20 @@
 -- unpublished (courses) projects are excluded, as are events/meetings/cohorts
 -- that are already over.
 --
--- security invoker: the caller's RLS applies, same as the table queries it replaces.
--- Signed-out callers have no interests, so they simply get popularity order.
+-- p_kind (added with the groups work, ako_groups_discover) narrows room results to
+-- one room kind; null = all kinds. Callers that don't pass it are unaffected.
+--
+-- This file mirrors the definition deployed on the production "Ako" project.
+-- Security invoker (the default): the caller's RLS applies. Signed-out callers
+-- have no interests, so they simply get popularity order.
 
-create or replace function public.discover_projects(p_type text, p_offset integer, p_limit integer)
+-- The first version took three arguments; drop it so there is never an ambiguous overload.
+drop function if exists public.discover_projects(text, integer, integer);
+
+create or replace function public.discover_projects(p_type text, p_offset integer, p_limit integer, p_kind text default null)
 returns table (project jsonb, when_at text)
 language sql
 stable
-security invoker
 set search_path to 'public'
 as $function$
   select
@@ -38,7 +44,8 @@ as $function$
     and (p.project_type <> 'event' or ev.event_date >= now())
     and (p.project_type <> 'meeting'
          or (mt.status in ('scheduled', 'live') and (mt.scheduled_at >= now() or mt.status = 'live')))
-    and (p.project_type <> 'room' or rm.end_date >= current_date)
+    and (p.project_type <> 'room' or rm.end_date is null or rm.end_date >= current_date)
+    and (p_kind is null or p.project_type <> 'room' or rm.kind = p_kind)
   order by
     (select count(*)
        from public.project_topics pt
@@ -52,4 +59,4 @@ as $function$
   limit least(greatest(p_limit, 1), 50);
 $function$;
 
-grant execute on function public.discover_projects(text, integer, integer) to anon, authenticated;
+grant execute on function public.discover_projects(text, integer, integer, text) to anon, authenticated;
