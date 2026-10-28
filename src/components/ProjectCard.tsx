@@ -39,6 +39,7 @@ import {
 } from "lucide-react";
 import { useAuth } from "../hooks/useAuth";
 import { useProjectOwnership } from "../hooks/useProjectOwnership";
+import { useSmartBack } from "../hooks/useSmartBack";
 import { useAffiliateProgram } from "../hooks/useAffiliates";
 import { AffiliateShareSheet } from "./AffiliateShareSheet";
 import { ConfirmDialog } from "./ConfirmDialog";
@@ -393,6 +394,7 @@ export function ProjectCard({
   const { user } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
+  const smartBack = useSmartBack();
   // Ownership is judged against the identity being acted as: a project created
   // personally is NOT a Page's own, even though owner_id is the same user.
   const ownership = useProjectOwnership();
@@ -840,6 +842,9 @@ export function ProjectCard({
     setShowDeleteConfirm(false);
     try {
       await deleteProject.mutateAsync(project.id);
+      // On the project's own page the deleted project is gone, so leave it
+      // (back, or the feed when there is nothing meaningful to return to).
+      if (isDetailView) smartBack();
       toast(`${project.title} deleted.`, { variant: "success" });
     } catch (err) {
       // Most likely reason: purchases exist and the delete was
