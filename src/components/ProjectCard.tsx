@@ -1096,7 +1096,9 @@ export function ProjectCard({
   const bookReadsInApp =
     isBook && bookDetails?.content_source === "upload" && !!bookDetails.allow_read_in_app;
   const bookCanDownload =
-    isBook && bookDetails?.content_source === "upload" && !!bookDetails.allow_download;
+    isBook &&
+    (bookDetails?.content_source === "upload" || bookDetails?.content_source === "download") &&
+    !!bookDetails.allow_download;
   const talentBookable = project.project_type === "gig" && !isOwner && !isFree && !hasPurchased;
 
   const hasMediaLink =
@@ -1636,7 +1638,7 @@ export function ProjectCard({
                 </a>
               </div>
             )}
-            {bookDetails.content_source === "upload" && (
+            {(bookDetails.content_source === "upload" || bookDetails.content_source === "download") && (
               <div className="flex items-center gap-3">
                 {bookDetails.allow_read_in_app && (
                   <button

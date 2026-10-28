@@ -386,6 +386,9 @@ export function EditProject() {
       if (bookFields.content_source === "upload" && !bookFields.file_path) {
         return "Upload a PDF to continue.";
       }
+      if (bookFields.content_source === "download" && !bookFields.file_path) {
+        return "Upload the PDF readers will download.";
+      }
       if (
         bookFields.content_source === "upload" &&
         !bookFields.allow_download &&
@@ -592,9 +595,20 @@ export function EditProject() {
           is_own_work: bookFields.is_own_work,
           source_credit: bookFields.is_own_work ? null : bookFields.source_credit.trim() || null,
           external_url: bookFields.content_source === "link" ? bookFields.url.trim() : null,
-          file_path: bookFields.content_source === "upload" ? bookFields.file_path : null,
-          allow_download: bookFields.content_source === "upload" ? bookFields.allow_download : false,
-          allow_read_in_app: bookFields.content_source === "upload" ? bookFields.allow_read_in_app : true,
+          file_path:
+            bookFields.content_source === "upload" || bookFields.content_source === "download" ? bookFields.file_path : null,
+          allow_download:
+            bookFields.content_source === "download"
+              ? true
+              : bookFields.content_source === "upload"
+                ? bookFields.allow_download
+                : false,
+          allow_read_in_app:
+            bookFields.content_source === "download"
+              ? false
+              : bookFields.content_source === "upload"
+                ? bookFields.allow_read_in_app
+                : true,
         });
         if (detailsError) throw detailsError;
       }

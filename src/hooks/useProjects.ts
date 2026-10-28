@@ -557,7 +557,8 @@ interface RoomDetailsInput {
 // in-app (content_source picks exactly one, mirroring media's
 // link-or-upload split — see project_book_details_content_matches_source
 // in the migration). allow_download / allow_read_in_app are only
-// meaningful when content_source = 'upload'. is_own_work = false means
+// meaningful when content_source = 'upload' / 'download' ('download' is always
+// allow_download = true, allow_read_in_app = false). is_own_work = false means
 // the host is publishing someone else's work with credit — the
 // server (trg_enforce_book_no_monetization) rejects any nonzero price
 // in that case, not just this form. 'authored' books are created here
@@ -566,7 +567,7 @@ interface RoomDetailsInput {
 // is_own_work/author fields for them.
 interface BookDetailsInput {
   book_type: "book" | "article";
-  content_source: "link" | "upload" | "authored";
+  content_source: "link" | "upload" | "authored" | "download";
   author_name?: string;
   is_own_work: boolean;
   source_credit?: string;
@@ -1112,7 +1113,7 @@ export function useBookTalent() {
  *  - "audio" → project_media_details.audio_file_path
  *  - "video" → project_media_details.video_file_path
  *  - "image" → project_media_details.image_file_path
- *  - "book"  → project_book_details.file_path (content_source='upload' Book projects)
+ *  - "book"  → project_book_details.file_path (content_source='upload' or 'download' Book projects)
  * Defaults to "file" for existing call sites. NOTE: the deployed
  * get-project-file function needs to be updated to branch on this —
  * see the note in project-types/MediaFields.tsx / README.

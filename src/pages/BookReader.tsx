@@ -341,10 +341,13 @@ function BookPdfPageReader() {
     );
   }
 
-  if (bookDetails.content_source === "upload" && !bookDetails.allow_read_in_app) {
+  if (
+    bookDetails.content_source === "download" ||
+    (bookDetails.content_source === "upload" && !bookDetails.allow_read_in_app)
+  ) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center gap-3 bg-canvas px-6 text-center">
-        <p className="text-ink">The host only made this available for download, not in-app reading.</p>
+        <p className="text-ink">This one is a download, not an in-app read. You'll find the download on the project page.</p>
         <button onClick={() => navigate(`/projects/${projectId}`)} className="text-accent text-sm font-medium">
           Go to project page
         </button>

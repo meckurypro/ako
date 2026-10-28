@@ -361,7 +361,7 @@ export function useSupportPitch(projectId: string) {
 export interface BookDetails {
   project_id: string;
   book_type: "book" | "article";
-  content_source: "link" | "upload" | "authored";
+  content_source: "link" | "upload" | "authored" | "download";
   author_name: string | null;
   is_own_work: boolean;
   source_credit: string | null;
@@ -388,7 +388,7 @@ export function useBookDetails(projectId: string | undefined) {
   });
 }
 
-// PDF-mode reading position (content_source 'link'/'upload', opened
+// PDF-mode reading position (content_source 'upload', opened
 // via BookReader's page-image renderer) — the current_page/total_pages
 // half of book_reading_progress. Authored books use the
 // current_chapter_id/scroll_fraction half instead — see
