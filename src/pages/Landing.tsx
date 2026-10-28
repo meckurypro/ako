@@ -17,11 +17,15 @@ import { AuthOrDivider, GoogleAuthButton } from "../components/GoogleAuthButton"
 // "A Reason To Reason", one word per line, all lowercase.
 const WORDS = ["a", "reason", "to", "reason"];
 
-const TYPE_MS = 120; // per letter typed
-const WIPE_MS = 65; // per letter wiped — quicker than typing, like holding backspace
-const HOLD_MS = 950; // how long a finished word stays before it is wiped
-const GAP_MS = 280; // beat between a word disappearing and the next one starting
-const START_MS = 500;
+// Timing. Brisk but still readable: a whole loop is ~5s (it used to be ~7.7s, nearly half of it spent holding).
+const START_MS = 250; // before the first letter
+const TYPE_MS = 72; // average per letter typed…
+const TYPE_JITTER = 0.4; // …varied by up to ±40% per letter, so it feels typed by a hand rather than clocked
+const HOLD_MS = 720; // how long a finished word stays before it is wiped
+const WIPE_START_MS = 46; // the first letter of a wipe goes at this pace…
+const WIPE_STEP_MS = 5; // …and every letter after it goes this much faster (a held backspace picks up speed)…
+const WIPE_MIN_MS = 16; // …down to this floor
+const GAP_MS = 150; // beat between a word disappearing and the next one starting
 
 type Phase = "typing" | "holding" | "wiping";
 
@@ -59,12 +63,12 @@ function useTypewriter() {
         ? START_MS
         : phase === "typing"
           ? count < WORDS[line].length
-            ? TYPE_MS
+            ? TYPE_MS * (1 + (Math.random() * 2 - 1) * TYPE_JITTER)
             : HOLD_MS
           : phase === "holding"
             ? 0
             : count > 0
-              ? WIPE_MS
+              ? Math.max(WIPE_MIN_MS, WIPE_START_MS - (WORDS[line].length - count) * WIPE_STEP_MS)
               : GAP_MS
     );
     return () => window.clearTimeout(timer);
@@ -95,21 +99,27 @@ function Statement() {
   return (
     <h1
       aria-label="A reason to reason"
-      // Pure black on the light theme, pure white on the dark one, in the logo's lettering.
-      className="font-logo font-bold lowercase text-black dark:text-white text-left tracking-tight leading-[1.02] text-[clamp(3.75rem,22vw,7.5rem)]"
+      // The logo's lettering in the logo's green on the light theme (pure black was harsh on the warm canvas), and the
+      // warm off-white ink — not pure white — on the dark one. The one orange touch is the cursor.
+      className="font-logo font-bold lowercase text-accent dark:text-ink text-left tracking-tight leading-[1.02] text-[clamp(3.75rem,22vw,7.5rem)]"
     >
       {WORDS.map((word, i) => {
-        const shown = reduced ? word : i === line ? word.slice(0, count) : "";
+        // Each typed letter is its own span so only the newest one animates in (see .ako-letter); inline, so the
+        // font's kerning between letters is left intact.
+        const typed = reduced ? word : i === line ? word.slice(0, count) : "";
         return (
           // Every line keeps its height even while empty, so the statement never jumps as words come and go.
           <span key={i} aria-hidden="true" className="block min-h-[1.02em] whitespace-pre">
-            {shown}
+            {reduced ? typed : [...typed].map((ch, j) => <span key={j} className="ako-letter">{ch}</span>)}
             {!reduced && i === line && (
-              <span
-                // Same colour as the text (currentColor), fainter. Solid while typing/wiping, blinking at rest.
-                className="inline-block w-[0.075em] h-[0.78em] -mb-[0.02em] ml-[0.06em] align-baseline rounded-[1px] bg-current opacity-[0.38]"
-                style={resting ? { animation: "ako-cursor-blink 1.05s step-end infinite" } : undefined}
-              />
+              // Brand orange. The outer span (re-keyed per line) plays a short "landing" each time the cursor drops to
+              // a new line; the inner one is solid while typing/wiping and blinks at rest.
+              <span key={line} className="ako-cursor-land inline-block align-baseline ml-[0.06em] -mb-[0.02em]">
+                <span
+                  className="ako-cursor block w-[0.075em] h-[0.78em] rounded-[1px]"
+                  style={resting ? { animation: "ako-cursor-blink 1.05s step-end infinite" } : undefined}
+                />
+              </span>
             )}
           </span>
         );
