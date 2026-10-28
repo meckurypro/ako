@@ -17,7 +17,7 @@ export function AccountUnderReview() {
     <div className="min-h-screen flex flex-col items-center justify-center bg-canvas px-6 text-center">
       <div className="max-w-xs">
         <div className="w-16 h-16 rounded-full bg-accent-soft flex items-center justify-center mx-auto mb-6">
-          <Clock3 className="text-accent" size={28} />
+          <Clock3 className="text-brand-orange" size={28} />
         </div>
         <h1 className="font-display text-xl text-ink mb-2">Your Akọ account is under review</h1>
         <p className="text-ink-muted text-sm mb-1">

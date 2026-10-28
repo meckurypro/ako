@@ -3,6 +3,7 @@ import { useRef, useState } from "react";
 import { Navigate, useParams, useLocation } from "react-router-dom";
 import { useSmartBack } from "../hooks/useSmartBack";
 import { ArrowLeft } from "lucide-react";
+import { BrandDot } from "../components/BrandDot";
 import { useAuth } from "../hooks/useAuth";
 import { useMarkPostSeen } from "../hooks/useMarkPostSeen";
 import { usePost } from "../hooks/usePostDetail";
@@ -63,9 +64,15 @@ export function PostDetail() {
   return (
     <div className="min-h-screen bg-canvas px-4 pt-4 pb-24">
       <div className="max-w-xl mx-auto">
-        <button onClick={smartBack} className="text-ink-muted mb-3" aria-label="Back">
-          <ArrowLeft size={22} />
-        </button>
+        <div className="mb-3 flex items-center gap-3">
+          <button onClick={smartBack} className="text-ink-muted" aria-label="Back">
+            <ArrowLeft size={22} />
+          </button>
+          <h1 className="font-display text-base text-ink">
+            Post
+            <BrandDot />
+          </h1>
+        </div>
 
         {restricted ? (
           <RestrictedPostNotice />

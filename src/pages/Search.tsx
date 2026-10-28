@@ -22,7 +22,7 @@ export function Search() {
             <ArrowLeft size={22} />
           </button>
           <div className="flex-1 flex items-center gap-2 bg-surface rounded-full px-4 py-2">
-            <SearchIcon size={16} className="text-ink-muted shrink-0" />
+            <SearchIcon size={16} className="text-brand-orange shrink-0" />
             <input
               type="search"
               inputMode="search"
