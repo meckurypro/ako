@@ -1,6 +1,11 @@
 // src/pages/Room.tsx
 import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
-import { useParams, useNavigate, useSearchParams, Link } from "react-router-dom";
+import { useParams, useNavigate, useSearchParams, useLocation, Link, Navigate } from "react-router-dom";
+import { useQueryClient } from "@tanstack/react-query";
+import { useAuth } from "../hooks/useAuth";
+import { loginPathFor, returnPathOf } from "../lib/authRedirect";
+import { formatUsd } from "../lib/money";
+import { GROUP_KIND_LABEL, type GroupKind } from "../lib/groups";
 import { useSmartBack } from "../hooks/useSmartBack";
 import {
   ArrowLeft,
@@ -33,7 +38,7 @@ import {
   Ban,
 } from "lucide-react";
 import { useProjectOwnership } from "../hooks/useProjectOwnership";
-import { useProject } from "../hooks/useProjects";
+import { useProject, usePurchaseProject, type Project } from "../hooks/useProjects";
 import { useCountdown, formatCountdown } from "../hooks/useCountdown";
 import { useVoiceRecorder } from "../hooks/useVoiceRecorder";
 import { useVoiceNotesEnabled } from "../hooks/useFeatureFlags";
@@ -82,7 +87,11 @@ import {
   useRemoveRoomMember,
   useRoomBlocklist,
   useUnblacklistRoomUser,
+  useGroupPublicInfo,
+  useJoinOpenRoom,
+  invalidateRoomMembership,
   findProfileByUsername,
+  type GroupPublicInfo,
   type RoomHistoryMode,
   type RoomMeeting,
 } from "../hooks/useRoom";
@@ -547,7 +556,7 @@ function MeetingsTab({ projectId, isHost }: { projectId: string; isHost: boolean
             const isLive = remainingMs <= 0 && m.status !== "ended" && m.status !== "cancelled";
             return (
               <div key={m.id} className="p-3 rounded-xl border border-border bg-surface text-sm">
-                <p className="text-ink font-medium">{m.title || "Cohort meeting"}</p>
+                <p className="text-ink font-medium">{m.title || "Group meeting"}</p>
                 <p className="text-xs text-ink-muted">{new Date(m.scheduled_at).toLocaleString()}</p>
                 {m.status === "ended" ? (
                   <p className="text-xs text-ink-muted mt-1">Ended{m.recording_url ? " — recording posted to Classroom" : ""}</p>
@@ -833,7 +842,7 @@ function HostSettingsPanel({ projectId, isOwner }: { projectId: string; isOwner:
     review.mutate(
       { userId, approve },
       {
-        onSuccess: () => toast(approve ? `${name} joined the room.` : `Declined ${name}.`, { variant: "success" }),
+        onSuccess: () => toast(approve ? `${name} joined the group.` : `Declined ${name}.`, { variant: "success" }),
         onError: (err) => toast(errorMessage(err, "Couldn't update that request."), { variant: "error" }),
       }
     );
@@ -841,7 +850,7 @@ function HostSettingsPanel({ projectId, isOwner }: { projectId: string; isOwner:
 
   function remove(userId: string, name: string, blacklist: boolean) {
     const ok = window.confirm(
-      blacklist ? `Remove ${name} and stop them from joining again?` : `Remove ${name} from this room?`
+      blacklist ? `Remove ${name} and stop them from joining again?` : `Remove ${name} from this group?`
     );
     if (!ok) return;
     removeMember.mutate(
@@ -857,7 +866,7 @@ function HostSettingsPanel({ projectId, isOwner }: { projectId: string; isOwner:
     <div className="p-3 rounded-xl border border-border bg-surface mb-4 flex flex-col gap-4">
       <div className="flex items-center gap-1.5">
         <Shield size={14} className="text-ink-muted" />
-        <p className="text-sm font-medium text-ink">Room settings</p>
+        <p className="text-sm font-medium text-ink">Group settings</p>
       </div>
 
       {(requests ?? []).length > 0 && (
@@ -894,6 +903,17 @@ function HostSettingsPanel({ projectId, isOwner }: { projectId: string; isOwner:
       )}
 
       <div className="flex flex-col gap-2">
+        {details?.kind === "community" && (
+          <button
+            onClick={() => updateDetails.mutate({ join_mode: details.join_mode === "open" ? "request" : "open" })}
+            className="flex items-center justify-between text-sm"
+          >
+            <span className="text-ink">Anyone can join without approval</span>
+            <span className={details.join_mode === "open" ? "text-accent font-medium" : "text-ink-muted"}>
+              {details.join_mode === "open" ? "On" : "Off"}
+            </span>
+          </button>
+        )}
         <button
           onClick={() => updateDetails.mutate({ hosts_only_chat: !details?.hosts_only_chat })}
           className="flex items-center justify-between text-sm"
@@ -1039,78 +1059,155 @@ function HostSettingsPanel({ projectId, isOwner }: { projectId: string; isOwner:
 
 // Shown to someone who isn't in the room yet. Public free rooms take a request the host reviews; paid
 // rooms are bought from the project page; private rooms are invitation-only (the host adds people).
-function JoinGate({ projectId, title, isPrivate, isFree }: { projectId: string; title: string; isPrivate: boolean; isFree: boolean }) {
+// What anyone sees before they're in: the group itself, who it's for, and the one way in that applies to it.
+//   private → invitation only · paid → buy access · open community → join · everything else → ask a host.
+function GroupLanding({ project, info, isGuest }: { project: Project; info: GroupPublicInfo | null | undefined; isGuest: boolean }) {
   const navigate = useNavigate();
+  const location = useLocation();
+  const smartBack = useSmartBack();
   const toast = useToast();
+  const queryClient = useQueryClient();
+  const projectId = project.id;
   const { data: myRequest } = useMyRoomJoinRequest(projectId);
   const requestJoin = useRequestRoomJoin(projectId);
   const cancelRequest = useCancelRoomJoinRequest(projectId);
-  const status = myRequest?.status;
+  const joinOpen = useJoinOpenRoom(projectId);
+  const purchase = usePurchaseProject();
 
-  if (isPrivate) {
-    return (
+  const kind: GroupKind = info?.kind ?? "community";
+  const price = Number(project.promo_price_usd ?? project.price_usd);
+  const isFree = price <= 0;
+  const status = myRequest?.status;
+  const memberWord = kind === "cohort" ? "participants" : "members";
+  const goLogin = () => navigate(loginPathFor(returnPathOf(location)));
+
+  const fmt = (v: string) => new Date(v).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" });
+  const schedule =
+    kind === "cohort" && info
+      ? info.start_date && info.end_date
+        ? `${fmt(info.start_date)} – ${fmt(info.end_date)}`
+        : info.start_date
+          ? `Starts ${fmt(info.start_date)}`
+          : info.end_date
+            ? `Ends ${fmt(info.end_date)}`
+            : null
+      : null;
+
+  const primary = "px-5 py-2.5 rounded-full bg-cta text-white text-sm font-medium disabled:opacity-50";
+
+  let action: React.ReactNode;
+  if (info?.is_closed) {
+    action = <p className="text-sm text-ink-muted">This cohort has ended.</p>;
+  } else if (project.is_private) {
+    action = (
+      <div className="flex items-start gap-2 text-sm text-ink-muted">
+        <Lock size={16} className="shrink-0 mt-0.5" />
+        <p>This group is private. The host adds the people who can join.</p>
+      </div>
+    );
+  } else if (!isFree) {
+    action = (
+      <button
+        onClick={() => {
+          if (isGuest) return goLogin();
+          purchase.mutate(projectId, {
+            onSuccess: () => {
+              invalidateRoomMembership(queryClient, projectId);
+              toast(`You're in. Welcome to ${project.title}.`, { variant: "success" });
+            },
+            onError: (err) => toast(errorMessage(err, "Couldn't complete your purchase."), { variant: "error" }),
+          });
+        }}
+        disabled={purchase.isPending}
+        className={primary}
+      >
+        {purchase.isPending ? "Joining…" : `Join · ${formatUsd(price)}`}
+      </button>
+    );
+  } else if (kind === "community" && info?.join_mode === "open") {
+    action = (
+      <button
+        onClick={() => {
+          if (isGuest) return goLogin();
+          joinOpen.mutate(undefined, {
+            onSuccess: () => toast(`You joined ${project.title}.`, { variant: "success" }),
+            onError: (err) => toast(errorMessage(err, "Couldn't join."), { variant: "error" }),
+          });
+        }}
+        disabled={joinOpen.isPending}
+        className={primary}
+      >
+        {joinOpen.isPending ? "Joining…" : "Join community"}
+      </button>
+    );
+  } else if (status === "pending") {
+    action = (
       <>
-        <Lock size={28} className="text-ink-muted" />
-        <p className="text-ink font-medium">Private room</p>
-        <p className="text-sm text-ink-muted">“{title}” is invitation-only. The host adds the people who can join.</p>
+        <p className="text-sm text-ink-muted">Your request is waiting for a host to review it.</p>
+        <button
+          onClick={() =>
+            cancelRequest.mutate(undefined, { onSuccess: () => toast("Request cancelled.", { variant: "success" }) })
+          }
+          disabled={cancelRequest.isPending}
+          className="text-sm text-ink-muted font-medium"
+        >
+          Cancel request
+        </button>
       </>
     );
-  }
-
-  if (!isFree) {
-    return (
+  } else {
+    action = (
       <>
-        <Lock size={28} className="text-ink-muted" />
-        <p className="text-ink font-medium">Members only</p>
-        <p className="text-sm text-ink-muted">Buy access to “{title}” from its project page to join this room.</p>
-        <button onClick={() => navigate(`/projects/${projectId}`)} className="mt-2 text-accent text-sm font-medium">
-          Go to project page
+        <p className="text-sm text-ink-muted">
+          {status === "declined"
+            ? "Your last request wasn't accepted. You can ask again."
+            : "A host reviews every request to join this group."}
+        </p>
+        <button
+          onClick={() => {
+            if (isGuest) return goLogin();
+            requestJoin.mutate(undefined, {
+              onSuccess: () => toast("Request sent.", { variant: "success" }),
+              onError: (err) => toast(errorMessage(err, "Couldn't send your request."), { variant: "error" }),
+            });
+          }}
+          disabled={requestJoin.isPending}
+          className={primary}
+        >
+          {status === "declined" ? "Ask again" : "Request to join"}
         </button>
       </>
     );
   }
 
   return (
-    <>
-      <Users size={28} className="text-ink-muted" />
-      <p className="text-ink font-medium">{title}</p>
-      {status === "pending" ? (
-        <>
-          <p className="text-sm text-ink-muted">Your request is waiting for a host to review it.</p>
-          <button
-            onClick={() =>
-              cancelRequest.mutate(undefined, {
-                onSuccess: () => toast("Request cancelled.", { variant: "success" }),
-              })
-            }
-            disabled={cancelRequest.isPending}
-            className="mt-2 text-sm text-ink-muted font-medium"
-          >
-            Cancel request
-          </button>
-        </>
-      ) : (
-        <>
-          <p className="text-sm text-ink-muted">
-            {status === "declined"
-              ? "Your last request wasn't accepted. You can ask again."
-              : "A host reviews every request to join this room."}
-          </p>
-          <button
-            onClick={() =>
-              requestJoin.mutate(undefined, {
-                onSuccess: () => toast("Request sent.", { variant: "success" }),
-                onError: (err) => toast(errorMessage(err, "Couldn't send your request."), { variant: "error" }),
-              })
-            }
-            disabled={requestJoin.isPending}
-            className="mt-2 px-5 py-2 rounded-full bg-cta text-white text-sm font-medium disabled:opacity-50"
-          >
-            {status === "declined" ? "Ask again" : "Request to join"}
-          </button>
-        </>
-      )}
-    </>
+    <div className="min-h-screen bg-canvas px-4 pt-4 pb-10">
+      <div className="max-w-md mx-auto">
+        <button onClick={smartBack} className="text-ink-muted mb-4" aria-label="Back">
+          <ArrowLeft size={22} />
+        </button>
+        {project.thumbnail_url && (
+          <img src={project.thumbnail_url} alt="" className="w-full aspect-video object-cover rounded-2xl mb-4" />
+        )}
+        <p className="text-[11px] uppercase tracking-wide text-accent font-medium">{GROUP_KIND_LABEL[kind]}</p>
+        <h2 className="font-display text-2xl text-ink mt-1">{project.title}</h2>
+        <div className="flex items-center gap-3 mt-1.5 text-xs text-ink-muted">
+          {info && (
+            <span className="flex items-center gap-1">
+              <Users size={13} /> {info.member_count} {memberWord}
+            </span>
+          )}
+          {schedule && (
+            <span className="flex items-center gap-1">
+              <Calendar size={13} /> {schedule}
+            </span>
+          )}
+          {!isFree && !project.is_private && <span>{formatUsd(price)}</span>}
+        </div>
+        {project.description && <p className="text-sm text-ink-muted mt-4 whitespace-pre-line">{project.description}</p>}
+        <div className="mt-6 flex flex-col items-start gap-2">{action}</div>
+      </div>
+    </div>
   );
 }
 
@@ -1118,8 +1215,40 @@ function JoinGate({ projectId, title, isPrivate, isFree }: { projectId: string; 
 // Main page
 // ---------------------------------------------------------------
 
-export function Room() {
+function LoadingScreen() {
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-canvas">
+      <p className="text-ink-muted">Loading…</p>
+    </div>
+  );
+}
+
+// Signed-out visitors get the group's landing page (shared links land here); joining sends them through login.
+function GuestGroup({ projectId }: { projectId: string | undefined }) {
+  const { data: project } = useProject(projectId);
+  const { data: info } = useGroupPublicInfo(projectId);
+  if (!project) return <LoadingScreen />;
+  return <GroupLanding project={project} info={info} isGuest />;
+}
+
+// Old /rooms/:id links (notifications, shares) keep working.
+export function RoomRedirect() {
   const { projectId } = useParams<{ projectId: string }>();
+  const location = useLocation();
+  return <Navigate to={{ pathname: `/groups/${projectId}`, search: location.search }} replace />;
+}
+
+// The group page, at /groups/:id and — through a group's custom slug — at /:slug.
+export function Room({ projectId: projectIdProp }: { projectId?: string } = {}) {
+  const params = useParams<{ projectId: string }>();
+  const projectId = projectIdProp ?? params.projectId;
+  const { user, loading } = useAuth();
+  if (loading) return <LoadingScreen />;
+  if (!user) return <GuestGroup projectId={projectId} />;
+  return <GroupPage projectId={projectId} />;
+}
+
+function GroupPage({ projectId }: { projectId: string | undefined }) {
   const navigate = useNavigate();
   const smartBack = useSmartBack();
   const { data: project } = useProject(projectId);
@@ -1133,11 +1262,18 @@ export function Room() {
   const hasAccess = isOwner || !!isMember;
 
   const { data: details } = useRoomDetails(projectId);
+  const { data: publicInfo } = useGroupPublicInfo(projectId);
+  // A group is a cohort or a community. Members read it from the details; non-members from the public info.
+  const kind: GroupKind = details?.kind ?? publicInfo?.kind ?? "community";
+  const kindLabel = GROUP_KIND_LABEL[kind];
+  const isCohort = kind === "cohort";
   const isClosed = useRoomIsClosed(details);
   const startCountdownMs = useCountdown(details?.start_date ?? undefined);
   const notYetStarted = !!details?.start_date && startCountdownMs !== null && startCountdownMs > 0;
 
-  const [tab, setTab] = useState<Tab>("classroom");
+  // A cohort opens on its classroom; a community opens on its chat — that's where the people are.
+  const [pickedTab, setTab] = useState<Tab | null>(null);
+  const tab: Tab = pickedTab ?? (isCohort ? "classroom" : "chat");
   // Kept in the URL so coming back from a requester's profile lands on the open panel again.
   const [searchParams, setSearchParams] = useSearchParams();
   const showSettings = searchParams.get("settings") === "1";
@@ -1166,23 +1302,7 @@ export function Room() {
   }
 
   if (!hasAccess) {
-    return (
-      <div className="min-h-screen bg-canvas px-4 pt-4 pb-10">
-        <div className="max-w-md mx-auto">
-          <button onClick={smartBack} className="text-ink-muted mb-4">
-            <ArrowLeft size={22} />
-          </button>
-          <div className="flex flex-col items-center text-center gap-3 mt-16">
-            <JoinGate
-              projectId={project.id}
-              title={project.title}
-              isPrivate={project.is_private}
-              isFree={Number(project.promo_price_usd ?? project.price_usd) <= 0}
-            />
-          </div>
-        </div>
-      </div>
-    );
+    return <GroupLanding project={project} info={publicInfo} isGuest={false} />;
   }
 
   if (notYetStarted) {
@@ -1219,20 +1339,20 @@ export function Room() {
                   if (!window.confirm(`Leave “${project.title}”?`)) return;
                   leaveRoom.mutate(undefined, {
                     onSuccess: () => {
-                      toast("You left the room.", { variant: "success" });
+                      toast("You left the group.", { variant: "success" });
                       navigate("/connect", { replace: true });
                     },
-                    onError: (err) => toast(errorMessage(err, "Couldn't leave the room."), { variant: "error" }),
+                    onError: (err) => toast(errorMessage(err, "Couldn't leave the group."), { variant: "error" }),
                   });
                 }}
                 className="flex items-center gap-1 text-xs text-ink-muted"
-                aria-label="Leave room"
+                aria-label="Leave group"
               >
                 <LogOut size={16} /> Leave
               </button>
             )}
             {isHost && (
-              <button onClick={() => setShowSettings(!showSettings)} className="relative text-ink-muted" aria-label="Room settings">
+              <button onClick={() => setShowSettings(!showSettings)} className="relative text-ink-muted" aria-label="Group settings">
                 <Settings size={20} />
                 {(pendingRequests ?? []).length > 0 && (
                   <span className="absolute -top-1.5 -right-1.5 min-w-[16px] h-4 px-1 rounded-full bg-cta text-white text-[10px] leading-4 text-center">
@@ -1254,7 +1374,7 @@ export function Room() {
 
         {isClosed && (
           <div className="flex items-center justify-between mb-3 px-3 py-2 rounded-xl bg-accent-soft/60 text-sm text-ink-muted">
-            <span>This room has ended — media stays here for people who were in it.</span>
+            <span>This {kindLabel.toLowerCase()} has ended — media stays here for people who were in it.</span>
             {isHost && (
               <button
                 onClick={() => setViewArchivedChat((v) => !v)}
@@ -1271,11 +1391,17 @@ export function Room() {
 
         <div className="flex gap-1 mb-4 border-b border-border">
           {(
-            [
-              ["classroom", "Classroom", BookOpen],
-              ...(showChatTab ? ([["chat", "Chat", MessageCircle]] as const) : []),
-              ...(!isClosed ? ([["meetings", "Meetings", Calendar], ["assignments", "Assignments", ClipboardList]] as const) : []),
-            ] as [Tab, string, typeof BookOpen][]
+            (isCohort
+              ? [
+                  ["classroom", "Classroom", BookOpen],
+                  ...(showChatTab ? ([["chat", "Chat", MessageCircle]] as const) : []),
+                  ...(!isClosed ? ([["meetings", "Meetings", Calendar], ["assignments", "Assignments", ClipboardList]] as const) : []),
+                ]
+              : [
+                  ["chat", "Chat", MessageCircle],
+                  ["classroom", "Updates", BookOpen],
+                  ["meetings", "Meetings", Calendar],
+                ]) as [Tab, string, typeof BookOpen][]
           ).map(([key, label, Icon]) => (
             <button
               key={key}
@@ -1322,9 +1448,11 @@ export function Room() {
             <div style={{ display: tab === "meetings" ? "block" : "none" }}>
               <MeetingsTab projectId={project.id} isHost={isHost} />
             </div>
-            <div style={{ display: tab === "assignments" ? "block" : "none" }}>
-              <AssignmentsTab projectId={project.id} isHost={isHost} />
-            </div>
+            {isCohort && (
+              <div style={{ display: tab === "assignments" ? "block" : "none" }}>
+                <AssignmentsTab projectId={project.id} isHost={isHost} />
+              </div>
+            )}
           </>
         )}
       </div>

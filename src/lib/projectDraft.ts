@@ -53,8 +53,8 @@ interface StoredDraft {
   data: ProjectDraftData;
 }
 
-export function projectDraftKey(userId: string, pageId?: string | null): string {
-  return `ako:project-draft:v${VERSION}:${userId}:${pageId ?? "me"}`;
+export function projectDraftKey(userId: string, pageId?: string | null, scope?: string | null): string {
+  return `ako:project-draft:v${VERSION}:${userId}:${pageId ?? "me"}${scope ? `:${scope}` : ""}`;
 }
 
 export function readProjectDraft(key: string): { data: ProjectDraftData; savedAt: number } | null {

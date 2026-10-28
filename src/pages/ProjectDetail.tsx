@@ -1,6 +1,8 @@
 // src/pages/ProjectDetail.tsx
 import { useRef, useState } from "react";
-import { useParams, Link, useLocation, useSearchParams } from "react-router-dom";
+import { useParams, Link, useLocation, useSearchParams, Navigate } from "react-router-dom";
+import { Room } from "./Room";
+import { getGroupPath } from "../lib/groups";
 import { useSmartBack } from "../hooks/useSmartBack";
 import {
   ArrowLeft,
@@ -328,7 +330,20 @@ function EventHighlightsSection({ projectId, isOwner }: { projectId: string; isO
   );
 }
 
+// A group is a project underneath, but it is never presented as one: it has its own page. Reached through its custom
+// slug it renders in place (the address stays the shareable /slug); reached by id it moves to its canonical address.
 export function ProjectDetail({ resolvedProjectId }: { resolvedProjectId?: string } = {}) {
+  const { projectId: routeId } = useParams<{ projectId: string }>();
+  const id = resolvedProjectId ?? routeId;
+  const { data: head } = useProjectDetail(id);
+  if (head?.project_type === "room") {
+    if (resolvedProjectId) return <Room projectId={head.id} />;
+    return <Navigate to={getGroupPath(head)} replace />;
+  }
+  return <ProjectDetailPage resolvedProjectId={resolvedProjectId} />;
+}
+
+function ProjectDetailPage({ resolvedProjectId }: { resolvedProjectId?: string } = {}) {
   // resolvedProjectId comes from ProjectBySlug when this page is
   // reached via a /profile/:username/:slug or /page/:username/:slug
   // public link rather than directly via /projects/:projectId — see

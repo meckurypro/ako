@@ -10,8 +10,9 @@
 // a tab bar.
 import { useMemo, useState, type ReactNode } from "react";
 import { useCountdown, formatCountdown } from "../hooks/useCountdown";
+import { CalendarClock, ImageIcon, Plus, Users, X } from "lucide-react";
 import { Link } from "react-router-dom";
-import { CalendarClock, ImageIcon, Users, X } from "lucide-react";
+import { useFeatureFlag } from "../hooks/useFeatureFlags";
 import { useActivity, type ActivityItem } from "../hooks/useActivity";
 import { useTabState } from "../hooks/useTabState";
 import { useRemoveFromLibrary } from "../hooks/useLibraryRemovals";
@@ -20,34 +21,35 @@ import { BottomNav } from "../components/BottomNav";
 import { SwipeableTabs } from "../components/SwipeableTabs";
 import { SlidingTabBar } from "../components/SlidingTabBar";
 
-const ALL_TABS = ["events", "meetings", "rooms"] as const;
+const ALL_TABS = ["events", "meetings", "groups"] as const;
 type ConnectTab = (typeof ALL_TABS)[number];
 
 const TAB_LABEL: Record<ConnectTab, string> = {
   events: "Events",
   meetings: "Meetings",
-  rooms: "Rooms",
+  groups: "Groups",
 };
 
-// Room meetings sit with the other meetings (name of the room + a countdown); the Rooms tab lists the rooms themselves.
+// Group meetings sit with the other meetings (name of the group + a countdown); the Groups tab lists the groups themselves
+// (communities and cohorts you're in or run).
 const KINDS_FOR_TAB: Record<ConnectTab, ActivityItem["kind"][]> = {
   events: ["event"],
   meetings: ["meeting", "room_meeting"],
-  rooms: ["room"],
+  groups: ["room"],
 };
 
 const ROUTE_FOR: Record<ActivityItem["kind"], (item: ActivityItem) => string> = {
   event: (item) => `/projects/${item.projectId}/ticket`,
   meeting: (item) => `/meetings/${item.projectId}`,
-  room_meeting: (item) => `/rooms/${item.projectId}`,
-  room: (item) => `/rooms/${item.projectId}`,
+  room_meeting: (item) => `/groups/${item.projectId}`,
+  room: (item) => `/groups/${item.projectId}`,
 };
 
 const LABEL_FOR: Record<ActivityItem["kind"], string> = {
   event: "Event",
   meeting: "Meeting",
-  room_meeting: "Room meeting",
-  room: "Room",
+  room_meeting: "Group meeting",
+  room: "Group",
 };
 
 // Live countdown for something that hasn't started. Shows "Live now" for a room meeting that is running.
@@ -128,14 +130,20 @@ function EmptyConnect() {
       <CalendarClock size={24} className="text-brand-orange" />
       <p className="text-sm font-medium text-ink">Nothing here yet</p>
       <p className="text-sm max-w-xs">
-        When you get tickets to events or join meetings and rooms, you'll find them here.
+        When you get tickets to events or join meetings and groups, you'll find them here.
       </p>
+      <div className="flex gap-4 mt-2 text-sm font-medium">
+        <Link to="/topics" className="text-accent">Find groups</Link>
+        <Link to="/groups/new" className="text-accent">Start a group</Link>
+      </div>
     </div>
   );
 }
 
 export function Connect() {
   const { data: items, isLoading } = useActivity();
+  // Groups are created from here; the creation form is the project form in group mode, so it shares its kill switch.
+  const canCreateGroup = useFeatureFlag("projects_enabled");
 
   // Only tabs that have something in them are shown.
   const tabs = useMemo(
@@ -152,7 +160,7 @@ export function Connect() {
 
   function renderPane(t: ConnectTab): ReactNode {
     const kindItems = (items ?? []).filter((i) => KINDS_FOR_TAB[t].includes(i.kind));
-    if (t === "rooms") {
+    if (t === "groups") {
       return (
         <div className="flex flex-col gap-2">
           {kindItems.map((item) => (
@@ -198,10 +206,20 @@ export function Connect() {
   return (
     <div className="min-h-screen bg-canvas px-4 md:px-8 pt-6 md:pt-10 pb-28">
       <div className="max-w-xl md:max-w-4xl mx-auto">
-        <h2 className="font-bold text-[1.75rem] leading-tight tracking-tight text-ink mb-5 flex items-center gap-2.5">
-          <Users size={24} className="text-brand-orange" />
-          Connect
-        </h2>
+        <div className="flex items-center justify-between mb-5">
+          <h2 className="font-bold text-[1.75rem] leading-tight tracking-tight text-ink flex items-center gap-2.5">
+            <Users size={24} className="text-brand-orange" />
+            Connect
+          </h2>
+          {canCreateGroup && (
+            <Link
+              to="/groups/new"
+              className="flex items-center gap-1 px-3.5 py-2 rounded-full bg-cta text-white text-sm font-medium"
+            >
+              <Plus size={16} /> New group
+            </Link>
+          )}
+        </div>
 
         {isLoading ? (
           <p className="text-ink-muted text-sm">Loading…</p>

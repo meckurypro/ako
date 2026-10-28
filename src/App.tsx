@@ -138,6 +138,7 @@ import { registerOfflineMutations } from "./lib/offlineMutations";
 // the one screen (the ErrorBoundary catches it) and never login/signup.
 const FundWallet = lazy(() => import("./pages/FundWallet").then((m) => ({ default: m.FundWallet })));
 const Room = lazy(() => import("./pages/Room").then((m) => ({ default: m.Room })));
+const RoomRedirect = lazy(() => import("./pages/Room").then((m) => ({ default: m.RoomRedirect })));
 const BookReader = lazy(() => import("./pages/BookReader").then((m) => ({ default: m.BookReader })));
 const MeetingRoom = lazy(() => import("./pages/MeetingRoom").then((m) => ({ default: m.MeetingRoom })));
 const TicketView = lazy(() => import("./pages/TicketView").then((m) => ({ default: m.TicketView })));
@@ -993,12 +994,21 @@ function AppRoutes() {
             />
             <Route
               path="/rooms/:projectId"
+              element={<RoomRedirect />}
+            />
+            {/* Groups (communities and cohorts). /groups/:projectId is public — Room shows signed-out visitors the
+                group's landing page and sends them through login only when they try to join. */}
+            <Route
+              path="/groups/new"
               element={
                 <RequireAuth>
-                  <Room />
+                  <RequireProjectCreation>
+                    <CreateProject fixedType="room" />
+                  </RequireProjectCreation>
                 </RequireAuth>
               }
             />
+            <Route path="/groups/:projectId" element={<Room />} />
             {/* Public — same reasoning as ProjectDetail: a shared course
                 link should load for a logged-out visitor, who then just
                 sees the "buy to unlock" state Course.tsx already handles. */}

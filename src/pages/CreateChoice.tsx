@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { useSmartBack } from "../hooks/useSmartBack";
 import { useScrollLock } from "../hooks/useScrollLock";
 import { useFeatureFlag } from "../hooks/useFeatureFlags";
-import { X, PenSquare, FolderPlus, ChevronRight } from "lucide-react";
+import { X, PenSquare, FolderPlus, Users, ChevronRight } from "lucide-react";
 
 // The "+" on Feed's header opens this. Styled as a bottom sheet
 // (backdrop + rounded-top panel) to match the Instagram-style
@@ -23,6 +23,12 @@ const CHOICES = [
     label: "Project",
     description: "List a file, event, course, or paid link",
   },
+  {
+    to: "/groups/new",
+    icon: Users,
+    label: "Group",
+    description: "Start a community or a cohort",
+  },
 ] as const;
 
 export function CreateChoice() {
@@ -35,7 +41,7 @@ export function CreateChoice() {
   // navigates to /projects/new directly still hits the same block
   // there (see CreateProject.tsx).
   const projectsEnabled = useFeatureFlag("projects_enabled");
-  const choices = projectsEnabled ? CHOICES : CHOICES.filter((c) => c.to !== "/projects/new");
+  const choices = projectsEnabled ? CHOICES : CHOICES.filter((c) => c.to !== "/projects/new" && c.to !== "/groups/new");
 
   return (
     <div

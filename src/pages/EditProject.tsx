@@ -272,6 +272,8 @@ export function EditProject() {
       // falling back to empty rather than getting stuck is safer than
       // the alternative of never hydrating at all).
       setRoomFields({
+        kind: existingRoomDetails?.kind ?? "community",
+        join_mode: existingRoomDetails?.join_mode ?? "request",
         start_date: existingRoomDetails?.start_date?.slice(0, 16) ?? "",
         end_date: existingRoomDetails?.end_date?.slice(0, 16) ?? "",
       });
@@ -371,6 +373,7 @@ export function EditProject() {
     }
     if (
       project.project_type === "room" &&
+      roomFields.kind === "cohort" &&
       roomFields.start_date &&
       roomFields.end_date &&
       new Date(roomFields.end_date) <= new Date(roomFields.start_date)
@@ -575,8 +578,10 @@ export function EditProject() {
       if (project.project_type === "room") {
         const { error: detailsError } = await supabase.from("project_room_details").upsert({
           project_id: projectId,
-          start_date: roomFields.start_date ? new Date(roomFields.start_date).toISOString() : null,
-          end_date: roomFields.end_date ? new Date(roomFields.end_date).toISOString() : null,
+          // The kind is never sent: it's fixed at creation (the database refuses a change).
+          join_mode: roomFields.kind === "community" ? roomFields.join_mode : "request",
+          start_date: roomFields.kind === "cohort" && roomFields.start_date ? new Date(roomFields.start_date).toISOString() : null,
+          end_date: roomFields.kind === "cohort" && roomFields.end_date ? new Date(roomFields.end_date).toISOString() : null,
         });
         if (detailsError) throw detailsError;
       }
@@ -752,9 +757,9 @@ export function EditProject() {
             {project.project_type === "meeting" && <MeetingFields value={meetingFields} onChange={setMeetingFields} />}
             {project.project_type === "room" && (
               <>
-                <RoomFields value={roomFields} onChange={setRoomFields} />
+                <RoomFields value={roomFields} onChange={setRoomFields} lockKind />
                 <p className="text-xs text-ink-muted mb-4 -mt-2">
-                  Manage lectures, chat, meetings, and assignments from the cohort itself.
+                  Manage chat, meetings{roomFields.kind === "cohort" ? ", lectures and assignments" : " and updates"} from the group itself.
                 </p>
               </>
             )}

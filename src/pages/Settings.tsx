@@ -48,6 +48,7 @@ import {
   useTogglePrivateAccount,
   useToggleHideFollowersList,
   useToggleHideFollowingList,
+  useToggleShowGroupsOnProfile,
   useBlockedList,
   useMutedList,
   useToggleBlock,
@@ -73,7 +74,7 @@ function useOwnProfile() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("profiles")
-        .select(`*, ${PROFILE_ROLES_SELECT}, is_private, hide_followers_list, hide_following_list`)
+        .select(`*, ${PROFILE_ROLES_SELECT}, is_private, hide_followers_list, hide_following_list, show_groups_on_profile`)
         .eq("id", user!.id)
         .single();
       if (error) throw error;
@@ -426,6 +427,7 @@ export function Settings() {
   const togglePrivate = useTogglePrivateAccount();
   const toggleHideFollowers = useToggleHideFollowersList();
   const toggleHideFollowing = useToggleHideFollowingList();
+  const toggleShowGroups = useToggleShowGroupsOnProfile();
   const { data: blocked } = useBlockedList();
   const { data: muted } = useMutedList();
 
@@ -779,6 +781,15 @@ export function Settings() {
                 onToggle={() => toggleHideFollowing.mutate(!profile?.hide_following_list)}
                 pending={toggleHideFollowing.isPending}
                 error={toggleHideFollowing.isError ? "Couldn't update this setting. Try again." : null}
+              />
+              <ToggleRow
+                icon={<Users size={18} className="text-ink-muted" />}
+                title="Show my groups on my profile"
+                description="Lists the public communities and cohorts you're in. Private groups are never listed"
+                checked={!!profile?.show_groups_on_profile}
+                onToggle={() => toggleShowGroups.mutate(!profile?.show_groups_on_profile)}
+                pending={toggleShowGroups.isPending}
+                error={toggleShowGroups.isError ? "Couldn't update this setting. Try again." : null}
               />
 
               <h3 className="text-sm font-medium text-ink-muted mt-5 mb-2 flex items-center gap-1.5">

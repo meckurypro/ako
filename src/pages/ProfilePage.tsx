@@ -26,6 +26,7 @@ import { useStartConversation } from "../hooks/useMessaging";
 import { useIsBlocked, useToggleBlock, useIsMuted, useToggleMute, useRemoveFollower } from "../hooks/usePrivacy";
 import { useContactNickname } from "../hooks/useContactNicknames";
 import { useUserProjects } from "../hooks/useProjects";
+import { ProfileGroups } from "../components/ProfileGroups";
 import type { ProjectType } from "../hooks/useProjects";
 import {
   usePortfolioCategories,
@@ -880,6 +881,8 @@ export function ProfilePage() {
         {profile.bio && (
           <p className="text-[15px] leading-relaxed text-ink mt-5 whitespace-pre-line break-words">{profile.bio}</p>
         )}
+
+        {!isPrivateLocked && <ProfileGroups profileId={profile.id} />}
 
         {showOwnerView ? (
           <>

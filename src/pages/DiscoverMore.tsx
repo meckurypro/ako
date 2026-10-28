@@ -11,7 +11,6 @@ import {
   useDiscoverMore,
   useDiscoverPagesMore,
 } from "../hooks/useDiscoverBrowse";
-import type { ProjectType } from "../hooks/useProjects";
 import { BottomNav } from "../components/BottomNav";
 import { PageRow } from "../components/PageRow";
 import { DiscoverTile } from "../components/discover/DiscoverRail";
@@ -31,8 +30,8 @@ function ShowMore({ onClick, loading }: { onClick: () => void; loading: boolean 
   );
 }
 
-function ProjectsMore({ type }: { type: ProjectType }) {
-  const { data, isLoading, isError, hasNextPage, fetchNextPage, isFetchingNextPage } = useDiscoverMore(type);
+function ProjectsMore({ sectionKey }: { sectionKey: string }) {
+  const { data, isLoading, isError, hasNextPage, fetchNextPage, isFetchingNextPage } = useDiscoverMore(sectionKey);
   const items = (data?.pages ?? []).flatMap((p) => p.items);
 
   if (isLoading) return <p className="py-4 text-sm text-ink-muted">Loading…</p>;
@@ -86,7 +85,7 @@ export function DiscoverMore() {
           <ArrowLeft size={22} />
         </button>
         <h1 className="mb-5 font-display text-2xl text-ink">{title}<BrandDot /></h1>
-        {section === "pages" ? <PagesMore /> : <ProjectsMore type={section as ProjectType} />}
+        {section === "pages" ? <PagesMore /> : <ProjectsMore sectionKey={section} />}
       </div>
       <BottomNav />
     </div>

@@ -86,7 +86,9 @@ import {
 import { friendlyError } from "../lib/friendlyError";
 
 import { BrandDot } from "../components/BrandDot";
-export function CreateProject() {
+// `fixedType` turns this into a single-purpose creator (used for groups at /groups/new): no type picker,
+// its own draft, its own wording.
+export function CreateProject({ fixedType }: { fixedType?: ProjectType } = {}) {
   const navigate = useNavigate();
   const smartBack = useSmartBack();
   const toast = useToast();
@@ -104,7 +106,7 @@ export function CreateProject() {
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const descriptionRef = useRef<HTMLTextAreaElement>(null);
-  const [projectType, setProjectType] = useState<ProjectType>("file");
+  const [projectType, setProjectType] = useState<ProjectType>(fixedType ?? "file");
   const [topicIds, setTopicIds] = useState<Set<string>>(new Set());
   const [priceUsd, setPriceUsd] = useState("0");
   const [showPromo, setShowPromo] = useState(false);
@@ -159,6 +161,7 @@ export function CreateProject() {
   // rather than leaving an invalid selection sitting in a hidden
   // option.
   useEffect(() => {
+    if (fixedType) return;
     if (allowedTypes.length > 0 && !allowedTypes.includes(projectType)) {
       setProjectType(allowedTypes[0]);
     }
@@ -200,7 +203,7 @@ export function CreateProject() {
   // Leaving this form with something filled in asks "save as a draft / discard?" (see useLeaveGuard). The draft is
   // kept on this device — see lib/projectDraft.ts for why it isn't a `draft` row in `projects` — and is put back
   // the next time New project opens. One draft per account per acting identity (personal / each Page).
-  const draftKey = me?.id && identity !== undefined ? projectDraftKey(me.id, postingAsPage?.id) : null;
+  const draftKey = me?.id && identity !== undefined ? projectDraftKey(me.id, postingAsPage?.id, fixedType) : null;
   const restoredRef = useRef(false);
   // The form as last restored from a draft; leaving with the form still identical to it isn't "unsaved".
   const baselineRef = useRef<string | null>(null);
@@ -234,7 +237,7 @@ export function CreateProject() {
   function applyDraft(d: ProjectDraftData) {
     setTitle(d.title);
     setDescription(d.description);
-    setProjectType(d.projectType);
+    setProjectType(fixedType ?? d.projectType);
     setTopicIds(new Set(d.topicIds));
     setPriceUsd(d.priceUsd);
     setShowPromo(d.showPromo);
@@ -250,14 +253,14 @@ export function CreateProject() {
     setMeetingFields(d.meetingFields);
     setTalentFields(d.talentFields);
     setPitchFields(d.pitchFields);
-    setRoomFields(d.roomFields);
+    setRoomFields({ ...EMPTY_ROOM_FIELDS, ...d.roomFields });
     setBookFields(d.bookFields);
   }
 
   function resetForm() {
     setTitle("");
     setDescription("");
-    setProjectType(allowedTypes.length === 0 || allowedTypes.includes("file") ? "file" : allowedTypes[0]);
+    setProjectType(fixedType ?? (allowedTypes.length === 0 || allowedTypes.includes("file") ? "file" : allowedTypes[0]));
     setTopicIds(new Set());
     setPriceUsd("0");
     setShowPromo(false);
@@ -394,6 +397,7 @@ export function CreateProject() {
     }
     if (
       projectType === "room" &&
+      roomFields.kind === "cohort" &&
       roomFields.start_date &&
       roomFields.end_date &&
       new Date(roomFields.end_date) <= new Date(roomFields.start_date)
@@ -627,8 +631,12 @@ export function CreateProject() {
         room_details:
           projectType === "room"
             ? {
-                start_date: roomFields.start_date ? new Date(roomFields.start_date).toISOString() : undefined,
-                end_date: roomFields.end_date ? new Date(roomFields.end_date).toISOString() : undefined,
+                kind: roomFields.kind,
+                join_mode: roomFields.kind === "community" ? roomFields.join_mode : "request",
+                start_date:
+                  roomFields.kind === "cohort" && roomFields.start_date ? new Date(roomFields.start_date).toISOString() : undefined,
+                end_date:
+                  roomFields.kind === "cohort" && roomFields.end_date ? new Date(roomFields.end_date).toISOString() : undefined,
               }
             : undefined,
         // Always created, even for an authored book with no content
@@ -677,6 +685,12 @@ export function CreateProject() {
         navigate(`/courses/${created.id}`, { replace: true });
         return;
       }
+      if (projectType === "room" && created?.id) {
+        // A group lives at its own page, not on the profile's Projects tab — land the creator inside it.
+        navigate(`/groups/${created.id}`, { replace: true });
+        toast(`${title.trim()} created successfully.`, { variant: "success" });
+        return;
+      }
       if (postingAsPage) {
         navigate(`/page/${postingAsPage.username}?tab=projects`);
         toast(`${title.trim()} created successfully.`, { variant: "success" });
@@ -708,7 +722,7 @@ export function CreateProject() {
           <button onClick={smartBack} className="text-ink-muted mb-4">
             <ArrowLeft size={22} />
           </button>
-          <h2 className="font-display text-2xl text-ink mb-6">New project<BrandDot /></h2>
+          <h2 className="font-display text-2xl text-ink mb-6">{fixedType === "room" ? "New group" : "New project"}<BrandDot /></h2>
           <p className="text-sm text-ink-muted">New projects aren't being created right now. Check back later.</p>
         </div>
       </div>
@@ -725,7 +739,7 @@ export function CreateProject() {
           <ArrowLeft size={22} />
         </button>
 
-        <h2 className="font-display text-2xl text-ink mb-6">New project<BrandDot /></h2>
+        <h2 className="font-display text-2xl text-ink mb-6">{fixedType === "room" ? "New group" : "New project"}<BrandDot /></h2>
 
         {restoredDraftNotice && (
           <div className="flex items-center justify-between gap-3 rounded-xl border border-border bg-surface px-4 py-3 mb-5">
@@ -757,7 +771,8 @@ export function CreateProject() {
             </p>
           </div>
 
-          {/* 1 — What are you making? The type decides which fields appear below. */}
+          {/* 1 — What are you making? The type decides which fields appear below. (Not shown for a single-purpose creator.) */}
+          {!fixedType && (
           <FormSection
             icon={PROJECT_TYPE_ICONS[projectType]}
             title="Project type"
@@ -768,12 +783,12 @@ export function CreateProject() {
                 <p className="text-sm text-ink-muted">There are no project types available to this account right now.</p>
               </div>
             )}
-            <ProjectTypeChips options={allowedTypes} value={projectType} onChange={setProjectType} />
+            <ProjectTypeChips options={allowedTypes.filter((t) => t !== "room")} value={projectType} onChange={setProjectType} />
             <p className="text-xs text-ink-muted mb-4">
               {PROJECT_TYPE_HINTS[projectType]}
               {postingAsPage
-                ? " Event and Room are page-only — that's why some types you might expect aren't listed here."
-                : " Talent, Meeting, Media, and File are personal-only — switch to a page to create an Event or Room."}
+                ? " Event is page-only — that's why some types you might expect aren't listed here. Groups are created from Connect."
+                : " Talent, Meeting, Media, and File are personal-only — switch to a page to create an Event. Groups are created from Connect."}
             </p>
             {eligibility && !eligibility.eligible && (
               <div className="mb-4 px-4 py-3 rounded-xl bg-danger/10 border border-danger/30">
@@ -788,6 +803,7 @@ export function CreateProject() {
               </div>
             )}
           </FormSection>
+          )}
 
           {/* 2 — Cover. The thumbnail frame takes the uploaded image's own aspect ratio (16:9 only as the placeholder). */}
           <FormSection
@@ -899,7 +915,7 @@ export function CreateProject() {
               type="submit"
               loading={projectType === "pitch" ? createPitchProject.isPending : createProject.isPending}
             >
-              {isDraftType ? "Create draft" : projectType === "pitch" ? "Publish pitch" : "Publish project"}
+              {isDraftType ? "Create draft" : projectType === "pitch" ? "Publish pitch" : projectType === "room" ? "Create group" : "Publish project"}
             </Button>
           </FormFooter>
         </form>
