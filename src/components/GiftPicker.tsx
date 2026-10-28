@@ -77,13 +77,11 @@ export function GiftPicker({
 
   const balance = Number(wallet?.balance ?? 0);
 
-  // Default arrangement: most expensive first, cheapest last. Once the
-  // user has sent gifts, their top 6 most-used gift types (by send
-  // count, from useTopGiftTypeIds) take over the first two rows of the
-  // 3-column grid, in usage order — everything else fills in behind
-  // them, still most-expensive-first.
-  const sortedGiftTypes = useMemo(() => {
-    if (!giftTypes) return giftTypes;
+  // Arrangement: the user's own top 6 most-used gifts (by send count,
+  // from useTopGiftTypeIds) lead under a "Most used" label, usage order;
+  // everything else follows under "All gifts", most expensive first.
+  const { topUsed, rest } = useMemo(() => {
+    if (!giftTypes) return { topUsed: [] as GiftType[], rest: [] as GiftType[] };
 
     const byId = new Map(giftTypes.map((g) => [g.id, g]));
     const topUsed = (topGiftTypeIds ?? [])
@@ -95,8 +93,9 @@ export function GiftPicker({
       .filter((g) => !usedIds.has(g.id))
       .sort((a, b) => b.cost_usd - a.cost_usd);
 
-    return [...topUsed, ...rest];
+    return { topUsed, rest };
   }, [giftTypes, topGiftTypeIds]);
+  const hasGifts = topUsed.length + rest.length > 0;
 
   function handleSelect(gift: GiftType) {
     if (!giftingEnabled) return;
@@ -133,13 +132,42 @@ export function GiftPicker({
   }
 
   const insufficientBalance = !!selected && balance < selected.cost_usd;
+  // Same wording on every entry point (post, comment, project) so the
+  // overlay always says who the gift is going to.
+  const recipientLabel = projectId ? `the creators of ${recipientName}` : recipientName;
+
+  function renderTile(gift: GiftType) {
+    const affordable = balance >= gift.cost_usd;
+    return (
+      <button
+        key={gift.id}
+        onClick={() => handleSelect(gift)}
+        aria-label={`${gift.name}, $${gift.cost_usd.toFixed(2)}${affordable ? "" : ", not enough balance"}`}
+        className={`flex flex-col items-center gap-1 rounded-2xl py-2 active:scale-[0.97] transition-transform ${
+          affordable ? "" : "opacity-50"
+        }`}
+      >
+        {/* No box — the artifact sits directly on the sheet background.
+            object-contain so a staff or shield silhouette renders whole. */}
+        <div className="w-16 h-16 flex items-center justify-center">
+          {gift.icon_url ? (
+            <img src={gift.icon_url} alt="" loading="lazy" className="w-full h-full object-contain" />
+          ) : (
+            <span className="text-2xl">🎁</span>
+          )}
+        </div>
+        <span className="w-full truncate px-1 text-center text-[11px] leading-tight text-ink">{gift.name}</span>
+        <span className="text-xs font-medium text-ink-muted">${gift.cost_usd.toFixed(2)}</span>
+      </button>
+    );
+  }
 
   return (
     <Portal>
     <div className="fixed inset-0 ako-keyboard-aware z-[60] flex items-center justify-center px-6" role="dialog" aria-modal="true">
       <div className="absolute inset-0 bg-canvas/70 backdrop-blur-overlay" onClick={onClose} />
 
-      <div className="relative w-full max-w-xl bg-surface rounded-[28px] border border-border max-h-[calc(100dvh-10rem)] flex flex-col">
+      <div className="relative w-full max-w-xl bg-surface rounded-[28px] border border-border h-[min(42rem,calc(100dvh-7rem))] flex flex-col overflow-hidden">
         {/* Header */}
         <div className="flex items-center justify-between px-4 pt-4 pb-3 border-b border-border flex-shrink-0">
           {step === "confirm" ? (
@@ -165,8 +193,18 @@ export function GiftPicker({
           </div>
         </div>
 
+        {/* Who the gift is going to — same line for every entry point. */}
+        {step === "catalog" && (
+          <div className="flex items-center gap-2 px-4 py-2 border-b border-border flex-shrink-0">
+            <Avatar src={recipientAvatar} name={recipientName} size="sm" />
+            <p className="min-w-0 truncate text-sm text-ink-muted">
+              To <span className="font-medium text-ink">{recipientLabel}</span>
+            </p>
+          </div>
+        )}
+
         {/* Body */}
-        <div className="overflow-y-auto flex-1 px-4 py-4">
+        <div className="overflow-y-auto flex-1 px-4 py-3">
           {step === "catalog" && (
             <>
               {!giftingEnabled ? (
@@ -174,43 +212,40 @@ export function GiftPicker({
                   Gifting is temporarily unavailable. Check back later.
                 </p>
               ) : loadingGifts ? (
-                // Reserve roughly the finished card's height so the modal opens at its real size, not small.
-                <div className="min-h-[45dvh] flex items-center justify-center">
-                  <p className="text-ink-muted text-sm text-center">Loading gifts…</p>
+                // Skeleton tiles in the real grid, so the card (fixed size)
+                // looks the same while loading as when it is full.
+                <div className="grid grid-cols-3 gap-x-3 gap-y-2" aria-busy="true" aria-label="Loading gifts">
+                  {Array.from({ length: 12 }).map((_, i) => (
+                    <div key={i} className="flex flex-col items-center gap-1.5 py-2">
+                      <div className="w-16 h-16 rounded-full bg-canvas animate-pulse" />
+                      <div className="h-2.5 w-14 rounded bg-canvas animate-pulse" />
+                      <div className="h-2.5 w-8 rounded bg-canvas animate-pulse" />
+                    </div>
+                  ))}
                 </div>
-              ) : !sortedGiftTypes || sortedGiftTypes.length === 0 ? (
+              ) : !hasGifts ? (
                 <p className="text-ink-muted text-sm text-center py-10">No gifts available right now.</p>
               ) : (
-                <div className="grid grid-cols-3 gap-3">
-                  {sortedGiftTypes.map((gift) => (
-                    <button
-                      key={gift.id}
-                      onClick={() => handleSelect(gift)}
-                      aria-label={`${gift.name}, $${gift.cost_usd.toFixed(2)}`}
-                      className="flex flex-col items-center gap-1.5"
-                    >
-                      {/* No box — the artifact sits directly on the sheet
-                          background. object-contain (not object-cover in a
-                          circle) so it renders whole — a staff or shield
-                          silhouette shouldn't get corner-cropped the way a
-                          generic icon could. */}
-                      <div className="w-20 h-20 flex items-center justify-center">
-                        {gift.icon_url ? (
-                          <img src={gift.icon_url} alt="" className="w-full h-full object-contain" />
-                        ) : (
-                          <span className="text-2xl">🎁</span>
-                        )}
-                      </div>
-                      <span className="text-xs text-ink-muted">${gift.cost_usd.toFixed(2)}</span>
-                    </button>
-                  ))}
+                <div className="flex flex-col gap-4">
+                  {topUsed.length > 0 && (
+                    <section>
+                      <h3 className="mb-1 px-1 text-xs font-medium uppercase tracking-wide text-ink-muted">Most used</h3>
+                      <div className="grid grid-cols-3 gap-x-3 gap-y-1">{topUsed.map(renderTile)}</div>
+                    </section>
+                  )}
+                  <section>
+                    {topUsed.length > 0 && (
+                      <h3 className="mb-1 px-1 text-xs font-medium uppercase tracking-wide text-ink-muted">All gifts</h3>
+                    )}
+                    <div className="grid grid-cols-3 gap-x-3 gap-y-1">{rest.map(renderTile)}</div>
+                  </section>
                 </div>
               )}
             </>
           )}
 
           {step === "confirm" && selected && (
-            <div className="flex flex-col items-center text-center gap-4 py-2">
+            <div className="min-h-full flex flex-col items-center justify-center text-center gap-4 py-2">
               <div className="w-20 h-20 flex items-center justify-center">
                 {selected.icon_url ? (
                   <img src={selected.icon_url} alt="" className="w-full h-full object-contain" />
@@ -224,7 +259,7 @@ export function GiftPicker({
                 <div className="flex items-center justify-center gap-2 mt-1">
                   <Avatar src={recipientAvatar} name={recipientName} size="sm" />
                   <span className="text-sm text-ink-muted">
-                    to {projectId ? `the creators of ${recipientName}` : recipientName}
+                    to {recipientLabel}
                   </span>
                 </div>
               </div>
@@ -255,7 +290,7 @@ export function GiftPicker({
           )}
 
           {step === "sent" && selected && (
-            <div className="flex flex-col items-center text-center gap-3 py-8">
+            <div className="min-h-full flex flex-col items-center justify-center text-center gap-3 py-8">
               <div className="relative w-16 h-16 flex items-center justify-center ako-gift-pop">
                 {selected.icon_url ? (
                   <img src={selected.icon_url} alt="" className="w-full h-full object-contain" />
@@ -271,7 +306,7 @@ export function GiftPicker({
               </div>
               <p className="font-display text-lg text-ink">Gift sent!</p>
               <p className="text-sm text-ink-muted">
-                You sent a {selected.name} to {projectId ? `the creators of ${recipientName}` : recipientName}.
+                You sent {article(selected.name)} {selected.name} to {recipientLabel}.
                 <br />
                 ${selected.cost_usd.toFixed(2)} deducted from your wallet
                 {projectId ? ", split across the creators" : ""}.
