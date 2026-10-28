@@ -4,6 +4,7 @@
 // Use this anywhere a message is quoted or previewed (reply quotes, chat list, hidden messages…).
 import { FileText, Image as ImageIcon, Mic } from "lucide-react";
 import { messagePreview } from "../lib/chatMedia";
+import { useVoiceNotesEnabled } from "../hooks/useFeatureFlags";
 
 interface MessagePreviewLineProps {
   content: string;
@@ -13,7 +14,9 @@ interface MessagePreviewLineProps {
 }
 
 export function MessagePreviewLine({ content, variant = "quote", className = "" }: MessagePreviewLineProps) {
+  const voiceNotesEnabled = useVoiceNotesEnabled();
   const p = messagePreview(content);
+  if (p.icon === "mic" && !voiceNotesEnabled) return null;
   const Glyph = p.icon === "mic" ? Mic : p.icon === "image" ? ImageIcon : p.icon === "file" ? FileText : null;
   const text = variant === "list" && p.icon === "mic" && p.meta ? p.meta : p.label;
 

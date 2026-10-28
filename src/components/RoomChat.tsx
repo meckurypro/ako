@@ -4,6 +4,7 @@ import { Smile, Keyboard, Send, Lock, Mic } from "lucide-react";
 import { useAuth } from "../hooks/useAuth";
 import { useMessages, useSendMessage, useSendVoiceNote } from "../hooks/useMessaging";
 import { useVoiceRecorder } from "../hooks/useVoiceRecorder";
+import { useVoiceNotesEnabled } from "../hooks/useFeatureFlags";
 import { VoiceRecordingBar } from "./VoiceRecordingBar";
 import { VoicePreviewBar } from "./VoicePreviewBar";
 import { VoiceMessageBubble } from "./VoiceMessageBubble";
@@ -56,6 +57,7 @@ export function RoomChat({ projectId, conversationId, canPost, cantPostReason }:
     bottomRef.current?.scrollIntoView({ block: "end" });
   }, [messages?.length]);
 
+  const voiceNotesEnabled = useVoiceNotesEnabled();
   const voiceRecorder = useVoiceRecorder(async (blob, durationSec, peaks, viewOnce) => {
     await sendVoiceNote.mutateAsync({ blob, durationSec, peaks, viewOnce, replyToMessageId: null });
   });
@@ -74,6 +76,7 @@ export function RoomChat({ projectId, conversationId, canPost, cantPostReason }:
           const isMine = m.sender_id === user?.id;
           const senderProfile = memberByUserId.get(m.sender_id);
           const voiceNote = decodeVoiceNote(m.content);
+          if (voiceNote && !voiceNotesEnabled) return null;
           return (
             <div key={m.id} className={`flex items-end gap-2 ${isMine ? "flex-row-reverse" : ""}`}>
               {!isMine && <Avatar src={senderProfile?.avatar_url} name={senderProfile?.display_name ?? "Member"} size="sm" />}
@@ -152,10 +155,10 @@ export function RoomChat({ projectId, conversationId, canPost, cantPostReason }:
               placeholder="Message the group…"
               className="flex-1 px-4 py-2.5 rounded-full border border-border bg-surface text-ink text-sm focus:outline-none focus:ring-2 focus:ring-accent/40 focus:border-accent"
             />
-            {content.trim() ? (
+            {content.trim() || !voiceNotesEnabled ? (
               <button
                 type="submit"
-                disabled={sendMessage.isPending}
+                disabled={sendMessage.isPending || !content.trim()}
                 className="bg-cta text-white rounded-full p-2.5 disabled:opacity-50 flex-shrink-0"
                 aria-label="Send"
               >

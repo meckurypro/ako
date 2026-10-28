@@ -33,6 +33,7 @@ import { useProjectOwnership } from "../hooks/useProjectOwnership";
 import { useProject } from "../hooks/useProjects";
 import { useCountdown, formatCountdown } from "../hooks/useCountdown";
 import { useVoiceRecorder } from "../hooks/useVoiceRecorder";
+import { useVoiceNotesEnabled } from "../hooks/useFeatureFlags";
 import { VoiceRecordingBar } from "../components/VoiceRecordingBar";
 import { VoicePreviewBar } from "../components/VoicePreviewBar";
 import { VoiceMessageBubble } from "../components/VoiceMessageBubble";
@@ -331,6 +332,7 @@ function ClassroomTab({ projectId, isHost }: { projectId: string; isHost: boolea
   const [showPollComposer, setShowPollComposer] = useState(false);
   const memberByUserId = useMemo(() => new Map((members ?? []).map((m) => [m.user_id, m.profile])), [members]);
 
+  const voiceNotesEnabled = useVoiceNotesEnabled();
   const voiceRecorder = useVoiceRecorder(async (blob, durationSec, peaks) => {
     await postVoiceNote.mutateAsync({ blob, durationSec, peaks });
   });
@@ -375,6 +377,7 @@ function ClassroomTab({ projectId, isHost }: { projectId: string; isHost: boolea
         {posts?.map((p) => {
           const sender = memberByUserId.get(p.sender_id);
           const voiceNote = p.type === "voice_note" && p.content ? decodeVoiceNote(p.content) : null;
+          if ((voiceNote || p.type === "voice_note") && !voiceNotesEnabled) return null;
           return (
             <div key={p.id} className="p-3 rounded-xl border border-border bg-surface text-sm">
               <div className="flex items-center gap-1.5 mb-1.5">
@@ -424,10 +427,10 @@ function ClassroomTab({ projectId, isHost }: { projectId: string; isHost: boolea
               placeholder="Post a lecture…"
               className="flex-1 px-4 py-2.5 rounded-full border border-border bg-canvas text-sm text-ink"
             />
-            {draft.trim() ? (
+            {draft.trim() || !voiceNotesEnabled ? (
               <button
                 type="submit"
-                disabled={postToRoom.isPending}
+                disabled={postToRoom.isPending || !draft.trim()}
                 className="p-2.5 rounded-full bg-cta text-white disabled:opacity-50"
                 aria-label="Post"
               >

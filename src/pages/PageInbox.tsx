@@ -10,6 +10,7 @@ import { usePageConversations, type PageConversationSummary } from "../hooks/use
 import { Avatar } from "../components/Avatar";
 import { BottomNav } from "../components/BottomNav";
 import { messagePreview } from "../lib/chatMedia";
+import { useVoiceNotesEnabled } from "../hooks/useFeatureFlags";
 
 function timeAgo(dateString: string): string {
   const seconds = Math.floor((Date.now() - new Date(dateString).getTime()) / 1000);
@@ -23,6 +24,7 @@ function timeAgo(dateString: string): string {
 
 function ConversationRow({ c }: { c: PageConversationSummary }) {
   const navigate = useNavigate();
+  const voiceNotesEnabled = useVoiceNotesEnabled();
   return (
     <button
       onClick={() => navigate(`/page-inbox/${c.id}`)}
@@ -40,6 +42,7 @@ function ConversationRow({ c }: { c: PageConversationSummary }) {
           {c.last_message
             ? `${c.last_message.sender_type === "page" ? "You: " : ""}${(() => {
                 const p = messagePreview(c.last_message.content);
+                if (p.icon === "mic" && !voiceNotesEnabled) return "";
                 return p.icon === "mic" && p.meta ? `${p.label} (${p.meta})` : p.label;
               })()}`
             : "Say hello"}

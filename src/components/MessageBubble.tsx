@@ -6,6 +6,7 @@ import type { MessageReaction } from "../hooks/useMessageReactions";
 import { MessageStatusTicks } from "./MessageStatusTicks";
 import { VoiceMessageBubble } from "./VoiceMessageBubble";
 import { decodeVoiceNote } from "../lib/voiceNotes";
+import { useVoiceNotesEnabled } from "../hooks/useFeatureFlags";
 import { decodeMedia } from "../lib/chatMedia";
 import { MediaMessage } from "./MediaMessage";
 import { MessagePreviewLine } from "./MessagePreviewLine";
@@ -187,8 +188,11 @@ function MessageBubbleImpl({
   onAddReaction,
   onRequestManageReaction,
 }: MessageBubbleProps) {
+  const voiceNotesEnabled = useVoiceNotesEnabled();
   const isMine = m.sender_id === currentUserId;
   const voiceNote = !m.is_deleted ? decodeVoiceNote(m.content) : null;
+  // Voice notes switched off by an admin: the bubble silently isn’t there.
+  if (voiceNote && !voiceNotesEnabled) return null;
   const offset = dragOffset;
   const repliedTo = m.reply_to?.[0];
   const media = !m.is_deleted ? decodeMedia(m.content) : null;

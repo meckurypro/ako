@@ -72,7 +72,7 @@ import { useBackDismiss } from "../hooks/useBackDismiss";
 import { useKeyboardInset } from "../hooks/useKeyboardInset";
 import { useVoiceRecorder } from "../hooks/useVoiceRecorder";
 import { MessageBubble, SWIPE_THRESHOLD, SWIPE_MAX } from "../components/MessageBubble";
-import { useFeatureFlag } from "../hooks/useFeatureFlags";
+import { useFeatureFlag, useVoiceNotesEnabled } from "../hooks/useFeatureFlags";
 
 // Fetches header identity for the thread — a small dedicated query
 // since useConversations' list-summary shape isn't available when
@@ -173,6 +173,7 @@ export function MessageThread() {
   const teamPage = header?.team_page;
   const { data: myParticipantState } = useMyParticipantState(conversationId!);
   const messagingEnabled = useFeatureFlag("messaging_enabled");
+  const voiceNotesEnabled = useVoiceNotesEnabled();
 
   // Same ring-on-avatar treatment as ConversationList — checks just
   // this one participant for an unseen post from the last 24h. No
@@ -1397,10 +1398,10 @@ export function MessageThread() {
               </button>
             )}
           </div>
-          {content.trim() ? (
+          {content.trim() || !voiceNotesEnabled ? (
             <button
               type="submit"
-              disabled={sendMessage.isPending}
+              disabled={sendMessage.isPending || !content.trim()}
               className="bg-cta text-white rounded-full w-11 h-11 flex items-center justify-center transition-colors hover:brightness-90 active:scale-95 disabled:opacity-50 disabled:active:scale-100 flex-shrink-0"
               aria-label="Send"
             >
