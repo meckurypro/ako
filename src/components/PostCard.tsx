@@ -758,7 +758,12 @@ export function PostCard({
                   </span>
                 </>
               )}
-              {post.visibility === "public" && <Globe size={11} className="shrink-0" />}
+              {post.visibility === "public" && (
+                <>
+                  <span aria-hidden="true" className="shrink-0">·</span>
+                  <Globe size={11} className="shrink-0" aria-label="Public" />
+                </>
+              )}
             </p>
           </div>
         </div>
