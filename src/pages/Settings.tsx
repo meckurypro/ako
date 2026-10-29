@@ -64,7 +64,7 @@ import { SettingsSection } from "../components/SettingsSection";
 import { MentionTextarea } from "../components/MentionTextarea";
 import { useToast } from "../components/Toast";
 import { DownloadAppModal } from "../components/DownloadAppModal";
-import { friendlyError } from "../lib/friendlyError";
+import { ErrorBanner } from "../components/ErrorBanner";
 
 // Own-profile lookup by id, since this page doesn't have :username in the URL
 function useOwnProfile() {
@@ -234,8 +234,9 @@ export function Settings() {
     .slice(0, canAddMoreWebsites ? MAX_WEBSITES : 1);
   const [avatarUrl, setAvatarUrl] = useState("");
   const [roleIds, setRoleIds] = useState<string[]>([]);
-  const [profileError, setProfileError] = useState<string | null>(null);
-  const [uploadError, setUploadError] = useState<string | null>(null);
+  // Raw on purpose: ErrorBanner classifies it (offline vs timeout vs server) — validation messages are plain strings.
+  const [profileError, setProfileError] = useState<unknown>(null);
+  const [uploadError, setUploadError] = useState<unknown>(null);
   const [profileSaved, setProfileSaved] = useState(false);
 
   // Same idea as SignUp's live username check — a UX nicety, not the
@@ -314,14 +315,14 @@ export function Settings() {
       // The photo is saved with the rest of the profile — open that section so "Save changes" is in view.
       setOpenSection("profile");
     } catch (err) {
-      setUploadError(friendlyError(err, "Upload failed."));
+      setUploadError(err);
     } finally {
       e.target.value = "";
     }
   }
 
-  async function handleSaveProfile(e: FormEvent) {
-    e.preventDefault();
+  async function handleSaveProfile(e?: FormEvent) {
+    e?.preventDefault();
     setProfileError(null);
     setProfileSaved(false);
 
@@ -355,7 +356,7 @@ export function Settings() {
         .maybeSingle();
 
       if (recheckError) {
-        setProfileError("Couldn't verify that username right now. Please try again.");
+        setProfileError(recheckError);
         return;
       }
       if (existing) {
@@ -396,7 +397,7 @@ export function Settings() {
             : undefined,
       });
     } catch (err) {
-      setProfileError(friendlyError(err, "Couldn't save changes."));
+      setProfileError(err);
     }
   }
 
@@ -444,7 +445,7 @@ export function Settings() {
   const toast = useToast();
   const [showDeactivateConfirm, setShowDeactivateConfirm] = useState(false);
   const [deactivating, setDeactivating] = useState(false);
-  const [deactivateError, setDeactivateError] = useState<string | null>(null);
+  const [deactivateError, setDeactivateError] = useState<unknown>(null);
   const [loggingOut, setLoggingOut] = useState(false);
 
   async function handleDeactivate() {
@@ -458,7 +459,7 @@ export function Settings() {
       navigate("/login");
       toast("Account deactivated.", { variant: "success" });
     } catch (err) {
-      setDeactivateError(friendlyError(err, "Couldn't deactivate account."));
+      setDeactivateError(err);
       setDeactivating(false);
     }
   }
@@ -518,7 +519,7 @@ export function Settings() {
               className="hidden"
             />
           </div>
-          {uploadError && <p className="text-danger text-sm mt-3 text-center">{uploadError}</p>}
+          <ErrorBanner error={uploadError} fallback="Couldn't upload that photo. Please try again." onDismiss={() => setUploadError(null)} className="mt-3" />
           {avatarUrl !== (profile?.avatar_url ?? "") && (
             <p className="text-accent text-sm mt-3 text-center">New photo selected — save your changes to apply it.</p>
           )}
@@ -696,11 +697,12 @@ export function Settings() {
                 </div>
               )}
 
-              {profileError && (
-                <p className="text-danger text-sm mb-4" role="alert">
-                  {profileError}
-                </p>
-              )}
+              <ErrorBanner
+                error={profileError}
+                fallback="Couldn't save your changes. Please try again."
+                onRetry={typeof profileError === "string" ? undefined : () => void handleSaveProfile()}
+                onDismiss={() => setProfileError(null)}
+              />
               {profileSaved && <p className="text-accent text-sm mb-4">Profile updated.</p>}
 
               <Button type="submit" loading={updateProfile.isPending || updateProfileRoles.isPending}>
@@ -734,11 +736,11 @@ export function Settings() {
                 minLength={8}
                 autoComplete="new-password"
               />
-              {changePassword.isError && (
-                <p className="text-danger text-sm mb-4" role="alert">
-                  {friendlyError(changePassword.error, "Couldn't change your password.")}
-                </p>
-              )}
+              <ErrorBanner
+                error={changePassword.isError ? changePassword.error : null}
+                fallback="Couldn't change your password. Please try again."
+                onDismiss={() => changePassword.reset()}
+              />
               {passwordSuccess && <p className="text-accent text-sm mb-4">Password updated.</p>}
               <Button type="submit" loading={changePassword.isPending}>
                 Update password
@@ -953,7 +955,7 @@ export function Settings() {
                       be undone from the app.
                     </p>
                   </div>
-                  {deactivateError && <p className="text-danger text-sm mb-2">{deactivateError}</p>}
+                  <ErrorBanner error={deactivateError} fallback="Couldn't deactivate your account. Please try again." className="mb-2" />
                   <div className="flex gap-2 mt-3">
                     <button
                       onClick={handleDeactivate}
