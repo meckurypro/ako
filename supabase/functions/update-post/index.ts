@@ -49,9 +49,9 @@ const ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY")!;
 const EDIT_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
 const EDIT_WINDOW_MESSAGE = "This post can no longer be edited (7-day window has passed)";
 const HEADING_LIMIT = 50;
-// Tiered: 450 for everyone, 1,200 for profiles.is_verified (the permanent admin-assigned status, NOT
-// badge_visible). Keep in sync with create-post, src/lib/textLimits.ts and the posts_content_check
-// DB constraint (the absolute ceiling, 1,200).
+// Tiered: 450 for everyone, 1,200 + profiles.post_limit_bonus for profiles.is_verified (the permanent
+// admin-assigned status, NOT badge_visible). Keep in sync with create-post and src/lib/textLimits.ts;
+// posts_content_check is only a 20,000 backstop.
 const STANDARD_CONTENT_LIMIT = 450;
 const VERIFIED_CONTENT_LIMIT = 1200;
 
@@ -123,14 +123,16 @@ serve(async (req) => {
     // Fail CLOSED — if the profile lookup errors, don't guess a limit.
     const { data: authorProfile, error: profileError } = await admin
       .from("profiles")
-      .select("is_verified")
+      .select("is_verified, post_limit_bonus")
       .eq("id", user.id)
       .single();
     if (profileError || !authorProfile) {
       console.error("update-post profile lookup error:", profileError);
       return jsonResponse({ error: "Couldn't verify account details. Please try again." }, 503);
     }
-    const contentLimit = authorProfile.is_verified ? VERIFIED_CONTENT_LIMIT : STANDARD_CONTENT_LIMIT;
+    const contentLimit = authorProfile.is_verified
+      ? VERIFIED_CONTENT_LIMIT + Math.max(0, authorProfile.post_limit_bonus ?? 0)
+      : STANDARD_CONTENT_LIMIT;
     if (content.length > contentLimit) {
       return jsonResponse({ error: `Content exceeds ${contentLimit} character limit` }, 400);
     }

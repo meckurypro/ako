@@ -193,7 +193,7 @@ export function Compose() {
   // confusing, so we don't watch for that here).
   const postingAsPage = identity?.mode === "page" ? identity.page : null;
   // Verified personal accounts get the longer cap; page posts keep the standard one.
-  const contentLimit = postingAsPage ? CONTENT_LIMIT : postContentLimit(me?.is_verified);
+  const contentLimit = postingAsPage ? CONTENT_LIMIT : postContentLimit(me?.is_verified, me?.post_limit_bonus);
   const pagePerms = useActivePagePermissions();
 
   // A post can be heading-only or details-only — either is enough to post.

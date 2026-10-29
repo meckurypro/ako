@@ -46,7 +46,7 @@ export function EditPost() {
   const smartBack = useSmartBack();
   const { user } = useAuth();
   const { data: me } = useMyProfile();
-  const contentLimit = postContentLimit(me?.is_verified);
+  const contentLimit = postContentLimit(me?.is_verified, me?.post_limit_bonus);
   const { data: post, isLoading } = usePostForEdit(postId!);
   const updatePost = useUpdatePost();
   // Same "accepted only" rule as PostCard/PostCollaboratorsBadge —

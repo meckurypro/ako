@@ -8,11 +8,12 @@
 // Also handles: draft/scheduled status, heading_color, optional catalogue music, tagged_project_id
 // (verified: active, non-private, and either the caller's own or one the caller has an active affiliate fork of).
 //
-// Content length is tiered: 450 characters for everyone, 1,200 for users whose profiles.is_verified
-// is true. is_verified is the permanent admin-assigned status, NOT badge_visible — a verified user
-// whose badge is hidden for missing the weekly posting streak keeps the 1,200 limit. Keep the numbers
-// in sync with src/lib/textLimits.ts (and the native copy) and the posts_content_check DB constraint
-// (the absolute ceiling, 1,200).
+// Content length is tiered: 450 characters for everyone, 1,200 + profiles.post_limit_bonus for users
+// whose profiles.is_verified is true. is_verified is the permanent admin-assigned status, NOT
+// badge_visible — a verified user whose badge is hidden for missing the weekly posting streak keeps
+// the longer limit. The bonus grows +10 on a verified user's first published post of each UTC day
+// (tg_post_limit_bonus trigger) and resets to 0 if verification is lost. Keep the numbers in sync with
+// src/lib/textLimits.ts (and the native copy); posts_content_check is only a 20,000 backstop.
 //
 // NEW — client_request_id (idempotency). Optional UUID chosen by the client and resent on every retry
 // of the same logical post. A repeat of (author, client_request_id) returns the post that already
@@ -132,14 +133,16 @@ serve(async (req) => {
     // if the profile lookup errors, don't guess a limit.
     const { data: authorProfile, error: profileError } = await admin
       .from("profiles")
-      .select("is_verified")
+      .select("is_verified, post_limit_bonus")
       .eq("id", user.id)
       .single();
     if (profileError || !authorProfile) {
       console.error("create-post profile lookup error:", profileError);
       return jsonResponse({ error: "Couldn't verify account details. Please try again." }, 503);
     }
-    const contentLimit = authorProfile.is_verified ? VERIFIED_CONTENT_LIMIT : STANDARD_CONTENT_LIMIT;
+    const contentLimit = authorProfile.is_verified
+      ? VERIFIED_CONTENT_LIMIT + Math.max(0, authorProfile.post_limit_bonus ?? 0)
+      : STANDARD_CONTENT_LIMIT;
     if (content.length > contentLimit) {
       return jsonResponse({ error: `Content exceeds ${contentLimit} character limit` }, 400);
     }
