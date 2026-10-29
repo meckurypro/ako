@@ -26,6 +26,9 @@ export type AutomationPipeline = string;
 /** Values for the template's own settings (automated_accounts.news_settings). Keys come from the template. */
 export type TemplateSettings = Record<string, unknown>;
 
+/** What an automated account's daily comment does: add (stored as support), ask a question, push back, or vary. */
+export type CommentStance = "support" | "question" | "pushback" | "mixed";
+
 export interface AutomatedAccount {
   id: string;
   user_id: string;
@@ -50,6 +53,22 @@ export interface AutomatedAccount {
   daily_like_time: string;
   next_like_at: string | null;
   last_like_at: string | null;
+  /** Daily comment + replies (supabase/ako_automation_comments.sql). */
+  daily_comment_enabled: boolean;
+  /** HH:MM, in the account's timezone. */
+  daily_comment_time: string;
+  next_comment_at: string | null;
+  last_comment_at: string | null;
+  /** support = an add. mixed varies from comment to comment. */
+  comment_stance: CommentStance;
+  comment_max_chars: number;
+  /** Extra voice notes that apply to comments only. */
+  comment_voice: string;
+  reply_enabled: boolean;
+  /** Minutes: a reply goes out a random time between these after someone comments. */
+  reply_delay_min: number;
+  reply_delay_max: number;
+  reply_daily_cap: number;
   created_at: string;
   profile: {
     username: string;
@@ -103,7 +122,7 @@ export interface GeneratedPreview {
 }
 
 const ACCOUNT_SELECT =
-  "id, user_id, system_prompt, is_enabled, max_post_chars, max_heading_chars, timezone, schedule, ai_provider, ai_model, pipeline, news_settings, api_key_last4, next_run_at, last_run_at, locked_until, daily_like_enabled, daily_like_time, next_like_at, last_like_at, created_at, profile:profiles(username, display_name, avatar_url, is_verified)";
+  "id, user_id, system_prompt, is_enabled, max_post_chars, max_heading_chars, timezone, schedule, ai_provider, ai_model, pipeline, news_settings, api_key_last4, next_run_at, last_run_at, locked_until, daily_like_enabled, daily_like_time, next_like_at, last_like_at, daily_comment_enabled, daily_comment_time, next_comment_at, last_comment_at, comment_stance, comment_max_chars, comment_voice, reply_enabled, reply_delay_min, reply_delay_max, reply_daily_cap, created_at, profile:profiles(username, display_name, avatar_url, is_verified)";
 
 // Returned on purpose: a mutation then resolves only after the refreshed data has arrived, so a screen that reads the
 // account straight after saving never sees the old values.
@@ -248,7 +267,7 @@ export function useCreateAutomatedAccount() {
 export type AutomatedAccountPatch = Partial<
   Pick<
     AutomatedAccount,
-    "system_prompt" | "is_enabled" | "max_post_chars" | "max_heading_chars" | "timezone" | "schedule" | "pipeline" | "news_settings" | "daily_like_enabled" | "daily_like_time"
+    "system_prompt" | "is_enabled" | "max_post_chars" | "max_heading_chars" | "timezone" | "schedule" | "pipeline" | "news_settings" | "daily_like_enabled" | "daily_like_time" | "daily_comment_enabled" | "daily_comment_time" | "comment_stance" | "comment_max_chars" | "comment_voice" | "reply_enabled" | "reply_delay_min" | "reply_delay_max" | "reply_daily_cap"
   >
 >;
 
@@ -453,6 +472,81 @@ export function useLikeNow() {
     onSettled: () => {
       invalidate(queryClient);
       queryClient.invalidateQueries({ queryKey: ["automation", "like-log"] });
+    },
+  });
+}
+
+// ---- Comments ---------------------------------------------------------------------------------------------------
+
+export interface AutomationCommentLogEntry {
+  id: string;
+  account_id: string;
+  kind: "comment" | "reply";
+  trigger: "schedule" | "manual" | "reply";
+  status: "queued" | "running" | "posted" | "nothing_to_comment" | "skipped" | "failed";
+  due_at: string;
+  post_id: string | null;
+  comment_id: string | null;
+  stance: string | null;
+  content: string | null;
+  error: string | null;
+  created_at: string;
+}
+
+export function useAutomationCommentLog(accountId: string | undefined) {
+  return useQuery({
+    queryKey: ["automation", "comment-log", accountId],
+    enabled: !!accountId,
+    refetchInterval: 30_000,
+    queryFn: async (): Promise<AutomationCommentLogEntry[]> => {
+      const { data, error } = await supabase
+        .from("automation_comment_log")
+        .select("id, account_id, kind, trigger, status, due_at, post_id, comment_id, stance, content, error, created_at")
+        .eq("account_id", accountId!)
+        .order("created_at", { ascending: false })
+        .limit(10);
+      if (error) throw error;
+      return (data ?? []) as AutomationCommentLogEntry[];
+    },
+  });
+}
+
+export interface CommentPreview {
+  status: "ok" | "nothing_to_comment" | "skipped" | "failed";
+  comment?: string;
+  stance?: string;
+  message?: string;
+  error?: string;
+  target?: { mode: "post" | "under_comment" | "reply"; post_id: string; heading: string | null; text: string };
+}
+
+/** Writes a comment the way the account would, without posting it. */
+export function useCommentPreview() {
+  return useMutation({
+    mutationFn: async (accountId: string): Promise<CommentPreview> => {
+      const { data, error } = await supabase.functions.invoke("run-comment-automation", {
+        body: { mode: "preview", account_id: accountId },
+      });
+      if (error) throw new Error("Couldn't reach the comment writer. Please try again.");
+      return data as CommentPreview;
+    },
+  });
+}
+
+/** One comment right now, outside the daily slot. Posts for real. */
+export function useCommentNow() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (accountId: string): Promise<{ status: string; content?: string; error?: string }> => {
+      const { data, error } = await supabase.functions.invoke("run-comment-automation", {
+        body: { mode: "comment_now", account_id: accountId },
+      });
+      if (error) throw new Error("Couldn't reach the comment writer. Please try again.");
+      return data as { status: string; content?: string; error?: string };
+    },
+    onSettled: () => {
+      invalidate(queryClient);
+      queryClient.invalidateQueries({ queryKey: ["automation", "comment-log"] });
     },
   });
 }

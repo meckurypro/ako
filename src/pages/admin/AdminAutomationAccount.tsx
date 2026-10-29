@@ -16,7 +16,10 @@ import {
   useAutomatedAccount,
   useAutomationCatalog,
   useAutomationIdeas,
+  useAutomationCommentLog,
   useAutomationLikeLog,
+  useCommentNow,
+  useCommentPreview,
   useLikeNow,
   useAutomationRuns,
   useAutomationSources,
@@ -29,6 +32,7 @@ import {
   useUpdateAutomatedAccount,
   useUpdateAutomationIdea,
   type AiProvider,
+  type CommentStance,
   type AutomationIdea,
   type GeneratedPreview,
   type ScheduleSlot,
@@ -131,6 +135,9 @@ export function AdminAutomationAccount() {
   const generate = useGenerateAutomationPreview();
   const runNow = useRunAutomationNow();
   const likeNow = useLikeNow();
+  const commentNow = useCommentNow();
+  const commentPreview = useCommentPreview();
+  const { data: commentLog = [] } = useAutomationCommentLog(accountId);
   const saveAi = useSaveAutomationAi();
   const clearKey = useClearAutomationApiKey();
 
@@ -142,6 +149,17 @@ export function AdminAutomationAccount() {
   const [slots, setSlots] = useState<SlotDraft[]>([]);
   const [likeEnabled, setLikeEnabled] = useState(false);
   const [likeTime, setLikeTime] = useState("12:00");
+  const [commentEnabled, setCommentEnabled] = useState(false);
+  const [commentTime, setCommentTime] = useState("14:00");
+  const [commentStance, setCommentStance] = useState<CommentStance>("support");
+  const [commentMax, setCommentMax] = useState(100);
+  const [commentVoice, setCommentVoice] = useState("");
+  const [replyEnabled, setReplyEnabled] = useState(false);
+  const [replyMin, setReplyMin] = useState(3);
+  const [replyMax, setReplyMax] = useState(12);
+  const [replyCap, setReplyCap] = useState(30);
+  const [commentMessage, setCommentMessage] = useState<{ text: string; error: boolean } | null>(null);
+  const [previewText, setPreviewText] = useState<string | null>(null);
   const [likeMessage, setLikeMessage] = useState<{ text: string; error: boolean } | null>(null);
   const [settingEdits, setSettingEdits] = useState<Record<string, number>>({});
   const [chosenTemplate, setChosenTemplate] = useState<string | null>(null);
@@ -156,6 +174,15 @@ export function AdminAutomationAccount() {
       setSlots(toDrafts(account.schedule ?? []));
       setLikeEnabled(account.daily_like_enabled);
       setLikeTime(account.daily_like_time);
+      setCommentEnabled(account.daily_comment_enabled);
+      setCommentTime(account.daily_comment_time);
+      setCommentStance(account.comment_stance);
+      setCommentMax(account.comment_max_chars);
+      setCommentVoice(account.comment_voice);
+      setReplyEnabled(account.reply_enabled);
+      setReplyMin(account.reply_delay_min);
+      setReplyMax(account.reply_delay_max);
+      setReplyCap(account.reply_daily_cap);
       setSettingEdits({});
       setSeededFor(account.id);
     }
@@ -205,10 +232,19 @@ export function AdminAutomationAccount() {
       timezone !== account.timezone ||
       likeEnabled !== account.daily_like_enabled ||
       likeTime !== account.daily_like_time ||
+      commentEnabled !== account.daily_comment_enabled ||
+      commentTime !== account.daily_comment_time ||
+      commentStance !== account.comment_stance ||
+      clampInt(commentMax, 20, 280, 100) !== account.comment_max_chars ||
+      commentVoice.trim() !== account.comment_voice.trim() ||
+      replyEnabled !== account.reply_enabled ||
+      clampInt(replyMin, 1, 1440, 3) !== account.reply_delay_min ||
+      Math.max(clampInt(replyMax, 1, 1440, 12), clampInt(replyMin, 1, 1440, 3)) !== account.reply_delay_max ||
+      clampInt(replyCap, 1, 200, 30) !== account.reply_daily_cap ||
       JSON.stringify(toSchedule(slots)) !== JSON.stringify(savedSchedule) ||
       templateSettings.some((f) => settingNow(f, settingEdits, savedSettings) !== settingNow(f, {}, savedSettings))
     );
-  }, [account, seededFor, prompt, maxPost, maxHeader, timezone, slots, likeEnabled, likeTime, settingEdits, templateSettings]);
+  }, [account, seededFor, prompt, maxPost, maxHeader, timezone, slots, likeEnabled, likeTime, commentEnabled, commentTime, commentStance, commentMax, commentVoice, replyEnabled, replyMin, replyMax, replyCap, settingEdits, templateSettings]);
 
   // What is still missing before the account can be switched on. Shown as a list, so there are no cryptic errors.
   const missing: string[] = [];
@@ -249,6 +285,16 @@ export function AdminAutomationAccount() {
       schedule: toSchedule(slots),
       daily_like_enabled: likeEnabled,
       daily_like_time: likeTime || "12:00",
+      daily_comment_enabled: commentEnabled,
+      daily_comment_time: commentTime || "14:00",
+      comment_stance: commentStance,
+      comment_max_chars: clampInt(commentMax, 20, 280, 100),
+      comment_voice: commentVoice.trim(),
+      reply_enabled: replyEnabled,
+      reply_delay_min: clampInt(replyMin, 1, 1440, 3),
+      // The longest wait can never be shorter than the shortest.
+      reply_delay_max: Math.max(clampInt(replyMax, 1, 1440, 12), clampInt(replyMin, 1, 1440, 3)),
+      reply_daily_cap: clampInt(replyCap, 1, 200, 30),
     };
     const savedSettings = account!.news_settings ?? {};
     const settingsPatch: Record<string, number> = {};
@@ -268,6 +314,12 @@ export function AdminAutomationAccount() {
       setMaxHeader(next.max_heading_chars);
       setSlots(toDrafts(next.schedule));
       setLikeTime(next.daily_like_time);
+      setCommentTime(next.daily_comment_time);
+      setCommentMax(next.comment_max_chars);
+      setCommentVoice(next.comment_voice);
+      setReplyMin(next.reply_delay_min);
+      setReplyMax(next.reply_delay_max);
+      setReplyCap(next.reply_daily_cap);
       setSettingEdits(settingsPatch);
     } catch (err) {
       setSaveError(errorMessage(err));
@@ -400,6 +452,36 @@ export function AdminAutomationAccount() {
       else setLikeMessage({ text: res.error ?? "The like didn't go through.", error: true });
     } catch (err) {
       setLikeMessage({ text: errorMessage(err), error: true });
+    }
+  }
+
+  async function handleCommentPreview() {
+    setCommentMessage(null);
+    setPreviewText(null);
+    try {
+      const res = await commentPreview.mutateAsync(account!.id);
+      if (res.status === "ok" && res.comment) {
+        setPreviewText(res.comment);
+        setCommentMessage({ text: `Preview only, nothing was posted. It would go on: ${res.target?.heading || res.target?.text?.slice(0, 60) || "a post"}`, error: false });
+      } else if (res.status === "nothing_to_comment") setCommentMessage({ text: "Nothing left to comment on right now.", error: false });
+      else if (res.status === "skipped") setCommentMessage({ text: res.message ?? "Nothing worth a comment came up.", error: false });
+      else setCommentMessage({ text: res.error ?? "Couldn't write a preview.", error: true });
+    } catch (err) {
+      setCommentMessage({ text: generatorMessage(err), error: true });
+    }
+  }
+
+  async function handleCommentNow() {
+    setCommentMessage(null);
+    setPreviewText(null);
+    try {
+      const res = await commentNow.mutateAsync(account!.id);
+      if (res.status === "posted") setCommentMessage({ text: `Posted: ${res.content}`, error: false });
+      else if (res.status === "nothing_to_comment") setCommentMessage({ text: "Nothing left to comment on right now.", error: false });
+      else if (res.status === "skipped") setCommentMessage({ text: res.error ?? "Nothing worth a comment came up.", error: false });
+      else setCommentMessage({ text: res.error ?? "The comment didn't go through.", error: true });
+    } catch (err) {
+      setCommentMessage({ text: generatorMessage(err), error: true });
     }
   }
 
@@ -800,6 +882,189 @@ export function AdminAutomationAccount() {
                             ? "skipped (missed its time)"
                             : `failed${l.error ? `: ${l.error}` : ""}`}
                       {l.trigger === "manual" ? " (manual)" : ""}
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          </section>
+
+          {/* Comments */}
+          <section>
+            <h3 className="text-sm font-medium text-ink mb-2">Comments</h3>
+            <p className="text-xs text-ink-muted mb-3">
+              Once a day this account reads a post by someone else and leaves one short comment. It comments once per
+              post, and when it has covered every post it comments under other people's comments. It also replies when
+              someone comments under its posts. Needs an AI key.
+            </p>
+            <div className="bg-surface rounded-xl p-3 border border-border space-y-3">
+              <label className="flex items-center justify-between gap-3">
+                <span className="text-sm text-ink">Comment every day</span>
+                <input
+                  type="checkbox"
+                  role="switch"
+                  checked={commentEnabled}
+                  onChange={(e) => setCommentEnabled(e.target.checked)}
+                  className="h-5 w-5 accent-[var(--color-cta)]"
+                />
+              </label>
+              <label className="flex items-center justify-between gap-3">
+                <span className="text-sm text-ink">
+                  Time <span className="text-xs text-ink-muted">({timezone})</span>
+                </span>
+                <input
+                  type="time"
+                  value={commentTime}
+                  disabled={!commentEnabled}
+                  onChange={(e) => setCommentTime(e.target.value)}
+                  className="px-3 py-2 rounded-lg border border-border bg-canvas text-ink disabled:opacity-40"
+                />
+              </label>
+              <label className="flex items-center justify-between gap-3">
+                <span className="text-sm text-ink">Kind of comment</span>
+                <select
+                  value={commentStance}
+                  onChange={(e) => setCommentStance(e.target.value as CommentStance)}
+                  className="px-3 py-2 rounded-lg border border-border bg-canvas text-ink"
+                >
+                  <option value="support">Add</option>
+                  <option value="question">Question</option>
+                  <option value="pushback">Pushback</option>
+                  <option value="mixed">Mixed</option>
+                </select>
+              </label>
+              <label className="flex items-center justify-between gap-3">
+                <span className="text-sm text-ink">
+                  Max length <span className="text-xs text-ink-muted">(characters)</span>
+                </span>
+                <input
+                  type="number"
+                  min={20}
+                  max={280}
+                  value={commentMax}
+                  onChange={(e) => setCommentMax(Number(e.target.value))}
+                  className="w-24 px-3 py-2 rounded-lg border border-border bg-canvas text-ink text-right"
+                />
+              </label>
+              <div>
+                <label className="text-sm text-ink block mb-1">How it talks in comments (optional)</label>
+                <textarea
+                  value={commentVoice}
+                  onChange={(e) => setCommentVoice(e.target.value)}
+                  rows={3}
+                  maxLength={1200}
+                  placeholder="e.g. dry, a bit sarcastic, loves a one line joke. Uses pidgin sometimes."
+                  className="w-full px-3 py-2 rounded-lg border border-border bg-canvas text-ink text-sm"
+                />
+              </div>
+              <p className="text-xs text-ink-muted">
+                {account.daily_comment_enabled && account.next_comment_at
+                  ? `Next comment ${formatInZone(account.next_comment_at, account.timezone)}.`
+                  : "Daily comment not scheduled. Save to apply."}
+                {account.last_comment_at ? ` Last comment ${formatInZone(account.last_comment_at, account.timezone)}.` : ""}
+              </p>
+
+              <div className="border-t border-border pt-3 space-y-3">
+                <label className="flex items-center justify-between gap-3">
+                  <span className="text-sm text-ink">Reply to people who comment on its posts</span>
+                  <input
+                    type="checkbox"
+                    role="switch"
+                    checked={replyEnabled}
+                    onChange={(e) => setReplyEnabled(e.target.checked)}
+                    className="h-5 w-5 accent-[var(--color-cta)]"
+                  />
+                </label>
+                <div className="flex items-center justify-between gap-3">
+                  <span className="text-sm text-ink">
+                    Replies after <span className="text-xs text-ink-muted">(minutes)</span>
+                  </span>
+                  <span className="flex items-center gap-2">
+                    <input
+                      type="number"
+                      min={1}
+                      max={1440}
+                      value={replyMin}
+                      disabled={!replyEnabled}
+                      onChange={(e) => setReplyMin(Number(e.target.value))}
+                      aria-label="Shortest wait in minutes"
+                      className="w-20 px-3 py-2 rounded-lg border border-border bg-canvas text-ink text-right disabled:opacity-40"
+                    />
+                    <span className="text-xs text-ink-muted">to</span>
+                    <input
+                      type="number"
+                      min={1}
+                      max={1440}
+                      value={replyMax}
+                      disabled={!replyEnabled}
+                      onChange={(e) => setReplyMax(Number(e.target.value))}
+                      aria-label="Longest wait in minutes"
+                      className="w-20 px-3 py-2 rounded-lg border border-border bg-canvas text-ink text-right disabled:opacity-40"
+                    />
+                  </span>
+                </div>
+                <label className="flex items-center justify-between gap-3">
+                  <span className="text-sm text-ink">
+                    Max replies a day <span className="text-xs text-ink-muted">(keeps AI cost in check)</span>
+                  </span>
+                  <input
+                    type="number"
+                    min={1}
+                    max={200}
+                    value={replyCap}
+                    disabled={!replyEnabled}
+                    onChange={(e) => setReplyCap(Number(e.target.value))}
+                    className="w-24 px-3 py-2 rounded-lg border border-border bg-canvas text-ink text-right disabled:opacity-40"
+                  />
+                </label>
+                <p className="text-xs text-ink-muted">
+                  Each reply waits a random time in that range, so it never lands the moment someone comments. It only
+                  answers real people, and stops after a few turns in one thread.
+                </p>
+              </div>
+
+              {previewText && (
+                <p className="text-sm text-ink bg-canvas border border-border rounded-lg px-3 py-2">{previewText}</p>
+              )}
+              {commentMessage && (
+                <p className={`text-xs ${commentMessage.error ? "text-danger" : "text-ink-muted"}`}>{commentMessage.text}</p>
+              )}
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={handleCommentPreview}
+                  disabled={commentPreview.isPending || commentNow.isPending || dirty}
+                  className="border border-border rounded-xl py-2.5 text-sm font-medium text-ink disabled:opacity-40"
+                >
+                  {commentPreview.isPending ? "Writing…" : dirty ? "Save to preview" : "Preview a comment"}
+                </button>
+                <button
+                  type="button"
+                  onClick={handleCommentNow}
+                  disabled={commentNow.isPending || commentPreview.isPending || dirty}
+                  className="border border-border rounded-xl py-2.5 text-sm font-medium text-ink disabled:opacity-40"
+                >
+                  {commentNow.isPending ? "Commenting…" : dirty ? "Save to comment" : "Comment now"}
+                </button>
+              </div>
+              {commentLog.length > 0 && (
+                <ul className="text-xs text-ink-muted space-y-1">
+                  {commentLog.slice(0, 6).map((l) => (
+                    <li key={l.id}>
+                      {formatInZone(l.status === "queued" ? l.due_at : l.created_at, account.timezone)} ·{" "}
+                      {l.kind === "reply" ? "reply" : "comment"}
+                      {l.trigger === "manual" ? " (manual)" : ""} ·{" "}
+                      {l.status === "posted"
+                        ? `posted: ${l.content ?? ""}`
+                        : l.status === "queued"
+                          ? "waiting to send"
+                          : l.status === "running"
+                            ? "writing"
+                            : l.status === "nothing_to_comment"
+                              ? "nothing left to comment on"
+                              : l.status === "skipped"
+                                ? `skipped${l.error ? `: ${l.error}` : ""}`
+                                : `failed${l.error ? `: ${l.error}` : ""}`}
                     </li>
                   ))}
                 </ul>
