@@ -1,7 +1,7 @@
 // src/pages/ConversationList.tsx
 import { useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { MessageCircle, Search, X, Pin, Archive, ChevronRight, Trash2, CheckSquare, Users } from "lucide-react";
+import { MessageCircle, Search, X, Pin, Archive, Trash2, CheckSquare, Users } from "lucide-react";
 import {
   useConversations,
   useUpdateConversationState,
@@ -21,19 +21,12 @@ import { ConfirmDialog } from "../components/ConfirmDialog";
 import { MediaViewer } from "../components/MediaViewer";
 import { MessagePreviewLine } from "../components/MessagePreviewLine";
 import { messagePlainText } from "../lib/chatMedia";
+import { formatChatListTime } from "../lib/messageTime";
 
-import { BrandDot } from "../components/BrandDot";
 const MAX_PINNED = 3;
 
-function timeAgo(dateString: string): string {
-  const seconds = Math.floor((Date.now() - new Date(dateString).getTime()) / 1000);
-  if (seconds < 60) return "now";
-  const minutes = Math.floor(seconds / 60);
-  if (minutes < 60) return `${minutes}m`;
-  const hours = Math.floor(minutes / 60);
-  if (hours < 24) return `${hours}h`;
-  return `${Math.floor(hours / 24)}d`;
-}
+// Same title treatment as Connect and Library: orange section icon, big bold title, no bar.
+const TITLE_CLASS = "font-bold text-[1.75rem] leading-tight tracking-tight text-ink flex items-center gap-2.5";
 
 export function ConversationList() {
   const navigate = useNavigate();
@@ -235,6 +228,7 @@ export function ConversationList() {
     // as the double-tick-in-list pattern in WhatsApp.
     const showTicksInPreview = c.last_message?.sender_id === user?.id;
     const isSelected = selectedIds.has(c.id);
+    const unread = c.unreadCount > 0;
 
     return (
       <div
@@ -247,7 +241,7 @@ export function ConversationList() {
         onContextMenu={(e) => e.preventDefault()}
         onClick={(e) => handleRowClick(c, e)}
         role="link"
-        className="flex items-center gap-3 py-3.5 border-b border-border select-none cursor-pointer"
+        className="flex items-center gap-3.5 px-4 py-3 select-none cursor-pointer hover:bg-surface/50 active:bg-surface/60"
         style={{ WebkitTouchCallout: "none" }}
       >
         {selectMode && (
@@ -260,6 +254,7 @@ export function ConversationList() {
           </span>
         )}
 
+        {/* Both variants occupy the same 56px box, so names line up whether or not there's a ring. */}
         {unseenPostId ? (
           <span
             role="link"
@@ -273,10 +268,10 @@ export function ConversationList() {
               e.stopPropagation();
               navigate(`/post/${unseenPostId}`);
             }}
-            className="flex-shrink-0 rounded-full p-[2.5px] bg-accent shadow-[0_0_6px_rgba(var(--accent-rgb),0.45)]"
+            className="flex-shrink-0 w-14 h-14 rounded-full bg-accent flex items-center justify-center shadow-[0_0_6px_rgba(var(--accent-rgb),0.45)]"
           >
             <span className="block rounded-full bg-canvas p-[2px]">
-              <Avatar src={identity.avatarUrl} name={identity.name} />
+              <Avatar src={identity.avatarUrl} name={identity.name} size="vn" />
             </span>
           </span>
         ) : (
@@ -284,17 +279,16 @@ export function ConversationList() {
             type="button"
             onPointerDown={(e) => e.stopPropagation()}
             onClick={(e) => handleAvatarClick(c, e)}
-            className="flex-shrink-0"
+            className="flex-shrink-0 w-14 h-14 flex items-center justify-center"
             aria-label={`View ${identity.name}'s photo`}
           >
-            <Avatar src={identity.avatarUrl} name={identity.name} />
+            <Avatar src={identity.avatarUrl} name={identity.name} size="vn" />
           </button>
         )}
 
         <div className="min-w-0 flex-1">
-          <div className="flex items-center justify-between">
-            <p className={`text-sm truncate flex items-center gap-1 ${c.unreadCount > 0 ? "font-semibold text-ink" : "font-medium text-ink"}`}>
-              {c.pinned_at && <Pin size={12} className="text-ink-muted flex-shrink-0" />}
+          <div className="flex items-center">
+            <p className={`min-w-0 flex-1 text-base text-ink flex items-center gap-1.5 ${unread ? "font-semibold" : "font-medium"}`}>
               <span className="truncate">{identity.name}</span>
               {c.is_group && (
                 <span className="flex-shrink-0 inline-flex items-center gap-0.5 px-1.5 py-[1px] rounded-full bg-surface border border-border text-[10px] font-medium text-ink-muted">
@@ -303,32 +297,36 @@ export function ConversationList() {
                 </span>
               )}
             </p>
-            <span className="text-xs text-ink-muted flex-shrink-0 ml-2">{timeAgo(c.last_message_at)}</span>
+            {/* The stamp turns the unread colour, like the badge below it. */}
+            <span className={`text-xs flex-shrink-0 ml-2 ${unread ? "font-semibold text-cta" : "text-ink-muted"}`}>
+              {formatChatListTime(c.last_message_at)}
+            </span>
           </div>
-          <p className={`text-sm flex items-center gap-1 min-w-0 ${c.unreadCount > 0 ? "text-ink" : "text-ink-muted"}`}>
+          <div className="mt-0.5 min-h-[22px] flex items-center gap-1 min-w-0">
             {showTicksInPreview && c.last_message && !c.last_message.is_deleted && (
               <span className="flex-shrink-0 inline-flex">
                 <MessageStatusTicks
                   deliveredAt={c.last_message.delivered_at}
                   readAt={c.last_message.read_at}
                   variant="list"
-                  size={13}
+                  size={15}
                 />
               </span>
             )}
-            <span className={`min-w-0 flex-1 ${c.last_message?.is_deleted ? "italic opacity-70" : ""}`}>
+            <span className={`min-w-0 flex-1 text-sm ${unread ? "text-ink" : "text-ink-muted"} ${c.last_message?.is_deleted ? "italic opacity-70" : ""}`}>
               <MessagePreviewLine
                 variant="list"
                 content={c.last_message?.is_deleted ? "This message was deleted" : (c.last_message?.content ?? "Say hello")}
               />
             </span>
-          </p>
+            {unread && (
+              <span className="ml-1 min-w-[22px] h-[22px] px-1.5 rounded-full bg-cta text-white text-xs font-semibold flex items-center justify-center flex-shrink-0">
+                {c.unreadCount > 99 ? "99+" : c.unreadCount}
+              </span>
+            )}
+            {c.pinned_at && <Pin size={15} className="ml-1 text-ink-muted flex-shrink-0" aria-label="Pinned" />}
+          </div>
         </div>
-        {c.unreadCount > 0 && (
-          <span className="min-w-[22px] h-[22px] px-1.5 rounded-full bg-cta text-white text-xs font-semibold flex items-center justify-center flex-shrink-0">
-            {c.unreadCount > 99 ? "99+" : c.unreadCount}
-          </span>
-        )}
       </div>
     );
   }
@@ -343,9 +341,11 @@ export function ConversationList() {
   if (!messagingEnabled) {
     return (
       <div className="min-h-screen bg-canvas pb-24">
-        <header className="px-4 pt-6 pb-3 flex items-center gap-3 sticky top-0 bg-canvas z-chrome border-b border-border">
-          <MessageCircle size={22} className="text-ink-muted shrink-0" />
-          <h2 className="font-display text-2xl text-ink flex-1">Chats<BrandDot /></h2>
+        <header className="max-w-xl md:max-w-2xl mx-auto px-4 pt-6 pb-3">
+          <h2 className={TITLE_CLASS}>
+            <MessageCircle size={24} className="text-brand-orange shrink-0" />
+            Chats
+          </h2>
         </header>
         <div className="max-w-xl md:max-w-2xl mx-auto px-4 pt-10 text-center">
           <p className="text-sm text-ink-muted">Messaging is temporarily unavailable. Check back later.</p>
@@ -357,107 +357,105 @@ export function ConversationList() {
 
   return (
     <div className="min-h-screen bg-canvas pb-24">
-      <header className="sticky top-0 bg-canvas z-chrome border-b border-border">
-        {selectMode ? (
-          <div className="px-4 pt-6 pb-3 flex items-center gap-3">
-            <button onClick={exitSelectMode} className="text-ink-muted" aria-label="Cancel selection">
-              <X size={22} />
-            </button>
-            <span className="flex-1 text-sm font-medium text-ink">{selectedIds.size} selected</span>
-            <button
-              onClick={handleBulkArchive}
-              disabled={!selectedIds.size}
-              className="text-ink-muted disabled:opacity-30"
-              aria-label="Archive selected"
-            >
-              <Archive size={19} />
-            </button>
-            <button
-              onClick={handleBulkDeletePress}
-              disabled={!selectedIds.size}
-              className="text-danger disabled:opacity-30"
-              aria-label="Delete selected"
-            >
-              <Trash2 size={19} />
-            </button>
-          </div>
-        ) : (
-          <div className="px-4 pt-6 pb-3 flex items-center gap-3">
-            <MessageCircle size={22} className="text-ink-muted shrink-0" />
-            <h2 className="font-display text-2xl text-ink flex-1">Chats<BrandDot /></h2>
-            {conversations && conversations.length > 0 && (
-              <button
-                onClick={() => setSelectMode(true)}
-                className="text-ink-muted"
-                aria-label="Select chats"
-              >
-                <CheckSquare size={20} />
+      <header className={`sticky top-0 bg-canvas z-chrome ${selectMode ? "border-b border-border" : ""}`}>
+        <div className="max-w-xl md:max-w-2xl mx-auto px-4 pt-6 pb-3">
+          {selectMode ? (
+            <div className="flex items-center gap-3">
+              <button onClick={exitSelectMode} className="text-ink-muted" aria-label="Cancel selection">
+                <X size={22} />
               </button>
-            )}
+              <span className="flex-1 text-sm font-medium text-ink">{selectedIds.size} selected</span>
+              <button
+                onClick={handleBulkArchive}
+                disabled={!selectedIds.size}
+                className="text-ink-muted disabled:opacity-30"
+                aria-label="Archive selected"
+              >
+                <Archive size={19} />
+              </button>
+              <button
+                onClick={handleBulkDeletePress}
+                disabled={!selectedIds.size}
+                className="text-danger disabled:opacity-30"
+                aria-label="Delete selected"
+              >
+                <Trash2 size={19} />
+              </button>
+            </div>
+          ) : (
+            <div className="flex items-center gap-3">
+              <h2 className={`${TITLE_CLASS} flex-1`}>
+                <MessageCircle size={24} className="text-brand-orange shrink-0" />
+                Chats
+              </h2>
+              {conversations && conversations.length > 0 && (
+                <button onClick={() => setSelectMode(true)} className="text-ink" aria-label="Select chats">
+                  <CheckSquare size={22} />
+                </button>
+              )}
+            </div>
+          )}
+        </div>
+      </header>
+
+      <div className="max-w-xl md:max-w-2xl mx-auto">
+        {!selectMode && conversations && conversations.length > 0 && (
+          <div className="px-4 pt-1 pb-2">
+            <div className="relative">
+              <Search size={20} className="absolute left-4 top-1/2 -translate-y-1/2 text-ink-muted" />
+              <input
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Search messages…"
+                className="w-full h-12 pl-12 pr-11 rounded-full border border-border bg-surface text-ink text-base
+                  focus:outline-none focus:ring-2 focus:ring-accent/40 focus:border-accent"
+              />
+              {searchQuery && (
+                <button
+                  onClick={() => setSearchQuery("")}
+                  className="absolute right-4 top-1/2 -translate-y-1/2 text-ink-muted"
+                  aria-label="Clear search"
+                >
+                  <X size={18} />
+                </button>
+              )}
+            </div>
           </div>
         )}
 
-        {/* Archive — sits at the top, sticky with the header, above
-            pinned/normal chats. Requests from people who don't follow
-            you land here (see is_request in useMessaging.ts) alongside
-            anything you've manually archived. */}
+        {/* Archive — sits under the search, above pinned/normal chats. Requests from people who
+            don't follow you land here (see is_request in useMessaging.ts) alongside anything
+            you've manually archived. */}
         {!selectMode && (
           <button
             onClick={() => navigate("/messages/archive")}
-            className="w-full flex items-center gap-3 px-4 py-3 max-w-xl md:max-w-2xl mx-auto border-t border-border/60"
+            className="w-full flex items-center gap-3.5 px-4 py-2 hover:bg-surface/50 active:bg-surface/60"
           >
-            <span className="flex-shrink-0 w-11 h-11 rounded-full bg-accent-soft text-accent flex items-center justify-center">
-              <Archive size={18} />
+            <span className="flex-shrink-0 w-14 h-14 flex items-center justify-center text-ink-muted">
+              <Archive size={22} />
             </span>
-            <span className="flex-1 text-left text-sm font-medium text-ink">Archive</span>
+            <span className="flex-1 text-left text-base font-medium text-ink">Archive</span>
             {archiveBadgeCount > 0 && (
-              <span className="bg-cta text-white text-[11px] font-semibold rounded-full min-w-[20px] h-5 px-1.5 flex items-center justify-center flex-shrink-0">
+              <span className="bg-cta text-white text-xs font-semibold rounded-full min-w-[22px] h-[22px] px-1.5 flex items-center justify-center flex-shrink-0">
                 {archiveBadgeCount > 99 ? "99+" : archiveBadgeCount}
               </span>
             )}
-            <ChevronRight size={16} className="text-ink-muted flex-shrink-0" />
           </button>
         )}
-      </header>
 
-      {!selectMode && conversations && conversations.length > 0 && (
-        <div className="max-w-xl md:max-w-2xl mx-auto px-4 pt-3">
-          <div className="relative">
-            <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-ink-muted" />
-            <input
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search messages…"
-              className="w-full pl-10 pr-9 py-2.5 rounded-full border border-border bg-surface text-ink text-sm
-                focus:outline-none focus:ring-2 focus:ring-accent/40 focus:border-accent"
-            />
-            {searchQuery && (
-              <button
-                onClick={() => setSearchQuery("")}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-ink-muted"
-                aria-label="Clear search"
-              >
-                <X size={16} />
-              </button>
-            )}
-          </div>
-        </div>
-      )}
-
-      <div className="max-w-xl md:max-w-2xl mx-auto px-4 pt-2">
         {isLoading ? (
           <p className="text-ink-muted text-center py-10">Loading…</p>
         ) : !conversations || conversations.length === 0 ? (
-          <p className="text-ink-muted text-center py-10 text-sm">
+          <p className="text-ink-muted text-center py-10 text-sm px-4">
             No conversations yet. Message someone from their profile.
           </p>
         ) : filteredConversations && filteredConversations.length === 0 ? (
-          <p className="text-ink-muted text-center py-10 text-sm">No conversations match your search.</p>
+          <p className="text-ink-muted text-center py-10 text-sm px-4">No conversations match your search.</p>
         ) : (
           <>
             {pinnedConversations.length > 0 && (
               <div>
-                <p className="text-xs font-semibold text-ink-muted uppercase tracking-wide pt-2 pb-1">
+                <p className="text-xs font-semibold text-ink-muted uppercase tracking-wide px-4 pt-3 pb-1">
                   Pinned
                 </p>
                 {pinnedConversations.map(renderRow)}
