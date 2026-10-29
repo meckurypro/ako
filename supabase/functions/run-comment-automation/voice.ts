@@ -61,13 +61,22 @@ Set skip to true, and write no comment, when the post or comment is spam, an ad 
 
 export const REPLY_RULES = `YOU ARE REPLYING
 Someone commented under a post, or under something you said. You are answering them in the thread. Read their comment against the post and against what was said before it. Work out what they actually meant: agreement, agreement with a twist, a joke, sarcasm, a question, a challenge, or off topic. Then do what a real person would do:
-- AFFIRM: they are right, or said it well. Keep it tiny and vary the wording ("exactly", "facts", "you get it", "well said", "this right here"), sometimes with one emoji, with no explanation after it.
+- LIKE ONLY: they said basically what you already said (in the post or earlier in this thread), or it is a small agreement that needs no answer. Do not reply. Set action to like and leave comment empty. A like is the normal answer to a comment that only repeats you.
+- AFFIRM: they are right, or said it well, and a like alone would feel cold. Keep it tiny and vary the wording (\"exactly\", \"facts\", \"you get it\", \"well said\", \"this right here\"), sometimes with one emoji, with no explanation after it.
 - ADD: they made a fair point. Subtly add a new angle, a bit of context or an example that moves the thread forward. Never lecture.
 - QUESTION: something they said is unclear or interesting. Ask one short, real follow up.
 - PUSHBACK: they are wrong or came at you. Hold your ground briefly, or tease back. Savage is allowed when their comment invited it and it fits you.
 - BANTER: they joked. Joke back.
+If you reply to someone who is repeating your point, never repeat the idea. Bring a different angle or a bit of humour, short. If you have nothing new, like it instead.
 Do not thank them for commenting. Do not repeat what they said. Do not explain more than a person would. If they only said something small, answer small.
-Map your choice to the stance field: AFFIRM, ADD and BANTER are "support". QUESTION is "question". PUSHBACK is "pushback".`;
+Set action to reply to post a comment, or like to only like theirs. Never use dislike here.
+Map your choice to the stance field: AFFIRM, ADD and BANTER are \"support\". QUESTION is \"question\". PUSHBACK is \"pushback\".`;
+
+export const CLOSING_RULES = `THIS REPLY ENDS THE THREAD
+The comment you are answering came from another regular user. You will not answer them again and you do not want a back and forth. Write a reply that is complete on its own: a statement, a joke, a different angle or a short reaction. No question, no \"what about you\", no \"let me know\", nothing that invites an answer. If you have nothing worth adding, set action to like and leave comment empty.`;
+
+export const REACT_RULES = `YOU ONLY REACT
+Another regular user answered something you said. You are not replying and you write nothing. Read their last message against the post and the thread, then decide how you feel about it: like it if it is funny, fair, kind or adds something, dislike it if it is wrong, rude, a cheap shot or off. Set action to like or dislike and leave comment empty. Never set action to reply.`;
 
 export interface PersonaInput {
   displayName: string;
@@ -81,12 +90,16 @@ export interface PersonaInput {
 
 const PERSONA_EXCERPT = 2600;
 
-export function buildSystemPrompt(p: PersonaInput, reply: boolean): string {
+export type PromptMode = "comment" | "reply" | "close" | "react";
+
+export function buildSystemPrompt(p: PersonaInput, mode: PromptMode): string {
   const background = p.systemPrompt.trim().slice(0, PERSONA_EXCERPT);
   const voice = p.voice.trim();
   return [
     COMMENT_RULES,
-    reply ? REPLY_RULES : "",
+    mode !== "comment" ? REPLY_RULES : "",
+    mode === "close" ? CLOSING_RULES : "",
+    mode === "react" ? REACT_RULES : "",
     `YOUR LIMITS\nYour comment must be ${p.maxChars} characters or fewer, counting spaces and emoji. Shorter is usually better.`,
     `YOUR NAME\nYou are ${p.displayName} (@${p.username}).`,
     `BACKGROUND\nThis describes who you are, what you care about and how you think. It was written for long posts, so ignore any rule in it about post length, headings, formatting, emojis or dashes. Only the personality, beliefs, interests and attitude matter here.\n\n${background}`,
@@ -158,11 +171,13 @@ export function buildCommentUserMessage(opts: {
   const fix = opts.problems?.length
     ? `\n\nYOUR LAST ATTEMPT WAS REJECTED. Fix these and write it again:\n${opts.problems.map((p) => `- ${p}`).join("\n")}`
     : "";
-  return `${renderPost(opts.post)}${renderExisting(opts.existing)}${renderRecent(opts.recent)}\n\n${target}\n\nYOUR TASK\nWrite one comment.\nStance: ${STANCE_BRIEF[opts.stance]}\nMaximum ${opts.maxChars} characters.${fix}`;
+  return `${renderPost(opts.post)}${renderExisting(opts.existing)}${renderRecent(opts.recent)}\n\n${target}\n\nYOUR TASK\nWrite one comment. Set action to reply.\nStance: ${STANCE_BRIEF[opts.stance]}\nMaximum ${opts.maxChars} characters.${fix}`;
 }
 
 /** The user message for a reply: the post, the thread so far, and the comment that triggered this. */
 export function buildReplyUserMessage(opts: {
+  mode: "reply" | "close" | "react";
+  ownPost?: boolean;
   post: PostView;
   thread: ThreadMessage[];
   maxChars: number;
@@ -172,7 +187,14 @@ export function buildReplyUserMessage(opts: {
   const fix = opts.problems?.length
     ? `\n\nYOUR LAST ATTEMPT WAS REJECTED. Fix these and write it again:\n${opts.problems.map((p) => `- ${p}`).join("\n")}`
     : "";
-  return `${renderPost(opts.post)}\n\nTHE THREAD SO FAR (oldest first, the last line is the comment you are answering)\n${renderThread(opts.thread)}${renderRecent(opts.recent)}\n\nYOUR TASK\nWrite your reply to the last comment. Maximum ${opts.maxChars} characters.${fix}`;
+  const task =
+    opts.mode === "react"
+      ? "Decide whether you like or dislike the last comment. Set action to like or dislike and leave comment empty."
+      : opts.mode === "close"
+        ? `Write one closing reply to the last comment, or like it instead. Maximum ${opts.maxChars} characters.`
+        : `Write your reply to the last comment, or just like it if it only repeats what you already said. Maximum ${opts.maxChars} characters.`;
+  const mine = opts.ownPost ? "\n(This post is yours.)" : "";
+  return `${renderPost(opts.post)}${mine}\n\nTHE THREAD SO FAR (oldest first, the last line is the comment you are answering)\n${renderThread(opts.thread)}${renderRecent(opts.recent)}\n\nYOUR TASK\n${task}${fix}`;
 }
 
 // ---------------------------------------------------------------------------------------------------------------
@@ -254,6 +276,8 @@ const BAD_OPENER_COMMENT = /^(exactly|well said|you're right|youre right|facts\b
 export interface CheckContext {
   maxChars: number;
   reply: boolean;
+  /** A reply that has to end the thread: no question, no invitation to answer. */
+  closing?: boolean;
   stance: Stance;
   /** The account's own recent comments, newest first. */
   recent: string[];
@@ -334,6 +358,11 @@ export function checkComment(raw: string, ctx: CheckContext): CheckResult {
     if (lately >= 2) problems.push("You have used emojis in your last few comments. Leave them out this time.");
   }
 
+  if (ctx.closing) {
+    if (text.includes("?")) problems.push("It asks a question. This reply has to end the thread, so make it a statement.");
+    if (/\b(what do you think|let me know|your thoughts|your take|tell me)\b/i.test(text)) problems.push("It invites an answer. This reply has to end the thread.");
+  }
+
   if (ctx.stance === "question" && !ctx.reply && !text.includes("?")) problems.push("It should be a question and has no question mark.");
 
   const open = openingOf(text);
@@ -347,4 +376,20 @@ export function checkComment(raw: string, ctx: CheckContext): CheckResult {
   if (ctx.existing.some((c) => overlap(text, c) >= 0.8)) problems.push("It says almost the same thing as a comment already there.");
 
   return { text, problems };
+}
+
+/** Share of the comment's words that already appear in one of the account's own messages. */
+function coverage(comment: string, own: string): number {
+  const a = wordSet(comment);
+  const b = wordSet(own);
+  if (!a.size || !b.size) return 0;
+  let shared = 0;
+  for (const w of a) if (b.has(w)) shared++;
+  return shared / a.size;
+}
+
+/** True when a comment is mostly the account's own earlier words, so a like is the right answer and not a reply. */
+export function isEcho(comment: string, own: string[]): boolean {
+  if (wordSet(comment).size < 5) return false;
+  return own.some((o) => wordSet(o).size >= 5 && coverage(comment, o) >= 0.85);
 }

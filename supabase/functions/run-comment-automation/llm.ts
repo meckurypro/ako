@@ -32,6 +32,8 @@ export function isProvider(value: unknown): value is Provider {
 export interface CommentDraft {
   skip: boolean;
   skip_reason: string;
+  /** reply = post the comment. like / dislike = react to the comment being answered instead of writing one. */
+  action: "reply" | "like" | "dislike";
   stance: "support" | "question" | "pushback";
   comment: string;
 }
@@ -53,11 +55,16 @@ export interface LlmRequest {
 export class LlmError extends Error {}
 
 const TOOL_NAME = "submit_comment";
-const TOOL_DESCRIPTION = "Submit the comment, or skip when there is nothing natural to say.";
+const TOOL_DESCRIPTION = "Submit the comment, or react with a like or dislike instead of writing one, or skip when there is nothing natural to say.";
 
 const FIELDS = {
   skip: { type: "boolean", description: "True when you should not comment at all. Then leave comment empty." },
   skip_reason: { type: "string", description: "Why you skipped, a few words. Empty when you did not skip." },
+  action: {
+    type: "string",
+    description: "reply posts your comment. like or dislike reacts to the comment you are answering and leaves comment empty. For a new comment on a post always use reply.",
+    enum: ["reply", "like", "dislike"],
+  },
   stance: {
     type: "string",
     description: "What the comment does: support (adds or agrees), question, or pushback.",
@@ -66,7 +73,7 @@ const FIELDS = {
   comment: { type: "string", description: "The comment text, exactly as it should appear. Empty when you skipped." },
 } as const;
 
-const REQUIRED = ["skip", "skip_reason", "stance", "comment"];
+const REQUIRED = ["skip", "skip_reason", "action", "stance", "comment"];
 
 function jsonSchema() {
   const properties: Record<string, unknown> = {};
@@ -221,8 +228,10 @@ function parseResponse(provider: Provider, data: unknown, label: string): LlmRes
 function toDraft(input: Record<string, unknown>): CommentDraft {
   const stance = input.stance === "question" || input.stance === "pushback" ? input.stance : "support";
   const skip = input.skip === true || input.skip === "true";
+  const action = input.action === "like" || input.action === "dislike" ? input.action : "reply";
   return {
     skip,
+    action,
     skip_reason: typeof input.skip_reason === "string" ? input.skip_reason.trim().slice(0, 200) : "",
     stance,
     comment: typeof input.comment === "string" ? input.comment : "",

@@ -7,9 +7,16 @@
 //   DAILY COMMENT  pg_cron -> tick. An account with a daily comment time gets a slot; it picks a random recent post by
 //                  someone else it has not commented on yet (once every post is covered, a comment under someone's
 //                  comment), reads it, and writes one short comment in the stance the admin chose.
-//   REPLY          a database trigger queues a reply when a real person comments on an automated account's post or
-//                  under one of its comments, due a random number of minutes later (the admin sets the range). The
-//                  comment is the trigger; this function reads it against the post and the thread and answers.
+//   REPLY          a database trigger queues a reply when someone comments on an automated account's post or under one
+//                  of its comments, due a random number of minutes later (the admin sets the range). The comment is
+//                  the trigger; this function reads it against the post and the thread and answers.
+//                  Who is answering whom decides what happens (the database enforces the caps, see
+//                  supabase/ako_automation_bot_rules.sql):
+//                    reply  a person commented. Reply, or only like it when it repeats what the account already said.
+//                    close  another automated account commented on this account's post. One closing reply (no question,
+//                           nothing that invites an answer), or a like.
+//                    react  another automated account replied under this account's comment. No reply back, only a like
+//                           or a dislike, and the thread ends there.
 //
 // Modes
 //   tick         pg_cron (every minute, only when something is due), authenticated with the shared secret in
@@ -32,6 +39,7 @@
 import { createClient } from "jsr:@supabase/supabase-js@2";
 import { callProvider, DEFAULT_MODELS, isProvider, LlmError, type Provider } from "./llm.ts";
 import {
+  isEcho,
   buildCommentUserMessage,
   buildReplyUserMessage,
   buildSystemPrompt,
@@ -92,18 +100,24 @@ interface LogRow {
 }
 
 interface Target {
-  /** A top-level comment on a post, a comment under someone's comment, or a reply to a comment. */
-  mode: "post" | "under_comment" | "reply";
+  /** post / under_comment: a daily comment. reply / close / react: answering a comment (see the header). */
+  mode: "post" | "under_comment" | "reply" | "close" | "react";
   postId: string;
   post: PostView;
   parentCommentId: string | null;
   /** under_comment / reply: the comment being answered, and the thread leading to it (oldest first). */
   thread: ThreadMessage[];
   existing: string[];
+  /** reply targets: the post is the account's own. */
+  ownPost?: boolean;
+  /** reply targets: what the account already said (its thread messages, and its post when short). */
+  echoBase?: string[];
 }
 
 interface Written {
+  /** Empty when action is like or dislike. */
   text: string;
+  action: "reply" | "like" | "dislike";
   stance: Stance;
   usage: { input: number; output: number };
 }
@@ -294,7 +308,8 @@ function isTransient(err: unknown): boolean {
 
 interface Posted {
   postId: string;
-  commentId: string;
+  /** null when the answer was a like or dislike. */
+  commentId: string | null;
   text: string;
   stance: Stance;
   usage: { input: number; output: number };
@@ -305,7 +320,13 @@ async function runJob(account: AccountRow, job: LogRow): Promise<Posted> {
   if (job.kind === "reply") {
     if (!job.source_comment_id) throw new Outcome("skipped", "There was no comment to answer.");
     const target = await replyTarget(account, job.source_comment_id);
+    // A person who only repeats what the account already said gets a like, without a model call.
+    if (target.mode === "reply") {
+      const last = target.thread[target.thread.length - 1]?.content ?? "";
+      if (isEcho(last, target.echoBase ?? [])) return await react(account, job, target, "like", { input: 0, output: 0 });
+    }
     const written = await write(account, target, "support");
+    if (written.action !== "reply") return await react(account, job, target, written.action, written.usage);
     return await publish(account, job, target, written);
   }
 
@@ -421,7 +442,7 @@ async function recentOwn(userId: string): Promise<string[]> {
 }
 
 /** The comment being answered and the comments above it, oldest first. */
-async function threadTo(commentId: string, account: AccountRow): Promise<{ thread: ThreadMessage[]; postId: string; authorId: string } | null> {
+async function threadTo(commentId: string, account: AccountRow): Promise<{ thread: ThreadMessage[]; postId: string; authorId: string; parentId: string | null } | null> {
   const chain: { id: string; post_id: string; author_id: string; content: string; parent_comment_id: string | null; is_deleted: boolean }[] = [];
   let next: string | null = commentId;
   for (let depth = 0; next && depth < 6; depth++) {
@@ -445,7 +466,7 @@ async function threadTo(commentId: string, account: AccountRow): Promise<{ threa
       content: c.content,
     }));
   const last = chain[chain.length - 1];
-  return { thread, postId: last.post_id, authorId: last.author_id };
+  return { thread, postId: last.post_id, authorId: last.author_id, parentId: last.parent_comment_id };
 }
 
 async function replyTarget(account: AccountRow, sourceCommentId: string): Promise<Target> {
@@ -463,7 +484,35 @@ async function replyTarget(account: AccountRow, sourceCommentId: string): Promis
     .limit(1);
   if (blocked?.length) throw new Outcome("skipped", "One of them has blocked the other.");
 
-  return { mode: "reply", postId: found.postId, post: post.view, parentCommentId: sourceCommentId, thread: found.thread, existing: [] };
+  // Who wrote the comment decides the kind of answer.
+  const { data: botRow } = await admin.from("automated_accounts").select("id").eq("user_id", found.authorId).maybeSingle();
+  const ownPost = post.authorId === account.user_id;
+  let mode: Target["mode"] = "reply";
+  if (botRow) mode = found.parentId === null && ownPost ? "close" : "react";
+
+  const echoBase = found.thread.filter((m) => m.isYou).map((m) => m.content);
+  if (ownPost && post.view.content.split(/\s+/).filter(Boolean).length <= 60) echoBase.push(post.view.content);
+
+  return { mode, postId: found.postId, post: post.view, parentCommentId: sourceCommentId, thread: found.thread, existing: [], ownPost, echoBase };
+}
+
+/** Like or dislike the comment being answered, instead of writing one. Never both, never twice. */
+async function react(account: AccountRow, job: LogRow, target: Target, type: "like" | "dislike", usage: { input: number; output: number }): Promise<Posted> {
+  const commentId = job.source_comment_id;
+  if (!commentId) throw new Outcome("skipped", "There was no comment to react to.");
+  const { data: had } = await admin
+    .from("reactions")
+    .select("id")
+    .eq("user_id", account.user_id)
+    .eq("comment_id", commentId)
+    .in("type", ["like", "dislike"])
+    .is("acted_as_page_id", null)
+    .limit(1);
+  if (had?.length) throw new Outcome("skipped", "Already reacted to that comment.");
+
+  const { error } = await admin.from("reactions").insert({ user_id: account.user_id, target_type: "comment", comment_id: commentId, type });
+  if (error && error.code !== "23505") throw new RunError(`Couldn't ${type} the comment: ${error.message}`);
+  return { postId: target.postId, commentId: null, text: `[${type}]`, stance: "support", usage };
 }
 
 /** Picks the post (or, once all posts are covered, the comment) for a daily comment. null = nothing left. */
@@ -526,7 +575,8 @@ async function chooseTarget(account: AccountRow, job: LogRow | null, forcedPostI
 // ---------------------------------------------------------------------------------------------------------------
 
 async function write(account: AccountRow, target: Target, wanted: Stance): Promise<Written> {
-  const reply = target.mode === "reply";
+  const mode = target.mode;
+  const reply = mode === "reply" || mode === "close" || mode === "react";
   const system = buildSystemPrompt(
     {
       displayName: account.displayName,
@@ -535,7 +585,7 @@ async function write(account: AccountRow, target: Target, wanted: Stance): Promi
       voice: account.comment_voice,
       maxChars: account.comment_max_chars,
     },
-    reply,
+    mode === "post" || mode === "under_comment" ? "comment" : mode,
   );
   const recent = await recentOwn(account.user_id);
   const usage = { input: 0, output: 0 };
@@ -543,7 +593,7 @@ async function write(account: AccountRow, target: Target, wanted: Stance): Promi
 
   for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
     const user = reply
-      ? buildReplyUserMessage({ post: target.post, thread: target.thread, maxChars: account.comment_max_chars, recent, problems })
+      ? buildReplyUserMessage({ mode: mode as "reply" | "close" | "react", ownPost: target.ownPost, post: target.post, thread: target.thread, maxChars: account.comment_max_chars, recent, problems })
       : buildCommentUserMessage({
           post: target.post,
           stance: wanted,
@@ -568,15 +618,25 @@ async function write(account: AccountRow, target: Target, wanted: Stance): Promi
       throw new Outcome("skipped", `Not worth a comment${result.draft.skip_reason ? `: ${result.draft.skip_reason}` : "."}`);
     }
 
-    const stance: Stance = reply ? result.draft.stance : wanted;
+    if (mode === "react") {
+      return { text: "", action: result.draft.action === "dislike" ? "dislike" : "like", stance: "support", usage };
+    }
+    if (reply && result.draft.action !== "reply") {
+      // A like answers a person's comment. Disliking a person is never allowed, so that is simply not answered.
+      if (result.draft.action === "like") return { text: "", action: "like", stance: "support", usage };
+      throw new Outcome("skipped", "Chose not to answer.");
+    }
+
+    const stance: Stance = reply ? (mode === "close" && result.draft.stance === "question" ? "support" : result.draft.stance) : wanted;
     const checked = checkComment(result.draft.comment, {
       maxChars: account.comment_max_chars,
       reply,
+      closing: mode === "close",
       stance,
       recent,
       existing: target.existing,
     });
-    if (!checked.problems.length) return { text: checked.text, stance, usage };
+    if (!checked.problems.length) return { text: checked.text, action: "reply", stance, usage };
     problems = checked.problems;
   }
   throw new RunError(`Couldn't write a comment that passed the checks. Last problems: ${problems.join(" ")}`);
