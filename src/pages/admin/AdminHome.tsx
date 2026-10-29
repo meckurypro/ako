@@ -1,6 +1,6 @@
 // src/pages/admin/AdminHome.tsx
 import { Link } from "react-router-dom";
-import { Tag, Gift, Flag, ShieldAlert, Mail, Send, MailPlus, Bell, ToggleLeft, ToggleRight, ShieldCheck, UserCheck, Sparkles, Landmark, Wallet, Users, Building2, Megaphone, HandCoins, ClipboardCheck, BadgeCheck, Smartphone, Briefcase, Bot } from "lucide-react";
+import { Tag, Gift, Flag, ShieldAlert, Mail, Send, MailPlus, Bell, ToggleLeft, ToggleRight, ShieldCheck, UserCheck, Sparkles, Landmark, Wallet, Users, Building2, Megaphone, HandCoins, ClipboardCheck, KeyRound, BadgeCheck, Smartphone, Briefcase, Bot } from "lucide-react";
 import { usePendingReports, useAdminPageRoleRequests } from "../../hooks/useAdmin";
 import { usePendingPromotions } from "../../hooks/usePromotions";
 import { usePendingAccountCount } from "../../hooks/useAdminAccountReviewCount";
@@ -68,6 +68,16 @@ export function AdminHome() {
               {pendingAccountCount}
             </span>
           )}
+        </Link>
+
+        <Link
+          to="/admin/feed-access"
+          className="flex items-center justify-between bg-surface rounded-xl p-4 mb-4 border border-border"
+        >
+          <div className="flex items-center gap-3">
+            <KeyRound size={20} className="text-accent" />
+            <span className="font-medium text-ink">Feed access pathways</span>
+          </div>
         </Link>
 
         <Link

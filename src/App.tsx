@@ -92,6 +92,8 @@ import { AdminModeration } from "./pages/admin/AdminModeration";
 import { AdminPageSettings } from "./pages/admin/AdminPageSettings";
 import { AdminFeatureFlags } from "./pages/admin/AdminFeatureFlags";
 import { AdminAccountReview } from "./pages/admin/AdminAccountReview";
+import { AdminFeedAccess } from "./pages/admin/AdminFeedAccess";
+import { FeedAccess } from "./pages/FeedAccess";
 import { AdminVerifiedUsers } from "./pages/admin/AdminVerifiedUsers";
 import { AdminProfileAds } from "./pages/admin/AdminProfileAds";
 import { AdminReports } from "./pages/admin/AdminReports";
@@ -624,6 +626,14 @@ function AppRoutes() {
               }
             />
             <Route
+              path="/feed-access"
+              element={
+                <RequireAuth>
+                  <FeedAccess />
+                </RequireAuth>
+              }
+            />
+            <Route
               path="/settings"
               element={
                 <RequireAuth>
@@ -824,6 +834,16 @@ function AppRoutes() {
                 <RequireAuth>
                   <RequireAdmin>
                     <AdminAccountReview />
+                  </RequireAdmin>
+                </RequireAuth>
+              }
+            />
+            <Route
+              path="/admin/feed-access"
+              element={
+                <RequireAuth>
+                  <RequireAdmin>
+                    <AdminFeedAccess />
                   </RequireAdmin>
                 </RequireAuth>
               }
