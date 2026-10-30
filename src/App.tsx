@@ -6,6 +6,7 @@ import { AuthProvider } from "./hooks/useAuth";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import { RequireAuth } from "./components/RequireAuth";
 import { RequireFullAccess } from "./components/RequireFullAccess";
+import { RequireGroupCreator } from "./components/RequireGroupCreator";
 import { RequireProjectCreation } from "./components/RequireProjectCreation";
 import { ScrollToTop } from "./components/ScrollToTop";
 import { PathHistoryTracker } from "./components/PathHistoryTracker";
@@ -1034,7 +1035,9 @@ function AppRoutes() {
               element={
                 <RequireAuth>
                   <RequireProjectCreation>
-                    <CreateProject fixedType="room" />
+                    <RequireGroupCreator>
+                      <CreateProject fixedType="room" />
+                    </RequireGroupCreator>
                   </RequireProjectCreation>
                 </RequireAuth>
               }

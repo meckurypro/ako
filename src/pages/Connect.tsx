@@ -12,7 +12,7 @@ import { useMemo, useState, type ReactNode } from "react";
 import { useCountdown, formatCountdown } from "../hooks/useCountdown";
 import { CalendarClock, ImageIcon, Plus, Users, X } from "lucide-react";
 import { Link } from "react-router-dom";
-import { useFeatureFlag } from "../hooks/useFeatureFlags";
+import { useCanCreateGroup } from "../hooks/useCanCreateGroup";
 import { useActivity, type ActivityItem } from "../hooks/useActivity";
 import { useTabState } from "../hooks/useTabState";
 import { useRemoveFromLibrary } from "../hooks/useLibraryRemovals";
@@ -125,6 +125,7 @@ function ActivityRow({ item }: { item: ActivityItem }) {
 
 // Shown when the user has nothing in any tab.
 function EmptyConnect() {
+  const { allowed: canCreateGroup } = useCanCreateGroup();
   return (
     <div className="flex flex-col items-center text-center gap-2 mt-16 text-ink-muted">
       <CalendarClock size={24} className="text-brand-orange" />
@@ -134,7 +135,7 @@ function EmptyConnect() {
       </p>
       <div className="flex gap-4 mt-2 text-sm font-medium">
         <Link to="/topics" className="text-accent">Find groups</Link>
-        <Link to="/groups/new" className="text-accent">Start a group</Link>
+        {canCreateGroup && <Link to="/groups/new" className="text-accent">Start a group</Link>}
       </div>
     </div>
   );
@@ -143,7 +144,7 @@ function EmptyConnect() {
 export function Connect() {
   const { data: items, isLoading } = useActivity();
   // Groups are created from here; the creation form is the project form in group mode, so it shares its kill switch.
-  const canCreateGroup = useFeatureFlag("projects_enabled");
+  const { allowed: canCreateGroup } = useCanCreateGroup();
 
   // Only tabs that have something in them are shown.
   const tabs = useMemo(

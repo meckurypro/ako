@@ -339,7 +339,7 @@ function MessageBubbleImpl({
             ref={registerRef(m.id)}
             data-message-id={m.id}
             className={`relative w-fit max-w-full whitespace-pre-wrap break-words select-none ${
-              group ? "text-[15px] leading-[1.4]" : "text-sm"
+              "text-[15px] leading-[1.4]"
             } ${
               isJumboEmoji
                 ? "bg-transparent"

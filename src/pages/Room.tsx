@@ -1109,6 +1109,7 @@ function GroupPage({ projectId }: { projectId: string | undefined }) {
             : undefined,
       onBack: smartBack,
       onOpenInfo: () => goView("info", { from: "chat" }),
+      onOpenMembers: () => goView("members", { from: "chat" }),
       onOpenProfile: (username) => navigate(`/profile/${username}`),
       menuItems,
     };

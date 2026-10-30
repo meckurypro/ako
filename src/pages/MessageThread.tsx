@@ -76,7 +76,7 @@ import { useVoiceRecorder } from "../hooks/useVoiceRecorder";
 import { MessageBubble, SWIPE_THRESHOLD, SWIPE_MAX, type GroupBubbleInfo } from "../components/MessageBubble";
 import { SendButton } from "../components/SendButton";
 import { OptionsModal, type OptionItem } from "../components/OptionsModal";
-import { useProfilesByIds, useSetMessageAnchor, type RoomPerson } from "../hooks/useRoom";
+import { useProfilesByIds, useRoomMemberEvents, useSetMessageAnchor, type RoomMemberEvent, type RoomPerson } from "../hooks/useRoom";
 import { useFeatureFlag, useVoiceNotesEnabled } from "../hooks/useFeatureFlags";
 
 // Fetches header identity for the thread — a small dedicated query
@@ -103,9 +103,22 @@ export interface GroupThreadConfig {
   cantPostReason?: string;
   onBack: () => void;
   onOpenInfo: () => void;
+  /** Opens the A→Z members list directly (the member count in the header). */
+  onOpenMembers: () => void;
   onOpenProfile: (username: string) => void;
   /** Rows under Search / Anchored in the ⋯ menu — the Group page's screens, ending with Leave. */
   menuItems: (OptionItem | "divider")[];
+}
+
+// A host-only chat badge: "Sharon Eze left" / "Sharon Eze was removed", centred like a day separator.
+function LeaveBadge({ event }: { event: RoomMemberEvent }) {
+  return (
+    <div className="flex justify-center py-1.5">
+      <span className="inline-flex items-center px-3 py-1 rounded-full bg-surface/90 text-[12px] font-medium text-ink-muted">
+        {`${event.display_name} ${event.kind === "left" ? "left" : "was removed"}`}
+      </span>
+    </div>
+  );
 }
 
 function useConversationHeader(conversationId: string, enabled = true) {
@@ -296,6 +309,8 @@ export function MessageThread({ conversationId: conversationIdProp, group }: { c
     (id: string) => (id === user?.id ? "You" : profileById.get(id)?.display_name ?? "Former member"),
     [profileById, user?.id]
   );
+  // Hosts (only) see a small centred badge where someone left — the group itself is never told.
+  const { data: memberEvents } = useRoomMemberEvents(group?.projectId, !!group?.isHost);
   const anchoredCount = useMemo(() => (messages ?? []).filter((m) => m.anchored_at && !m.is_deleted).length, [messages]);
 
   // Flat, virtualizer-friendly list: one entry per message, each
@@ -312,11 +327,19 @@ export function MessageThread({ conversationId: conversationIdProp, group }: { c
     const sameRun = (a?: MessageWithSender, b?: MessageWithSender) =>
       !!a && !!b && a.sender_id === b.sender_id && dayKeyFor(a.created_at) === dayKeyFor(b.created_at) &&
       Math.abs(new Date(b.created_at).getTime() - new Date(a.created_at).getTime()) < 10 * 60_000;
+    const events = group?.isHost ? memberEvents ?? [] : [];
+    let eventIdx = 0;
     return visibleMessages.map((m, i, all) => {
       const dayKey = dayKeyFor(m.created_at);
       const showDaySeparator = dayKey !== lastDayKey;
       lastDayKey = dayKey;
+      // Badges sit just above the first message that came after them; any after the last message trail it.
+      const hostBadges: RoomMemberEvent[] = [];
+      while (eventIdx < events.length && events[eventIdx].created_at <= m.created_at) hostBadges.push(events[eventIdx++]);
+      const trailingBadges = i === all.length - 1 ? events.slice(eventIdx) : undefined;
       return {
+        hostBadges: hostBadges.length ? hostBadges : undefined,
+        trailingBadges: trailingBadges?.length ? trailingBadges : undefined,
         key: m.client_key ?? m.id,
         message: m,
         showDaySeparator,
@@ -325,7 +348,7 @@ export function MessageThread({ conversationId: conversationIdProp, group }: { c
         isLastInRun: !sameRun(m, all[i + 1]),
       };
     });
-  }, [visibleMessages]);
+  }, [visibleMessages, memberEvents, group?.isHost]);
 
   const indexById = useMemo(() => {
     const map = new Map<string, number>();
@@ -1049,7 +1072,7 @@ export function MessageThread({ conversationId: conversationIdProp, group }: { c
       // isn't enough once the keyboard is involved.
       style={{ height: viewportHeight }}
     >
-      <header className="px-4 pt-6 pb-3 sticky top-0 bg-canvas z-chrome border-b border-border flex items-center gap-3">
+      <header className="px-3 pb-2 sticky top-0 bg-canvas z-chrome border-b border-border flex items-center gap-3" style={{ paddingTop: "max(0.5rem, env(safe-area-inset-top, 0px))" }}>
         {selectMode ? (
           <>
             <button onClick={exitSelectMode} className="text-ink-muted flex-shrink-0" aria-label="Cancel selection">
@@ -1139,17 +1162,25 @@ export function MessageThread({ conversationId: conversationIdProp, group }: { c
               <ArrowLeft size={22} />
             </button>
             {group && (
-              <button type="button" onClick={group.onOpenInfo} className="flex flex-1 min-w-0 items-center gap-3 text-left" aria-label="Group info">
-                <Avatar src={group.avatarUrl} name={group.title} size="md" />
-                <span className="min-w-0 flex-1">
-                  <span className="block truncate font-semibold text-ink leading-tight">{group.title}</span>
-                  <span className="block truncate text-xs text-ink-muted">
-                    {group.people.length > 0 && group.people.length <= 6
-                      ? group.people.map((p) => (p.user_id === user?.id ? "You" : p.display_name.trim().split(" ")[0])).join(", ")
-                      : `${group.people.length} members`}
-                  </span>
-                </span>
-              </button>
+              <div className="flex flex-1 min-w-0 items-center gap-3">
+                <button type="button" onClick={group.onOpenInfo} className="flex-shrink-0" aria-label="Group info">
+                  <Avatar src={group.avatarUrl} name={group.title} size="md" />
+                </button>
+                <div className="min-w-0 flex-1 text-left">
+                  <button type="button" onClick={group.onOpenInfo} className="block max-w-full truncate text-left text-[18px] font-bold text-ink leading-tight" aria-label="Group info">
+                    {group.title}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={group.onOpenMembers}
+                    className="flex items-center gap-1 text-[13px] font-semibold text-accent"
+                    aria-label={`${group.people.length} members. View members`}
+                  >
+                    <Users size={14} />
+                    {`${group.people.length} ${group.people.length === 1 ? "member" : "members"}`}
+                  </button>
+                </div>
+              </div>
             )}
             {teamPage && (
               <>
@@ -1387,6 +1418,7 @@ export function MessageThread({ conversationId: conversationIdProp, group }: { c
                         </span>
                       </div>
                     )}
+                    {item.hostBadges?.map((e) => <LeaveBadge key={e.id} event={e} />)}
                     <MessageBubble
                       message={m}
                       group={
@@ -1428,6 +1460,7 @@ export function MessageThread({ conversationId: conversationIdProp, group }: { c
                       onAddReaction={onAddReaction}
                       onRequestManageReaction={onRequestManageReaction}
                     />
+                    {item.trailingBadges?.map((e) => <LeaveBadge key={e.id} event={e} />)}
                   </div>
                 );
               })}
