@@ -18,6 +18,8 @@ import { friendlyError } from "../lib/friendlyError";
 interface ProjectLinkSheetProps {
   project: Project;
   onClose: () => void;
+  /** What the link points at, for the explainer copy. Defaults to "Project"; groups pass "group". */
+  noun?: string;
 }
 
 /**
@@ -27,7 +29,7 @@ interface ProjectLinkSheetProps {
  * AffiliateProgramSheet — this isn't part of what "Save changes"
  * submits.
  */
-export function ProjectLinkSheet({ project, onClose }: ProjectLinkSheetProps) {
+export function ProjectLinkSheet({ project, onClose, noun = "Project" }: ProjectLinkSheetProps) {
   useBackDismiss(onClose);
   const toast = useToast();
   const { profile } = useAuth();
@@ -120,7 +122,7 @@ export function ProjectLinkSheet({ project, onClose }: ProjectLinkSheetProps) {
 
           <div className="px-4 pb-6">
             <p className="text-sm text-ink-muted mt-2 mb-4">
-              This is the link people use to find this Project. You can change it any time — the old link will
+              This is the link people use to find this {noun}. You can change it any time — the old link will
               still bring people here.
             </p>
 

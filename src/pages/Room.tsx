@@ -1,6 +1,6 @@
 // src/pages/Room.tsx
 import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
-import { useParams, useNavigate, useSearchParams, useLocation, Link, Navigate } from "react-router-dom";
+import { useParams, useNavigate, useSearchParams, useLocation, Navigate } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "../hooks/useAuth";
 import { loginPathFor, returnPathOf } from "../lib/authRedirect";
@@ -25,14 +25,11 @@ import {
   ScreenShareOff,
   PhoneOff,
   Settings,
-  Shield,
   CheckCircle2,
   XCircle,
   Circle,
   Square,
-  UserPlus,
   LogOut,
-  Ban,
 } from "lucide-react";
 import { useProjectOwnership } from "../hooks/useProjectOwnership";
 import { useProject, usePurchaseProject, type Project } from "../hooks/useProjects";
@@ -47,6 +44,7 @@ import { useToast } from "../components/Toast";
 import { decodeVoiceNote } from "../lib/voiceNotes";
 import { MessageThread, type GroupThreadConfig } from "./MessageThread";
 import { GroupInfoScreen, GroupMembersScreen, GroupScreenShell, type GroupView } from "../components/group/GroupScreens";
+import { HostSettingsPanel } from "../components/group/GroupSettings";
 import { ConfirmDialog } from "../components/ConfirmDialog";
 import type { OptionItem } from "../components/OptionsModal";
 import { useLiveKitRoom, type CallParticipantView } from "../hooks/useLiveKitRoom";
@@ -59,11 +57,7 @@ import {
   useRoomMembersList,
   useRoomDetails,
   useRoomIsClosed,
-  useUpdateRoomDetails,
   useRoomConversationId,
-  useRoomModerators,
-  useAddRoomModerator,
-  useRemoveRoomModerator,
   useRoomPosts,
   usePostToRoom,
   usePostVoiceNoteToRoom,
@@ -82,18 +76,11 @@ import {
   useRoomJoinRequests,
   useRequestRoomJoin,
   useCancelRoomJoinRequest,
-  useReviewRoomJoinRequest,
-  useAddRoomMember,
   useLeaveRoom,
-  useRemoveRoomMember,
-  useRoomBlocklist,
-  useUnblacklistRoomUser,
   useGroupPublicInfo,
   useJoinOpenRoom,
   invalidateRoomMembership,
-  findProfileByUsername,
   type GroupPublicInfo,
-  type RoomHistoryMode,
   type RoomMeeting,
 } from "../hooks/useRoom";
 import { SafeAudio } from "../components/MediaPlaceholder";
@@ -772,289 +759,8 @@ function AssignmentsTab({ projectId, isHost }: { projectId: string; isHost: bool
   );
 }
 
-// ---------------------------------------------------------------
-// Host-only settings sheet — co-hosts + chat moderation toggles.
-// ---------------------------------------------------------------
-
-const HISTORY_OPTIONS: { value: RoomHistoryMode; label: string; hint: string }[] = [
-  { value: "anchored", label: "Anchored only", hint: "New members see anchored messages and anything from when they joined." },
-  { value: "admins_and_anchored", label: "Hosts + anchored", hint: "New members also see everything the hosts wrote." },
-  { value: "all", label: "Everything", hint: "New members can read the whole chat history." },
-];
-
 function errorMessage(err: unknown, fallback: string): string {
   return err instanceof Error && err.message ? err.message : fallback;
-}
-
-function PersonLink({ username, name, avatar }: { username: string; name: string; avatar: string | null }) {
-  return (
-    <Link to={`/profile/${username}`} className="flex items-center gap-1.5 min-w-0">
-      <Avatar src={avatar} name={name} size="sm" />
-      <span className="min-w-0">
-        <span className="block text-sm text-ink truncate">{name}</span>
-        <span className="block text-[11px] text-ink-muted truncate">@{username}</span>
-      </span>
-    </Link>
-  );
-}
-
-function HostSettingsPanel({ projectId, isOwner }: { projectId: string; isOwner: boolean }) {
-  const { data: details } = useRoomDetails(projectId);
-  const { data: members } = useRoomMembersList(projectId);
-  const { data: moderators } = useRoomModerators(projectId);
-  const { data: requests } = useRoomJoinRequests(projectId);
-  const { data: blocklist } = useRoomBlocklist(projectId);
-  const updateDetails = useUpdateRoomDetails(projectId);
-  const addModerator = useAddRoomModerator(projectId);
-  const removeModerator = useRemoveRoomModerator(projectId);
-  const review = useReviewRoomJoinRequest(projectId);
-  const addMember = useAddRoomMember(projectId);
-  const removeMember = useRemoveRoomMember(projectId);
-  const unblacklist = useUnblacklistRoomUser(projectId);
-  const toast = useToast();
-  const [username, setUsername] = useState("");
-  const [adding, setAdding] = useState(false);
-
-  const moderatorIds = new Set((moderators ?? []).map((m) => m.user_id));
-  const historyMode = details?.history_mode ?? "anchored";
-
-  async function handleAdd(e: FormEvent) {
-    e.preventDefault();
-    if (!username.trim()) return;
-    setAdding(true);
-    try {
-      const profile = await findProfileByUsername(username);
-      if (!profile) {
-        toast("No one has that username.", { variant: "error" });
-        return;
-      }
-      await addMember.mutateAsync(profile.id);
-      toast(`${profile.display_name} was added.`, { variant: "success" });
-      setUsername("");
-    } catch (err) {
-      toast(errorMessage(err, "Couldn't add them."), { variant: "error" });
-    } finally {
-      setAdding(false);
-    }
-  }
-
-  function decide(userId: string, name: string, approve: boolean) {
-    review.mutate(
-      { userId, approve },
-      {
-        onSuccess: () => toast(approve ? `${name} joined the group.` : `Declined ${name}.`, { variant: "success" }),
-        onError: (err) => toast(errorMessage(err, "Couldn't update that request."), { variant: "error" }),
-      }
-    );
-  }
-
-  function remove(userId: string, name: string, blacklist: boolean) {
-    const ok = window.confirm(
-      blacklist ? `Remove ${name} and stop them from joining again?` : `Remove ${name} from this group?`
-    );
-    if (!ok) return;
-    removeMember.mutate(
-      { userId, blacklist },
-      {
-        onSuccess: () => toast(blacklist ? `${name} was removed and blacklisted.` : `${name} was removed.`, { variant: "success" }),
-        onError: (err) => toast(errorMessage(err, "Couldn't remove them."), { variant: "error" }),
-      }
-    );
-  }
-
-  return (
-    <div className="p-3 rounded-xl border border-border bg-surface mb-4 flex flex-col gap-4">
-      <div className="flex items-center gap-1.5">
-        <Shield size={14} className="text-ink-muted" />
-        <p className="text-sm font-medium text-ink">Group settings</p>
-      </div>
-
-      {(requests ?? []).length > 0 && (
-        <div>
-          <p className="text-xs text-ink-muted mb-1.5">Requests to join ({requests!.length})</p>
-          <div className="flex flex-col gap-2">
-            {requests!.map((r) => (
-              <div key={r.user_id} className="flex flex-col gap-1.5 p-2 rounded-lg bg-canvas">
-                <div className="flex items-center justify-between gap-2">
-                  <PersonLink username={r.profile.username} name={r.profile.display_name} avatar={r.profile.avatar_url} />
-                  <div className="flex items-center gap-1.5 shrink-0">
-                    <button
-                      onClick={() => decide(r.user_id, r.profile.display_name, false)}
-                      disabled={review.isPending}
-                      className="px-2.5 py-1 rounded-full border border-border text-xs text-ink-muted"
-                    >
-                      Decline
-                    </button>
-                    <button
-                      onClick={() => decide(r.user_id, r.profile.display_name, true)}
-                      disabled={review.isPending}
-                      className="px-2.5 py-1 rounded-full bg-cta text-white text-xs font-medium"
-                    >
-                      Accept
-                    </button>
-                  </div>
-                </div>
-                {r.message && <p className="text-xs text-ink-muted px-1">“{r.message}”</p>}
-              </div>
-            ))}
-          </div>
-          <p className="text-[11px] text-ink-muted mt-1">Tap a name or photo to see their profile first.</p>
-        </div>
-      )}
-
-      <div className="flex flex-col gap-2">
-        {details?.kind === "community" && (
-          <button
-            onClick={() => updateDetails.mutate({ join_mode: details.join_mode === "open" ? "request" : "open" })}
-            className="flex items-center justify-between text-sm"
-          >
-            <span className="text-ink">Anyone can join without approval</span>
-            <span className={details.join_mode === "open" ? "text-accent font-medium" : "text-ink-muted"}>
-              {details.join_mode === "open" ? "On" : "Off"}
-            </span>
-          </button>
-        )}
-        <button
-          onClick={() => updateDetails.mutate({ hosts_only_chat: !details?.hosts_only_chat })}
-          className="flex items-center justify-between text-sm"
-        >
-          <span className="text-ink-muted">Only hosts can post in chat</span>
-          <span className={details?.hosts_only_chat ? "text-accent font-medium" : "text-ink-muted"}>
-            {details?.hosts_only_chat ? "On" : "Off"}
-          </span>
-        </button>
-        <button
-          onClick={() => updateDetails.mutate({ chat_muted: !details?.chat_muted })}
-          className="flex items-center justify-between text-sm"
-        >
-          <span className="text-ink-muted">Mute chat for everyone</span>
-          <span className={details?.chat_muted ? "text-accent font-medium" : "text-ink-muted"}>
-            {details?.chat_muted ? "On" : "Off"}
-          </span>
-        </button>
-      </div>
-
-      <div>
-        <p className="text-xs text-ink-muted mb-1.5">What new members see</p>
-        <div className="flex flex-col gap-1">
-          {HISTORY_OPTIONS.map((o) => (
-            <button
-              key={o.value}
-              onClick={() => updateDetails.mutate({ history_mode: o.value })}
-              className={`text-left px-2.5 py-1.5 rounded-lg border text-sm ${
-                historyMode === o.value ? "border-accent bg-accent-soft/40 text-ink" : "border-border text-ink-muted"
-              }`}
-            >
-              <span className="font-medium">{o.label}</span>
-              <span className="block text-[11px] text-ink-muted">{o.hint}</span>
-            </button>
-          ))}
-        </div>
-        <p className="text-[11px] text-ink-muted mt-1">Anchored messages are always visible to new members.</p>
-      </div>
-
-      <form onSubmit={handleAdd}>
-        <p className="text-xs text-ink-muted mb-1.5">Add someone</p>
-        <div className="flex items-center gap-2">
-          <input
-            value={username}
-            onChange={(e) => setUsername(e.target.value)}
-            placeholder="@username"
-            autoCapitalize="none"
-            autoCorrect="off"
-            className="flex-1 min-w-0 px-3 py-2 rounded-lg border border-border bg-canvas text-sm text-ink"
-          />
-          <button
-            type="submit"
-            disabled={adding || !username.trim()}
-            className="flex items-center gap-1 px-3 py-2 rounded-lg bg-cta text-white text-sm font-medium disabled:opacity-50"
-          >
-            <UserPlus size={14} /> Add
-          </button>
-        </div>
-      </form>
-
-      <div>
-        <p className="text-xs text-ink-muted mb-1.5">Members</p>
-        <div className="flex flex-col gap-2">
-          {(members ?? []).map((m) => {
-            const isMod = moderatorIds.has(m.user_id);
-            return (
-              <div key={m.user_id} className="flex items-center justify-between gap-2">
-                <PersonLink username={m.profile.username} name={m.profile.display_name} avatar={m.profile.avatar_url} />
-                <div className="flex items-center gap-2 shrink-0 text-xs font-medium">
-                  {isMod ? (
-                    isOwner && (
-                      <button
-                        onClick={() =>
-                          removeModerator.mutate(m.user_id, {
-                            onSuccess: () => toast(`${m.profile.display_name} is no longer a co-host.`, { variant: "success" }),
-                          })
-                        }
-                        className="text-danger"
-                      >
-                        Remove co-host
-                      </button>
-                    )
-                  ) : (
-                    <>
-                      {isOwner && (
-                        <button
-                          onClick={() =>
-                            addModerator.mutate(m.user_id, {
-                              onSuccess: () => toast(`${m.profile.display_name} is now a co-host.`, { variant: "success" }),
-                            })
-                          }
-                          className="text-accent"
-                        >
-                          Co-host
-                        </button>
-                      )}
-                      <button onClick={() => remove(m.user_id, m.profile.display_name, false)} className="text-danger">
-                        Remove
-                      </button>
-                      <button
-                        onClick={() => remove(m.user_id, m.profile.display_name, true)}
-                        className="text-danger"
-                        aria-label={`Remove ${m.profile.display_name} and blacklist`}
-                      >
-                        <Ban size={14} />
-                      </button>
-                    </>
-                  )}
-                </div>
-              </div>
-            );
-          })}
-          {(members ?? []).length === 0 && <p className="text-xs text-ink-muted">No members yet.</p>}
-        </div>
-      </div>
-
-      {(blocklist ?? []).length > 0 && (
-        <div>
-          <p className="text-xs text-ink-muted mb-1.5">Blacklisted ({blocklist!.length})</p>
-          <div className="flex flex-col gap-2">
-            {blocklist!.map((b) => (
-              <div key={b.user_id} className="flex items-center justify-between gap-2">
-                <PersonLink username={b.profile.username} name={b.profile.display_name} avatar={b.profile.avatar_url} />
-                <button
-                  onClick={() =>
-                    unblacklist.mutate(b.user_id, {
-                      onSuccess: () => toast(`${b.profile.display_name} can request to join again.`, { variant: "success" }),
-                      onError: (err) => toast(errorMessage(err, "Couldn't update the blacklist."), { variant: "error" }),
-                    })
-                  }
-                  className="text-xs text-accent font-medium shrink-0"
-                >
-                  Unblock
-                </button>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-    </div>
-  );
 }
 
 // Shown to someone who isn't in the room yet. Public free rooms take a request the host reviews; paid
@@ -1464,7 +1170,7 @@ function GroupPage({ projectId }: { projectId: string | undefined }) {
       {view === "updates" && <ClassroomTab projectId={project.id} isHost={isHost} />}
       {view === "meetings" && <MeetingsTab projectId={project.id} isHost={isHost} />}
       {view === "assignments" && <AssignmentsTab projectId={project.id} isHost={isHost} />}
-      {view === "settings" && <HostSettingsPanel projectId={project.id} isOwner={isOwner} />}
+      {view === "settings" && <HostSettingsPanel projectId={project.id} project={project} isOwner={isOwner} onOpenMembers={() => goView("members")} />}
     </GroupScreenShell>
   );
 }
