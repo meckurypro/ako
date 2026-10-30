@@ -1,6 +1,6 @@
 // src/components/MessageActionMenu.tsx
 import { useLayoutEffect, useRef, useState } from "react";
-import { Copy, Trash2, Redo2, MoreHorizontal, Star, Pin, Plus, X, Reply, Forward, EyeOff, CheckSquare } from "lucide-react";
+import { Copy, Trash2, Redo2, MoreHorizontal, Star, Pin, Plus, X, Reply, Forward, EyeOff, CheckSquare, Anchor } from "lucide-react";
 import { useBackDismiss } from "../hooks/useBackDismiss";
 import { useDismissKeyboardOnMount } from "../hooks/useDismissKeyboard";
 import { useScrollLock } from "../hooks/useScrollLock";
@@ -35,6 +35,9 @@ interface MessageActionMenuProps {
   onHide: () => void;
   onShare: () => void;
   onSelect: () => void;
+  /** Group hosts only: make this message permanent for people who join later (or undo that). */
+  isAnchored?: boolean;
+  onToggleAnchor?: () => void;
   onClose: () => void;
   /** Fired instead of onClose when the dimmed backdrop tap actually
    *  landed on a different message bubble (identified via
@@ -89,6 +92,8 @@ export function MessageActionMenu({
   onHide,
   onShare,
   onSelect,
+  isAnchored,
+  onToggleAnchor,
   onClose,
   onTapMessage,
 }: MessageActionMenuProps) {
@@ -249,6 +254,17 @@ export function MessageActionMenu({
                     },
                   },
                 ];
+                if (!isDeleted && onToggleAnchor) {
+                  menuItems.push({
+                    key: "anchor",
+                    label: isAnchored ? "Unanchor" : "Anchor for new members",
+                    icon: <Anchor className={isAnchored ? "fill-accent text-accent" : ""} />,
+                    onSelect: () => {
+                      onToggleAnchor();
+                      onClose();
+                    },
+                  });
+                }
                 if (!isDeleted) {
                   menuItems.push(
                     {

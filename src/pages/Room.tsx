@@ -14,7 +14,6 @@ import {
   ClipboardList,
   Users,
   Lock,
-  MessageCircle,
   BookOpen,
   BarChart3,
   X,
@@ -27,8 +26,6 @@ import {
   PhoneOff,
   Settings,
   Shield,
-  Eye,
-  EyeOff,
   CheckCircle2,
   XCircle,
   Circle,
@@ -48,13 +45,17 @@ import { VoiceMessageBubble } from "../components/VoiceMessageBubble";
 import { Avatar } from "../components/Avatar";
 import { useToast } from "../components/Toast";
 import { decodeVoiceNote } from "../lib/voiceNotes";
-import { RoomChat } from "../components/RoomChat";
+import { MessageThread, type GroupThreadConfig } from "./MessageThread";
+import { GroupInfoScreen, GroupMembersScreen, GroupScreenShell, type GroupView } from "../components/group/GroupScreens";
+import { ConfirmDialog } from "../components/ConfirmDialog";
+import type { OptionItem } from "../components/OptionsModal";
 import { useLiveKitRoom, type CallParticipantView } from "../hooks/useLiveKitRoom";
 import { useStartMeetingRecording, useStopMeetingRecording } from "../hooks/useMeetingRecordings";
 import {
   useIsRoomMember,
   useIsRoomHost,
   useRoomMemberCount,
+  useRoomPeople,
   useRoomMembersList,
   useRoomDetails,
   useRoomIsClosed,
@@ -97,7 +98,6 @@ import {
 } from "../hooks/useRoom";
 import { SafeAudio } from "../components/MediaPlaceholder";
 
-type Tab = "classroom" | "chat" | "meetings" | "assignments";
 
 // ---------------------------------------------------------------
 // Compact live-call view for a room meeting — same real
@@ -1271,27 +1271,37 @@ function GroupPage({ projectId }: { projectId: string | undefined }) {
   const startCountdownMs = useCountdown(details?.start_date ?? undefined);
   const notYetStarted = !!details?.start_date && startCountdownMs !== null && startCountdownMs > 0;
 
-  // A cohort opens on its classroom; a community opens on its chat — that's where the people are.
-  const [pickedTab, setTab] = useState<Tab | null>(null);
-  const tab: Tab = pickedTab ?? (isCohort ? "classroom" : "chat");
-  // Kept in the URL so coming back from a requester's profile lands on the open panel again.
-  const [searchParams, setSearchParams] = useSearchParams();
-  const showSettings = searchParams.get("settings") === "1";
-  const setShowSettings = (open: boolean) =>
-    setSearchParams(open ? { settings: "1" } : {}, { replace: true });
+  // A group opens on its chat — that's where the people are. Everything else (Updates / Classroom, Meetings,
+  // Assignments, Members, Settings) is its own screen, reached from the group info list or the chat's ⋯ menu, and
+  // kept in the URL (?view=…) so Back and deep links behave. Old ?settings=1 links still land on Settings.
+  const navigate_ = navigate;
+  const location = useLocation();
+  const [searchParams] = useSearchParams();
+  const rawView = searchParams.get("view") ?? (searchParams.get("settings") === "1" ? "settings" : null);
+  const showChat = !isClosed || isHost; // a finished cohort's chat is closed to everyone but its hosts
+  const goView = (v: GroupView | null, opts: { replace?: boolean; from?: string } = {}) =>
+    navigate_({ search: v ? `?view=${v}` : "" }, { replace: opts.replace, state: opts.from ? { from: opts.from } : undefined });
+  const backFromView = () => {
+    // Views are pushed, so the browser's Back is the natural way out; a deep link has nothing behind it.
+    if ((window.history.state?.idx ?? 0) > 0) navigate_(-1);
+    else goView(null, { replace: true });
+  };
+
   const { data: pendingRequests } = useRoomJoinRequests(projectId, isHost);
+  const { data: people, isLoading: peopleLoading } = useRoomPeople(hasAccess ? projectId : undefined);
   const leaveRoom = useLeaveRoom(projectId ?? "");
   const toast = useToast();
-  const [viewArchivedChat, setViewArchivedChat] = useState(false);
+  const [confirmLeave, setConfirmLeave] = useState(false);
   const getConversationId = useRoomConversationId(projectId ?? "");
   const [conversationId, setConversationId] = useState<string | null>(null);
 
+  const wantsChat = !rawView && showChat;
   useEffect(() => {
-    if (tab === "chat" && hasAccess && !conversationId && !getConversationId.isPending) {
+    if (wantsChat && hasAccess && !conversationId && !getConversationId.isPending) {
       getConversationId.mutate(undefined, { onSuccess: (id) => setConversationId(id) });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tab, hasAccess]);
+  }, [wantsChat, hasAccess]);
 
   if (!project) {
     return (
@@ -1322,140 +1332,139 @@ function GroupPage({ projectId }: { projectId: string | undefined }) {
     );
   }
 
-  const showChatTab = !isClosed || isHost;
-  const chatUnlockedForMe = !isClosed || isHost || viewArchivedChat;
+  const everyone = people ?? [];
+  const memberTotal = everyone.length || memberCount || 0;
+  const canLeave = !isOwner && !isHost && !!isMember;
+  const pendingCount = (pendingRequests ?? []).length;
 
+  // Which screen? Anything the group can't show right now (meetings once a cohort has ended, assignments in a
+  // community, settings for non-hosts) falls back to the info list rather than an empty page.
+  const allowed: GroupView[] = ["info", "updates", "members", ...(!isClosed ? (["meetings"] as const) : []), ...(!isClosed && isCohort ? (["assignments"] as const) : []), ...(isHost ? (["settings"] as const) : [])];
+  const view: GroupView | "chat" = rawView
+    ? allowed.includes(rawView as GroupView) ? (rawView as GroupView) : "info"
+    : showChat ? "chat" : "updates";
+
+  const updatesLabel = isCohort ? "Classroom" : "Updates";
+
+  const leaveDialog = confirmLeave && (
+    <ConfirmDialog
+      title={`Leave “${project.title}”?`}
+      description="You'll stop seeing this group's chat and updates. Other members won't be notified."
+      confirmLabel="Leave group"
+      onCancel={() => setConfirmLeave(false)}
+      onConfirm={() => {
+        setConfirmLeave(false);
+        leaveRoom.mutate(undefined, {
+          onSuccess: () => {
+            toast("You left the group.", { variant: "success" });
+            navigate("/connect", { replace: true });
+          },
+          onError: (err) => toast(errorMessage(err, "Couldn't leave the group."), { variant: "error" }),
+        });
+      }}
+    />
+  );
+
+  if (view === "chat") {
+    // The ⋯ menu in the chat header: the group's screens, with Leave last (and only for people who can leave).
+    const menuItems: (OptionItem | "divider")[] = [
+      { key: "updates", label: updatesLabel, icon: <BookOpen />, onSelect: () => goView("updates", { from: "chat" }) },
+      ...(!isClosed ? [{ key: "meetings", label: "Meetings", icon: <Calendar />, onSelect: () => goView("meetings", { from: "chat" }) } satisfies OptionItem] : []),
+      ...(!isClosed && isCohort ? [{ key: "assignments", label: "Assignments", icon: <ClipboardList />, onSelect: () => goView("assignments", { from: "chat" }) } satisfies OptionItem] : []),
+      { key: "members", label: `Members (${memberTotal})`, icon: <Users />, onSelect: () => goView("members", { from: "chat" }) },
+      ...(isHost
+        ? [
+            {
+              key: "settings",
+              label: "Group settings",
+              icon: <Settings />,
+              badge: pendingCount > 0 ? <span className="rounded-full bg-cta px-1.5 text-[11px] font-semibold leading-5 text-white">{pendingCount}</span> : undefined,
+              onSelect: () => goView("settings", { from: "chat" }),
+            } satisfies OptionItem,
+          ]
+        : []),
+      ...(canLeave
+        ? ["divider" as const, { key: "leave", label: "Leave group", icon: <LogOut />, variant: "danger", onSelect: () => setConfirmLeave(true) } satisfies OptionItem]
+        : []),
+    ];
+    const group: GroupThreadConfig = {
+      projectId: project.id,
+      title: project.title,
+      avatarUrl: project.thumbnail_url ?? null,
+      people: everyone,
+      isHost,
+      canPost: !isClosed && (isHost || !details?.hosts_only_chat) && !(details?.chat_muted && !isHost),
+      cantPostReason: isClosed
+        ? "This cohort has ended."
+        : details?.chat_muted
+          ? "Chat is muted."
+          : details?.hosts_only_chat
+            ? "Only hosts can post here."
+            : undefined,
+      onBack: smartBack,
+      onOpenInfo: () => goView("info", { from: "chat" }),
+      onOpenProfile: (username) => navigate(`/profile/${username}`),
+      menuItems,
+    };
+    return (
+      <>
+        {conversationId ? <MessageThread conversationId={conversationId} group={group} /> : <LoadingScreen />}
+        {leaveDialog}
+      </>
+    );
+  }
+
+  if (view === "info") {
+    return (
+      <>
+        <GroupInfoScreen
+          title={project.title}
+          kind={kind}
+          kindLabel={kindLabel}
+          description={project.description ?? null}
+          thumbnailUrl={project.thumbnail_url ?? null}
+          people={everyone}
+          isHost={isHost}
+          isClosed={isClosed}
+          showChat={showChat}
+          pendingRequests={pendingCount}
+          canLeave={canLeave}
+          onBack={backFromView}
+          onOpen={(v) => goView(v, { from: "info" })}
+          onOpenChat={() => {
+            // Came here from the chat → go back to it; otherwise open it fresh without stacking another entry.
+            if (location.state?.from === "chat") navigate_(-1);
+            else goView(null, { replace: true });
+          }}
+          onLeave={() => setConfirmLeave(true)}
+        />
+        {leaveDialog}
+      </>
+    );
+  }
+
+  if (view === "members") {
+    return (
+      <GroupMembersScreen
+        projectId={project.id}
+        title={project.title}
+        isCohort={isCohort}
+        people={everyone}
+        isHost={isHost}
+        isOwner={isOwner}
+        loading={peopleLoading}
+        onBack={backFromView}
+      />
+    );
+  }
+
+  const screenTitle = view === "updates" ? updatesLabel : view === "meetings" ? "Meetings" : view === "assignments" ? "Assignments" : "Group settings";
   return (
-    <div className="min-h-screen bg-canvas px-4 pt-4 pb-10">
-      <div className="max-w-md mx-auto">
-        <div className="flex items-center justify-between mb-3">
-          <button onClick={smartBack} className="text-ink-muted">
-            <ArrowLeft size={22} />
-          </button>
-          <div className="flex items-center gap-3">
-            {!isOwner && !isHost && isMember && (
-              <button
-                onClick={() => {
-                  if (!window.confirm(`Leave “${project.title}”?`)) return;
-                  leaveRoom.mutate(undefined, {
-                    onSuccess: () => {
-                      toast("You left the group.", { variant: "success" });
-                      navigate("/connect", { replace: true });
-                    },
-                    onError: (err) => toast(errorMessage(err, "Couldn't leave the group."), { variant: "error" }),
-                  });
-                }}
-                className="flex items-center gap-1 text-xs text-ink-muted"
-                aria-label="Leave group"
-              >
-                <LogOut size={16} /> Leave
-              </button>
-            )}
-            {isHost && (
-              <button onClick={() => setShowSettings(!showSettings)} className="relative text-ink-muted" aria-label="Group settings">
-                <Settings size={20} />
-                {(pendingRequests ?? []).length > 0 && (
-                  <span className="absolute -top-1.5 -right-1.5 min-w-[16px] h-4 px-1 rounded-full bg-cta text-white text-[10px] leading-4 text-center">
-                    {pendingRequests!.length}
-                  </span>
-                )}
-              </button>
-            )}
-          </div>
-        </div>
-
-        <div className="flex items-center justify-between mb-3">
-          <h2 className="font-display text-2xl text-ink truncate">{project.title}</h2>
-          <span className="flex items-center gap-1 text-xs text-ink-muted shrink-0 ml-2">
-            <Users size={13} />
-            {memberCount ?? 0}
-          </span>
-        </div>
-
-        {isClosed && (
-          <div className="flex items-center justify-between mb-3 px-3 py-2 rounded-xl bg-accent-soft/60 text-sm text-ink-muted">
-            <span>This {kindLabel.toLowerCase()} has ended — media stays here for people who were in it.</span>
-            {isHost && (
-              <button
-                onClick={() => setViewArchivedChat((v) => !v)}
-                className="flex items-center gap-1 text-accent font-medium shrink-0 ml-2"
-              >
-                {viewArchivedChat ? <EyeOff size={13} /> : <Eye size={13} />}
-                {viewArchivedChat ? "Hide chat" : "View chat"}
-              </button>
-            )}
-          </div>
-        )}
-
-        {showSettings && isHost && <HostSettingsPanel projectId={project.id} isOwner={isOwner} />}
-
-        <div className="flex gap-1 mb-4 border-b border-border">
-          {(
-            (isCohort
-              ? [
-                  ["classroom", "Classroom", BookOpen],
-                  ...(showChatTab ? ([["chat", "Chat", MessageCircle]] as const) : []),
-                  ...(!isClosed ? ([["meetings", "Meetings", Calendar], ["assignments", "Assignments", ClipboardList]] as const) : []),
-                ]
-              : [
-                  ["chat", "Chat", MessageCircle],
-                  ["classroom", "Updates", BookOpen],
-                  ["meetings", "Meetings", Calendar],
-                ]) as [Tab, string, typeof BookOpen][]
-          ).map(([key, label, Icon]) => (
-            <button
-              key={key}
-              onClick={() => setTab(key)}
-              className={`flex items-center gap-1 px-2.5 py-2 text-xs font-medium border-b-2 -mb-px ${
-                tab === key ? "border-accent text-accent" : "border-transparent text-ink-muted"
-              }`}
-            >
-              <Icon size={13} /> {label}
-            </button>
-          ))}
-        </div>
-
-        <div style={{ display: tab === "classroom" ? "block" : "none" }}>
-          <ClassroomTab projectId={project.id} isHost={isHost} />
-        </div>
-        {showChatTab && (
-          <div style={{ display: tab === "chat" ? "block" : "none" }} className="h-[60vh]">
-            {!chatUnlockedForMe ? (
-              <p className="text-xs text-ink-muted">Chat closed when the cohort ended.</p>
-            ) : conversationId ? (
-              <RoomChat
-                projectId={project.id}
-                conversationId={conversationId}
-                isHost={isHost}
-                canPost={!isClosed && (isHost || !details?.hosts_only_chat) && !(details?.chat_muted && !isHost)}
-                cantPostReason={
-                  isClosed
-                    ? "This cohort has ended."
-                    : details?.chat_muted
-                      ? "Chat is muted."
-                      : details?.hosts_only_chat
-                        ? "Only hosts can post here."
-                        : undefined
-                }
-              />
-            ) : (
-              <p className="text-xs text-ink-muted">Loading chat…</p>
-            )}
-          </div>
-        )}
-        {!isClosed && (
-          <>
-            <div style={{ display: tab === "meetings" ? "block" : "none" }}>
-              <MeetingsTab projectId={project.id} isHost={isHost} />
-            </div>
-            {isCohort && (
-              <div style={{ display: tab === "assignments" ? "block" : "none" }}>
-                <AssignmentsTab projectId={project.id} isHost={isHost} />
-              </div>
-            )}
-          </>
-        )}
-      </div>
-    </div>
+    <GroupScreenShell title={screenTitle} subtitle={project.title} onBack={backFromView}>
+      {view === "updates" && <ClassroomTab projectId={project.id} isHost={isHost} />}
+      {view === "meetings" && <MeetingsTab projectId={project.id} isHost={isHost} />}
+      {view === "assignments" && <AssignmentsTab projectId={project.id} isHost={isHost} />}
+      {view === "settings" && <HostSettingsPanel projectId={project.id} isOwner={isOwner} />}
+    </GroupScreenShell>
   );
 }

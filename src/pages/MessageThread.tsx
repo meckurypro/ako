@@ -3,7 +3,6 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, typ
 import { useParams, useNavigate, useLocation } from "react-router-dom";
 import {
   ArrowLeft,
-  Send,
   Search,
   ChevronUp,
   ChevronDown,
@@ -21,6 +20,9 @@ import {
   Users,
   Paperclip,
   Camera,
+  Lock,
+  Anchor,
+  Info,
 } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { useVirtualizer } from "@tanstack/react-virtual";
@@ -71,7 +73,10 @@ import { ReactionOptionsPopover, type ReactionPopoverTarget } from "../component
 import { useBackDismiss } from "../hooks/useBackDismiss";
 import { useKeyboardInset } from "../hooks/useKeyboardInset";
 import { useVoiceRecorder } from "../hooks/useVoiceRecorder";
-import { MessageBubble, SWIPE_THRESHOLD, SWIPE_MAX } from "../components/MessageBubble";
+import { MessageBubble, SWIPE_THRESHOLD, SWIPE_MAX, type GroupBubbleInfo } from "../components/MessageBubble";
+import { SendButton } from "../components/SendButton";
+import { OptionsModal, type OptionItem } from "../components/OptionsModal";
+import { useProfilesByIds, useSetMessageAnchor, type RoomPerson } from "../hooks/useRoom";
 import { useFeatureFlag, useVoiceNotesEnabled } from "../hooks/useFeatureFlags";
 
 // Fetches header identity for the thread — a small dedicated query
@@ -83,7 +88,27 @@ import { useFeatureFlag, useVoiceNotesEnabled } from "../hooks/useFeatureFlags";
 // .maybeSingle() on "every OTHER participant", which throws outright
 // the moment a conversation has more than one (any group with 3+
 // total members) — this branches before ever reaching that query.
-function useConversationHeader(conversationId: string) {
+/**
+ * Turns this thread into a GROUP chat (a Group's conversation): a group header, per-sender names and avatars, run
+ * grouping, host anchoring, and an options menu supplied by the Group page. Without it the thread is a 1:1 DM / page
+ * team chat exactly as before.
+ */
+export interface GroupThreadConfig {
+  projectId: string;
+  title: string;
+  avatarUrl: string | null;
+  people: RoomPerson[];
+  isHost: boolean;
+  canPost: boolean;
+  cantPostReason?: string;
+  onBack: () => void;
+  onOpenInfo: () => void;
+  onOpenProfile: (username: string) => void;
+  /** Rows under Search / Anchored in the ⋯ menu — the Group page's screens, ending with Leave. */
+  menuItems: (OptionItem | "divider")[];
+}
+
+function useConversationHeader(conversationId: string, enabled = true) {
   const { user } = useAuth();
 
   return useQuery({
@@ -133,7 +158,7 @@ function useConversationHeader(conversationId: string) {
           | undefined,
       };
     },
-    enabled: !!conversationId && !!user,
+    enabled: !!conversationId && !!user && enabled,
     refetchInterval: 30_000, // keeps the header status dot from going stale on a long-open thread
   });
 }
@@ -162,13 +187,14 @@ interface DeleteTarget {
 
 type EmojiPickerTarget = { mode: "input" } | { mode: "reaction"; messageId: string } | null;
 
-export function MessageThread() {
-  const { conversationId } = useParams<{ conversationId: string }>();
+export function MessageThread({ conversationId: conversationIdProp, group }: { conversationId?: string; group?: GroupThreadConfig } = {}) {
+  const params = useParams<{ conversationId: string }>();
+  const conversationId = conversationIdProp ?? params.conversationId;
   const navigate = useNavigate();
   const location = useLocation();
   const { user, profile } = useAuth();
   const { data: messages, isLoading, hasMore, loadOlder, isLoadingOlder } = useMessages(conversationId!);
-  const { data: header } = useConversationHeader(conversationId!);
+  const { data: header } = useConversationHeader(conversationId!, !group);
   const otherParticipant = header?.other_participant;
   const teamPage = header?.team_page;
   const { data: myParticipantState } = useMyParticipantState(conversationId!);
@@ -242,13 +268,35 @@ export function MessageThread() {
   // slot in the thread for both participants. `messages` itself stays
   // unfiltered so reactionsByMessage/userStates can be keyed against
   // every fetched id, including the ones we're about to hide here.
+  const [anchoredOnly, setAnchoredOnly] = useState(false);
   const visibleMessages = useMemo(() => {
     if (!messages) return messages;
     return messages.filter((m) => {
       const state = userStates?.[m.id];
+      if (group && anchoredOnly && !(m.anchored_at && !m.is_deleted)) return false;
       return !state?.hidden_at && !state?.deleted_for_me_at;
     });
-  }, [messages, userStates]);
+  }, [messages, userStates, group, anchoredOnly]);
+
+  // --- Group mode: who wrote what, and the host's "anchored only" filter. ---
+  const setAnchor = useSetMessageAnchor(conversationId!);
+  const unknownSenderIds = useMemo(() => {
+    if (!group || !messages) return [];
+    const known = new Set(group.people.map((p) => p.user_id));
+    return [...new Set(messages.map((m) => m.sender_id).filter((id) => !known.has(id)))];
+  }, [group, messages]);
+  const { data: formerSenders } = useProfilesByIds(unknownSenderIds);
+  const profileById = useMemo(() => {
+    const map = new Map<string, { username: string | null; display_name: string; avatar_url: string | null; is_verified: boolean }>();
+    for (const p of formerSenders ?? []) map.set(p.id, { username: p.username, display_name: p.display_name, avatar_url: p.avatar_url, is_verified: false });
+    for (const p of group?.people ?? []) map.set(p.user_id, { username: p.username, display_name: p.display_name, avatar_url: p.avatar_url, is_verified: p.is_verified });
+    return map;
+  }, [group?.people, formerSenders]);
+  const resolveName = useCallback(
+    (id: string) => (id === user?.id ? "You" : profileById.get(id)?.display_name ?? "Former member"),
+    [profileById, user?.id]
+  );
+  const anchoredCount = useMemo(() => (messages ?? []).filter((m) => m.anchored_at && !m.is_deleted).length, [messages]);
 
   // Flat, virtualizer-friendly list: one entry per message, each
   // carrying whether it starts a new day and that day's label. Day
@@ -259,11 +307,23 @@ export function MessageThread() {
   const items = useMemo(() => {
     if (!visibleMessages) return [];
     let lastDayKey: string | null = null;
-    return visibleMessages.map((m) => {
+    // A "run" is consecutive messages from one sender, on one day, within 10 minutes of each other — the unit a
+    // group thread draws as one cluster (name on top, avatar at the bottom).
+    const sameRun = (a?: MessageWithSender, b?: MessageWithSender) =>
+      !!a && !!b && a.sender_id === b.sender_id && dayKeyFor(a.created_at) === dayKeyFor(b.created_at) &&
+      Math.abs(new Date(b.created_at).getTime() - new Date(a.created_at).getTime()) < 10 * 60_000;
+    return visibleMessages.map((m, i, all) => {
       const dayKey = dayKeyFor(m.created_at);
       const showDaySeparator = dayKey !== lastDayKey;
       lastDayKey = dayKey;
-      return { key: m.client_key ?? m.id, message: m, showDaySeparator, dayLabel: formatMessageDayLabel(m.created_at) };
+      return {
+        key: m.client_key ?? m.id,
+        message: m,
+        showDaySeparator,
+        dayLabel: formatMessageDayLabel(m.created_at),
+        isFirstInRun: showDaySeparator || !sameRun(all[i - 1], m),
+        isLastInRun: !sameRun(m, all[i + 1]),
+      };
     });
   }, [visibleMessages]);
 
@@ -570,8 +630,9 @@ export function MessageThread() {
   // triggering the keyboard. Skipped whenever the composer itself
   // isn't the thing on screen, so it never steals focus from search.
   useEffect(() => {
-    if (searchOpen || selectMode) return;
+    if (searchOpen || selectMode || group) return; // a group opens on its messages, not on the keyboard
     inputRef.current?.focus();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [conversationId, searchOpen, selectMode]);
 
   // Landing on the bottom, staying there for genuinely new messages,
@@ -1074,9 +1135,22 @@ export function MessageThread() {
           </>
         ) : (
           <>
-            <button onClick={() => navigate("/messages")} className="text-ink-muted flex-shrink-0" aria-label="Back">
+            <button onClick={() => (group ? group.onBack() : navigate("/messages"))} className="text-ink-muted flex-shrink-0" aria-label="Back">
               <ArrowLeft size={22} />
             </button>
+            {group && (
+              <button type="button" onClick={group.onOpenInfo} className="flex flex-1 min-w-0 items-center gap-3 text-left" aria-label="Group info">
+                <Avatar src={group.avatarUrl} name={group.title} size="md" />
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate font-semibold text-ink leading-tight">{group.title}</span>
+                  <span className="block truncate text-xs text-ink-muted">
+                    {group.people.length > 0 && group.people.length <= 6
+                      ? group.people.map((p) => (p.user_id === user?.id ? "You" : p.display_name.trim().split(" ")[0])).join(", ")
+                      : `${group.people.length} members`}
+                  </span>
+                </span>
+              </button>
+            )}
             {teamPage && (
               <>
                 <button
@@ -1143,7 +1217,30 @@ export function MessageThread() {
               >
                 <MoreHorizontal size={20} />
               </button>
-              {headerMenuOpen && (
+              {headerMenuOpen && group && (
+                <OptionsModal
+                  title={group.title}
+                  onClose={() => setHeaderMenuOpen(false)}
+                  items={[
+                    { key: "info", label: "Group info", icon: <Info />, onSelect: group.onOpenInfo },
+                    { key: "search", label: "Search", icon: <Search />, onSelect: () => setSearchOpen(true) },
+                    ...(anchoredCount > 0 || anchoredOnly
+                      ? [
+                          {
+                            key: "anchored",
+                            label: anchoredOnly ? "Show all messages" : `Anchored messages (${anchoredCount})`,
+                            icon: <Anchor />,
+                            onSelect: () => setAnchoredOnly((v) => !v),
+                          } satisfies OptionItem,
+                        ]
+                      : []),
+                    { key: "hidden", label: "Hidden messages", icon: <EyeOff />, onSelect: () => navigate(`/messages/${conversationId}/hidden`) },
+                    "divider" as const,
+                    ...group.menuItems,
+                  ]}
+                />
+              )}
+              {headerMenuOpen && !group && (
                 <>
                   <div className="fixed inset-0 z-30" onClick={() => setHeaderMenuOpen(false)} />
                   <div className="absolute right-0 top-full mt-2 z-40 bg-surface border border-border rounded-xl shadow-lg py-1 min-w-[170px]">
@@ -1185,6 +1282,16 @@ export function MessageThread() {
         <div className="px-4 py-2 max-w-xl mx-auto w-full text-xs text-ink-muted bg-surface border-b border-border text-center">
           {infoBanner}
         </div>
+      )}
+
+      {group && anchoredOnly && (
+        <button
+          type="button"
+          onClick={() => setAnchoredOnly(false)}
+          className="flex w-full items-center justify-center gap-1.5 border-b border-border bg-accent-soft/60 px-4 py-2 text-xs font-medium text-accent"
+        >
+          <Anchor size={13} /> Showing anchored messages · Tap to show all
+        </button>
       )}
 
       {myParticipantState?.is_request && (
@@ -1232,7 +1339,17 @@ export function MessageThread() {
         {isLoading ? (
           <p className="text-ink-muted text-center py-10">Loading…</p>
         ) : !visibleMessages || visibleMessages.length === 0 ? (
-          <p className="text-ink-muted text-center py-10 text-sm">Say hello.</p>
+          group ? (
+            <div className="mx-auto mt-10 flex max-w-[16rem] flex-col items-center gap-2 rounded-2xl bg-surface/90 px-5 py-6 text-center shadow-sm">
+              <Avatar src={group.avatarUrl} name={group.title} size="xl" />
+              <p className="font-display text-lg text-ink">{anchoredOnly ? "Nothing anchored yet" : group.title}</p>
+              <p className="text-sm text-ink-muted">
+                {anchoredOnly ? "Hosts can anchor a message from its long-press menu." : "No messages yet. Say hello and start the conversation."}
+              </p>
+            </div>
+          ) : (
+            <p className="text-ink-muted text-center py-10 text-sm">Say hello.</p>
+          )
         ) : (
           <>
             {isLoadingOlder && <p className="text-ink-muted text-center py-2 text-xs">Loading earlier messages…</p>}
@@ -1272,6 +1389,20 @@ export function MessageThread() {
                     )}
                     <MessageBubble
                       message={m}
+                      group={
+                        group
+                          ? ({
+                              senderName: resolveName(m.sender_id),
+                              senderUsername: profileById.get(m.sender_id)?.username ?? null,
+                              senderAvatarUrl: profileById.get(m.sender_id)?.avatar_url ?? null,
+                              senderVerified: !!profileById.get(m.sender_id)?.is_verified,
+                              isFirstInRun: item.isFirstInRun,
+                              isLastInRun: item.isLastInRun,
+                              resolveName,
+                              onOpenProfile: group.onOpenProfile,
+                            } satisfies GroupBubbleInfo)
+                          : undefined
+                      }
                       currentUserId={user?.id}
                       otherParticipantName={otherParticipant?.display_name ?? "Them"}
                       otherParticipantAvatarUrl={otherParticipant?.avatar_url}
@@ -1315,13 +1446,23 @@ export function MessageThread() {
         <div className="sticky bottom-0 bg-canvas border-t border-border max-w-xl mx-auto w-full px-4 py-3 text-center text-sm text-ink-muted">
           You're no longer part of this chat.
         </div>
+      ) : group && !group.canPost ? (
+        <div
+          className="sticky bottom-0 z-30 mx-auto flex w-full max-w-xl items-center justify-center gap-2 border-t border-border bg-canvas px-4 py-3.5 text-sm text-ink-muted"
+          style={{ paddingBottom: "calc(0.875rem + env(safe-area-inset-bottom, 0px))" }}
+        >
+          <Lock size={15} /> {group.cantPostReason ?? "Only hosts can send messages here."}
+        </div>
       ) : (
-      <div className="sticky bottom-0 z-30 bg-canvas border-t border-border max-w-xl mx-auto w-full relative">
+      <div
+        className="sticky bottom-0 z-30 bg-canvas border-t border-border max-w-xl mx-auto w-full relative"
+        style={{ paddingBottom: emojiPickerTarget?.mode === "input" ? 0 : "env(safe-area-inset-bottom, 0px)" }}
+      >
         {replyTarget && voiceRecorder.phase === "idle" && (
           <div className="flex items-start gap-2 px-4 pt-2.5">
             <div className="flex-1 min-w-0 border-l-2 border-accent pl-2 py-0.5">
               <p className="text-xs font-medium text-accent">
-                Replying to {replyTarget.sender_id === user?.id ? "yourself" : otherParticipant?.display_name ?? "them"}
+                Replying to {replyTarget.sender_id === user?.id ? "yourself" : group ? resolveName(replyTarget.sender_id) : otherParticipant?.display_name ?? "them"}
               </p>
               <MessagePreviewLine content={replyTarget.content} className="text-xs text-ink-muted" />
             </div>
@@ -1383,7 +1524,7 @@ export function MessageThread() {
               onChange={(e) => setContent(e.target.value)}
               maxLength={2000}
               rows={1}
-              placeholder="Message"
+              placeholder={group ? "Message the group" : "Message"}
               // No onKeyDown at all on purpose — a bare <textarea> never submits its form on
               // Enter (only <input> does that), so Enter already just inserts a newline for free.
               // Sending only ever happens via the button below.
@@ -1399,14 +1540,7 @@ export function MessageThread() {
             )}
           </div>
           {content.trim() || !voiceNotesEnabled ? (
-            <button
-              type="submit"
-              disabled={sendMessage.isPending || !content.trim()}
-              className="bg-cta text-white rounded-full w-11 h-11 flex items-center justify-center transition-colors hover:brightness-90 active:scale-95 disabled:opacity-50 disabled:active:scale-100 flex-shrink-0"
-              aria-label="Send"
-            >
-              <Send size={20} />
-            </button>
+            <SendButton disabled={sendMessage.isPending || !content.trim()} />
           ) : (
             <button
               type="button"
@@ -1480,7 +1614,7 @@ export function MessageThread() {
           <EmojiPickerSheet
             mode="input"
             content={content}
-            heightPx={lastKnownHeight}
+            heightPx={Math.max(260, Math.min(lastKnownHeight, Math.round(viewportHeight * 0.5)))}
             onBackspace={() => setContent((c) => removeLastGrapheme(c))}
             onSelect={(emoji) => {
               setContent((c) => c + emoji);
@@ -1541,6 +1675,16 @@ export function MessageThread() {
             toggleHidden.mutate({ messageId: activeMessage.message.id, active: true }, { onError: onMutationError })
           }
           onSelect={() => enterSelectMode(activeMessage.message.id)}
+          isAnchored={!!activeMessage.message.anchored_at}
+          onToggleAnchor={
+            group?.isHost
+              ? () =>
+                  setAnchor.mutate(
+                    { messageId: activeMessage.message.id, anchored: !activeMessage.message.anchored_at },
+                    { onError: onMutationError }
+                  )
+              : undefined
+          }
           onClose={() => setActiveMessage(null)}
           onTapMessage={(tappedId) => {
             const anchorId = activeMessage.message.id;

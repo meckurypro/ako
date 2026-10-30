@@ -1093,3 +1093,29 @@ html[data-kb-open] .ako-keyboard-aware > *:not([data-anchored-panel]) {
     font-size: max(16px, 1em);
   }
 }
+
+/*
+  Group chat polish.
+  .sender-name — each sender's name in a group gets one stable hue (--nh, set per person from their id) so a busy
+  thread is scannable at a glance. Light mode uses a deep, readable tone; dark mode flips to a light one so the
+  name holds contrast on the dark bubble either way.
+*/
+.sender-name {
+  color: hsl(var(--nh, 150) 52% 33%);
+}
+.dark .sender-name {
+  color: hsl(var(--nh, 150) 62% 74%);
+}
+/* A sent bubble gets a whisper of depth too, so both sides of a group thread feel equally solid. */
+.bubble-mine-elevate {
+  box-shadow:
+    0 1px 2px rgba(var(--shadow-ink-rgb), 0.16),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+/* Hide the horizontal scrollbar on the emoji tray's category strip. */
+.no-scrollbar {
+  scrollbar-width: none;
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}

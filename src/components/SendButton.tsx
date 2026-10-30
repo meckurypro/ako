@@ -1,0 +1,31 @@
+// src/components/SendButton.tsx
+import { ArrowUp } from "lucide-react";
+
+interface SendButtonProps {
+  /** Nothing to send yet (empty draft) — the circle goes quiet and can't be tapped. */
+  disabled?: boolean;
+  type?: "submit" | "button";
+  onClick?: () => void;
+  label?: string;
+}
+
+/**
+ * The send control: a plain up arrow in a circle, the same shape Claude uses. Filled when there is something to
+ * send, a soft grey disc when there isn't. Same 44px footprint as the mic button it swaps with, so the composer
+ * never shifts when the draft goes from empty to typed.
+ */
+export function SendButton({ disabled = false, type = "submit", onClick, label = "Send" }: SendButtonProps) {
+  return (
+    <button
+      type={type}
+      onClick={onClick}
+      disabled={disabled}
+      aria-label={label}
+      className={`flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-full transition-all duration-150 active:scale-90 disabled:active:scale-100 ${
+        disabled ? "bg-ink/10 text-ink-muted/60" : "bg-cta text-white shadow-sm hover:brightness-95"
+      }`}
+    >
+      <ArrowUp size={22} strokeWidth={2.4} />
+    </button>
+  );
+}

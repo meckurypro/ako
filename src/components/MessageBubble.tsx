@@ -1,6 +1,9 @@
 // src/components/MessageBubble.tsx
-import { memo, type PointerEvent as ReactPointerEvent } from "react";
-import { Reply } from "lucide-react";
+import { memo, type CSSProperties, type PointerEvent as ReactPointerEvent } from "react";
+import { Anchor, Reply } from "lucide-react";
+import { Avatar } from "./Avatar";
+import { VerifiedBadge } from "./VerifiedBadge";
+import { senderHue } from "../lib/senderColor";
 import type { MessageWithSender } from "../hooks/useMessaging";
 import type { MessageReaction } from "../hooks/useMessageReactions";
 import { MessageStatusTicks } from "./MessageStatusTicks";
@@ -103,8 +106,28 @@ function ReactionsBar({
   );
 }
 
+/**
+ * Everything a bubble needs to behave as one message in a GROUP thread: who sent it, whether it opens a run of
+ * messages from the same person (name shown once, tail on the first bubble) or closes one (avatar shown once, on
+ * the last), and how to turn any sender id into a name for reply quotes.
+ */
+export interface GroupBubbleInfo {
+  senderName: string;
+  senderUsername: string | null;
+  senderAvatarUrl: string | null;
+  senderVerified: boolean;
+  /** First message of a run from this sender → carries the name and the bubble tail. */
+  isFirstInRun: boolean;
+  /** Last message of a run → carries the avatar. */
+  isLastInRun: boolean;
+  resolveName: (senderId: string) => string;
+  onOpenProfile: (username: string) => void;
+}
+
 interface MessageBubbleProps {
   message: MessageWithSender;
+  /** Present only in a group thread — switches on names, avatars, run grouping and group-safe ticks. */
+  group?: GroupBubbleInfo;
   currentUserId: string | undefined;
   otherParticipantName: string;
   /** Avatar for the "not-mine" side of a voice-note bubble — the sender
@@ -163,6 +186,7 @@ interface MessageBubbleProps {
  */
 function MessageBubbleImpl({
   message: m,
+  group,
   currentUserId,
   otherParticipantName,
   otherParticipantAvatarUrl,
@@ -207,25 +231,75 @@ function MessageBubbleImpl({
   const emojiInfo =
     !m.is_deleted && !voiceNote && !media && !repliedTo ? getEmojiOnlyInfo(m.content) : { isEmojiOnly: false, count: 0 };
   const isJumboEmoji = emojiInfo.isEmojiOnly;
-  const tailClass = isMine ? "bubble-tail-mine" : "bubble-tail-theirs";
+  // In a group only the first bubble of a run points at its sender; the rest are plain rounded cards.
+  const tailClass = group && !group.isFirstInRun ? "" : isMine ? "bubble-tail-mine" : "bubble-tail-theirs";
 
-  const ticks = isMine ? <MessageStatusTicks deliveredAt={m.delivered_at} readAt={m.read_at} size={14} /> : null;
+  // A group message has many recipients, so the 1:1 delivered/read ticks would be misleading (one person reading
+  // would turn them blue for everyone). A group shows a single "sent" tick instead.
+  const ticks = isMine ? (
+    group ? <MessageStatusTicks deliveredAt={null} readAt={null} size={14} /> : <MessageStatusTicks deliveredAt={m.delivered_at} readAt={m.read_at} size={14} />
+  ) : null;
+
+  const quoteName = (senderId: string) =>
+    senderId === currentUserId ? "You" : group ? group.resolveName(senderId) : otherParticipantName;
+  const bubbleSenderName = isMine ? myName ?? "You" : group ? group.senderName : otherParticipantName;
+  const bubbleSenderAvatar = isMine ? myAvatarUrl : group ? group.senderAvatarUrl : otherParticipantAvatarUrl;
+  const showSenderName = !!group && !isMine && group.isFirstInRun;
+  const nameStyle = group ? ({ "--nh": senderHue(m.sender_id) } as CSSProperties) : undefined;
+  const senderNameEl = showSenderName ? (
+    <button
+      type="button"
+      // Stops the row's long-press / swipe handlers (and their pointer capture) from swallowing this tap.
+      onPointerDown={(e) => e.stopPropagation()}
+      onClick={(e) => {
+        e.stopPropagation();
+        if (group?.senderUsername) group.onOpenProfile(group.senderUsername);
+      }}
+      style={nameStyle}
+      className="sender-name relative mb-0.5 flex max-w-full items-center gap-1 text-left text-[13px] font-semibold leading-tight"
+    >
+      <span className="truncate">{group!.senderName}</span>
+      {group!.senderVerified && <VerifiedBadge size={13} />}
+    </button>
+  ) : null;
 
   return (
     <div
-      className={`flex items-center gap-2 mb-2 -mx-2 px-2 py-0.5 ${
-        animateIn ? (isMine ? "ako-bubble-in-mine" : "ako-bubble-in-theirs") : ""
-      }`}
+      className={`flex gap-2 -mx-2 px-2 py-0.5 ${
+        group ? `items-end ${group.isFirstInRun ? "mt-2.5" : ""} mb-px` : "items-center mb-2"
+      } ${animateIn ? (isMine ? "ako-bubble-in-mine" : "ako-bubble-in-theirs") : ""}`}
       onClick={() => onRowClick(m.id)}
     >
       {selectMode && (
         <span
-          className={`w-5 h-5 rounded-full border flex-shrink-0 flex items-center justify-center ${
+          className={`w-5 h-5 rounded-full border flex-shrink-0 flex items-center justify-center self-center ${
             isSelected ? "bg-accent border-accent" : "border-border"
           }`}
         >
           {isSelected && <span className="w-2 h-2 rounded-full bg-canvas" />}
         </span>
+      )}
+
+      {/* Group threads: a 32px avatar column on the left of other people's messages. The avatar sits on the last
+          bubble of a run (aligned to its bottom edge); earlier bubbles in the run keep the empty column so the
+          whole run lines up. It lives OUTSIDE the gesture wrapper below so a tap on it is never captured as a
+          swipe or long-press. */}
+      {group && !isMine && (
+        <div className="w-8 flex-shrink-0 self-end">
+          {group.isLastInRun && (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                if (group.senderUsername) group.onOpenProfile(group.senderUsername);
+              }}
+              aria-label={`View ${group.senderName}'s profile`}
+              className="block rounded-full active:scale-95 transition-transform"
+            >
+              <Avatar src={group.senderAvatarUrl} name={group.senderName} size="sm" />
+            </button>
+          )}
+        </div>
       )}
 
       {/* This wrapper is what makes the bubble's max-w-[78%] resolve
@@ -264,11 +338,15 @@ function MessageBubbleImpl({
           <div
             ref={registerRef(m.id)}
             data-message-id={m.id}
-            className={`relative w-fit max-w-full text-sm whitespace-pre-wrap break-words select-none ${
+            className={`relative w-fit max-w-full whitespace-pre-wrap break-words select-none ${
+              group ? "text-[15px] leading-[1.4]" : "text-sm"
+            } ${
               isJumboEmoji
                 ? "bg-transparent"
-                : `rounded-2xl ${isPhoto ? "p-1" : "px-3 py-2"} ${tailClass} ${
-                    isMine ? "bg-bubble-mine text-white" : "bg-bubble-theirs text-ink bubble-elevate"
+                : `${group ? "rounded-[18px]" : "rounded-2xl"} ${isPhoto ? "p-1" : group ? "px-3.5 py-2" : "px-3 py-2"} ${tailClass} ${
+                    isMine
+                      ? `bg-bubble-mine text-white ${group ? "bubble-mine-elevate" : ""}`
+                      : "bg-bubble-theirs text-ink bubble-elevate"
                   }`
             } ${m.is_deleted ? "italic opacity-70" : ""}`}
             style={{
@@ -295,6 +373,17 @@ function MessageBubbleImpl({
               />
             )}
 
+            {!isJumboEmoji && senderNameEl}
+            {m.anchored_at && !m.is_deleted && !isJumboEmoji && (
+              <span
+                className={`relative mb-1 flex items-center gap-1 text-[11px] font-medium ${
+                  isMine ? "text-white/75" : "text-accent"
+                }`}
+              >
+                <Anchor size={11} /> Anchored
+              </span>
+            )}
+
             {repliedTo && !m.is_deleted && (
               <button
                 type="button"
@@ -306,9 +395,7 @@ function MessageBubbleImpl({
                   isMine ? "border-white/50 text-white/80" : "border-accent/50 text-ink-muted"
                 }`}
               >
-                <span className="block font-medium">
-                  {repliedTo.sender_id === currentUserId ? "You" : otherParticipantName}
-                </span>
+                <span className="block font-medium">{quoteName(repliedTo.sender_id)}</span>
                 {repliedTo.is_deleted ? (
                   <span className="block truncate">Original message deleted</span>
                 ) : (
@@ -333,7 +420,7 @@ function MessageBubbleImpl({
                 isMine={isMine}
                 timeStr={timeStr}
                 ticks={ticks}
-                senderName={otherParticipantName}
+                senderName={bubbleSenderName}
                 sentLabel={`${formatMessageDayLabel(m.created_at)}, ${timeStr}`}
               />
             ) : voiceNote ? (
@@ -347,8 +434,8 @@ function MessageBubbleImpl({
                   viewOnce={voiceNote.viewOnce}
                   openedOnceAt={voiceNoteOpenedAt}
                   onOpened={() => onVoiceNoteOpened?.(m.id)}
-                  senderAvatarUrl={isMine ? myAvatarUrl : otherParticipantAvatarUrl}
-                  senderName={isMine ? myName ?? "You" : otherParticipantName}
+                  senderAvatarUrl={bubbleSenderAvatar}
+                  senderName={bubbleSenderName}
                   footer={
                     <span className={`flex items-center gap-1 text-[11px] ${isMine ? "text-white/70" : "text-ink-muted"}`}>
                       {timeStr}
@@ -359,6 +446,7 @@ function MessageBubbleImpl({
               </span>
             ) : isJumboEmoji ? (
               <span className="relative flex flex-col items-end">
+                {senderNameEl && <span className="self-start">{senderNameEl}</span>}
                 <span className={jumboEmojiSizeClass(emojiInfo.count)}>{m.content.trim()}</span>
                 <span className="flex items-center gap-1 mt-0.5 text-[11px] text-ink-muted">
                   {timeStr}
