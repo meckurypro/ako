@@ -68,11 +68,13 @@ function MeetingCountdown({ item }: { item: ActivityItem }) {
 function ActivityRow({ item }: { item: ActivityItem }) {
   const remove = useRemoveFromLibrary();
   const [confirming, setConfirming] = useState(false);
+  // A group (and its meetings) is managed from inside the group, so its card carries no remove control here.
+  const canRemove = item.kind !== "room" && item.kind !== "room_meeting";
   return (
     <div className="relative">
     <Link
       to={ROUTE_FOR[item.kind](item)}
-      className="flex items-center gap-3 p-3 pr-11 rounded-xl border border-border bg-surface"
+      className={`flex items-center gap-3 p-3 rounded-xl border border-border bg-surface ${canRemove ? "pr-11" : ""}`}
     >
       <div className="w-12 h-12 rounded-lg bg-canvas flex items-center justify-center overflow-hidden shrink-0">
         {item.thumbnailUrl ? (
@@ -97,6 +99,7 @@ function ActivityRow({ item }: { item: ActivityItem }) {
         {(item.kind === "meeting" || item.kind === "room_meeting") && <MeetingCountdown item={item} />}
       </div>
     </Link>
+    {canRemove && (
     <button
       type="button"
       onClick={() => setConfirming(true)}
@@ -105,7 +108,8 @@ function ActivityRow({ item }: { item: ActivityItem }) {
     >
       <X size={16} />
     </button>
-    {confirming && (
+    )}
+    {canRemove && confirming && (
       <ConfirmDialog
         themed
         danger={false}

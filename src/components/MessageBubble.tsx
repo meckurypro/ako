@@ -345,7 +345,7 @@ function MessageBubbleImpl({
                       ? `bg-bubble-mine text-white ${group ? "bubble-mine-elevate" : ""}`
                       : "bg-bubble-theirs text-ink bubble-elevate"
                   }`
-            } ${m.is_deleted ? "italic opacity-70" : ""}`}
+            }`}
             style={{
               transform: `translateX(${offset}px)`,
               transition: isDraggingThis ? "none" : "transform 200ms ease-out, box-shadow 300ms, background-color 300ms",
@@ -402,14 +402,22 @@ function MessageBubbleImpl({
             )}
 
             {m.is_deleted ? (
+              // Only the tombstone wording is italic/faded — the sender name above it and the time stay normal, and
+              // everyone's tombstone carries a time so a run of deleted bubbles lines up like any other run.
               <span className="relative block">
-                This message was deleted
-                {ticks && (
-                  <span className="flex items-center gap-1 justify-end mt-1 text-[11px] not-italic opacity-100 text-ink-muted">
-                    {timeStr}
-                    {ticks}
-                  </span>
-                )}
+                <span className="italic opacity-70">This message was deleted</span>
+                <span className="invisible inline-flex items-center gap-1 text-[11px] ml-2 align-bottom">
+                  {timeStr}
+                  {ticks}
+                </span>
+                <span
+                  className={`pointer-events-none absolute bottom-0 right-0 flex items-center gap-1 text-[11px] leading-none ${
+                    isMine ? "text-white/70" : "text-ink-muted"
+                  }`}
+                >
+                  {timeStr}
+                  {ticks}
+                </span>
               </span>
             ) : media ? (
               <MediaMessage
