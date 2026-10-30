@@ -10,6 +10,7 @@ import { useAdminSearchUsers } from "../../hooks/useAdminComms";
 import { useAutomatedAccounts, useAutomationCatalog, useCreateAutomatedAccount } from "../../hooks/useAutomation";
 import { useToast } from "../../components/Toast";
 import { useErrorNotice } from "../../components/ErrorNotice";
+import { AutomationRulesPanel } from "./AutomationRulesPanel";
 
 export function formatInZone(iso: string | null, timeZone: string): string {
   if (!iso) return "Not scheduled";
@@ -110,6 +111,8 @@ export function AdminAutomation() {
             ))}
           </div>
         )}
+
+        <AutomationRulesPanel />
 
         <h3 className="text-sm font-medium text-ink mb-2">Add an account</h3>
         <p className="text-xs text-ink-muted mb-3">
