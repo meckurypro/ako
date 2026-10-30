@@ -44,7 +44,7 @@ export function DiscoverBrowse({ lead }: { lead?: ReactNode }) {
                 {items.map((item) => (
                   <DiscoverTile key={item.project.id} item={item} />
                 ))}
-                {hasMore && <DiscoverMoreTile to={moreTo} label={section.title} tall={section.type === "book"} />}
+                {hasMore && <DiscoverMoreTile to={moreTo} label={section.title} projectType={section.type} />}
               </DiscoverRail>
             );
           })}

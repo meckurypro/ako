@@ -13,7 +13,7 @@ import { ArrowRight, ChevronRight, ImageIcon } from "lucide-react";
 import { Avatar } from "../Avatar";
 import { FileFolderIcon } from "../FileFolderArt";
 import { VerifiedBadge } from "../VerifiedBadge";
-import { thumbBoxAspectClass } from "../../lib/bookCover";
+import { discoverTileShape } from "../../lib/discoverTileShape";
 import { isFileType } from "../../lib/fileProject";
 import { getProjectPath } from "../../lib/projectLinks";
 import { discoverTileMeta, type DiscoverItem } from "../../hooks/useDiscoverBrowse";
@@ -58,13 +58,14 @@ export function DiscoverRail({
 export function DiscoverTile({ item, fluid = false }: { item: DiscoverItem; fluid?: boolean }) {
   const { project } = item;
   const meta = discoverTileMeta(item);
+  const shape = discoverTileShape(project.project_type);
   return (
     <Link
       to={getProjectPath(project)}
-      className={`group block min-w-0 ${fluid ? "w-full" : `shrink-0 snap-start ${TILE_WIDTH}`}`}
+      className={`group block min-w-0 ${fluid ? "w-full" : `shrink-0 snap-start ${shape.width}`}`}
     >
       <div
-        className={`relative flex w-full items-center justify-center overflow-hidden rounded-xl border border-border/60 bg-surface ${thumbBoxAspectClass(project.project_type, "aspect-square")}`}
+        className={`relative flex w-full items-center justify-center overflow-hidden rounded-xl border border-border/60 bg-surface ${shape.aspect}`}
       >
         {isFileType(project.project_type) ? (
           <FileFolderIcon size={120} className="h-full w-full" />
@@ -85,14 +86,13 @@ export function DiscoverTile({ item, fluid = false }: { item: DiscoverItem; flui
   );
 }
 
-/** The last tile of a row: same footprint as the others (cover-shaped for books), pointing at the full list. */
-export function DiscoverMoreTile({ to, label, tall = false }: { to: string; label: string; tall?: boolean }) {
+/** The last tile of a row: same footprint as the others in that row, pointing at the full list. */
+export function DiscoverMoreTile({ to, label, projectType }: { to: string; label: string; projectType?: string }) {
+  const shape = discoverTileShape(projectType);
   return (
-    <Link to={to} aria-label={`More ${label}`} className={`group block shrink-0 snap-start ${TILE_WIDTH}`}>
+    <Link to={to} aria-label={`More ${label}`} className={`group block shrink-0 snap-start ${shape.width}`}>
       <div
-        className={`flex w-full flex-col items-center justify-center gap-1.5 rounded-xl border border-dashed border-border bg-surface/60 text-accent transition-colors group-hover:border-accent/50 ${
-          tall ? "aspect-[2/3]" : "aspect-square"
-        }`}
+        className={`flex w-full flex-col items-center justify-center gap-1.5 rounded-xl border border-dashed border-border bg-surface/60 text-accent transition-colors group-hover:border-accent/50 ${shape.aspect}`}
       >
         <span className="flex h-9 w-9 items-center justify-center rounded-full bg-accent-soft">
           <ArrowRight size={18} />
