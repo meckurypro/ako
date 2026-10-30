@@ -73,6 +73,10 @@ export interface GeneratedPost {
   source_idea_id: string | null;
   /** News pipeline: the cached articles this post was built from. */
   source_article_ids?: string[];
+  /** Watch and voices pipelines: the Akọ posts (or the posts whose comment sections) that prompted this one. Never shown to readers. */
+  source_post_ids?: string[];
+  /** People, works, events or named ideas the post is built on. Used for cross account duplicate checks. */
+  key_refs?: string[];
 }
 
 export interface ValidationContext {

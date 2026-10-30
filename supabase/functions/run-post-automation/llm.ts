@@ -7,6 +7,9 @@
 //   openai     Chat Completions, forced function call
 //   gemini     generateContent, JSON mode with a response schema
 //
+// Transient failures (429, 5xx, 408, dropped connections) are retried here with backoff, honouring Retry-After. A run
+// that still fails is retried later by the database (supabase/ako_post_automation_retry.sql).
+//
 // Pure apart from `fetch` (injectable), so it can be unit-tested in node. The API key never appears in a thrown error.
 
 export type Provider = "anthropic" | "openai" | "gemini";
@@ -46,6 +49,8 @@ export interface LlmRequest {
   modes: readonly string[];
   /** News pipeline: also ask for `sources`, the labels of the articles the post relied on. */
   includeSources?: boolean;
+  /** Watch and voices pipelines: also ask for `sources` (labels of the Akọ posts or comment sections that prompted it) and let the model `skip`. */
+  watch?: boolean;
   fetchFn?: typeof fetch;
 }
 
@@ -75,24 +80,43 @@ function fieldSpecs(modes: readonly string[]): Record<string, FieldSpec> {
 
 const REQUIRED = ["header", "body", "topic", "content_angle", "mode"];
 
+const KEY_REFERENCES_DESCRIPTION =
+  'The specific people, books, works, events, studies or named ideas this post is built on, as commonly written, for example ["Seneca", "On the Shortness of Life"]. Never countries, regions or generic nouns.';
+
 const SOURCES_DESCRIPTION =
   'The labels of every supplied article the post relied on, for example ["A1", "A3"]. Use only labels that were provided.';
 
-function jsonSchema(modes: readonly string[], includeSources = false) {
+const WATCH_SOURCES_DESCRIPTION =
+  'The labels of the supplied Akọ posts or comment sections that prompted this post, for example ["P2"] or ["C1"]. Use only labels that were provided. Empty when you skip.';
+
+const SKIP_DESCRIPTION =
+  "True when nothing in the supplied material deserves a post today. Then leave header, body, topic and content_angle empty and set mode to discuss.";
+
+const SKIP_REASON_DESCRIPTION = "Why you skipped, in a few words. Empty when you did not skip.";
+
+function jsonSchema(modes: readonly string[], includeSources = false, watch = false) {
   const properties: Record<string, unknown> = {};
   for (const [name, spec] of Object.entries(fieldSpecs(modes))) {
     properties[name] = { type: "string", description: spec.description, ...(spec.enum ? { enum: [...spec.enum] } : {}) };
   }
+  properties.key_references = { type: "array", items: { type: "string" }, description: KEY_REFERENCES_DESCRIPTION };
+  if (watch) {
+    delete properties.source_idea_id;
+    properties.sources = { type: "array", items: { type: "string" }, description: WATCH_SOURCES_DESCRIPTION };
+    properties.skip = { type: "boolean", description: SKIP_DESCRIPTION };
+    properties.skip_reason = { type: "string", description: SKIP_REASON_DESCRIPTION };
+    return { type: "object", properties, required: [...REQUIRED, "key_references", "sources", "skip", "skip_reason"] };
+  }
   if (includeSources) {
     delete properties.source_idea_id;
     properties.sources = { type: "array", items: { type: "string" }, description: SOURCES_DESCRIPTION };
-    return { type: "object", properties, required: [...REQUIRED, "sources"] };
+    return { type: "object", properties, required: [...REQUIRED, "key_references", "sources"] };
   }
-  return { type: "object", properties, required: REQUIRED };
+  return { type: "object", properties, required: [...REQUIRED, "key_references"] };
 }
 
 // Gemini's response schema takes the OpenAPI subset with upper case type names and no `required` beyond the list.
-function geminiSchema(modes: readonly string[], includeSources = false) {
+function geminiSchema(modes: readonly string[], includeSources = false, watch = false) {
   const properties: Record<string, unknown> = {};
   for (const [name, spec] of Object.entries(fieldSpecs(modes))) {
     properties[name] = {
@@ -101,36 +125,53 @@ function geminiSchema(modes: readonly string[], includeSources = false) {
       ...(spec.enum ? { enum: [...spec.enum] } : {}),
     };
   }
+  properties.key_references = { type: "ARRAY", items: { type: "STRING" }, description: KEY_REFERENCES_DESCRIPTION };
+  if (watch) {
+    delete properties.source_idea_id;
+    properties.sources = { type: "ARRAY", items: { type: "STRING" }, description: WATCH_SOURCES_DESCRIPTION };
+    properties.skip = { type: "BOOLEAN", description: SKIP_DESCRIPTION };
+    properties.skip_reason = { type: "STRING", description: SKIP_REASON_DESCRIPTION };
+    return { type: "OBJECT", properties, required: [...REQUIRED, "key_references", "sources", "skip", "skip_reason"] };
+  }
   if (includeSources) {
     delete properties.source_idea_id;
     properties.sources = { type: "ARRAY", items: { type: "STRING" }, description: SOURCES_DESCRIPTION };
-    return { type: "OBJECT", properties, required: [...REQUIRED, "sources"] };
+    return { type: "OBJECT", properties, required: [...REQUIRED, "key_references", "sources"] };
   }
   properties.source_idea_id = { ...(properties.source_idea_id as object), nullable: true };
-  return { type: "OBJECT", properties, required: REQUIRED };
+  return { type: "OBJECT", properties, required: [...REQUIRED, "key_references"] };
 }
 
 // ---------------------------------------------------------------------------------------------------------------
+
+const MAX_HTTP_ATTEMPTS = 4;
+const RETRY_DELAYS_MS = [2000, 6000, 15000];
+
+// Backoff for attempt N (1 based), or the provider's Retry-After when it sends one (capped at 20 seconds). Jittered.
+function retryDelay(attempt: number, res?: Response): number {
+  const base = RETRY_DELAYS_MS[Math.min(attempt - 1, RETRY_DELAYS_MS.length - 1)];
+  const retryAfter = Number(res?.headers.get("retry-after"));
+  const wait = Number.isFinite(retryAfter) && retryAfter > 0 ? Math.min(retryAfter * 1000, 20_000) : base;
+  return wait + Math.floor(Math.random() * 1000);
+}
 
 export async function callProvider(req: LlmRequest): Promise<LlmResult> {
   const doFetch = req.fetchFn ?? fetch;
   const label = PROVIDER_LABEL[req.provider];
 
-  for (let attempt = 1; attempt <= 2; attempt++) {
+  for (let attempt = 1; attempt <= MAX_HTTP_ATTEMPTS; attempt++) {
+    const lastAttempt = attempt === MAX_HTTP_ATTEMPTS;
     let res: Response;
     try {
       res = await doFetch(...buildRequest(req));
     } catch (err) {
       const name = (err as { name?: string })?.name;
-      if (attempt === 1 && name !== "TimeoutError" && name !== "AbortError") {
-        await sleep(2000);
+      const timedOut = name === "TimeoutError" || name === "AbortError";
+      if (!timedOut && !lastAttempt) {
+        await sleep(retryDelay(attempt));
         continue;
       }
-      throw new LlmError(
-        name === "TimeoutError" || name === "AbortError"
-          ? `${label} took too long to answer.`
-          : `Couldn't reach ${label}.`,
-      );
+      throw new LlmError(timedOut ? `${label} took too long to answer.` : `Couldn't reach ${label}.`);
     }
 
     if (res.ok) {
@@ -138,9 +179,10 @@ export async function callProvider(req: LlmRequest): Promise<LlmResult> {
       return parseResponse(req.provider, data, label);
     }
 
-    const retryable = res.status === 429 || res.status >= 500;
-    if (retryable && attempt === 1) {
-      await sleep(3000);
+    const retryable = res.status === 408 || res.status === 429 || res.status >= 500;
+    if (retryable && !lastAttempt) {
+      await res.body?.cancel().catch(() => {});
+      await sleep(retryDelay(attempt, res));
       continue;
     }
     throw new LlmError(await describeFailure(res, req, label));
@@ -164,7 +206,13 @@ function buildRequest(req: LlmRequest): [string, RequestInit] {
             max_tokens: 1500,
             system: req.system,
             messages: [{ role: "user", content: req.user }],
-            tools: [{ name: TOOL_NAME, description: TOOL_DESCRIPTION, input_schema: jsonSchema(req.modes, req.includeSources) }],
+            tools: [
+              {
+                name: TOOL_NAME,
+                description: TOOL_DESCRIPTION,
+                input_schema: jsonSchema(req.modes, req.includeSources, req.watch),
+              },
+            ],
             tool_choice: { type: "tool", name: TOOL_NAME },
           }),
           signal,
@@ -187,7 +235,11 @@ function buildRequest(req: LlmRequest): [string, RequestInit] {
             tools: [
               {
                 type: "function",
-                function: { name: TOOL_NAME, description: TOOL_DESCRIPTION, parameters: jsonSchema(req.modes, req.includeSources) },
+                function: {
+                  name: TOOL_NAME,
+                  description: TOOL_DESCRIPTION,
+                  parameters: jsonSchema(req.modes, req.includeSources, req.watch),
+                },
               },
             ],
             tool_choice: { type: "function", function: { name: TOOL_NAME } },
@@ -207,7 +259,7 @@ function buildRequest(req: LlmRequest): [string, RequestInit] {
             contents: [{ role: "user", parts: [{ text: req.user }] }],
             generationConfig: {
               responseMimeType: "application/json",
-              responseSchema: geminiSchema(req.modes, req.includeSources),
+              responseSchema: geminiSchema(req.modes, req.includeSources, req.watch),
               // Gemini 2.5 spends part of this budget on thinking, so leave room.
               maxOutputTokens: 4096,
             },

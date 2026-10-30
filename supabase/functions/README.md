@@ -11,7 +11,7 @@ Source of truth for the push pipeline's edge functions. Deploy with the Supabase
 | `sync-exchange-rate` | off (shared secret) | pg_cron, every 6 hours (`0 */6 * * *`); needs secret `EXCHANGE_RATE_API_KEY` |
 | `delete-project` | on | the native app and web, when an owner deletes a project (`useDeleteProject`) |
 | `extract-book-pdf` | on | web + native: after an uploaded-PDF book is created, and on the owner's first open of a PDF book with no chapters yet (`extractBookPdf`) |
-| `run-post-automation` | off (shared secret for cron, admin check for the admin screen) | pg_cron every minute, only when an automated account is due (`run-post-automation` job); the admin "Automate posts" screen for preview and publish now. No AI secret in the environment: each automated account stores its own provider (Anthropic, OpenAI or Gemini) and key in Supabase Vault. See `supabase/ako_post_automation.sql` and `supabase/ako_post_automation_api_keys.sql` |
+| `run-post-automation` | off (shared secret for cron, admin check for the admin screen) | pg_cron every minute, only when an automated account is due (`run-post-automation` job); the admin "Automate posts" screen for preview and publish now. No AI secret in the environment: each automated account stores its own provider (Anthropic, OpenAI or Gemini) and key in Supabase Vault. See `supabase/ako_post_automation.sql`, `supabase/ako_post_automation_api_keys.sql` and `supabase/ako_automation_watch_voices.sql` (the Watch desk and Comment desk pipelines, which read what people on Akọ post and comment) |
 
 ## Android channel ids
 
