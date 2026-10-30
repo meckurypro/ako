@@ -70,6 +70,19 @@ export function AdminAutomation() {
           Accounts here post on their own, on the schedule you set, in the voice you describe. Only admins can see this.
         </p>
 
+        <Link
+          to="/admin/automation/vault"
+          className="flex items-center gap-3 bg-surface rounded-xl p-3 border border-border mb-6"
+        >
+          <div className="flex-1 min-w-0">
+            <p className="font-medium text-ink">Idea vault</p>
+            <p className="text-xs text-ink-muted">
+              One place for every idea. The System Bot decides which account each one belongs to.
+            </p>
+          </div>
+          <ChevronRight size={16} className="text-ink-muted" />
+        </Link>
+
         <h3 className="text-sm font-medium text-ink mb-2">Automated accounts</h3>
         {isLoading ? (
           <p className="text-ink-muted text-center py-6">Loading…</p>

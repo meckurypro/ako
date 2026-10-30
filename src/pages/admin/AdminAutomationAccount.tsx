@@ -1080,10 +1080,17 @@ export function AdminAutomationAccount() {
               Idea vault{pendingCount > 0 ? ` (${pendingCount} waiting)` : ""}
             </h3>
             <p className="text-xs text-ink-muted mb-3">
-              Rough thoughts the account turns into posts, high priority first, then oldest. With none waiting, it writes
-              from its recent posts and what followers comment on.
+              Ideas the System Bot placed with this account, plus any you add here. They become posts in the account's voice,
+              high priority first, then oldest. With none waiting, it writes from its recent posts and what followers
+              comment on. Add new ideas in the{" "}
+              <Link to="/admin/automation/vault" className="text-accent">
+                global idea vault
+              </Link>
+              , so you never have to choose an account.
             </p>
-            <form onSubmit={handleAddIdea} className="space-y-2 mb-3">
+            <details className="mb-3">
+              <summary className="text-xs text-ink-muted cursor-pointer">Add directly to this account instead</summary>
+            <form onSubmit={handleAddIdea} className="space-y-2 mt-2">
               <textarea
                 value={ideaText}
                 onChange={(e) => setIdeaText(e.target.value)}
@@ -1113,6 +1120,7 @@ export function AdminAutomationAccount() {
               </div>
               {ideaError && <p className="text-xs text-danger">{ideaError}</p>}
             </form>
+            </details>
 
             <div className="flex gap-2 mb-3">
               {(["pending", "used", "archived"] as const).map((tab) => (

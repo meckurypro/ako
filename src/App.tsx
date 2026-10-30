@@ -109,6 +109,7 @@ import { AdminAppDownload } from "./pages/admin/AdminAppDownload";
 import { AdminPageRoles } from "./pages/admin/AdminPageRoles";
 import { AdminAutomation } from "./pages/admin/AdminAutomation";
 import { AdminAutomationAccount } from "./pages/admin/AdminAutomationAccount";
+import { AdminAutomationVault } from "./pages/admin/AdminAutomationVault";
 
 import { CreateProject } from "./pages/CreateProject";
 import { EditProject } from "./pages/EditProject";
@@ -954,6 +955,16 @@ function AppRoutes() {
                 <RequireAuth>
                   <RequireAdmin>
                     <AdminAutomation />
+                  </RequireAdmin>
+                </RequireAuth>
+              }
+            />
+            <Route
+              path="/admin/automation/vault"
+              element={
+                <RequireAuth>
+                  <RequireAdmin>
+                    <AdminAutomationVault />
                   </RequireAdmin>
                 </RequireAuth>
               }
