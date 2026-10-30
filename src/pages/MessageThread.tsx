@@ -1531,7 +1531,7 @@ export function MessageThread({ conversationId: conversationIdProp, group }: { c
           style={voiceRecorder.phase !== "idle" ? { pointerEvents: "none" } : undefined}
         >
           {/* One rounded pill, like WhatsApp: emoji · message · attach · camera. */}
-          <div className="flex-1 min-w-0 flex items-end rounded-3xl border border-border bg-surface pl-3 pr-1.5 focus-within:border-accent focus-within:ring-2 focus-within:ring-accent/40">
+          <div className="flex-1 min-w-0 flex items-end rounded-3xl border border-border bg-surface pl-3 pr-1.5">
             <button
               type="button"
               onClick={() => {
