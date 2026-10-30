@@ -10,6 +10,7 @@ import { VoicePreviewBar } from "./VoicePreviewBar";
 import { VoiceMessageBubble } from "./VoiceMessageBubble";
 import { EmojiPickerSheet } from "./EmojiPickerSheet";
 import { Avatar } from "./Avatar";
+import { Wallpaper } from "./Wallpaper";
 import { decodeVoiceNote } from "../lib/voiceNotes";
 import { useRoomMembersList, useSetMessageAnchor } from "../hooks/useRoom";
 import { useToast } from "./Toast";
@@ -95,7 +96,9 @@ export function RoomChat({ projectId, conversationId, canPost, cantPostReason, i
           <Anchor size={12} /> {anchoredOnly ? "Showing anchored" : `Anchored (${anchoredCount})`}
         </button>
       )}
-      <div className="flex-1 overflow-y-auto flex flex-col gap-2.5 px-1 py-2">
+      <div className="relative flex-1 min-h-0 overflow-hidden rounded-xl">
+      <Wallpaper />
+      <div className="relative z-10 h-full overflow-y-auto flex flex-col gap-2.5 px-3 py-2">
         {visibleMessages.map((m) => {
           const isMine = m.sender_id === user?.id;
           const senderProfile = memberByUserId.get(m.sender_id);
@@ -143,6 +146,7 @@ export function RoomChat({ projectId, conversationId, canPost, cantPostReason, i
         {visibleMessages.length === 0 && anchoredOnly && <p className="text-center text-sm text-ink-muted mt-6">Nothing anchored yet.</p>}
         {(messages ?? []).length === 0 && <p className="text-center text-sm text-ink-muted mt-6">No messages yet — say hello.</p>}
         <div ref={bottomRef} />
+      </div>
       </div>
 
       {!canPost ? (
