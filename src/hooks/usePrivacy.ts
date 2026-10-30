@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "../lib/supabase";
 import { useAuth } from "./useAuth";
 import { useSound } from "./useSound";
+import { verifyPassword } from "../lib/verifyPassword";
 import { useToast } from "../components/Toast";
 import {
   adjustProfileCount,
@@ -275,6 +276,8 @@ export function useToggleShowGroupsOnProfile() {
  */
 export function useChangePassword() {
   const { user } = useAuth();
+  // The toast provider sits above the whole app, so these toasts still show if the form remounts mid-request.
+  const toast = useToast();
 
   return useMutation({
     mutationFn: async ({
@@ -286,16 +289,23 @@ export function useChangePassword() {
     }) => {
       if (!user?.email) throw new Error("Not signed in");
 
-      const { error: reauthError } = await supabase.auth.signInWithPassword({
-        email: user.email,
-        password: currentPassword,
-      });
-      if (reauthError) throw new Error("Current password is incorrect.");
+      // Checked on a separate client so the signed-in session (and every listener on it) is left alone.
+      const ok = await verifyPassword(user.email, currentPassword);
+      if (!ok) throw new Error("Current password is incorrect.");
 
       const { error: updateError } = await supabase.auth.updateUser({
         password: newPassword,
       });
       if (updateError) throw updateError;
+    },
+    onMutate: () => toast("Updating password…", { variant: "loading" }),
+    onSuccess: (_data, _vars, loadingToast) => {
+      loadingToast?.dismiss();
+      toast("Password updated.", { variant: "success" });
+    },
+    onError: (err, _vars, loadingToast) => {
+      loadingToast?.dismiss();
+      toast(err instanceof Error && err.message === "Current password is incorrect." ? err.message : "Couldn't update your password.", { variant: "error" });
     },
   });
 }
