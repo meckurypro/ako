@@ -301,6 +301,25 @@ export function useChangePassword() {
 }
 
 /**
+ * Emails the signed-in user a password-reset link. Anyone can use this — it is the way in for an account that signed
+ * up with Google (no password yet) and for someone who forgot their current one.
+ */
+export function useSendPasswordReset() {
+  const { user } = useAuth();
+
+  return useMutation({
+    mutationFn: async () => {
+      if (!user?.email) throw new Error("Not signed in");
+      const { error } = await supabase.auth.resetPasswordForEmail(user.email, {
+        redirectTo: `${window.location.origin}/auth/callback`,
+      });
+      if (error) throw error;
+      return user.email;
+    },
+  });
+}
+
+/**
  * Calls deactivate-account — a soft delete + auth ban, never a hard
  * delete (see edge_functions/deactivate-account/index.ts for why:
  * the wallet ledger's ON DELETE RESTRICT constraint makes a true

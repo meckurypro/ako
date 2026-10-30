@@ -37,6 +37,7 @@ import { useIsAdmin } from "../hooks/useAdmin";
 import { useIsRestricted } from "../hooks/useAccountAccess";
 import { WebsiteUrlsField, MAX_WEBSITES } from "../components/WebsiteUrlsField";
 import { removeSavedAccount } from "../lib/accountSessions";
+import { hasPasswordLogin } from "../lib/authMethods";
 import { markSignedOut } from "../lib/authRedirect";
 import { useUpdateProfile, useUpdateProfileRoles } from "../hooks/useProfile";
 import { useUploadAvatar } from "../hooks/useUploadAvatar";
@@ -54,12 +55,14 @@ import {
   useToggleBlock,
   useToggleMute,
   useChangePassword,
+  useSendPasswordReset,
   useDeactivateAccount,
 } from "../hooks/usePrivacy";
 import { FormField } from "../components/FormField";
 import { Button } from "../components/Button";
 import { PasswordField } from "../components/PasswordField";
 import { Avatar } from "../components/Avatar";
+import { AvatarCropModal } from "../components/AvatarCropModal";
 import { SettingsSection } from "../components/SettingsSection";
 import { MentionTextarea } from "../components/MentionTextarea";
 import { useToast } from "../components/Toast";
@@ -304,20 +307,27 @@ export function Settings() {
     });
   }
 
-  async function handleFileSelect(e: React.ChangeEvent<HTMLInputElement>) {
+  // Picking a photo opens the cropper first (native parity); the upload happens on "Use photo".
+  const [cropFile, setCropFile] = useState<File | null>(null);
+
+  function handleFileSelect(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
+    e.target.value = "";
     if (!file) return;
     setUploadError(null);
+    setCropFile(file);
+  }
 
+  async function handleCropConfirm(cropped: File) {
+    setCropFile(null);
+    setUploadError(null);
     try {
-      const url = await uploadAvatar.mutateAsync(file);
+      const url = await uploadAvatar.mutateAsync(cropped);
       setAvatarUrl(url);
       // The photo is saved with the rest of the profile — open that section so "Save changes" is in view.
       setOpenSection("profile");
     } catch (err) {
       setUploadError(err);
-    } finally {
-      e.target.value = "";
     }
   }
 
@@ -405,7 +415,13 @@ export function Settings() {
   const changePassword = useChangePassword();
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
+  const [confirmNewPassword, setConfirmNewPassword] = useState("");
   const [passwordSuccess, setPasswordSuccess] = useState(false);
+  const [passwordMismatch, setPasswordMismatch] = useState(false);
+  const sendReset = useSendPasswordReset();
+  // Email sign-ups (and Google accounts that have since set a password) change it with the current one; accounts
+  // with no password yet only get "Reset password". Either way the reset link is available.
+  const canChangePassword = hasPasswordLogin(user);
 
   async function handleChangePassword(e: FormEvent) {
     e.preventDefault();
@@ -413,12 +429,18 @@ export function Settings() {
     changePassword.reset();
 
     if (newPassword.length < 8) return;
+    if (newPassword !== confirmNewPassword) {
+      setPasswordMismatch(true);
+      return;
+    }
+    setPasswordMismatch(false);
 
     try {
       await changePassword.mutateAsync({ currentPassword, newPassword });
       setPasswordSuccess(true);
       setCurrentPassword("");
       setNewPassword("");
+      setConfirmNewPassword("");
     } catch {
       // surfaced via changePassword.error below
     }
@@ -519,6 +541,7 @@ export function Settings() {
               className="hidden"
             />
           </div>
+          {cropFile ? <AvatarCropModal file={cropFile} onCancel={() => setCropFile(null)} onConfirm={handleCropConfirm} /> : null}
           <ErrorBanner error={uploadError} fallback="Couldn't upload that photo. Please try again." onDismiss={() => setUploadError(null)} className="mt-3" />
           {avatarUrl !== (profile?.avatar_url ?? "") && (
             <p className="text-accent text-sm mt-3 text-center">New photo selected — save your changes to apply it.</p>
@@ -718,34 +741,70 @@ export function Settings() {
             open={openSection === "security"}
             onToggle={() => toggleSection("security")}
           >
-            <form onSubmit={handleChangePassword} className="mt-3">
-              <PasswordField
-                id="current_password"
-                label="Current password"
-                value={currentPassword}
-                onChange={(e) => setCurrentPassword(e.target.value)}
-                required
-                autoComplete="current-password"
-              />
-              <PasswordField
-                id="new_password"
-                label="New password"
-                value={newPassword}
-                onChange={(e) => setNewPassword(e.target.value)}
-                required
-                minLength={8}
-                autoComplete="new-password"
-              />
+            {canChangePassword ? (
+              <form onSubmit={handleChangePassword} className="mt-3">
+                <PasswordField
+                  id="current_password"
+                  label="Current password"
+                  value={currentPassword}
+                  onChange={(e) => setCurrentPassword(e.target.value)}
+                  required
+                  autoComplete="current-password"
+                />
+                <PasswordField
+                  id="new_password"
+                  label="New password"
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                  required
+                  minLength={8}
+                  autoComplete="new-password"
+                />
+                <PasswordField
+                  id="confirm_new_password"
+                  label="Confirm new password"
+                  value={confirmNewPassword}
+                  onChange={(e) => {
+                    setConfirmNewPassword(e.target.value);
+                    setPasswordMismatch(false);
+                  }}
+                  required
+                  minLength={8}
+                  autoComplete="new-password"
+                  error={passwordMismatch ? "Passwords don't match." : undefined}
+                />
+                <ErrorBanner
+                  error={changePassword.isError ? changePassword.error : null}
+                  fallback="Couldn't change your password. Please try again."
+                  onDismiss={() => changePassword.reset()}
+                />
+                {passwordSuccess && <p className="text-accent text-sm mb-4">Password updated.</p>}
+                <Button type="submit" loading={changePassword.isPending}>
+                  Update password
+                </Button>
+              </form>
+            ) : (
+              <p className="mt-3 text-sm text-ink-muted">
+                You signed in without a password. Reset your password to set one — we'll email you a link.
+              </p>
+            )}
+
+            <div className="mt-5 pt-4 border-t border-border">
+              {!canChangePassword ? null : (
+                <p className="text-sm text-ink-muted mb-3">Forgot your current password? Reset it with a link sent to your email.</p>
+              )}
               <ErrorBanner
-                error={changePassword.isError ? changePassword.error : null}
-                fallback="Couldn't change your password. Please try again."
-                onDismiss={() => changePassword.reset()}
+                error={sendReset.isError ? sendReset.error : null}
+                fallback="Couldn't send the reset link. Please try again."
+                onDismiss={() => sendReset.reset()}
               />
-              {passwordSuccess && <p className="text-accent text-sm mb-4">Password updated.</p>}
-              <Button type="submit" loading={changePassword.isPending}>
-                Update password
+              {sendReset.isSuccess ? (
+                <p className="text-accent text-sm mb-3">Reset link sent to {sendReset.data}. Check your inbox.</p>
+              ) : null}
+              <Button type="button" variant={canChangePassword ? "secondary" : undefined} loading={sendReset.isPending} onClick={() => sendReset.mutate()}>
+                Reset password
               </Button>
-            </form>
+            </div>
           </SettingsSection>
 
           {/* Privacy */}

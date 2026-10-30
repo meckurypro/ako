@@ -19,6 +19,7 @@ import { ConfirmDialog } from "../components/ConfirmDialog";
 import { DropdownMenu } from "../components/DropdownMenu";
 import { TopicPicker, MAX_TOPICS } from "../components/TopicPicker";
 import { useUploadAvatar } from "../hooks/useUploadAvatar";
+import { AvatarCropModal } from "../components/AvatarCropModal";
 import { Avatar } from "../components/Avatar";
 import { MentionTextarea } from "../components/MentionTextarea";
 import { PageHeroEditor } from "../components/PageHeroEditor";
@@ -111,18 +112,27 @@ export function EditPage() {
     });
   }
 
-  async function handleAvatarSelect(e: React.ChangeEvent<HTMLInputElement>) {
+  // Picking a photo opens the cropper first; the upload happens on "Use photo".
+  const [avatarCropFile, setAvatarCropFile] = useState<File | null>(null);
+
+  function handleAvatarSelect(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
+    e.target.value = "";
     if (!file) return;
+    setError(null);
+    setAvatarCropFile(file);
+  }
+
+  async function handleAvatarCropConfirm(cropped: File) {
+    setAvatarCropFile(null);
     setError(null);
     setUploadingAvatar(true);
     try {
-      setAvatarUrl(await uploadAvatar.mutateAsync(file));
+      setAvatarUrl(await uploadAvatar.mutateAsync(cropped));
     } catch (err) {
       setError(friendlyError(err, "Upload failed."));
     } finally {
       setUploadingAvatar(false);
-      e.target.value = "";
     }
   }
 
@@ -294,6 +304,9 @@ export function EditPage() {
             </button>
             {uploadingAvatar && <p className="text-xs text-ink-muted mt-1">Uploading…</p>}
           </div>
+          {avatarCropFile ? (
+            <AvatarCropModal file={avatarCropFile} onCancel={() => setAvatarCropFile(null)} onConfirm={handleAvatarCropConfirm} />
+          ) : null}
           <input
             ref={avatarInputRef}
             type="file"

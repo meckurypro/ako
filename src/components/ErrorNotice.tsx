@@ -13,6 +13,7 @@
 import { createContext, useCallback, useContext, useState, type ReactNode } from "react";
 
 import { classifyError, type ClassifiedError } from "../lib/friendlyError";
+import { runAfterDismiss } from "../hooks/useBackDismiss";
 import { ConfirmDialog } from "./ConfirmDialog";
 import { useToast } from "./Toast";
 
@@ -56,8 +57,9 @@ export function ErrorNoticeProvider({ children, onFund }: { children: ReactNode;
           cancelLabel="Not now"
           onCancel={() => setLowBalance(null)}
           onConfirm={() => {
-            setLowBalance(null);
-            onFund();
+            // The dialog pops its own history entry on unmount (useBackDismiss). Navigating first would let that
+            // pop remove the /wallet/fund entry we just pushed — the CTA "did nothing". Wait for the dismiss.
+            runAfterDismiss(() => setLowBalance(null), onFund);
           }}
         />
       ) : null}

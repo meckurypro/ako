@@ -1,6 +1,7 @@
 // src/components/GiftPicker.tsx
 import { useMemo, useState } from "react";
-import { Link } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
+import { runAfterDismiss } from "../hooks/useBackDismiss";
 import { X, ArrowLeft } from "lucide-react";
 import { useGiftTypes, useWallet, useTopGiftTypeIds } from "../hooks/useWallet";
 import { useSendGift, useSendMediaGift } from "../hooks/useGifting";
@@ -71,6 +72,9 @@ export function GiftPicker({
   // back from it leaves the picker's entry intact — otherwise the first
   // Back consumed the picker's only entry and the next one left the page.
   useBackDismiss(onClose);
+  const navigate = useNavigate();
+  // Close first, navigate once the sheet's history pop has finished — otherwise the pop removes the wallet entry.
+  const goToWallet = () => runAfterDismiss(onClose, () => navigate("/wallet/fund"));
   useBackDismiss(() => setStep("catalog"), step === "confirm");
   useBackDismiss(() => setInsufficientGift(null), !!insufficientGift);
   useScrollLock();
@@ -278,9 +282,9 @@ export function GiftPicker({
               {insufficientBalance && (
                 <div className="w-full text-sm text-danger bg-danger/10 rounded-xl p-3">
                   Insufficient balance. Fund your{" "}
-                  <Link to="/wallet" onClick={onClose} className="underline underline-offset-2">
+                  <button type="button" onClick={goToWallet} className="underline underline-offset-2">
                     wallet
-                  </Link>{" "}
+                  </button>{" "}
                   to send this gift.
                 </div>
               )}
@@ -361,19 +365,19 @@ export function GiftPicker({
           </div>
           <p className="text-ink text-center text-base font-medium max-w-xs">
             Insufficient balance to gift {article(insufficientGift.name)} {insufficientGift.name}. Please fund your{" "}
-            <Link
-              to="/wallet"
+            <button
+              type="button"
               onClick={(e) => {
                 // The overlay itself dismisses on tap anywhere (see the
                 // parent's onClick) — stop that here so tapping the link
-                // navigates to the wallet instead of just closing this.
+                // goes to the wallet instead of just closing this.
                 e.stopPropagation();
-                onClose();
+                goToWallet();
               }}
               className="underline underline-offset-2"
             >
               wallet
-            </Link>
+            </button>
             .
           </p>
         </div>

@@ -8,6 +8,7 @@ import { PasswordField } from "../../components/PasswordField";
 import { Button } from "../../components/Button";
 import { AuthPattern } from "../../components/AuthPattern";
 import { friendlyError } from "../../lib/friendlyError";
+import { PASSWORD_SET_FLAG } from "../../lib/authMethods";
 
 interface LocationState {
   fromRecovery?: boolean;
@@ -26,6 +27,7 @@ export function ResetPassword() {
   const [step, setStep] = useState<Step>(state?.fromRecovery ? "new_password" : "email");
   const [email, setEmail] = useState("");
   const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -59,10 +61,20 @@ export function ResetPassword() {
       return;
     }
 
+    if (newPassword !== confirmPassword) {
+      setError("Passwords don't match.");
+      return;
+    }
+
     setLoading(true);
     // A valid recovery session (established via /auth/callback) is what
     // lets updateUser() work here.
-    const { error: updateError } = await supabase.auth.updateUser({ password: newPassword });
+    const { error: updateError } = await supabase.auth.updateUser({
+      password: newPassword,
+      // Marks accounts that signed up another way (Google…) as now having a password, so Settings offers
+      // "change password" from here on. See lib/authMethods.ts.
+      data: { [PASSWORD_SET_FLAG]: true },
+    });
     setLoading(false);
 
     if (updateError) {
@@ -131,6 +143,16 @@ export function ResetPassword() {
                 required
                 minLength={8}
                 autoFocus
+                autoComplete="new-password"
+              />
+              <PasswordField
+                id="confirm_password"
+                label="Confirm new password"
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                required
+                minLength={8}
+                autoComplete="new-password"
               />
               {error && (
                 <p className="text-danger text-sm mb-4" role="alert">

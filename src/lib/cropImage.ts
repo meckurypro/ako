@@ -76,3 +76,37 @@ export async function readImageAspect(file: File): Promise<number> {
     throw new Error("That image couldn't be read. Try a JPEG, PNG or WebP.");
   }
 }
+
+/**
+ * Draw an explicit source rectangle of a loaded image into a square canvas and encode it (WebP, else JPEG, stepping
+ * quality down until it fits the bucket limit). Used by the avatar cropper, where the person chooses the rectangle.
+ */
+export async function exportSquareCrop(
+  img: HTMLImageElement,
+  src: { x: number; y: number; size: number },
+  opts: { outSize?: number; name?: string } = {}
+): Promise<File> {
+  const out = Math.max(64, Math.min(opts.outSize ?? 1024, Math.round(src.size)));
+  const canvas = document.createElement("canvas");
+  canvas.width = out;
+  canvas.height = out;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) throw new Error("Couldn't process that image.");
+  ctx.imageSmoothingQuality = "high";
+  ctx.drawImage(img, src.x, src.y, src.size, src.size, 0, 0, out, out);
+
+  let type = "image/webp";
+  let quality = 0.88;
+  let blob = await canvasToBlob(canvas, type, quality);
+  if (!blob || blob.type !== type) {
+    type = "image/jpeg";
+    blob = await canvasToBlob(canvas, type, quality);
+  }
+  while (blob && blob.size > MAX_BYTES && quality > 0.4) {
+    quality -= 0.12;
+    blob = await canvasToBlob(canvas, type, quality);
+  }
+  if (!blob) throw new Error("Couldn't process that image.");
+  const ext = type === "image/webp" ? "webp" : "jpg";
+  return new File([blob], `${opts.name ?? "avatar"}.${ext}`, { type });
+}
