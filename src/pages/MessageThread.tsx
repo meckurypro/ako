@@ -1427,7 +1427,6 @@ export function MessageThread({ conversationId: conversationIdProp, group }: { c
                               senderName: resolveName(m.sender_id),
                               senderUsername: profileById.get(m.sender_id)?.username ?? null,
                               senderAvatarUrl: profileById.get(m.sender_id)?.avatar_url ?? null,
-                              senderVerified: !!profileById.get(m.sender_id)?.is_verified,
                               isFirstInRun: item.isFirstInRun,
                               isLastInRun: item.isLastInRun,
                               resolveName,

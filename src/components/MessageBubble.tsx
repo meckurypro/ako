@@ -2,7 +2,6 @@
 import { memo, type CSSProperties, type PointerEvent as ReactPointerEvent } from "react";
 import { Anchor, Reply } from "lucide-react";
 import { Avatar } from "./Avatar";
-import { VerifiedBadge } from "./VerifiedBadge";
 import { senderHue } from "../lib/senderColor";
 import type { MessageWithSender } from "../hooks/useMessaging";
 import type { MessageReaction } from "../hooks/useMessageReactions";
@@ -115,7 +114,6 @@ export interface GroupBubbleInfo {
   senderName: string;
   senderUsername: string | null;
   senderAvatarUrl: string | null;
-  senderVerified: boolean;
   /** First message of a run from this sender → carries the name and the bubble tail. */
   isFirstInRun: boolean;
   /** Last message of a run → carries the avatar. */
@@ -259,7 +257,6 @@ function MessageBubbleImpl({
       className="sender-name relative mb-0.5 flex max-w-full items-center gap-1 text-left text-[13px] font-semibold leading-tight"
     >
       <span className="truncate">{group!.senderName}</span>
-      {group!.senderVerified && <VerifiedBadge size={13} />}
     </button>
   ) : null;
 
