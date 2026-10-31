@@ -2,7 +2,7 @@
 // Layout-shaped placeholders for the profile page. They replace the old full-screen "Loading…" / blurred
 // overlay: the page frame renders immediately and only the parts still waiting on data pulse, which is the
 // pattern users perceive as fastest (and it never blocks Back / the nav bar).
-import { thumbBoxAspectClass } from "../lib/bookCover";
+import { THUMB_SPECS } from "../lib/thumbnailSpec";
 import type { ProjectType } from "../hooks/useProjects";
 import { BottomNav } from "./BottomNav";
 
@@ -12,7 +12,7 @@ export function ProjectMiniGridSkeleton({ count = 4, projectType }: { count?: nu
     <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 items-start" aria-hidden="true">
       {Array.from({ length: count }).map((_, i) => (
         <div key={i} className="min-w-0 rounded-2xl overflow-hidden border border-border/60 bg-surface animate-pulse">
-          <div className={`w-full ${thumbBoxAspectClass(projectType ?? "book", "aspect-square")} bg-canvas`} />
+          <div style={{ aspectRatio: THUMB_SPECS[projectType === "media" ? "1:1" : projectType === "gig" ? "2:1" : projectType === "course" ? "4:3" : projectType === "event" ? "4:5" : projectType === "room" ? "1:1" : "2:3"].ratio }} className="w-full bg-canvas" />
           <div className="px-4 pt-3.5 pb-4 space-y-2">
             <div className="h-3.5 w-3/4 rounded bg-canvas" />
             <div className="h-3 w-1/3 rounded bg-canvas" />

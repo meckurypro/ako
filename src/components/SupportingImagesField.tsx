@@ -5,6 +5,8 @@
 import { useRef, useState } from "react";
 import { ChevronLeft, ChevronRight, ImageIcon, Plus, X } from "lucide-react";
 import { useUploadProjectThumbnail } from "../hooks/useUploadProjectThumbnail";
+import { useThumbnailCropper } from "../hooks/useThumbnailCropper";
+import type { ThumbSpec } from "../lib/thumbnailSpec";
 import { MAX_SUPPORTING_IMAGES } from "../lib/projectImages";
 import { friendlyError } from "../lib/friendlyError";
 
@@ -12,12 +14,16 @@ export function SupportingImagesField({
   urls,
   onChange,
   hasThumbnail,
+  spec,
 }: {
   urls: string[];
   onChange: (next: string[]) => void;
   hasThumbnail: boolean;
+  /** Supporting images are shown in the thumbnail's own frame, so they share its shape. */
+  spec: ThumbSpec;
 }) {
   const upload = useUploadProjectThumbnail();
+  const cropper = useThumbnailCropper();
   const inputRef = useRef<HTMLInputElement>(null);
   const [pending, setPending] = useState(0);
   const [error, setError] = useState<string | null>(null);
@@ -41,7 +47,9 @@ export function SupportingImagesField({
     const added: string[] = [];
     for (const file of files) {
       try {
-        const { url } = await upload.mutateAsync(file);
+        const ready = await cropper.request(file, spec, { title: "Crop image", note: "Extra images share the thumbnail's shape." });
+        if (!ready) continue; // cancelled this one — carry on with the rest
+        const { url } = await upload.mutateAsync({ file: ready, spec });
         added.push(url);
       } catch (err) {
         setError(friendlyError(err, "Image upload failed."));
@@ -67,6 +75,7 @@ export function SupportingImagesField({
 
   return (
     <div className="mb-4">
+      {cropper.element}
       <div className="flex items-baseline justify-between mb-1.5">
         <label className="block text-sm font-medium text-ink-muted">Supporting images</label>
         <span className="text-xs text-ink-muted">
@@ -80,9 +89,9 @@ export function SupportingImagesField({
         </p>
       ) : (
         <>
-          <div className="grid grid-cols-4 gap-2">
+          <div className={spec.ratio > 1.2 ? "grid grid-cols-2 gap-2" : "grid grid-cols-4 gap-2"}>
             {urls.map((url, i) => (
-              <div key={url + i} className="relative aspect-square rounded-xl overflow-hidden border border-border bg-surface">
+              <div key={url + i} style={{ aspectRatio: spec.ratio }} className="relative rounded-xl overflow-hidden border border-border bg-surface">
                 <img src={url} alt="" className="w-full h-full object-cover" />
                 <button
                   type="button"
@@ -118,7 +127,7 @@ export function SupportingImagesField({
             ))}
 
             {Array.from({ length: Math.min(pending, remaining) }).map((_, i) => (
-              <div key={`pending-${i}`} className="aspect-square rounded-xl border border-border bg-surface flex items-center justify-center animate-pulse">
+              <div key={`pending-${i}`} style={{ aspectRatio: spec.ratio }} className="rounded-xl border border-border bg-surface flex items-center justify-center animate-pulse">
                 <ImageIcon size={18} className="text-ink-muted" />
               </div>
             ))}
@@ -129,7 +138,7 @@ export function SupportingImagesField({
                 onClick={() => inputRef.current?.click()}
                 disabled={busy}
                 aria-label="Add supporting images"
-                className="aspect-square rounded-xl border border-dashed border-border text-ink-muted flex items-center justify-center hover:bg-surface disabled:opacity-50"
+                style={{ aspectRatio: spec.ratio }} className="rounded-xl border border-dashed border-border text-ink-muted flex items-center justify-center hover:bg-surface disabled:opacity-50"
               >
                 <Plus size={20} />
               </button>

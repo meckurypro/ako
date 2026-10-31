@@ -8,6 +8,7 @@
 // up anywhere in the dynamic profile tabs — see
 // get_profile_portfolio_categories). Reached from the profile owner
 // menu, not tucked into Settings.
+import { thumbBoxStyle } from "../lib/thumbnailSpec";
 import { Link } from "react-router-dom";
 import { useSmartBack } from "../hooks/useSmartBack";
 import { ArrowLeft, Briefcase } from "lucide-react";
@@ -33,7 +34,7 @@ function TalentRow({ talent }: { talent: MyTalent }) {
       to={`/projects/${talent.id}/edit`}
       className="flex items-center gap-3 p-3 rounded-xl border border-border bg-surface"
     >
-      <div className="w-12 h-12 rounded-lg bg-canvas flex items-center justify-center overflow-hidden shrink-0">
+      <div style={thumbBoxStyle({ project_type: "gig", thumbnail_shape: talent.thumbnail_shape }, 48)} className="rounded-lg bg-canvas flex items-center justify-center overflow-hidden shrink-0">
         {talent.thumbnail_url ? (
           <img src={talent.thumbnail_url} alt="" className="w-full h-full object-cover" />
         ) : (

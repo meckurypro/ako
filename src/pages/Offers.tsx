@@ -1,4 +1,5 @@
 // src/pages/Offers.tsx
+import { thumbBoxStyle } from "../lib/thumbnailSpec";
 import { isFileType } from "../lib/fileProject";
 import { FileFolderIcon } from "../components/FileFolderArt";
 import { useMemo, useState } from "react";
@@ -109,7 +110,7 @@ function OfferRow({ offer, onEdit, onDelete }: { offer: Offer; onEdit: () => voi
       <ul className="space-y-2 mb-3">
         {offer.items.map((item) => (
           <li key={item.id} className="flex items-center gap-3">
-            <span className="w-9 h-9 rounded-lg bg-canvas overflow-hidden flex items-center justify-center shrink-0">
+            <span style={thumbBoxStyle(item, 36)} className="rounded-lg bg-canvas overflow-hidden flex items-center justify-center shrink-0">
               {isFileType(item.project_type) ? (
                 <FileFolderIcon size={36} className="w-full h-full" />
               ) : item.thumbnail_url ? (
@@ -180,6 +181,7 @@ function OfferEditorSheet({ offer, onClose }: { offer: Offer | null; onClose: ()
       id: p.id,
       title: p.title,
       thumbnail_url: p.thumbnail_url,
+      thumbnail_shape: p.thumbnail_shape,
       type: p.project_type,
       price: p.promo_price_usd ?? p.price_usd,
       available: true,
@@ -187,7 +189,7 @@ function OfferEditorSheet({ offer, onClose }: { offer: Offer | null; onClose: ()
     const known = new Set(list.map((r) => r.id));
     for (const item of offer?.items ?? []) {
       if (!known.has(item.id)) {
-        list.push({ id: item.id, title: item.title, thumbnail_url: item.thumbnail_url, type: item.project_type, price: item.price_usd, available: false });
+        list.push({ id: item.id, title: item.title, thumbnail_url: item.thumbnail_url, thumbnail_shape: item.thumbnail_shape, type: item.project_type, price: item.price_usd, available: false });
       }
     }
     return list;
@@ -262,7 +264,7 @@ function OfferEditorSheet({ offer, onClose }: { offer: Offer | null; onClose: ()
                         onClick={() => toggle(r.id)}
                         className={`w-full flex items-center gap-3 p-2 rounded-xl border text-left ${on ? "border-accent/50 bg-accent-soft/40" : "border-border bg-canvas"}`}
                       >
-                        <span className="w-10 h-10 rounded-lg bg-canvas overflow-hidden flex items-center justify-center shrink-0">
+                        <span style={thumbBoxStyle({ project_type: r.type, thumbnail_shape: r.thumbnail_shape }, 40)} className="rounded-lg bg-canvas overflow-hidden flex items-center justify-center shrink-0">
                           {isFileType(r.type) ? (
                             <FileFolderIcon size={40} className="w-full h-full" />
                           ) : r.thumbnail_url ? (

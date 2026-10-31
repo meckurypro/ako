@@ -1,6 +1,6 @@
 // src/pages/LibraryActivity.tsx
 import { useMemo, useState, type ReactNode } from "react";
-import { isBookType } from "../lib/bookCover";
+import { thumbBoxStyle } from "../lib/thumbnailSpec";
 import { Link } from "react-router-dom";
 import { ImageIcon, LibraryBig, BookText, GraduationCap, Music, FileText, Link as LinkIcon, Pin, BellOff } from "lucide-react";
 import { useTabState } from "../hooks/useTabState";
@@ -48,8 +48,8 @@ function LibraryRow({ item }: { item: LibraryItem }) {
         to={libraryItemRoute(item)}
         className="flex items-center gap-3 p-3 pr-11 rounded-xl border border-border bg-surface"
       >
-        {/* Books keep their 2:3 cover; everything else is a square, cropped to fit. */}
-        <div className={`w-12 ${isBookType(item.projectType) ? "h-[72px]" : "h-12"} rounded-lg bg-canvas flex items-center justify-center overflow-hidden shrink-0`}>
+        {/* Drawn in the shape the thumbnail was created in. */}
+        <div style={thumbBoxStyle({ project_type: item.projectType, thumbnail_shape: item.thumbnailShape }, 48)} className="rounded-lg bg-canvas flex items-center justify-center overflow-hidden shrink-0">
           {item.thumbnailUrl ? (
             <img src={item.thumbnailUrl} alt="" className="w-full h-full object-cover" />
           ) : (

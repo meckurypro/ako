@@ -1,6 +1,6 @@
 // src/components/project-types/EventFields.tsx
 import { FormField } from "../FormField";
-import { useUploadProjectThumbnail } from "../../hooks/useUploadProjectThumbnail";
+import { useUploadPublicImage } from "../../hooks/useUploadProjectThumbnail";
 import { useState } from "react";
 import { friendlyError } from "../../lib/friendlyError";
 
@@ -27,7 +27,7 @@ interface EventFieldsProps {
 // project thumbnail, since it's a public-facing image (overlaid with
 // attendee/event details at issue time, not sensitive on its own).
 export function EventFields({ value, onChange }: EventFieldsProps) {
-  const uploadThumbnail = useUploadProjectThumbnail();
+  const uploadThumbnail = useUploadPublicImage();
   const [uploadError, setUploadError] = useState<string | null>(null);
 
   const set = <K extends keyof EventFieldsValue>(key: K, val: EventFieldsValue[K]) =>

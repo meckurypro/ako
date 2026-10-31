@@ -1,4 +1,5 @@
 // src/components/TaggedProjectEmbed.tsx
+import { fitThumbBox } from "../lib/thumbnailSpec";
 import { isBookType } from "../lib/bookCover";
 import { Link } from "react-router-dom";
 import { ImageIcon, Music2 } from "lucide-react";
@@ -12,6 +13,7 @@ export interface TaggedProjectSummary {
   id: string;
   title: string;
   thumbnail_url: string | null;
+  thumbnail_shape?: string | null;
   project_type: ProjectType;
   price_usd: number;
   promo_price_usd: number | null;
@@ -82,8 +84,8 @@ export function TaggedProjectEmbed({
   const book = isBookType(project.project_type);
   // A song (a "media" project) gets a record instead of a tilted card: same box, same spot, but round.
   const song = project.project_type === "media";
-  const thumbW = book ? 84 : 96;
-  const thumbH = book ? 120 : 96;
+  // The thumbnail keeps the shape it was created in (a video is wide, a book tall), fitted into the strip.
+  const { width: thumbW, height: thumbH } = fitThumbBox(project, 132, book ? 120 : 96);
 
   return (
     <Link

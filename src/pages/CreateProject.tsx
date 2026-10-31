@@ -1,6 +1,8 @@
 // src/pages/CreateProject.tsx
 import { FileFolderHero } from "../components/FileFolderArt";
-import { BOOK_COVER_RATIO, isBookCoverRatio, BOOK_COVER_ERROR } from "../lib/bookCover";
+import { matchesThumbSpec, thumbnailNoun, thumbnailSpecFor } from "../lib/thumbnailSpec";
+import { fetchImageFile } from "../lib/cropImage";
+import { useThumbnailCropper } from "../hooks/useThumbnailCropper";
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { useNavigate } from "react-router-dom";
 import { useSmartBack } from "../hooks/useSmartBack";
@@ -100,6 +102,8 @@ export function CreateProject({ fixedType }: { fixedType?: ProjectType } = {}) {
   // on. See create_pitch_project in ako_projects_v8_pitch.sql.
   const createPitchProject = useCreatePitchProject();
   const uploadThumbnail = useUploadProjectThumbnail();
+  const cropper = useThumbnailCropper();
+  const [thumbnailSource, setThumbnailSource] = useState<File | null>(null);
   const projectsEnabled = useFeatureFlag("projects_enabled");
 
   const [pagesOpen, setPagesOpen] = useState(false);
@@ -175,6 +179,10 @@ export function CreateProject({ fixedType }: { fixedType?: ProjectType } = {}) {
   const [fileFields, setFileFields] = useState<FileFieldsValue>(EMPTY_FILE_FIELDS);
   const [urlFields, setUrlFields] = useState<UrlFieldsValue>(EMPTY_URL_FIELDS);
   const [mediaFields, setMediaFields] = useState<MediaFieldsValue>(EMPTY_MEDIA_FIELDS);
+  // The one shape this project's thumbnail must be: it follows the type, and for media whether there is a video.
+  const thumbSpec = thumbnailSpecFor(projectType, { hasVideo: mediaFields.video.enabled });
+  const thumbNoun = thumbnailNoun(projectType, mediaFields.video.enabled);
+  const thumbMismatch = !!(thumbnailUrl && thumbSpec && thumbnailRatio && !matchesThumbSpec(thumbnailRatio.width, thumbnailRatio.height, thumbSpec));
   const [mediaUploading, setMediaUploading] = useState(false);
   // A song lives under an artist talent: a talent id, or NEW_ARTIST_TALENT to scaffold one on save. "" until the picker settles.
   const [songTalent, setSongTalent] = useState("");
@@ -347,22 +355,41 @@ export function CreateProject({ fixedType }: { fixedType?: ProjectType } = {}) {
     });
   }
 
-  async function handleThumbnailSelect(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    e.target.value = "";
-    if (!file) return;
+  // Crop (if needed) to the project's shape, then upload. `file` is what the person picked, or the kept original.
+  async function cropAndUpload(file: File) {
+    if (!thumbSpec) return;
     try {
-      const { url, width, height } = await uploadThumbnail.mutateAsync({ file, bookCover: projectType === "book" });
+      const ready = await cropper.request(file, thumbSpec, { title: `Crop ${thumbNoun}` });
+      if (!ready) return; // cancelled
+      const { url, width, height } = await uploadThumbnail.mutateAsync({ file: ready, spec: thumbSpec });
       setThumbnailUrl(url);
       setThumbnailRatio({ width, height });
+      setThumbnailSource(file);
+      setError(null);
     } catch (err) {
       setError(friendlyError(err, "Thumbnail upload failed."));
     }
   }
 
+  async function handleThumbnailSelect(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (file) await cropAndUpload(file);
+  }
+
+  // Re-crop from the original the person picked (or, after a draft restore, the uploaded picture).
+  async function handleRecrop() {
+    try {
+      const source = thumbnailSource ?? (thumbnailUrl ? await fetchImageFile(thumbnailUrl) : null);
+      if (source) await cropAndUpload(source);
+    } catch (err) {
+      setError(friendlyError(err, "Couldn't open the picture to crop."));
+    }
+  }
+
   function validateTypeSpecific(): string | null {
-    if (projectType === "book" && thumbnailUrl && thumbnailRatio && !isBookCoverRatio(thumbnailRatio.width, thumbnailRatio.height)) {
-      return BOOK_COVER_ERROR;
+    if (thumbMismatch && thumbSpec) {
+      return `Your ${thumbNoun} needs to be ${thumbSpec.label}. Use "Crop it to fit" under the picture.`;
     }
     if (projectType === "file") {
       const fileError = fileFieldsError(fileFields);
@@ -805,11 +832,12 @@ export function CreateProject({ fixedType }: { fixedType?: ProjectType } = {}) {
           </FormSection>
           )}
 
-          {/* 2 — Cover. The thumbnail frame takes the uploaded image's own aspect ratio (16:9 only as the placeholder). */}
+          {/* 2 — Cover. The frame is the exact shape this kind of project's thumbnail must be. */}
+          {cropper.element}
           <FormSection
             icon={ImageIcon}
             title="Cover"
-            description={projectType === "book" ? "Your book's cover." : projectType === "file" ? undefined : "The image people see first."}
+            description={projectType === "file" ? undefined : `Your ${thumbNoun} — the image people see first.`}
           >
             {projectType === "file" ? (
               <div className="w-full mb-4 rounded-2xl border border-border bg-canvas overflow-hidden">
@@ -818,17 +846,13 @@ export function CreateProject({ fixedType }: { fixedType?: ProjectType } = {}) {
             ) : (
               <ThumbnailPicker
                 url={thumbnailUrl}
-                aspectRatio={
-                  projectType === "book"
-                    ? BOOK_COVER_RATIO
-                    : thumbnailRatio
-                      ? `${thumbnailRatio.width} / ${thumbnailRatio.height}`
-                      : "16 / 9"
-                }
-                isBook={projectType === "book"}
+                spec={thumbSpec!}
+                noun={thumbNoun}
                 uploading={uploadThumbnail.isPending}
                 inputRef={thumbnailInputRef}
                 onFileChange={handleThumbnailSelect}
+                needsRecrop={thumbMismatch}
+                onRecrop={handleRecrop}
                 supportingImageUrls={supportingImageUrls}
                 onSupportingChange={setSupportingImageUrls}
               />

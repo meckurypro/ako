@@ -964,9 +964,9 @@ export function ProjectCard({
   const galleryImages = isDetailView ? projectGalleryImages(project) : [];
 
   // Clamped ratio + height cap: a tall poster or wide banner must not blow the card up past the screen.
-  const thumb = thumbnailLayout(project.thumbnail_width, project.thumbnail_height, project.project_type);
+  const thumb = thumbnailLayout(project);
   const aspectRatio = thumb.aspectRatio;
-  const thumbFitClass = thumb.fit === "contain" ? "object-contain" : "object-cover";
+  const thumbFitClass = "object-cover";
 
   const TypeIcon = TYPE_ICON[project.project_type];
   const isMedia = project.project_type === "media";

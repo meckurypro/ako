@@ -1,7 +1,7 @@
 // src/components/TagProjectPicker.tsx
+import { thumbBoxStyle } from "../lib/thumbnailSpec";
 import { isFileType } from "../lib/fileProject";
 import { FileFolderIcon } from "./FileFolderArt";
-import { isBookType } from "../lib/bookCover";
 import { ImageIcon, X } from "lucide-react";
 import { Portal } from "./Portal";
 import { useBackDismiss } from "../hooks/useBackDismiss";
@@ -77,7 +77,7 @@ export function TagProjectPicker({
                 onClick={() => onSelect(project.id, project.title)}
                 className="w-full flex items-center gap-2.5 px-4 py-2.5 text-left hover:bg-canvas transition-colors"
               >
-                <div className={`w-10 ${isBookType(project.project_type) ? "h-[60px]" : "h-10"} rounded-lg overflow-hidden bg-canvas border border-border flex-shrink-0 flex items-center justify-center`}>
+                <div style={thumbBoxStyle(project, 40)} className="rounded-lg overflow-hidden bg-canvas border border-border flex-shrink-0 flex items-center justify-center">
                   {isFileType(project.project_type) ? (
                     <FileFolderIcon size={40} className="w-full h-full" />
                   ) : project.thumbnail_url ? (

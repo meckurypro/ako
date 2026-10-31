@@ -1,4 +1,5 @@
 // src/components/project-types/TalentFields.tsx
+import { thumbBoxStyle } from "../../lib/thumbnailSpec";
 import { ImageIcon, Check, Plus, X } from "lucide-react";
 import { FormField } from "../FormField";
 import { PROJECT_TYPE_LABELS } from "../../hooks/useProjects";
@@ -229,7 +230,7 @@ export function TalentFields({ value, onChange, excludeProjectId }: TalentFields
                     selected ? "border-accent bg-accent-soft" : "border-border bg-canvas"
                   }`}
                 >
-                  <div className="w-10 h-10 rounded-lg bg-surface flex items-center justify-center overflow-hidden shrink-0">
+                  <div style={thumbBoxStyle({ project_type: "media", thumbnail_shape: p.thumbnail_shape }, 40)} className="rounded-lg bg-surface flex items-center justify-center overflow-hidden shrink-0">
                     {p.thumbnail_url ? (
                       <img src={p.thumbnail_url} alt="" className="w-full h-full object-cover" />
                     ) : (

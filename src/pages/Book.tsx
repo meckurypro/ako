@@ -27,6 +27,8 @@ import { BookReflowReader } from "../components/book/BookReflowReader";
 import { BookChapterEditor } from "../components/book/BookChapterEditor";
 import { useIsProjectMember } from "../hooks/useProjectMembers";
 import { useUploadProjectThumbnail } from "../hooks/useUploadProjectThumbnail";
+import { useThumbnailCropper } from "../hooks/useThumbnailCropper";
+import { THUMB_SPECS } from "../lib/thumbnailSpec";
 import { Button } from "../components/Button";
 import { EditorToolbar, editorKeyHandler } from "../components/EditorToolbar";
 import { useBookDraft } from "../hooks/useBookDraft";
@@ -239,6 +241,7 @@ function BookBuilder({
   const returnAfterSave = useReturnAfterSave();
   const toast = useToast();
   const uploadThumbnail = useUploadProjectThumbnail();
+  const cropper = useThumbnailCropper();
   const updateProject = useUpdateProject();
   const coverInputRef = useRef<HTMLInputElement>(null);
 
@@ -318,8 +321,11 @@ function BookBuilder({
     e.target.value = "";
     if (!file) return;
     try {
-      // 2:3 only — the hook rejects anything else before uploading.
-      const { url, width, height } = await uploadThumbnail.mutateAsync({ file, bookCover: true });
+      // Book covers are 2:3: a picture of any other shape is cropped to it first.
+      const spec = THUMB_SPECS["2:3"];
+      const ready = await cropper.request(file, spec, { title: "Crop book cover" });
+      if (!ready) return;
+      const { url, width, height } = await uploadThumbnail.mutateAsync({ file: ready, spec });
       await updateProject.mutateAsync({ id: projectId, thumbnail_url: url, thumbnail_width: width, thumbnail_height: height });
       setError(null);
     } catch (err) {
@@ -378,6 +384,7 @@ function BookBuilder({
 
       <div className="px-4 py-4 max-w-xl mx-auto">
         {/* Cover */}
+        {cropper.element}
         <button
           onClick={() => coverInputRef.current?.click()}
           disabled={uploadThumbnail.isPending || updateProject.isPending}

@@ -1,6 +1,7 @@
 // src/components/ForewordInviteModal.tsx
 // What the person asked to write a foreword sees: the invite, a way to read the work first, decline (final), or write.
 // The same modal handles the writer's later visits — edit a submitted or published foreword, or withdraw it.
+import { thumbBoxStyle } from "../lib/thumbnailSpec";
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { BookOpen, X } from "lucide-react";
@@ -156,7 +157,8 @@ export function ForewordInviteModal({ projectId, onClose }: { projectId: string;
                     <img
                       src={project.thumbnail_url}
                       alt=""
-                      className={`w-12 ${isBook ? "h-[72px]" : "h-12"} rounded-lg object-cover flex-shrink-0 border border-border`}
+                      style={thumbBoxStyle(project, 48)}
+                      className="rounded-lg object-cover flex-shrink-0 border border-border"
                     />
                   ) : (
                     <div className="w-12 h-12 rounded-lg flex-shrink-0 bg-surface border border-border" />

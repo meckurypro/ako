@@ -7,7 +7,7 @@ import { Bold, Code, FileCode, Image as ImageIcon, Italic, Link as LinkIcon, Lis
 
 import { BookRichText } from "../BookRichText";
 import { BOOK_SECTION_INFO, type BookChapterKind } from "../../hooks/useBookBuilder";
-import { useUploadProjectThumbnail } from "../../hooks/useUploadProjectThumbnail";
+import { useUploadPublicImage } from "../../hooks/useUploadProjectThumbnail";
 import { applyBookFormat, insertBookImage, type BookFormatOp, type EditResult } from "../../lib/bookEditorOps";
 import { parseBook } from "../../lib/bookFormat";
 import { splitChapterOpener } from "../../lib/bookReaderText";
@@ -49,7 +49,7 @@ export function BookChapterEditor({
   const theme = READER_THEMES[themeId];
 
   const fileRef = useRef<HTMLInputElement>(null);
-  const upload = useUploadProjectThumbnail();
+  const upload = useUploadPublicImage();
   const [imageError, setImageError] = useState<string | null>(null);
 
   function commit(r: EditResult) {

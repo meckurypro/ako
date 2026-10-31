@@ -7,6 +7,7 @@
 //   • Tabs     — Active / Revoked on the shared SlidingTabBar + SwipeableTabs carousel (swipe anywhere on the page).
 //   • Cards    — ForkedProjectCard: cover + title + commission rate, a four-up stat grid, and a one-tap
 //                Share/Copy action with the link preview. Connect keeps using the compact AffiliateLinkRow.
+import { thumbBoxStyle } from "../lib/thumbnailSpec";
 import { isFileType } from "../lib/fileProject";
 import { FileFolderIcon } from "../components/FileFolderArt";
 import { useState, type ReactNode } from "react";
@@ -73,7 +74,8 @@ export function AffiliateLinkRow({ relationship }: { relationship: AffiliateRela
       <div className="relative">
         <Link to={`/projects/${relationship.project_id}`} className="flex items-center gap-3 p-3 pr-12">
           <div
-            className={`w-12 ${relationship.project.project_type === "book" ? "h-[72px]" : "h-12"} rounded-lg bg-canvas overflow-hidden flex items-center justify-center shrink-0`}
+            style={thumbBoxStyle(relationship.project, 48)}
+            className="rounded-lg bg-canvas overflow-hidden flex items-center justify-center shrink-0"
           >
             {isFileType(relationship.project.project_type) ? (
               <FileFolderIcon size={48} className="w-full h-full" />
@@ -252,7 +254,8 @@ function ForkedProjectCard({ relationship }: { relationship: AffiliateRelationsh
     >
       <Link to={`/projects/${relationship.project_id}`} className="flex items-center gap-3.5 p-3.5">
         <div
-          className={`${isBook ? "w-14 h-[84px]" : "w-[72px] h-[72px]"} rounded-xl bg-canvas overflow-hidden flex items-center justify-center shrink-0 ring-1 ring-border`}
+          style={thumbBoxStyle(project, isBook ? 56 : 72)}
+          className="rounded-xl bg-canvas overflow-hidden flex items-center justify-center shrink-0 ring-1 ring-border"
         >
           {isFileType(project.project_type) ? (
             <FileFolderIcon size={56} className="w-full h-full" />

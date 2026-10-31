@@ -3,6 +3,7 @@
 // /pass/:token — the public face of a Guest Pass. Anyone with the link sees the project's content, signed in or not,
 // for as long as the pass lives, with a live countdown. When it runs out (or was revoked) the content is withdrawn
 // on the spot and the visitor gets a plain "expired" screen with a relevant next step. Public route: no RequireAuth.
+import { thumbnailRatioOf } from "../lib/thumbnailSpec";
 import { useEffect, useRef, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { Clock, KeyRound, Download, Play, ChevronDown, Lock, ExternalLink } from "lucide-react";
@@ -510,7 +511,7 @@ export function GuestPass() {
       </div>
 
       {p.thumbnail_url && (
-        <img src={p.thumbnail_url} alt="" className="w-full rounded-2xl border border-border object-cover max-h-80" />
+        <img src={p.thumbnail_url} alt="" style={{ aspectRatio: thumbnailRatioOf(p) }} className="w-full rounded-2xl border border-border object-cover max-h-80" />
       )}
 
       <div className="mt-4 flex items-center gap-2">

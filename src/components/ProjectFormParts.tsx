@@ -21,7 +21,7 @@ import type { ChangeEvent, ReactNode, RefObject } from "react";
 
 import { FormField } from "./FormField";
 import { SupportingImagesField } from "./SupportingImagesField";
-import { BOOK_COVER_HINT } from "../lib/bookCover";
+import type { ThumbSpec } from "../lib/thumbnailSpec";
 import { PROJECT_TYPE_LABELS, type ProjectType } from "../hooks/useProjects";
 
 export const PROJECT_TYPE_ICONS: Record<ProjectType, LucideIcon> = {
@@ -102,36 +102,45 @@ export function ProjectTypeChips({
   );
 }
 
-/** The cover frame plus the supporting-images strip. A book cover is 2:3; every other thumbnail is a 1:1 square (uploads are cropped to it). */
+/**
+ * The cover frame plus the supporting-images strip. The frame is drawn in the exact shape this kind of project's
+ * thumbnail must be (lib/thumbnailSpec.ts); a picture of any other shape is cropped to it in the crop sheet.
+ */
 export function ThumbnailPicker({
   url,
-  aspectRatio,
-  isBook,
+  spec,
+  noun,
   uploading,
   inputRef,
   onFileChange,
+  needsRecrop,
+  onRecrop,
   supportingImageUrls,
   onSupportingChange,
 }: {
   url: string | null;
-  /** Ignored for anything but a book: only book covers have a shape of their own, everything else is square. */
-  aspectRatio: string | number;
-  isBook: boolean;
+  spec: ThumbSpec;
+  /** "video thumbnail", "book cover", … */
+  noun: string;
   uploading: boolean;
   inputRef: RefObject<HTMLInputElement | null>;
   onFileChange: (e: ChangeEvent<HTMLInputElement>) => void;
+  /** The current picture isn't the shape this project now needs (e.g. a video was added to an audio project). */
+  needsRecrop?: boolean;
+  onRecrop?: () => void;
   supportingImageUrls: string[];
   onSupportingChange: (urls: string[]) => void;
 }) {
+  const portrait = spec.ratio < 1;
   return (
     <>
       <button
         type="button"
         onClick={() => inputRef.current?.click()}
-        aria-label={url ? "Change thumbnail" : "Choose thumbnail"}
-        style={{ aspectRatio: isBook ? aspectRatio : 1 }}
-        className={`bg-canvas border border-border rounded-2xl flex items-center justify-center overflow-hidden hover:border-ink-muted/40 transition-colors ${
-          isBook ? "w-48 mx-auto mb-2" : "w-full max-w-sm mx-auto mb-2"
+        aria-label={url ? `Change ${noun}` : `Choose ${noun}`}
+        style={{ aspectRatio: spec.ratio }}
+        className={`bg-canvas border border-border rounded-2xl flex items-center justify-center overflow-hidden hover:border-ink-muted/40 transition-colors mx-auto mb-2 ${
+          portrait ? "w-48" : "w-full max-w-sm"
         }`}
       >
         {url ? (
@@ -141,14 +150,31 @@ export function ThumbnailPicker({
             <span className="w-11 h-11 rounded-full bg-accent-soft text-accent flex items-center justify-center">
               <ImageIcon size={20} />
             </span>
-            <span className="text-sm">{uploading ? "Uploading…" : isBook ? "Add cover (2:3)" : "Add thumbnail (square)"}</span>
+            <span className="text-sm">{uploading ? "Uploading…" : `Add ${noun} (${spec.shape})`}</span>
           </div>
         )}
       </button>
-      {isBook ? (
-        <p className="text-xs text-ink-muted text-center mb-3">{BOOK_COVER_HINT}</p>
+      {needsRecrop ? (
+        <div className="mb-3 rounded-xl border border-danger/40 bg-danger/5 px-3 py-2 text-center">
+          <p className="text-xs text-danger">This picture isn't the {spec.label} shape a {noun} needs.</p>
+          {onRecrop ? (
+            <button type="button" onClick={onRecrop} className="mt-1 text-xs font-medium text-accent underline">
+              Crop it to fit
+            </button>
+          ) : null}
+        </div>
       ) : (
-        <p className="text-xs text-ink-muted text-center mb-3">Thumbnails are square (1:1). Any other shape is cropped to the middle.</p>
+        <p className="text-xs text-ink-muted text-center mb-3">
+          A {noun} is {spec.label}. Choose any picture — if it isn't that shape you'll crop it to fit.
+          {url && onRecrop ? (
+            <>
+              {" "}
+              <button type="button" onClick={onRecrop} className="font-medium text-accent underline">
+                Adjust crop
+              </button>
+            </>
+          ) : null}
+        </p>
       )}
       <input
         ref={inputRef}
@@ -157,7 +183,7 @@ export function ThumbnailPicker({
         onChange={onFileChange}
         className="hidden"
       />
-      <SupportingImagesField urls={supportingImageUrls} onChange={onSupportingChange} hasThumbnail={!!url} />
+      <SupportingImagesField urls={supportingImageUrls} onChange={onSupportingChange} hasThumbnail={!!url} spec={spec} />
     </>
   );
 }

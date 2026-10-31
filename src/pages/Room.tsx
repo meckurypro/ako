@@ -1,4 +1,5 @@
 // src/pages/Room.tsx
+import { thumbnailRatioOf } from "../lib/thumbnailSpec";
 import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { useParams, useNavigate, useSearchParams, useLocation, Navigate } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
@@ -893,7 +894,7 @@ function GroupLanding({ project, info, isGuest }: { project: Project; info: Grou
           <ArrowLeft size={22} />
         </button>
         {project.thumbnail_url && (
-          <img src={project.thumbnail_url} alt="" className="w-full max-w-sm mx-auto aspect-square object-cover rounded-2xl mb-4" />
+          <img src={project.thumbnail_url} alt="" style={{ aspectRatio: thumbnailRatioOf(project) }} className="w-full max-w-sm mx-auto object-cover rounded-2xl mb-4" />
         )}
         <p className="text-[11px] uppercase tracking-wide text-accent font-medium">{GROUP_KIND_LABEL[kind]}</p>
         <h2 className="font-display text-2xl text-ink mt-1">{project.title}</h2>

@@ -1,4 +1,5 @@
 // src/pages/HistoryActivity.tsx
+import { thumbBoxStyle } from "../lib/thumbnailSpec";
 import { isFileType } from "../lib/fileProject";
 import { FileFolderIcon } from "../components/FileFolderArt";
 import { Link } from "react-router-dom";
@@ -25,7 +26,7 @@ function HistoryRow({ item }: { item: HistoryItem }) {
 
   return (
     <Link to={to} className="flex items-center gap-3 py-3 border-b border-border">
-      <div className={`w-11 ${!isPost && item.project?.project_type === "book" ? "h-[66px]" : "h-11"} rounded-lg bg-surface flex items-center justify-center overflow-hidden shrink-0`}>
+      <div style={isPost ? { width: 44, height: 44 } : thumbBoxStyle(item.project, 44)} className="rounded-lg bg-surface flex items-center justify-center overflow-hidden shrink-0">
         {isFile ? (
           <FileFolderIcon size={44} className="w-full h-full" />
         ) : thumbnail ? (

@@ -8,6 +8,7 @@ import { ArrowLeft, X } from "lucide-react";
 import { useTagFilter } from "../hooks/useTagFilter";
 import { useSmartBack } from "../hooks/useSmartBack";
 import {
+  getDiscoverSection,
   getDiscoverSectionTitle,
   useDiscoverMore,
   useDiscoverPagesMore,
@@ -39,9 +40,13 @@ function ProjectsMore({ sectionKey, tagIds }: { sectionKey: string; tagIds: stri
   if (isError) return <p className="py-4 text-sm text-ink-muted">Couldn't load this right now. Try again in a moment.</p>;
   if (items.length === 0) return <p className="py-4 text-sm text-ink-muted">Nothing here yet.</p>;
 
+  // Wide shapes (16:9 video, 2:1 banners) need room: two columns instead of three.
+  const section = getDiscoverSection(sectionKey);
+  const wide = section?.kind === "video" || section?.type === "gig" || section?.type === "url";
+
   return (
     <>
-      <div className="grid grid-cols-3 items-start gap-x-3 gap-y-5 sm:grid-cols-4">
+      <div className={wide ? "grid grid-cols-2 items-start gap-x-3 gap-y-5 sm:grid-cols-3" : "grid grid-cols-3 items-start gap-x-3 gap-y-5 sm:grid-cols-4"}>
         {items.map((item) => (
           <DiscoverTile key={item.project.id} item={item} fluid />
         ))}

@@ -1,6 +1,8 @@
 // src/pages/EditProject.tsx
 import { FileFolderHero } from "../components/FileFolderArt";
-import { BOOK_COVER_RATIO, isBookCoverRatio, BOOK_COVER_ERROR } from "../lib/bookCover";
+import { matchesThumbSpec, thumbnailNoun, thumbnailSpecFor } from "../lib/thumbnailSpec";
+import { fetchImageFile } from "../lib/cropImage";
+import { useThumbnailCropper } from "../hooks/useThumbnailCropper";
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { useParams } from "react-router-dom";
 import { useSmartBack } from "../hooks/useSmartBack";
@@ -107,6 +109,8 @@ export function EditProject() {
   const { data: existingBookDetails } = useBookDetails(project?.project_type === "book" ? projectId : undefined);
   const updateProject = useUpdateProject();
   const uploadThumbnail = useUploadProjectThumbnail();
+  const cropper = useThumbnailCropper();
+  const [thumbnailSource, setThumbnailSource] = useState<File | null>(null);
 
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
@@ -127,6 +131,10 @@ export function EditProject() {
   const [fileFields, setFileFields] = useState<FileFieldsValue>(EMPTY_FILE_FIELDS);
   const [urlFields, setUrlFields] = useState<UrlFieldsValue>(EMPTY_URL_FIELDS);
   const [mediaFields, setMediaFields] = useState<MediaFieldsValue>(EMPTY_MEDIA_FIELDS);
+  // The shape this project's thumbnail must be (a media project's depends on whether it has a video).
+  const thumbSpec = thumbnailSpecFor(project?.project_type, { hasVideo: mediaFields.video.enabled });
+  const thumbNoun = thumbnailNoun(project?.project_type, mediaFields.video.enabled);
+  const thumbMismatch = !!(thumbnailUrl && thumbSpec && !(thumbnailRatio && matchesThumbSpec(thumbnailRatio.width, thumbnailRatio.height, thumbSpec)));
   const [mediaUploading, setMediaUploading] = useState(false);
   // The talent a song lives under (a talent id, or NEW_ARTIST_TALENT to scaffold one on save).
   const [songTalent, setSongTalent] = useState("");
@@ -317,28 +325,40 @@ export function EditProject() {
     typeDetailsHydrated,
   ]);
 
-  async function handleThumbnailSelect(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    e.target.value = "";
-    if (!file) return;
+  async function cropAndUpload(file: File) {
+    if (!thumbSpec) return;
     try {
-      const { url, width, height } = await uploadThumbnail.mutateAsync({ file, bookCover: project?.project_type === "book" });
+      const ready = await cropper.request(file, thumbSpec, { title: `Crop ${thumbNoun}` });
+      if (!ready) return; // cancelled
+      const { url, width, height } = await uploadThumbnail.mutateAsync({ file: ready, spec: thumbSpec });
       setThumbnailUrl(url);
       setThumbnailRatio({ width, height });
+      setThumbnailSource(file);
+      setError(null);
     } catch (err) {
       setError(friendlyError(err, "Thumbnail upload failed."));
     }
   }
 
+  async function handleThumbnailSelect(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (file) await cropAndUpload(file);
+  }
+
+  async function handleRecrop() {
+    try {
+      const source = thumbnailSource ?? (thumbnailUrl ? await fetchImageFile(thumbnailUrl) : null);
+      if (source) await cropAndUpload(source);
+    } catch (err) {
+      setError(friendlyError(err, "Couldn't open the picture to crop."));
+    }
+  }
+
   function validateTypeSpecific(): string | null {
     if (!project) return null;
-    if (
-      project.project_type === "book" &&
-      thumbnailUrl &&
-      thumbnailRatio &&
-      !isBookCoverRatio(thumbnailRatio.width, thumbnailRatio.height)
-    ) {
-      return BOOK_COVER_ERROR;
+    if (thumbMismatch && thumbSpec) {
+      return `Your ${thumbNoun} needs to be ${thumbSpec.label}. Use "Crop it to fit" under the picture.`;
     }
     if (project.project_type === "file") {
       const fileError = fileFieldsError(fileFields);
@@ -663,7 +683,6 @@ export function EditProject() {
     );
   }
 
-  const isBook = project?.project_type === "book";
   const bookNotOwn = project?.project_type === "book" && !bookFields.is_own_work;
   const TypeIcon = PROJECT_TYPE_ICONS[project.project_type];
 
@@ -686,8 +705,9 @@ export function EditProject() {
           <FormSection
             icon={ImageIcon}
             title="Cover"
-            description={isBook ? "Your book's cover." : project?.project_type === "file" ? undefined : "The image people see first."}
+            description={project?.project_type === "file" ? undefined : `Your ${thumbNoun} — the image people see first.`}
           >
+            {cropper.element}
             {project?.project_type === "file" ? (
               <div className="w-full mb-4 rounded-2xl border border-border bg-canvas overflow-hidden">
                 <FileFolderHero />
@@ -695,11 +715,13 @@ export function EditProject() {
             ) : (
               <ThumbnailPicker
                 url={thumbnailUrl}
-                aspectRatio={isBook ? BOOK_COVER_RATIO : thumbnailRatio ? `${thumbnailRatio.width} / ${thumbnailRatio.height}` : "16 / 9"}
-                isBook={isBook}
+                spec={thumbSpec!}
+                noun={thumbNoun}
                 uploading={uploadThumbnail.isPending}
                 inputRef={thumbnailInputRef}
                 onFileChange={handleThumbnailSelect}
+                needsRecrop={thumbMismatch}
+                onRecrop={handleRecrop}
                 supportingImageUrls={supportingImageUrls}
                 onSupportingChange={setSupportingImageUrls}
               />

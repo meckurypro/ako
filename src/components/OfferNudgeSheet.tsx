@@ -1,4 +1,5 @@
 // src/components/OfferNudgeSheet.tsx
+import { thumbBoxStyle } from "../lib/thumbnailSpec";
 import { isFileType } from "../lib/fileProject";
 import { FileFolderIcon } from "./FileFolderArt";
 import { useState } from "react";
@@ -121,7 +122,7 @@ function OfferCard({
       <ul className="space-y-2">
         {offer.items.map((item) => (
           <li key={item.id} className="flex items-center gap-3">
-            <span className="w-9 h-9 rounded-lg bg-canvas overflow-hidden flex items-center justify-center shrink-0">
+            <span style={thumbBoxStyle(item, 36)} className="rounded-lg bg-canvas overflow-hidden flex items-center justify-center shrink-0">
               {isFileType(item.project_type) ? (
                 <FileFolderIcon size={36} className="w-full h-full" />
               ) : item.thumbnail_url ? (

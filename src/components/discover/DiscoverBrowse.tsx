@@ -65,7 +65,7 @@ export function DiscoverBrowse({
                 {items.map((item) => (
                   <DiscoverTile key={item.project.id} item={item} />
                 ))}
-                {hasMore && <DiscoverMoreTile to={moreTo} label={section.title} projectType={section.type} />}
+                {hasMore && <DiscoverMoreTile to={moreTo} label={section.title} projectType={section.type} mediaKind={section.type === "media" ? (section.kind as "audio" | "video") : undefined} />}
               </DiscoverRail>
             );
           })}

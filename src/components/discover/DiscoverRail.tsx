@@ -58,14 +58,15 @@ export function DiscoverRail({
 export function DiscoverTile({ item, fluid = false }: { item: DiscoverItem; fluid?: boolean }) {
   const { project } = item;
   const meta = discoverTileMeta(item);
-  const shape = discoverTileShape(project.project_type);
+  const shape = discoverTileShape(project);
   return (
     <Link
       to={getProjectPath(project)}
       className={`group block min-w-0 ${fluid ? "w-full" : `shrink-0 snap-start ${shape.width}`}`}
     >
       <div
-        className={`relative flex w-full items-center justify-center overflow-hidden rounded-xl border border-border/60 bg-surface ${shape.aspect}`}
+        style={{ aspectRatio: shape.ratio }}
+        className="relative flex w-full items-center justify-center overflow-hidden rounded-xl border border-border/60 bg-surface"
       >
         {isFileType(project.project_type) ? (
           <FileFolderIcon size={120} className="h-full w-full" />
@@ -87,12 +88,14 @@ export function DiscoverTile({ item, fluid = false }: { item: DiscoverItem; flui
 }
 
 /** The last tile of a row: same footprint as the others in that row, pointing at the full list. */
-export function DiscoverMoreTile({ to, label, projectType }: { to: string; label: string; projectType?: string }) {
-  const shape = discoverTileShape(projectType);
+export function DiscoverMoreTile({ to, label, projectType, mediaKind }: { to: string; label: string; projectType?: string; mediaKind?: "audio" | "video" }) {
+  // The "More" tile takes the footprint of the row's own shape (a video row's is 16:9, an audio row's square).
+  const shape = discoverTileShape({ project_type: projectType, thumbnail_shape: mediaKind === "video" ? "16:9" : null });
   return (
     <Link to={to} aria-label={`More ${label}`} className={`group block shrink-0 snap-start ${shape.width}`}>
       <div
-        className={`flex w-full flex-col items-center justify-center gap-1.5 rounded-xl border border-dashed border-border bg-surface/60 text-accent transition-colors group-hover:border-accent/50 ${shape.aspect}`}
+        style={{ aspectRatio: shape.ratio }}
+        className="flex w-full flex-col items-center justify-center gap-1.5 rounded-xl border border-dashed border-border bg-surface/60 text-accent transition-colors group-hover:border-accent/50"
       >
         <span className="flex h-9 w-9 items-center justify-center rounded-full bg-accent-soft">
           <ArrowRight size={18} />
