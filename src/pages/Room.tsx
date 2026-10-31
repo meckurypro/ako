@@ -1098,6 +1098,7 @@ function GroupPage({ projectId }: { projectId: string | undefined }) {
       title: project.title,
       avatarUrl: project.thumbnail_url ?? null,
       people: everyone,
+      roomKind: kind,
       isHost,
       canPost: !isClosed && (isHost || !details?.hosts_only_chat) && !(details?.chat_muted && !isHost),
       cantPostReason: isClosed

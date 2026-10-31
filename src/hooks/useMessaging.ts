@@ -7,6 +7,16 @@ import { useSound } from "./useSound";
 import { CHAT_MEDIA_BUCKET, chatFileName, decodeMedia, encodeMedia, safeStorageName } from "../lib/chatMedia";
 import { decodeVoiceNote, encodeVoiceNote } from "../lib/voiceNotes";
 import { upsertMessageUserState } from "./useMessageReactions";
+import {
+  MESSAGE_META_COLUMNS,
+  metaInsertFields,
+  metaOptimisticFields,
+  parsePrivateReplyContext,
+  type MessageKind,
+  type MessageMeta,
+  type MessageVisibility,
+  type PrivateReplyContext,
+} from "../lib/messageKinds";
 
 export interface ConversationSummary {
   id: string;
@@ -352,6 +362,15 @@ export interface MessageWithSender {
   reply_to_message_id: string | null;
   // Room messages a host made permanent ("Anchored"); null everywhere else.
   anchored_at?: string | null;
+  // Group chat structure (see lib/messageKinds.ts). All absent/null in a 1:1 chat.
+  //   message_kind   question | answer | lecture | announcement (cohorts type everything; communities only announce)
+  //   visibility     "private" = a private answer: only the asker, its author and the group's hosts can read it
+  //   private_to     the asker. Stays set after the asker shares the answer, which is how the bubble can say so
+  //   private_reply_context  on a DM message sent with "Reply privately": the group message it quotes (built by the server)
+  message_kind?: MessageKind | null;
+  visibility?: MessageVisibility;
+  private_to?: string | null;
+  private_reply_context?: PrivateReplyContext | null;
   // "Deleted for everyone" — the row stays in the thread for BOTH
   // participants but renders as a tombstone ("This message was
   // deleted") instead of its content. Set only by the sender (see
@@ -433,7 +452,7 @@ export function useMessages(conversationId: string) {
       const { data, error } = await supabase
         .from("messages")
         .select(
-          "id, conversation_id, sender_id, content, created_at, delivered_at, read_at, reply_to_message_id, is_deleted, anchored_at"
+          `id, conversation_id, sender_id, content, created_at, delivered_at, read_at, reply_to_message_id, is_deleted, anchored_at, ${MESSAGE_META_COLUMNS}`
         )
         .eq("conversation_id", conversationId)
         .order("created_at", { ascending: false })
@@ -457,6 +476,7 @@ export function useMessages(conversationId: string) {
 
       return rows.map((m) => ({
         ...m,
+        private_reply_context: parsePrivateReplyContext(m.private_reply_context),
         reply_to: m.reply_to_message_id && replyMap.has(m.reply_to_message_id) ? [replyMap.get(m.reply_to_message_id)!] : null,
       })) as unknown as MessageWithSender[];
     },
@@ -532,7 +552,7 @@ interface ReplySnippetInput {
   is_deleted: boolean;
 }
 
-interface SendMessageInput {
+interface SendMessageInput extends MessageMeta {
   content: string;
   replyToMessageId?: string | null;
   replyToSnippet?: ReplySnippetInput | null;
@@ -556,6 +576,7 @@ export function useSendMessage(conversationId: string) {
       if (!user) throw new Error("Not signed in");
       const content = typeof input === "string" ? input : input.content;
       const replyToMessageId = typeof input === "string" ? null : input.replyToMessageId ?? null;
+      const meta = typeof input === "string" ? undefined : input;
 
       const { data, error } = await supabase
         .from("messages")
@@ -564,8 +585,9 @@ export function useSendMessage(conversationId: string) {
           sender_id: user.id,
           content,
           reply_to_message_id: replyToMessageId,
+          ...metaInsertFields(meta),
         })
-        .select("id, conversation_id, sender_id, content, created_at, delivered_at, read_at, reply_to_message_id, is_deleted")
+        .select(`id, conversation_id, sender_id, content, created_at, delivered_at, read_at, reply_to_message_id, is_deleted, ${MESSAGE_META_COLUMNS}`)
         .single();
       if (error) throw error;
 
@@ -596,6 +618,7 @@ export function useSendMessage(conversationId: string) {
       const content = typeof input === "string" ? input : input.content;
       const replyToMessageId = typeof input === "string" ? null : input.replyToMessageId ?? null;
       const replyToSnippet = typeof input === "string" ? null : input.replyToSnippet ?? null;
+      const meta = typeof input === "string" ? undefined : input;
 
       await queryClient.cancelQueries({ queryKey: ["messages", conversationId], exact: false });
 
@@ -613,6 +636,7 @@ export function useSendMessage(conversationId: string) {
         is_deleted: false,
         reply_to: replyToSnippet ? [replyToSnippet] : null,
         client_key: tempId,
+        ...metaOptimisticFields(meta),
       };
 
       for (const [key, existing] of previousQueries) {
@@ -672,7 +696,7 @@ export function useSendMessage(conversationId: string) {
  * bucket, which doesn't satisfy that check — voice notes were failing
  * to upload for every sender because of it.)
  */
-interface SendVoiceNoteInput {
+interface SendVoiceNoteInput extends MessageMeta {
   blob: Blob;
   durationSec: number;
   peaks?: number[];
@@ -692,7 +716,7 @@ export function useSendVoiceNote(conversationId: string) {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async ({ blob, durationSec, peaks, viewOnce, replyToMessageId }: SendVoiceNoteInput) => {
+    mutationFn: async ({ blob, durationSec, peaks, viewOnce, replyToMessageId, ...meta }: SendVoiceNoteInput) => {
       if (!user) throw new Error("Not signed in");
 
       const ext = blob.type.includes("mp4") ? "m4a" : "webm";
@@ -702,7 +726,9 @@ export function useSendVoiceNote(conversationId: string) {
       // whether the OTHER participant (not the uploader) can read this
       // file back — see the private_audio_bucket_with_participant_
       // read_rls migration.
-      const path = `${user.id}/dm/${conversationId}/${Date.now()}-${chatFileName("PTT", ext)}`;
+      // The random segment keeps the path unguessable: a private answer's audio is readable by anyone in the chat who
+      // can name the file (the bucket policy only looks at the first three segments), so the name itself must be secret.
+      const path = `${user.id}/dm/${conversationId}/${crypto.randomUUID()}/${chatFileName("PTT", ext)}`;
       const { error: uploadError } = await supabase.storage
         .from("audio")
         .upload(path, blob, { contentType: blob.type || "audio/webm" });
@@ -722,8 +748,9 @@ export function useSendVoiceNote(conversationId: string) {
           sender_id: user.id,
           content,
           reply_to_message_id: replyToMessageId ?? null,
+          ...metaInsertFields(meta),
         })
-        .select("id, conversation_id, sender_id, content, created_at, delivered_at, read_at, reply_to_message_id, is_deleted")
+        .select(`id, conversation_id, sender_id, content, created_at, delivered_at, read_at, reply_to_message_id, is_deleted, ${MESSAGE_META_COLUMNS}`)
         .single();
       if (error) throw error;
 
@@ -744,7 +771,7 @@ export function useSendVoiceNote(conversationId: string) {
     // bubble's audio URL is the recorder's own local blob URL
     // (`localUrl`), so voice playback works immediately even though
     // the real storage upload is still in flight in the background.
-    onMutate: async ({ durationSec, peaks, viewOnce, replyToMessageId, replyToSnippet, localUrl }) => {
+    onMutate: async ({ durationSec, peaks, viewOnce, replyToMessageId, replyToSnippet, localUrl, ...meta }) => {
       await queryClient.cancelQueries({ queryKey: ["messages", conversationId], exact: false });
 
       const previousQueries = getMessagesQueries(queryClient, conversationId);
@@ -768,6 +795,7 @@ export function useSendVoiceNote(conversationId: string) {
         is_deleted: false,
         reply_to: replyToSnippet ? [replyToSnippet] : null,
         client_key: tempId,
+        ...metaOptimisticFields(meta),
       };
 
       for (const [key, existing] of previousQueries) {
@@ -801,6 +829,23 @@ export function useSendVoiceNote(conversationId: string) {
       queryClient.invalidateQueries({ queryKey: ["conversations"] });
       queryClient.invalidateQueries({ queryKey: ["archived-conversations"] });
       queryClient.invalidateQueries({ queryKey: ["my-participant-state", conversationId] });
+    },
+  });
+}
+
+/**
+ * The asker opens a private answer to the whole group. One-way: once shared it can't be hidden again, so callers confirm
+ * first. The server only allows the person the answer is private to (share_private_answer).
+ */
+export function useShareAnswer(conversationId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (messageId: string) => {
+      const { error } = await supabase.rpc("share_private_answer", { p_message_id: messageId });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["messages", conversationId], exact: false });
     },
   });
 }

@@ -21,6 +21,7 @@ import {
 import { supabase } from "../lib/supabase";
 import { useAuth } from "./useAuth";
 import { getMessagesQueries, type MessageWithSender } from "./useMessaging";
+import { MESSAGE_META_COLUMNS, metaInsertFields, metaOptimisticFields, type MessageMeta } from "../lib/messageKinds";
 
 interface ReplySnippet {
   id: string;
@@ -29,7 +30,7 @@ interface ReplySnippet {
   is_deleted: boolean;
 }
 
-export interface SendMediaInput {
+export interface SendMediaInput extends MessageMeta {
   kind: MediaKind;
   files: File[];
   caption?: string;
@@ -87,7 +88,7 @@ export function useSendMedia(conversationId: string) {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async ({ kind, files, caption, hd = false, replyToMessageId }: SendMediaInput) => {
+    mutationFn: async ({ kind, files, caption, hd = false, replyToMessageId, ...meta }: SendMediaInput) => {
       if (!user) throw new Error("Not signed in");
       if (!files.length) throw new Error("No files");
       if (files.length > MAX_ALBUM_ITEMS) throw new Error("too_many");
@@ -117,7 +118,8 @@ export function useSendMedia(conversationId: string) {
             }
           }
 
-          const path = `${user.id}/dm/${conversationId}/${Date.now()}-${i}-${safeStorageName(name)}`;
+          // Random segment: the path is the only secret protecting a private answer's file (see useSendVoiceNote).
+          const path = `${user.id}/dm/${conversationId}/${crypto.randomUUID()}/${i}-${safeStorageName(name)}`;
           const { error } = await supabase.storage.from(CHAT_MEDIA_BUCKET).upload(path, body, { contentType: mime });
           if (error) throw error;
           return { kind, path, name, mime, size: body.size, width, height };
@@ -131,8 +133,9 @@ export function useSendMedia(conversationId: string) {
           sender_id: user.id,
           content: encodeMedia({ items, caption: caption?.trim() || undefined }),
           reply_to_message_id: replyToMessageId ?? null,
+          ...metaInsertFields(meta),
         })
-        .select("id, conversation_id, sender_id, content, created_at, delivered_at, read_at, reply_to_message_id, is_deleted")
+        .select(`id, conversation_id, sender_id, content, created_at, delivered_at, read_at, reply_to_message_id, is_deleted, ${MESSAGE_META_COLUMNS}`)
         .single();
       if (error) throw error;
 
@@ -147,7 +150,7 @@ export function useSendMedia(conversationId: string) {
 
       return data;
     },
-    onMutate: async ({ kind, files, caption, replyToMessageId, replyToSnippet }) => {
+    onMutate: async ({ kind, files, caption, replyToMessageId, replyToSnippet, ...meta }) => {
       await queryClient.cancelQueries({ queryKey: ["messages", conversationId], exact: false });
       const previousQueries = getMessagesQueries(queryClient, conversationId);
       const tempId = crypto.randomUUID();
@@ -176,6 +179,7 @@ export function useSendMedia(conversationId: string) {
         is_deleted: false,
         reply_to: replyToSnippet ? [replyToSnippet] : null,
         client_key: tempId,
+        ...metaOptimisticFields(meta),
       };
       for (const [key, existing] of previousQueries) {
         queryClient.setQueryData(key, [...(existing ?? []), optimistic]);

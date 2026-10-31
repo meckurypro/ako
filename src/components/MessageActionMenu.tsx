@@ -1,6 +1,6 @@
 // src/components/MessageActionMenu.tsx
 import { useLayoutEffect, useRef, useState } from "react";
-import { Copy, Trash2, Redo2, MoreHorizontal, Star, Pin, Plus, X, Reply, Forward, EyeOff, CheckSquare, Anchor } from "lucide-react";
+import { Copy, Trash2, Redo2, MoreHorizontal, Star, Pin, Plus, X, Reply, Forward, EyeOff, CheckSquare, Anchor, Lock, Users } from "lucide-react";
 import { useBackDismiss } from "../hooks/useBackDismiss";
 import { useDismissKeyboardOnMount } from "../hooks/useDismissKeyboard";
 import { useScrollLock } from "../hooks/useScrollLock";
@@ -40,6 +40,10 @@ interface MessageActionMenuProps {
   onToggleAnchor?: () => void;
   /** Group hosts: may delete anyone's message for everyone, not just their own. */
   canModerate?: boolean;
+  /** Group messages from someone else: answer them in a DM instead, with this message quoted. */
+  onReplyPrivately?: () => void;
+  /** The asker only, on a private answer: open it to the whole group (can't be undone — the caller confirms). */
+  onShareWithGroup?: () => void;
   onClose: () => void;
   /** Fired instead of onClose when the dimmed backdrop tap actually
    *  landed on a different message bubble (identified via
@@ -97,6 +101,8 @@ export function MessageActionMenu({
   isAnchored,
   onToggleAnchor,
   canModerate,
+  onReplyPrivately,
+  onShareWithGroup,
   onClose,
   onTapMessage,
 }: MessageActionMenuProps) {
@@ -269,6 +275,28 @@ export function MessageActionMenu({
                     },
                   },
                 ];
+                if (!isDeleted && onReplyPrivately) {
+                  menuItems.push({
+                    key: "reply-privately",
+                    label: "Reply privately",
+                    icon: <Lock />,
+                    onSelect: () => {
+                      onReplyPrivately();
+                      onClose();
+                    },
+                  });
+                }
+                if (!isDeleted && onShareWithGroup) {
+                  menuItems.push({
+                    key: "share-with-group",
+                    label: "Share answer with the group",
+                    icon: <Users />,
+                    onSelect: () => {
+                      onShareWithGroup();
+                      onClose();
+                    },
+                  });
+                }
                 if (!isDeleted) {
                   menuItems.push(
                     {

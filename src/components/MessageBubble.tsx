@@ -1,6 +1,6 @@
 // src/components/MessageBubble.tsx
 import { memo, type CSSProperties, type PointerEvent as ReactPointerEvent } from "react";
-import { Anchor, Reply } from "lucide-react";
+import { Anchor, CircleCheck, GraduationCap, Lock, Megaphone, MessageCircleQuestionMark, Reply } from "lucide-react";
 import { Avatar } from "./Avatar";
 import { senderHue } from "../lib/senderColor";
 import type { MessageWithSender } from "../hooks/useMessaging";
@@ -14,6 +14,21 @@ import { MediaMessage } from "./MediaMessage";
 import { MessagePreviewLine } from "./MessagePreviewLine";
 import { getEmojiOnlyInfo, jumboEmojiSizeClass } from "../lib/emoji";
 import { formatMessageDayLabel, formatMessageTime } from "../lib/messageTime";
+import {
+  MESSAGE_KIND_LABEL,
+  isPrivateAnswer,
+  isSharedAnswer,
+  privateAudienceLabel,
+  type MessageKind,
+  type PrivateReplyContext,
+} from "../lib/messageKinds";
+
+const KIND_ICON = {
+  question: MessageCircleQuestionMark,
+  answer: CircleCheck,
+  lecture: GraduationCap,
+  announcement: Megaphone,
+} as const satisfies Record<MessageKind, typeof Reply>;
 
 // Swipe-to-reply tuning — mirrors WhatsApp's feel: the bubble tracks
 // the finger 1:1 up to SWIPE_MAX, then resists further drag, and the
@@ -169,6 +184,8 @@ interface MessageBubbleProps {
   onScrollToMessage: (id: string) => void;
   onAddReaction: (messageId: string, emoji: string) => void;
   onRequestManageReaction: (messageId: string, anchorRect: DOMRect, emoji: string) => void;
+  /** A DM message sent with "Reply privately" quotes the group message it answers; tapping the quote opens that group. */
+  onOpenPrivateReplySource?: (context: PrivateReplyContext) => void;
 }
 
 /**
@@ -209,6 +226,7 @@ function MessageBubbleImpl({
   onScrollToMessage,
   onAddReaction,
   onRequestManageReaction,
+  onOpenPrivateReplySource,
 }: MessageBubbleProps) {
   const voiceNotesEnabled = useVoiceNotesEnabled();
   const isMine = m.sender_id === currentUserId;
@@ -226,8 +244,22 @@ function MessageBubbleImpl({
   // shown big with no bubble at all. Suppressed when replying to
   // something, since the reply-quote strip still needs an actual
   // bubble to sit inside.
+  // Group structure (see lib/messageKinds.ts): a typed message always keeps its bubble so its label has somewhere to sit.
+  const kind = !m.is_deleted ? m.message_kind ?? null : null;
+  const KindIcon = kind ? KIND_ICON[kind] : null;
+  const privateAnswer = !m.is_deleted && isPrivateAnswer(m);
+  const sharedAnswer = !m.is_deleted && isSharedAnswer(m);
+  const privateContext = !m.is_deleted ? m.private_reply_context ?? null : null;
+  const askerName = m.private_to
+    ? m.private_to === currentUserId
+      ? "you"
+      : group?.resolveName(m.private_to) ?? "the asker"
+    : "the asker";
+  const metaLabelClass = `relative mb-1 flex items-center gap-1 text-[11px] font-medium ${isMine ? "text-white/75" : "text-accent"}`;
   const emojiInfo =
-    !m.is_deleted && !voiceNote && !media && !repliedTo ? getEmojiOnlyInfo(m.content) : { isEmojiOnly: false, count: 0 };
+    !m.is_deleted && !voiceNote && !media && !repliedTo && !kind && !privateContext
+      ? getEmojiOnlyInfo(m.content)
+      : { isEmojiOnly: false, count: 0 };
   const isJumboEmoji = emojiInfo.isEmojiOnly;
   // In a group only the first bubble of a run points at its sender; the rest are plain rounded cards.
   const tailClass = group && !group.isFirstInRun ? "" : isMine ? "bubble-tail-mine" : "bubble-tail-theirs";
@@ -340,7 +372,7 @@ function MessageBubbleImpl({
             } ${
               isJumboEmoji
                 ? "bg-transparent"
-                : `${group ? "rounded-[18px]" : "rounded-2xl"} ${isPhoto ? "p-1" : group ? "px-3.5 py-2" : "px-3 py-2"} ${tailClass} ${
+                : `${group ? "rounded-[18px]" : "rounded-2xl"} ${isPhoto ? "p-1" : group ? "px-3.5 py-2" : "px-3 py-2"} ${tailClass} ${kind === "announcement" && !isMine ? "ring-1 ring-accent/40" : ""} ${
                     isMine
                       ? `bg-bubble-mine text-white ${group ? "bubble-mine-elevate" : ""}`
                       : "bg-bubble-theirs text-ink bubble-elevate"
@@ -371,6 +403,18 @@ function MessageBubbleImpl({
             )}
 
             {!isJumboEmoji && senderNameEl}
+            {kind && KindIcon && (
+              <span className={`${metaLabelClass} font-semibold`}>
+                <KindIcon size={12} /> {MESSAGE_KIND_LABEL[kind]}
+              </span>
+            )}
+            {privateAnswer && (
+              <span className={metaLabelClass}>
+                <Lock size={11} />
+                {privateAudienceLabel({ viewerId: currentUserId, senderId: m.sender_id, privateTo: m.private_to ?? null, askerName })}
+              </span>
+            )}
+            {sharedAnswer && <span className={metaLabelClass}>Shared with the group by {askerName === "you" ? "you" : askerName}</span>}
             {m.anchored_at && !m.is_deleted && !isJumboEmoji && (
               <span
                 className={`relative mb-1 flex items-center gap-1 text-[11px] font-medium ${
@@ -398,6 +442,27 @@ function MessageBubbleImpl({
                 ) : (
                   <MessagePreviewLine content={repliedTo.content} />
                 )}
+              </button>
+            )}
+
+            {privateContext && (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onOpenPrivateReplySource?.(privateContext);
+                }}
+                className={`relative block w-full text-left mb-1.5 pl-2 border-l-2 rounded-sm text-xs ${
+                  isMine ? "border-white/50 text-white/80" : "border-accent/50 text-ink-muted"
+                }`}
+              >
+                <span className="flex items-center gap-1 font-medium">
+                  <Lock size={10} className="flex-shrink-0" />
+                  <span className="truncate">
+                    {privateContext.sender_id === currentUserId ? "Private reply to your message" : `Private reply to ${privateContext.sender_name}`} · {privateContext.group_title}
+                  </span>
+                </span>
+                <span className="block truncate">{privateContext.preview}</span>
               </button>
             )}
 
