@@ -2,6 +2,7 @@ import { useMutation } from "@tanstack/react-query";
 import { supabase } from "../lib/supabase";
 import { useAuth } from "./useAuth";
 import { BOOK_COVER_ERROR, isBookCoverRatio } from "../lib/bookCover";
+import { cropToAspect } from "../lib/cropImage";
 
 const MAX_FILE_SIZE = 50 * 1024 * 1024; // matches the post-media bucket limit
 const ALLOWED_TYPES = ["image/jpeg", "image/png", "image/webp", "image/gif"];
@@ -40,6 +41,10 @@ function readImageDimensions(file: File): Promise<{ width: number; height: numbe
   });
 }
 
+// Every project thumbnail is a 1:1 square except a book cover (2:3). Whatever shape a person uploads is cropped to the
+// centre square before it is stored, so the file, the stored width and height, and what people see always agree.
+const THUMBNAIL_SIZE_PX = 1200;
+
 /**
  * Uploads a project thumbnail (reuses the public post-media bucket —
  * thumbnails are meant to be publicly visible, same as post images)
@@ -66,13 +71,17 @@ export function useUploadProjectThumbnail() {
 
       // Read dimensions from the file itself — independent of upload,
       // so this works the same regardless of where it's stored.
-      const { width, height } = await readImageDimensions(file);
-      if (bookCover && !isBookCoverRatio(width, height)) throw new Error(BOOK_COVER_ERROR);
+      const picked = await readImageDimensions(file);
+      if (bookCover && !isBookCoverRatio(picked.width, picked.height)) throw new Error(BOOK_COVER_ERROR);
 
-      const ext = file.name.split(".").pop();
+      // Book covers must already be 2:3 (checked above). Everything else is cropped to a centred square.
+      const upload = bookCover ? file : await cropToAspect(file, 1, { maxWidth: THUMBNAIL_SIZE_PX });
+      const { width, height } = bookCover ? picked : await readImageDimensions(upload);
+
+      const ext = upload.name.split(".").pop();
       const path = `${user.id}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
 
-      const { error: uploadError } = await supabase.storage.from("post-media").upload(path, file);
+      const { error: uploadError } = await supabase.storage.from("post-media").upload(path, upload, { contentType: upload.type });
       if (uploadError) throw uploadError;
 
       const { data } = supabase.storage.from("post-media").getPublicUrl(path);

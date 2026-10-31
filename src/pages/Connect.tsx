@@ -10,13 +10,12 @@
 // a tab bar.
 import { useMemo, useState, type ReactNode } from "react";
 import { useCountdown, formatCountdown } from "../hooks/useCountdown";
-import { CalendarClock, ImageIcon, Plus, Users, X } from "lucide-react";
+import { BellOff, CalendarClock, ImageIcon, Pin, Plus, Users } from "lucide-react";
 import { Link } from "react-router-dom";
 import { useCanCreateGroup } from "../hooks/useCanCreateGroup";
 import { useActivity, type ActivityItem } from "../hooks/useActivity";
 import { useTabState } from "../hooks/useTabState";
-import { useRemoveFromLibrary } from "../hooks/useLibraryRemovals";
-import { ConfirmDialog } from "../components/ConfirmDialog";
+import { ListItemMenu } from "../components/ListItemMenu";
 import { BottomNav } from "../components/BottomNav";
 import { SwipeableTabs } from "../components/SwipeableTabs";
 import { SlidingTabBar } from "../components/SlidingTabBar";
@@ -66,16 +65,16 @@ function MeetingCountdown({ item }: { item: ActivityItem }) {
 }
 
 function ActivityRow({ item }: { item: ActivityItem }) {
-  const remove = useRemoveFromLibrary();
-  const [confirming, setConfirming] = useState(false);
-  // A group (and its meetings) is managed from inside the group, so its card carries no remove control here.
-  const canRemove = item.kind !== "room" && item.kind !== "room_meeting";
+  // A group (and its meetings) is managed from inside the group, so its menu has no "Remove from Connect": the way out
+  // of a group is to exit it. Events and meetings can still be taken off the list.
+  const isGroup = item.kind === "room" || item.kind === "room_meeting";
   return (
     <div className="relative">
     <Link
       to={ROUTE_FOR[item.kind](item)}
-      className={`flex items-center gap-3 p-3 rounded-xl border border-border bg-surface ${canRemove ? "pr-11" : ""}`}
+      className="flex items-center gap-3 p-3 pr-11 rounded-xl border border-border bg-surface"
     >
+      {/* Every thumbnail is a square; whatever was uploaded is cropped to fit. */}
       <div className="w-12 h-12 rounded-lg bg-canvas flex items-center justify-center overflow-hidden shrink-0">
         {item.thumbnailUrl ? (
           <img src={item.thumbnailUrl} alt="" className="w-full h-full object-cover" />
@@ -84,7 +83,11 @@ function ActivityRow({ item }: { item: ActivityItem }) {
         )}
       </div>
       <div className="min-w-0">
-        <p className="text-sm text-ink truncate">{item.projectTitle}</p>
+        <p className="text-sm text-ink truncate flex items-center gap-1.5">
+          <span className="truncate">{item.projectTitle}</span>
+          {item.pinned && <Pin size={12} className="shrink-0 text-ink-muted" aria-label="Pinned" />}
+          {item.muted && <BellOff size={12} className="shrink-0 text-ink-muted" aria-label="Muted" />}
+        </p>
         <p className="text-xs text-ink-muted">
           {LABEL_FOR[item.kind]}
           {item.kind === "room"
@@ -99,30 +102,15 @@ function ActivityRow({ item }: { item: ActivityItem }) {
         {(item.kind === "meeting" || item.kind === "room_meeting") && <MeetingCountdown item={item} />}
       </div>
     </Link>
-    {canRemove && (
-    <button
-      type="button"
-      onClick={() => setConfirming(true)}
-      aria-label={`Remove ${item.projectTitle} from Connect`}
-      className="absolute top-1/2 -translate-y-1/2 right-2 p-2 rounded-full text-ink-muted hover:text-ink"
-    >
-      <X size={16} />
-    </button>
-    )}
-    {canRemove && confirming && (
-      <ConfirmDialog
-        themed
-        danger={false}
-        title="Remove from Connect?"
-        description="This only takes it off this list. Your access doesn't change."
-        confirmLabel="Remove"
-        onCancel={() => setConfirming(false)}
-        onConfirm={() => {
-          setConfirming(false);
-          remove.mutate(item.projectId);
-        }}
-      />
-    )}
+    <ListItemMenu
+      projectId={item.projectId}
+      title={item.projectTitle}
+      slug={item.slug}
+      pinned={item.pinned}
+      muted={item.muted}
+      listName="Connect"
+      group={isGroup ? { isOwner: item.isOwner } : undefined}
+    />
     </div>
   );
 }

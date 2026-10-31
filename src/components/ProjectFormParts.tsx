@@ -102,7 +102,7 @@ export function ProjectTypeChips({
   );
 }
 
-/** The cover frame (takes the uploaded image's own aspect ratio) plus the supporting-images strip. */
+/** The cover frame plus the supporting-images strip. A book cover is 2:3; every other thumbnail is a 1:1 square (uploads are cropped to it). */
 export function ThumbnailPicker({
   url,
   aspectRatio,
@@ -114,7 +114,7 @@ export function ThumbnailPicker({
   onSupportingChange,
 }: {
   url: string | null;
-  /** CSS aspect-ratio value, e.g. "16 / 9". */
+  /** Ignored for anything but a book: only book covers have a shape of their own, everything else is square. */
   aspectRatio: string | number;
   isBook: boolean;
   uploading: boolean;
@@ -129,9 +129,9 @@ export function ThumbnailPicker({
         type="button"
         onClick={() => inputRef.current?.click()}
         aria-label={url ? "Change thumbnail" : "Choose thumbnail"}
-        style={{ aspectRatio }}
+        style={{ aspectRatio: isBook ? aspectRatio : 1 }}
         className={`bg-canvas border border-border rounded-2xl flex items-center justify-center overflow-hidden hover:border-ink-muted/40 transition-colors ${
-          isBook ? "w-48 mx-auto mb-2" : "w-full mb-3"
+          isBook ? "w-48 mx-auto mb-2" : "w-full max-w-sm mx-auto mb-2"
         }`}
       >
         {url ? (
@@ -141,11 +141,15 @@ export function ThumbnailPicker({
             <span className="w-11 h-11 rounded-full bg-accent-soft text-accent flex items-center justify-center">
               <ImageIcon size={20} />
             </span>
-            <span className="text-sm">{uploading ? "Uploading…" : isBook ? "Add cover (2:3)" : "Add thumbnail"}</span>
+            <span className="text-sm">{uploading ? "Uploading…" : isBook ? "Add cover (2:3)" : "Add thumbnail (square)"}</span>
           </div>
         )}
       </button>
-      {isBook && <p className="text-xs text-ink-muted text-center mb-3">{BOOK_COVER_HINT}</p>}
+      {isBook ? (
+        <p className="text-xs text-ink-muted text-center mb-3">{BOOK_COVER_HINT}</p>
+      ) : (
+        <p className="text-xs text-ink-muted text-center mb-3">Thumbnails are square (1:1). Any other shape is cropped to the middle.</p>
+      )}
       <input
         ref={inputRef}
         type="file"
