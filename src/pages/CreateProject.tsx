@@ -858,7 +858,7 @@ export function CreateProject({ fixedType }: { fixedType?: ProjectType } = {}) {
               </p>
             </div>
 
-            <TopicPicker selected={topicIds} onToggle={toggleTopic} />
+            <TopicPicker selected={topicIds} onToggle={toggleTopic} text={`${title} ${description}`} />
           </FormSection>
 
           {/* 4 — Whatever this type needs. */}

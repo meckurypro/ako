@@ -4,7 +4,8 @@
 // in a tight grid, loaded a page at a time on request — a button, not endless scroll, so the
 // list never runs away from the reader. Works the same for restricted and full accounts.
 import { Navigate, useParams } from "react-router-dom";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, X } from "lucide-react";
+import { useTagFilter } from "../hooks/useTagFilter";
 import { useSmartBack } from "../hooks/useSmartBack";
 import {
   getDiscoverSectionTitle,
@@ -30,8 +31,8 @@ function ShowMore({ onClick, loading }: { onClick: () => void; loading: boolean 
   );
 }
 
-function ProjectsMore({ sectionKey }: { sectionKey: string }) {
-  const { data, isLoading, isError, hasNextPage, fetchNextPage, isFetchingNextPage } = useDiscoverMore(sectionKey);
+function ProjectsMore({ sectionKey, tagIds }: { sectionKey: string; tagIds: string[] }) {
+  const { data, isLoading, isError, hasNextPage, fetchNextPage, isFetchingNextPage } = useDiscoverMore(sectionKey, true, tagIds);
   const items = (data?.pages ?? []).flatMap((p) => p.items);
 
   if (isLoading) return <p className="py-4 text-sm text-ink-muted">Loading…</p>;
@@ -50,8 +51,8 @@ function ProjectsMore({ sectionKey }: { sectionKey: string }) {
   );
 }
 
-function PagesMore() {
-  const { data, isLoading, isError, hasNextPage, fetchNextPage, isFetchingNextPage } = useDiscoverPagesMore();
+function PagesMore({ tagIds }: { tagIds: string[] }) {
+  const { data, isLoading, isError, hasNextPage, fetchNextPage, isFetchingNextPage } = useDiscoverPagesMore(true, tagIds);
   const pages = (data?.pages ?? []).flat();
 
   if (isLoading) return <p className="py-4 text-sm text-ink-muted">Loading…</p>;
@@ -74,6 +75,8 @@ export function DiscoverMore() {
   const { section = "" } = useParams();
   const smartBack = useSmartBack();
   const title = getDiscoverSectionTitle(section);
+  // The topic filter carries over from Discover (?tag=…), so "More" lists the same narrowed set.
+  const filter = useTagFilter();
 
   // An unknown kind (a stale link, a typo) goes back to Discover rather than a blank page.
   if (!title) return <Navigate to="/topics" replace />;
@@ -84,8 +87,31 @@ export function DiscoverMore() {
         <button onClick={smartBack} aria-label="Back" className="mb-4 text-ink-muted">
           <ArrowLeft size={22} />
         </button>
-        <h1 className="mb-5 font-display text-2xl text-ink">{title}<BrandDot /></h1>
-        {section === "pages" ? <PagesMore /> : <ProjectsMore sectionKey={section} />}
+        <h1 className="mb-3 font-display text-2xl text-ink">{title}<BrandDot /></h1>
+        {filter.tags.length > 0 && (
+          <div className="mb-5 flex flex-wrap items-center gap-1.5" aria-label="Topic filters">
+            {filter.tags.map((t) => (
+              <span key={t.id} className="inline-flex items-center gap-1 pl-2.5 pr-1.5 py-1 rounded-full bg-cta text-white text-xs font-medium">
+                {t.name}
+                <button
+                  type="button"
+                  onClick={() => filter.remove(t.slug)}
+                  aria-label={`Remove ${t.name} filter`}
+                  className="hover:bg-canvas/20 rounded-full p-0.5 transition-colors"
+                >
+                  <X size={11} />
+                </button>
+              </span>
+            ))}
+          </div>
+        )}
+        {filter.slugs.length > 0 && filter.tags.length === 0 ? (
+          <p className="py-4 text-sm text-ink-muted">Loading…</p>
+        ) : section === "pages" ? (
+          <PagesMore tagIds={filter.ids} />
+        ) : (
+          <ProjectsMore sectionKey={section} tagIds={filter.ids} />
+        )}
       </div>
       <BottomNav />
     </div>

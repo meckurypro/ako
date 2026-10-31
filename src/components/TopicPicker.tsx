@@ -2,6 +2,9 @@
 import { useState } from "react";
 import { ChevronDown } from "lucide-react";
 import { useCategories } from "../hooks/useCategories";
+import { useDebouncedValue } from "../hooks/useDebouncedValue";
+import { useMyInterestIds } from "../hooks/useOnboarding";
+import { useTopicSuggestions } from "../hooks/useTags";
 
 /** Shared with CreateProject/EditProject so the cap enforced in the
  *  toggle handler and the cap shown/enforced here never drift apart. */
@@ -17,17 +20,46 @@ export const MAX_TOPICS = 5;
 export function TopicPicker({
   selected,
   onToggle,
+  text = "",
 }: {
   selected: Set<string>;
   onToggle: (interestId: string) => void;
+  /** What's being written (post text, project title + description…). Used to suggest matching topics. */
+  text?: string;
 }) {
   const { data: categories, isLoading } = useCategories();
+  const { data: myInterestIds } = useMyInterestIds();
+  const suggestions = useTopicSuggestions(useDebouncedValue(text, 700));
   const [openCategoryId, setOpenCategoryId] = useState<string | null>(null);
   const [isOpen, setIsOpen] = useState(false);
 
   if (!isLoading && (!categories || categories.length === 0)) return null;
 
   const atLimit = selected.size >= MAX_TOPICS;
+
+  // One-tap shortcuts: topics the text is about, and the writer's own interests.
+  const suggested = (suggestions.data ?? []).filter((t) => !selected.has(t.id));
+  const mine = (categories ?? [])
+    .flatMap((c) => c.interests)
+    .filter((i) => (myInterestIds ?? []).includes(i.id) && !selected.has(i.id) && !suggested.some((t) => t.id === i.id))
+    .slice(0, 6);
+  const quick = (label: string, items: Array<{ id: string; name: string }>) =>
+    items.length > 0 && (
+      <div className="mt-2 flex flex-wrap items-center gap-1.5">
+        <span className="text-xs text-ink-muted">{label}</span>
+        {items.map((t) => (
+          <button
+            key={t.id}
+            type="button"
+            disabled={atLimit}
+            onClick={() => onToggle(t.id)}
+            className="px-2.5 py-1 rounded-full text-xs border border-dashed border-accent/50 text-ink hover:border-accent disabled:opacity-40"
+          >
+            + {t.name}
+          </button>
+        ))}
+      </div>
+    );
 
   return (
     <div className="mb-4">
@@ -49,6 +81,8 @@ export function TopicPicker({
         />
       </button>
 
+      {!isOpen && quick("Suggested:", suggested)}
+
       <div
         className={`grid transition-[grid-template-rows] duration-300 ease-in-out ${
           isOpen ? "grid-rows-[1fr]" : "grid-rows-[0fr]"
@@ -56,6 +90,9 @@ export function TopicPicker({
       >
         <div className="overflow-hidden">
           <div className="pt-2">
+            {quick("Suggested:", suggested)}
+            {quick("Yours:", mine)}
+            {(suggested.length > 0 || mine.length > 0) && <div className="mb-3" />}
             {isLoading ? (
               <p className="text-sm text-ink-muted">Loading topics…</p>
             ) : (

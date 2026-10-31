@@ -8,6 +8,7 @@ import {
   useSearchPosts,
   useSearchProjects,
 } from "../hooks/useSearch";
+import { useTagScope } from "../hooks/useTags";
 import { recordSearchVisit } from "../lib/searchVisits";
 import { PersonRow } from "./PersonRow";
 import { PageRow } from "./PageRow";
@@ -111,11 +112,14 @@ function Section({
   );
 }
 
+const NO_TAGS: string[] = [];
+
 export function SearchResults({
   query,
   isPending = false,
   stickyTabsClassName = "",
   scope = "all",
+  tagIds = NO_TAGS,
 }: {
   /** Already-debounced query. */
   query: string;
@@ -124,6 +128,8 @@ export function SearchResults({
   stickyTabsClassName?: string;
   /** "discover" searches pages and projects only. */
   scope?: SearchScope;
+  /** Narrow every source to things carrying these tags (or strongly connected ones). */
+  tagIds?: string[];
 }) {
   const { user } = useAuth();
   const [tab, setTab] = useSearchTab(scope);
@@ -136,10 +142,17 @@ export function SearchResults({
 
   // An empty query makes each hook's own `enabled` guard skip the
   // request, so a scoped-out source is never fetched at all.
-  const people = useSearchPeople(showPeople ? query : "");
-  const pages = useSearchPages(query);
-  const posts = useSearchPosts(showPosts ? query : "");
-  const projects = useSearchProjects(query);
+  //
+  // With a tag selected, each source is narrowed to the ids carrying it. Until that id set has loaded the
+  // sources stay idle (empty query) so a half-filtered list never flashes.
+  const tagFilterOn = tagIds.length > 0;
+  const tagScope = useTagScope(tagIds);
+  const scopeReady = !tagFilterOn || !!tagScope.data;
+  const q = scopeReady ? query : "";
+  const people = useSearchPeople(showPeople ? q : "", tagFilterOn ? tagScope.data?.person ?? [] : null);
+  const pages = useSearchPages(q, tagFilterOn ? tagScope.data?.page ?? [] : null);
+  const posts = useSearchPosts(showPosts ? q : "", tagFilterOn ? tagScope.data?.post ?? [] : null);
+  const projects = useSearchProjects(q, tagFilterOn ? tagScope.data?.project ?? [] : null);
   const sources = [
     ...(showPeople ? [people] : []),
     pages,

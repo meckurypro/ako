@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, type FormEvent } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { useSmartBack } from "../hooks/useSmartBack";
 import { useReturnAfterSave } from "../hooks/useReturnAfterSave";
 import {
@@ -30,6 +30,7 @@ import {
   FileText,
   ChevronRight,
   MessageCircle,
+  Tags,
 } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "../lib/supabase";
@@ -37,6 +38,7 @@ import { useAuth } from "../hooks/useAuth";
 import { useIsAdmin } from "../hooks/useAdmin";
 import { useIsRestricted } from "../hooks/useAccountAccess";
 import { WebsiteUrlsField, MAX_WEBSITES } from "../components/WebsiteUrlsField";
+import { InterestsEditor } from "../components/InterestsEditor";
 import { removeSavedAccount } from "../lib/accountSessions";
 import { hasPasswordLogin } from "../lib/authMethods";
 import { markSignedOut } from "../lib/authRedirect";
@@ -200,7 +202,7 @@ const SOUND_MODE_OPTIONS: { value: SoundMode; label: string; description: string
   },
 ];
 
-type SectionId = "profile" | "security" | "privacy" | "appearance" | "sound" | "advanced";
+type SectionId = "profile" | "interests" | "security" | "privacy" | "appearance" | "sound" | "advanced";
 
 export function Settings() {
   const navigate = useNavigate();
@@ -211,7 +213,11 @@ export function Settings() {
 
   // Accordion: exactly one section open at a time, and every section — Profile included — starts collapsed.
   // Opening one closes whichever was open; clicking the open one closes it.
-  const [openSection, setOpenSection] = useState<SectionId | null>(null);
+  // /settings?section=interests (e.g. the "+ Interests" chip on Discover) opens straight to that section.
+  const [searchParams] = useSearchParams();
+  const [openSection, setOpenSection] = useState<SectionId | null>(() =>
+    searchParams.get("section") === "interests" ? "interests" : null,
+  );
   function toggleSection(id: SectionId) {
     setOpenSection((current) => (current === id ? null : id));
   }
@@ -737,6 +743,16 @@ export function Settings() {
                 Save changes
               </Button>
             </form>
+          </SettingsSection>
+
+          {/* Interests — the tags that shape Discover, ranking and suggestions. */}
+          <SettingsSection
+            icon={<Tags size={18} />}
+            title="Interests"
+            open={openSection === "interests"}
+            onToggle={() => toggleSection("interests")}
+          >
+            <InterestsEditor />
           </SettingsSection>
 
           {/* Account & security */}

@@ -6,6 +6,7 @@ import { useMyInterestIds, useSaveInterests } from "../../hooks/useOnboarding";
 import { Wordmark } from "../../components/Wordmark";
 import { Button } from "../../components/Button";
 import { AuthPattern } from "../../components/AuthPattern";
+import { InterestBrowser, matchesInterest } from "../../components/InterestBrowser";
 
 const MIN_INTERESTS = 3;
 const MAX_SUGGESTIONS = 8;
@@ -45,7 +46,7 @@ export function InterestPicker() {
     const q = query.trim().toLowerCase();
     if (!q) return [];
     return flatInterests
-      .filter((i) => !selected.has(i.id) && i.name.toLowerCase().includes(q))
+      .filter((i) => !selected.has(i.id) && matchesInterest(i, q))
       .slice(0, MAX_SUGGESTIONS);
   }, [query, flatInterests, selected]);
 
@@ -202,6 +203,9 @@ export function InterestPicker() {
             </div>
           )}
         </div>
+
+        <h3 className="mt-8 mb-3 text-sm font-medium text-ink">Or browse by area</h3>
+        <InterestBrowser selected={selected} onToggle={toggleInterest} showSearch={false} />
       </div>
 
       <div className="fixed bottom-0 left-0 right-0 bg-canvas border-t border-border px-6 py-4">

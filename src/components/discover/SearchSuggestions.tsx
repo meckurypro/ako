@@ -1,8 +1,9 @@
 import { Link } from "react-router-dom";
-import { ArrowUpLeft, Hash, Search } from "lucide-react";
+import { ArrowUpLeft, Hash, Search, Tag } from "lucide-react";
 import { useAuth } from "../../hooks/useAuth";
 import { useSearchPages, useSearchPeople, useSearchProjects } from "../../hooks/useSearch";
 import { useHashtagSuggestions } from "../../hooks/useDiscoverSearch";
+import { useTagSearch, type TagRef } from "../../hooks/useTags";
 import { PROJECT_TYPE_LABELS } from "../../hooks/useProjects";
 import { recordSearchVisit } from "../../lib/searchVisits";
 import { splitMatch } from "../../lib/highlightMatch";
@@ -18,6 +19,7 @@ import type { SearchScope } from "../SearchResults";
 // cache hit, not a second round-trip.
 
 const MAX_TAGS = 2;
+const MAX_TOPICS = 2;
 const MAX_ACCOUNTS = 3;
 const MAX_PROJECTS = 3;
 
@@ -52,6 +54,7 @@ export function SearchSuggestions({
   scope,
   onSubmit,
   onFill,
+  onPickTag,
 }: {
   /** Debounced, trimmed text — drives the lookups. */
   query: string;
@@ -62,21 +65,25 @@ export function SearchSuggestions({
   onSubmit: (term: string) => void;
   /** Put this text in the bar without searching (the ↖ arrow). */
   onFill: (term: string) => void;
+  /** Use this topic as a filter for the page's contents (instead of searching its name as text). */
+  onPickTag?: (tag: TagRef) => void;
 }) {
   const { user } = useAuth();
   const withPeopleAndTags = scope === "all";
 
   const tags = useHashtagSuggestions(query, withPeopleAndTags);
+  const topics = useTagSearch(onPickTag ? query.replace(/^#/, "") : "");
   const people = useSearchPeople(withPeopleAndTags ? query : "");
   const pages = useSearchPages(query);
   const projects = useSearchProjects(query);
 
   const tagRows = (tags.data ?? []).slice(0, MAX_TAGS);
+  const topicRows = onPickTag ? (topics.data ?? []).slice(0, MAX_TOPICS) : [];
   const personRows = withPeopleAndTags ? (people.data ?? []).slice(0, 2) : [];
   const pageRows = (pages.data ?? []).slice(0, MAX_ACCOUNTS - personRows.length);
   const projectRows = (projects.data ?? []).slice(0, MAX_PROJECTS);
 
-  const hasRows = tagRows.length + personRows.length + pageRows.length + projectRows.length > 0;
+  const hasRows = topicRows.length + tagRows.length + personRows.length + pageRows.length + projectRows.length > 0;
   const loading = tags.isLoading || people.isLoading || pages.isLoading || projects.isLoading;
 
   return (
@@ -86,6 +93,20 @@ export function SearchSuggestions({
         <Search size={16} className="shrink-0 text-ink-muted" />
         <span className="flex-1 min-w-0 truncate text-sm text-ink">{typed.trim()}</span>
       </button>
+
+      {topicRows.map((t) => (
+        <button key={t.id} onClick={() => onPickTag?.(t)} className="w-full flex items-center gap-3 py-2 min-h-[48px] text-left">
+          <span className="flex items-center justify-center w-8 h-8 rounded-full bg-surface text-accent shrink-0">
+            <Tag size={15} />
+          </span>
+          <span className="flex-1 min-w-0">
+            <span className="block truncate text-sm text-ink">
+              <Highlighted text={t.name} query={query.replace(/^#/, "")} />
+            </span>
+            <span className="block text-xs text-ink-muted">Topic · filter by this</span>
+          </span>
+        </button>
+      ))}
 
       {tagRows.map((h) => (
         <Link

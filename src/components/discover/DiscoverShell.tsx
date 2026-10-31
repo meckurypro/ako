@@ -9,6 +9,7 @@ import { TopHeader } from "../TopHeader";
 import { SearchResults, isSearchable, type SearchScope } from "../SearchResults";
 import { SearchStart } from "./SearchStart";
 import { SearchSuggestions } from "./SearchSuggestions";
+import type { TagRef } from "../../hooks/useTags";
 
 // The Discover page's search experience, modelled on TikTok's:
 //
@@ -34,12 +35,20 @@ export function DiscoverShell({
   placeholder,
   ariaLabel,
   browse,
+  tags = [],
+  onRemoveTag,
+  onPickTag,
 }: {
   scope: SearchScope;
   placeholder: string;
   ariaLabel: string;
   /** The page shown when not searching. */
   browse: ReactNode;
+  /** Topics the page is filtered by. They narrow search too, and show as removable pills while searching. */
+  tags?: TagRef[];
+  onRemoveTag?: (slug: string) => void;
+  /** Adds a topic to the filter (from the topic rows in search suggestions). */
+  onPickTag?: (tag: TagRef) => void;
 }) {
   const [searchParams, setSearchParams] = useSearchParams();
   const submitted = (searchParams.get("q") ?? "").trim();
@@ -83,6 +92,14 @@ export function DiscoverShell({
     pushedRef.current = true;
   }
 
+  function pickTag(tag: TagRef) {
+    onPickTag?.(tag);
+    // Back to whatever was behind the search box: the results if there were any, otherwise the filtered page.
+    setDraft(submitted);
+    setTyping(false);
+    inputRef.current?.blur();
+  }
+
   function leave() {
     inputRef.current?.blur();
     if (phase === "typing") {
@@ -105,6 +122,7 @@ export function DiscoverShell({
 
   const showBack = phase !== "browse";
   const canSubmit = isSearchable(draft);
+  const showTagPills = phase !== "browse" && tags.length > 0;
 
   return (
     <div className="min-h-screen bg-canvas pb-24">
@@ -187,6 +205,27 @@ export function DiscoverShell({
               </button>
             )}
           </form>
+
+          {showTagPills && (
+            <div className="flex flex-wrap items-center gap-1.5 pt-2.5" aria-label="Topic filters">
+              {tags.map((t) => (
+                <span
+                  key={t.id}
+                  className="inline-flex items-center gap-1 pl-2.5 pr-1.5 py-1 rounded-full bg-cta text-white text-xs font-medium"
+                >
+                  {t.name}
+                  <button
+                    type="button"
+                    onClick={() => onRemoveTag?.(t.slug)}
+                    aria-label={`Remove ${t.name} filter`}
+                    className="hover:bg-canvas/20 rounded-full p-0.5 transition-colors"
+                  >
+                    <X size={11} />
+                  </button>
+                </span>
+              ))}
+            </div>
+          )}
         </div>
 
         {phase === "browse" && browse}
@@ -202,6 +241,7 @@ export function DiscoverShell({
                 setDraft(term);
                 inputRef.current?.focus();
               }}
+              onPickTag={onPickTag ? pickTag : undefined}
             />
           ) : (
             <SearchStart
@@ -218,7 +258,8 @@ export function DiscoverShell({
             <SearchResults
               query={submitted}
               scope={scope}
-              stickyTabsClassName="sticky top-[72px] z-subchrome bg-canvas"
+              tagIds={tags.map((t) => t.id)}
+              stickyTabsClassName={`sticky ${tags.length > 0 ? "top-[112px]" : "top-[72px]"} z-subchrome bg-canvas`}
             />
           </div>
         )}

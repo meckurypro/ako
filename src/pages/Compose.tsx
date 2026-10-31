@@ -627,7 +627,7 @@ export function Compose() {
         )}
 
         <div className="mt-6">
-          <TopicPicker selected={topicIds} onToggle={toggleTopic} />
+          <TopicPicker selected={topicIds} onToggle={toggleTopic} text={`${heading} ${content}`} />
         </div>
 
         {error && (
