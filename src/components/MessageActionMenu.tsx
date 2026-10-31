@@ -38,6 +38,8 @@ interface MessageActionMenuProps {
   /** Group hosts only: make this message permanent for people who join later (or undo that). */
   isAnchored?: boolean;
   onToggleAnchor?: () => void;
+  /** Group hosts: may delete anyone's message for everyone, not just their own. */
+  canModerate?: boolean;
   onClose: () => void;
   /** Fired instead of onClose when the dimmed backdrop tap actually
    *  landed on a different message bubble (identified via
@@ -94,6 +96,7 @@ export function MessageActionMenu({
   onSelect,
   isAnchored,
   onToggleAnchor,
+  canModerate,
   onClose,
   onTapMessage,
 }: MessageActionMenuProps) {
@@ -184,6 +187,18 @@ export function MessageActionMenu({
             >
               <Reply size={19} />
             </button>
+            {onToggleAnchor && (
+              <button
+                onClick={() => {
+                  onToggleAnchor();
+                  onClose();
+                }}
+                className="p-2 text-ink"
+                aria-label={isAnchored ? "Unanchor" : "Anchor for new members"}
+              >
+                <Anchor size={19} className={isAnchored ? "fill-accent text-accent" : ""} />
+              </button>
+            )}
             <button
               onClick={() => {
                 onForward();
@@ -220,7 +235,7 @@ export function MessageActionMenu({
           </>
         )}
 
-        {(isMine || isDeleted) && (
+        {(isMine || isDeleted || canModerate) && (
           <button
             onClick={() => {
               onDeletePress();
@@ -254,17 +269,6 @@ export function MessageActionMenu({
                     },
                   },
                 ];
-                if (!isDeleted && onToggleAnchor) {
-                  menuItems.push({
-                    key: "anchor",
-                    label: isAnchored ? "Unanchor" : "Anchor for new members",
-                    icon: <Anchor className={isAnchored ? "fill-accent text-accent" : ""} />,
-                    onSelect: () => {
-                      onToggleAnchor();
-                      onClose();
-                    },
-                  });
-                }
                 if (!isDeleted) {
                   menuItems.push(
                     {

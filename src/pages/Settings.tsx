@@ -50,6 +50,7 @@ import {
   useToggleHideFollowersList,
   useToggleHideFollowingList,
   useToggleShowGroupsOnProfile,
+  useToggleInviteOnlyGroups,
   useBlockedList,
   useMutedList,
   useToggleBlock,
@@ -77,7 +78,7 @@ function useOwnProfile() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("profiles")
-        .select(`*, ${PROFILE_ROLES_SELECT}, is_private, hide_followers_list, hide_following_list, show_groups_on_profile`)
+        .select(`*, ${PROFILE_ROLES_SELECT}, is_private, hide_followers_list, hide_following_list, show_groups_on_profile, group_add_policy`)
         .eq("id", user!.id)
         .single();
       if (error) throw error;
@@ -451,6 +452,7 @@ export function Settings() {
   const toggleHideFollowers = useToggleHideFollowersList();
   const toggleHideFollowing = useToggleHideFollowingList();
   const toggleShowGroups = useToggleShowGroupsOnProfile();
+  const toggleInviteOnly = useToggleInviteOnlyGroups();
   const { data: blocked } = useBlockedList();
   const { data: muted } = useMutedList();
 
@@ -851,6 +853,15 @@ export function Settings() {
                 onToggle={() => toggleShowGroups.mutate(!profile?.show_groups_on_profile)}
                 pending={toggleShowGroups.isPending}
                 error={toggleShowGroups.isError ? "Couldn't update this setting. Try again." : null}
+              />
+              <ToggleRow
+                icon={<Users size={18} className="text-ink-muted" />}
+                title="Only invite me to groups"
+                description="Group hosts can't add you directly. They send an invitation and you choose whether to join"
+                checked={profile?.group_add_policy === "invite_only"}
+                onToggle={() => toggleInviteOnly.mutate(profile?.group_add_policy !== "invite_only")}
+                pending={toggleInviteOnly.isPending}
+                error={toggleInviteOnly.isError ? "Couldn't update this setting. Try again." : null}
               />
 
               <h3 className="text-sm font-medium text-ink-muted mt-5 mb-2 flex items-center gap-1.5">

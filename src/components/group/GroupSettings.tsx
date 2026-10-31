@@ -5,9 +5,9 @@
 //   Joining         — who can join (communities), join requests, add people
 //   Messaging       — who can send, mute, what new members can read
 //   Managing        — hosts, blocked people
-import { useState, type FormEvent, type ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import { Link } from "react-router-dom";
-import { Ban, Check, ChevronRight, Copy, History, Link2, MessageSquare, Share2, Shield, UserCheck, UserPlus, Users, VolumeX, type LucideIcon } from "lucide-react";
+import { Ban, Check, ChevronRight, Copy, History, Link2, MailPlus, MessageSquare, Search, Share2, Shield, UserCheck, UserPlus, Users, VolumeX, X, type LucideIcon } from "lucide-react";
 
 import { Avatar } from "../Avatar";
 import { Modal } from "../Modal";
@@ -15,18 +15,24 @@ import { OptionsModal, type OptionItem } from "../OptionsModal";
 import { ProjectLinkSheet } from "../ProjectLinkSheet";
 import { useToast } from "../Toast";
 import {
-  findProfileByUsername,
   useAddRoomMember,
+  useCancelRoomInvite,
+  useInviteRoomMember,
   useReviewRoomJoinRequest,
   useRoomBlocklist,
+  useRoomCandidates,
   useRoomDetails,
+  useRoomInvites,
   useRoomJoinRequests,
   useRoomPeople,
   useUnblacklistRoomUser,
   useUpdateRoomDetails,
   type GroupJoinMode,
+  type RoomCandidate,
   type RoomHistoryMode,
 } from "../../hooks/useRoom";
+import { useDebouncedValue } from "../../hooks/useDebouncedValue";
+import { timeAgo } from "../../lib/timeAgo";
 import type { Project } from "../../hooks/useProjects";
 import { APP_URL } from "../../lib/appUrl";
 import { getGroupPath } from "../../lib/groups";
@@ -122,52 +128,141 @@ function ToggleRow({ icon, title, hint, checked, onChange }: { icon: LucideIcon;
 // ---------------------------------------------------------------
 // Dialogs
 // ---------------------------------------------------------------
+// Type-ahead: results update as you type (after a short pause), people you follow come first, and each result says
+// what you can do — "Add" puts them straight in, "Invite" is for people who've chosen to join groups by invitation only.
 function AddMembersDialog({ projectId, onClose }: { projectId: string; onClose: () => void }) {
   const toast = useToast();
   const addMember = useAddRoomMember(projectId);
-  const [username, setUsername] = useState("");
-  const [adding, setAdding] = useState(false);
+  const inviteMember = useInviteRoomMember(projectId);
+  const [query, setQuery] = useState("");
+  const [busyId, setBusyId] = useState<string | null>(null);
+  const debounced = useDebouncedValue(query.trim(), 200);
+  const { data: results, isFetching, isError } = useRoomCandidates(projectId, debounced);
+  const waiting = query.trim() !== debounced || isFetching;
+  const list = results ?? [];
 
-  async function handleAdd(e: FormEvent) {
-    e.preventDefault();
-    const name = username.trim();
-    if (!name) return;
-    setAdding(true);
+  async function act(person: RoomCandidate) {
+    setBusyId(person.user_id);
     try {
-      const profile = await findProfileByUsername(name);
-      if (!profile) {
-        toast("No one has that username.", { variant: "error" });
-        return;
+      if (person.add_mode === "invite") {
+        await inviteMember.mutateAsync(person.user_id);
+        toast(`Invitation sent to ${person.display_name}.`, { variant: "success" });
+      } else {
+        await addMember.mutateAsync(person.user_id);
+        toast(`${person.display_name} was added.`, { variant: "success" });
       }
-      await addMember.mutateAsync(profile.id);
-      toast(`${profile.display_name} was added.`, { variant: "success" });
-      setUsername("");
     } catch (err) {
-      toast(errorMessage(err, "Couldn't add them."), { variant: "error" });
+      toast(errorMessage(err, person.add_mode === "invite" ? "Couldn't send the invitation." : "Couldn't add them."), { variant: "error" });
     } finally {
-      setAdding(false);
+      setBusyId(null);
     }
   }
 
   return (
     <Modal onClose={onClose} ariaLabel="Add members">
-      <form onSubmit={handleAdd}>
-        <h2 className="font-display text-xl text-ink">Add members</h2>
-        <p className="mt-1 text-sm text-ink-muted">Add someone by their username.</p>
+      <h2 className="font-display text-xl text-ink">Add members</h2>
+      <p className="mt-1 text-sm text-ink-muted">Start typing a name or username. People who only join by invitation get an invite instead.</p>
+      <div className="relative mt-4">
+        <Search size={16} className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-ink-muted" />
         <input
-          value={username}
-          onChange={(e) => setUsername(e.target.value)}
-          placeholder="@username"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder="Search people…"
           autoCapitalize="none"
           autoCorrect="off"
           autoFocus
-          className="mt-4 w-full rounded-xl bg-canvas px-4 py-3 text-sm text-ink"
-          aria-label="Username to add"
+          className="w-full rounded-xl bg-canvas py-3 pl-10 pr-10 text-sm text-ink"
+          aria-label="Search people to add"
         />
-        <button type="submit" disabled={adding || !username.trim()} className="mt-4 flex w-full items-center justify-center gap-1.5 rounded-xl bg-cta px-4 py-3 text-sm font-medium text-white disabled:opacity-50">
-          <UserPlus size={16} /> Add to group
-        </button>
-      </form>
+        {query ? (
+          <button type="button" onClick={() => setQuery("")} aria-label="Clear" className="absolute right-3 top-1/2 -translate-y-1/2 text-ink-muted">
+            <X size={16} />
+          </button>
+        ) : null}
+      </div>
+
+      <div className="mt-3 max-h-[50vh] overflow-y-auto">
+        {list.length === 0 ? (
+          <p className="py-8 text-center text-sm text-ink-muted">
+            {isError ? "Couldn't search just now. Try again." : waiting ? "Searching…" : query.trim() ? "No one matches that search." : "Type to find people. The people you follow show up here first."}
+          </p>
+        ) : (
+          <div className="flex flex-col">
+            {!query.trim() ? <p className="px-1 pb-1 text-xs font-semibold uppercase tracking-wide text-ink-muted">People you follow</p> : null}
+            {list.map((p) => {
+              const busy = busyId === p.user_id;
+              return (
+                <div key={p.user_id} className="flex items-center justify-between gap-2 py-2">
+                  <PersonLink username={p.username} name={p.display_name} avatar={p.avatar_url} />
+                  {p.state === "member" ? (
+                    <span className="shrink-0 px-2 text-xs text-ink-muted">In the group</span>
+                  ) : p.state === "invited" ? (
+                    <span className="shrink-0 rounded-full border border-border px-3 py-1.5 text-xs text-ink-muted">Invited</span>
+                  ) : (
+                    <div className="flex shrink-0 flex-col items-end gap-0.5">
+                      <button
+                        type="button"
+                        onClick={() => void act(p)}
+                        disabled={busy}
+                        className={`flex items-center gap-1 rounded-full px-3.5 py-1.5 text-xs font-medium disabled:opacity-50 ${p.add_mode === "invite" ? "border border-accent text-accent" : "bg-cta text-white"}`}
+                      >
+                        {p.add_mode === "invite" ? <MailPlus size={13} /> : <UserPlus size={13} />}
+                        {busy ? (p.add_mode === "invite" ? "Inviting…" : "Adding…") : p.add_mode === "invite" ? "Invite" : "Add"}
+                      </button>
+                      {p.add_mode === "invite" ? <span className="text-[10px] text-ink-muted">Invitation only</span> : null}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    </Modal>
+  );
+}
+
+// Everyone invited who hasn't answered yet — hosts can see who invited them and when, and take an invite back.
+function InvitesDialog({ projectId, onClose }: { projectId: string; onClose: () => void }) {
+  const toast = useToast();
+  const { data: invites } = useRoomInvites(projectId);
+  const cancel = useCancelRoomInvite(projectId);
+  const list = invites ?? [];
+
+  return (
+    <Modal onClose={onClose} ariaLabel="Pending invites">
+      <h2 className="font-display text-xl text-ink">Pending invites</h2>
+      <p className="mt-1 text-sm text-ink-muted">They join as soon as they accept. Cancel an invite and it disappears from their notifications.</p>
+      {list.length === 0 ? (
+        <p className="py-8 text-center text-sm text-ink-muted">No invites waiting for a reply.</p>
+      ) : (
+        <div className="mt-4 flex flex-col gap-3">
+          {list.map((i) => (
+            <div key={i.user_id} className="flex items-center justify-between gap-2">
+              <div className="min-w-0">
+                <PersonLink username={i.profile.username} name={i.profile.display_name} avatar={i.profile.avatar_url} />
+                <p className="mt-0.5 pl-10 text-[11px] text-ink-muted">
+                  {i.inviter ? `Invited by ${i.inviter.display_name} · ` : "Invited · "}
+                  {timeAgo(i.created_at)}
+                </p>
+              </div>
+              <button
+                type="button"
+                disabled={cancel.isPending}
+                onClick={() =>
+                  cancel.mutate(i.user_id, {
+                    onSuccess: () => toast(`Invitation to ${i.profile.display_name} cancelled.`, { variant: "success" }),
+                    onError: (err) => toast(errorMessage(err, "Couldn't cancel that invitation."), { variant: "error" }),
+                  })
+                }
+                className="shrink-0 rounded-full border border-border px-3 py-1.5 text-xs font-medium text-danger disabled:opacity-50"
+              >
+                Cancel invite
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
     </Modal>
   );
 }
@@ -220,11 +315,13 @@ export function HostSettingsPanel({ projectId, project, isOwner, onOpenMembers }
   const { data: people } = useRoomPeople(projectId);
   const { data: requests } = useRoomJoinRequests(projectId);
   const { data: blocklist } = useRoomBlocklist(projectId);
+  const { data: invites } = useRoomInvites(projectId);
   const updateDetails = useUpdateRoomDetails(projectId);
   const review = useReviewRoomJoinRequest(projectId);
   const [picker, setPicker] = useState<Picker>(null);
   const [linkOpen, setLinkOpen] = useState(false);
   const [addOpen, setAddOpen] = useState(false);
+  const [invitesOpen, setInvitesOpen] = useState(false);
   const [blockedOpen, setBlockedOpen] = useState(false);
 
   const historyMode = details?.history_mode ?? "anchored";
@@ -237,6 +334,7 @@ export function HostSettingsPanel({ projectId, project, isOwner, onOpenMembers }
   const shownUrl = groupUrl.replace(/^https?:\/\//, "");
   const hostNames = (people ?? []).filter((p) => p.role !== "member").map((p) => p.display_name);
   const blockedCount = (blocklist ?? []).length;
+  const inviteCount = (invites ?? []).length;
 
   async function copyLink() {
     try {
@@ -353,7 +451,8 @@ export function HostSettingsPanel({ projectId, project, isOwner, onOpenMembers }
 
       <Section title="Joining the group">
         {isCommunity ? <Row icon={UserCheck} title="Who can join" value={joinMode === "open" ? "Anyone" : "Approval required"} onClick={() => setPicker("join")} /> : null}
-        <Row icon={UserPlus} title="Add members" value="Add someone by username" onClick={() => setAddOpen(true)} />
+        <Row icon={UserPlus} title="Add members" value="Search by name or username" onClick={() => setAddOpen(true)} />
+        <Row icon={MailPlus} title="Pending invites" value={inviteCount > 0 ? `${inviteCount} waiting for a reply` : "No one waiting"} badge={inviteCount} onClick={() => setInvitesOpen(true)} />
       </Section>
 
       <Section title="Messaging">
@@ -371,6 +470,7 @@ export function HostSettingsPanel({ projectId, project, isOwner, onOpenMembers }
       {active ? <OptionsModal title={active.title} items={active.items} onClose={() => setPicker(null)} /> : null}
       {linkOpen ? <ProjectLinkSheet project={project} noun="group" onClose={() => setLinkOpen(false)} /> : null}
       {addOpen ? <AddMembersDialog projectId={projectId} onClose={() => setAddOpen(false)} /> : null}
+      {invitesOpen ? <InvitesDialog projectId={projectId} onClose={() => setInvitesOpen(false)} /> : null}
       {blockedOpen ? <BlockedDialog projectId={projectId} onClose={() => setBlockedOpen(false)} /> : null}
     </div>
   );

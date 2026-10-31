@@ -31,6 +31,7 @@ import {
   Download,
   GitFork,
   Inbox,
+  MailPlus,
 } from "lucide-react";
 import { useNotifications, useMarkNotificationRead, useMarkAllRead } from "../hooks/useNotifications";
 import {
@@ -43,6 +44,8 @@ import { Avatar } from "../components/Avatar";
 import { AkoMark } from "../components/AkoMark";
 import { BottomNav } from "../components/BottomNav";
 import { PageInviteResponseModal } from "../components/PageInviteResponseModal";
+import { useMyRoomInvites, useRespondRoomInvite } from "../hooks/useRoom";
+import { useToast } from "../components/Toast";
 import { CollaborationInviteResponseModal } from "../components/CollaborationInviteResponseModal";
 import { MusicCreditResponseModal } from "../components/MusicCreditResponseModal";
 import { ForewordInviteModal } from "../components/ForewordInviteModal";
@@ -128,7 +131,12 @@ const TYPE_CONFIG: Record<string, { icon: typeof Heart; verb: string }> = {
   room_join_request: { icon: UserPlus, verb: "asked to join your Room" },
   room_join_approved: { icon: UserCheck, verb: "approved your request to join" },
   room_join_declined: { icon: UserX, verb: "declined your request to join" },
-  room_member_added: { icon: UserPlus, verb: "added you to a Room" },
+  // "Added" = the host put you straight in. "Invited" = you only join groups by invitation (Settings → Privacy), so it
+  // waits for your answer — see RoomInviteRow. Both carry target_type "project" and preview_text = the group's title.
+  room_member_added: { icon: UserPlus, verb: "added you to a group" },
+  room_invite: { icon: MailPlus, verb: "invited you to join a group" },
+  room_invite_accepted: { icon: UserCheck, verb: "accepted your invitation to join" },
+  room_invite_declined: { icon: UserX, verb: "declined your invitation to join" },
   room_member_removed: { icon: UserX, verb: "removed you from a Room" },
   project_purchased: { icon: Wallet2, verb: "bought your project" },
   affiliate_commission_earned: { icon: Coins, verb: "You earned an affiliate commission" },
@@ -352,6 +360,61 @@ function RowShell({
   );
 }
 
+// A group invitation: the row opens the group once you're in, and while it's still waiting it carries Accept / Decline
+// right on it. What happened afterwards (joined, declined, taken back) shows in place of the buttons.
+function RoomInviteRow({ n, onRead }: { n: NotificationWithActor; onRead: () => void }) {
+  const config = TYPE_CONFIG[n.type];
+  const navigate = useNavigate();
+  const toast = useToast();
+  const { data: mine } = useMyRoomInvites();
+  const respond = useRespondRoomInvite();
+  const projectId = n.target_id!;
+  const status = mine?.[projectId];
+  const groupPath = n.project_type && PROJECT_TYPE_ROUTE[n.project_type] ? PROJECT_TYPE_ROUTE[n.project_type](projectId) : `/rooms/${projectId}`;
+
+  function answer(accept: boolean) {
+    onRead();
+    respond.mutate(
+      { projectId, accept },
+      {
+        onSuccess: () => {
+          toast(accept ? "You joined the group." : "Invitation declined.", { variant: "success" });
+          if (accept) navigate(groupPath);
+        },
+        onError: (err) => toast(err instanceof Error && err.message ? err.message : "Couldn't answer that invitation.", { variant: "error" }),
+      }
+    );
+  }
+
+  return (
+    <RowShell
+      unread={!n.read_at}
+      onActivate={() => {
+        onRead();
+        if (status === "accepted") navigate(groupPath);
+      }}
+    >
+      <NotificationRowContent n={n} config={config} />
+      <div className="absolute bottom-3 right-4 flex items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
+        {status === "pending" ? (
+          <>
+            <button type="button" disabled={respond.isPending} onClick={() => answer(false)} className="rounded-full border border-border px-3 py-1.5 text-xs text-ink-muted disabled:opacity-50">
+              Decline
+            </button>
+            <button type="button" disabled={respond.isPending} onClick={() => answer(true)} className="rounded-full bg-cta px-3 py-1.5 text-xs font-medium text-white disabled:opacity-50">
+              Accept
+            </button>
+          </>
+        ) : status === "accepted" ? (
+          <span className="text-xs font-medium text-accent">Joined</span>
+        ) : status === "declined" ? (
+          <span className="text-xs text-ink-muted">Declined</span>
+        ) : null}
+      </div>
+    </RowShell>
+  );
+}
+
 // A tap on a page_role_accepted OR page_role_declined notification
 // should land on the page's team roster — so the inviter can see
 // their new teammate, or re-invite someone else after a decline —
@@ -392,6 +455,10 @@ function NotificationRow({
 }) {
   const config = TYPE_CONFIG[n.type] ?? TYPE_CONFIG.system;
   const navigate = useNavigate();
+
+  if (n.type === "room_invite" && n.target_id) {
+    return <RoomInviteRow n={n} onRead={onRead} />;
+  }
 
   if (n.type === "page_role_invite" && n.target_id) {
     return (

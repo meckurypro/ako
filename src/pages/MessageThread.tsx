@@ -23,6 +23,7 @@ import {
   Lock,
   Anchor,
   Info,
+  Copy,
 } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { useVirtualizer } from "@tanstack/react-virtual";
@@ -76,7 +77,9 @@ import { useVoiceRecorder } from "../hooks/useVoiceRecorder";
 import { MessageBubble, SWIPE_THRESHOLD, SWIPE_MAX, type GroupBubbleInfo } from "../components/MessageBubble";
 import { SendButton } from "../components/SendButton";
 import { OptionsModal, type OptionItem } from "../components/OptionsModal";
-import { useProfilesByIds, useRoomMemberEvents, useSetMessageAnchor, type RoomMemberEvent, type RoomPerson } from "../hooks/useRoom";
+import { useProfilesByIds, useRoomMemberEvents, useSetMessageAnchor, useSetMessagesAnchor, type RoomMemberEvent, type RoomPerson } from "../hooks/useRoom";
+import { copyText, formatMessagesForCopy } from "../lib/chatCopy";
+import { useToast } from "../components/Toast";
 import { useFeatureFlag, useVoiceNotesEnabled } from "../hooks/useFeatureFlags";
 
 // Fetches header identity for the thread — a small dedicated query
@@ -253,6 +256,7 @@ export function MessageThread({ conversationId: conversationIdProp, group }: { c
   useEffect(() => () => {
     if (errorBannerTimer.current) clearTimeout(errorBannerTimer.current);
   }, []);
+  const toast = useToast();
   const onMutationError = useCallback(() => flashError("Something went wrong. Please try again."), [flashError]);
 
   // Same brief-banner pattern as flashError above, but neutral styling
@@ -293,6 +297,7 @@ export function MessageThread({ conversationId: conversationIdProp, group }: { c
 
   // --- Group mode: who wrote what, and the host's "anchored only" filter. ---
   const setAnchor = useSetMessageAnchor(conversationId!);
+  const setAnchorBulk = useSetMessagesAnchor(conversationId!);
   const unknownSenderIds = useMemo(() => {
     if (!group || !messages) return [];
     const known = new Set(group.people.map((p) => p.user_id));
@@ -529,8 +534,9 @@ export function MessageThread({ conversationId: conversationIdProp, group }: { c
   );
   // "Delete for everyone" only makes sense when every selected message
   // is both the current user's own AND not already a tombstone.
+  // Group hosts may also take down other people's messages for everyone.
   const selectionAllowsDeleteEveryone =
-    selectedMessages.length > 0 && selectedMessages.every((m) => m.sender_id === user?.id && !m.is_deleted);
+    selectedMessages.length > 0 && selectedMessages.every((m) => (m.sender_id === user?.id || !!group?.isHost) && !m.is_deleted);
   const selectionHasForwardableContent = selectedMessages.some((m) => !m.is_deleted);
 
   function handleBulkDeletePress() {
@@ -552,6 +558,35 @@ export function MessageThread({ conversationId: conversationIdProp, group }: { c
     const content = selectedMessages.filter((m) => !m.is_deleted).map((m) => ({ content: m.content }));
     if (!content.length) return;
     setForwardMessages(content);
+  }
+  // Who a message is "from" in a copied transcript: real names, not "You" — the text leaves the app.
+  function copyNameFor(senderId: string): string {
+    if (senderId === user?.id) return profile?.display_name ?? "Me";
+    if (group) return profileById.get(senderId)?.display_name ?? "Former member";
+    return otherParticipant?.display_name ?? "Them";
+  }
+  async function handleBulkCopy() {
+    const text = formatMessagesForCopy(selectedMessages, copyNameFor);
+    if (!text) return;
+    const ok = await copyText(text);
+    toast(ok ? `Copied ${selectedMessages.filter((m) => !m.is_deleted).length} message${selectedMessages.filter((m) => !m.is_deleted).length === 1 ? "" : "s"}.` : "Couldn't copy.", { variant: ok ? "success" : "error" });
+    if (ok) exitSelectMode();
+  }
+  // Host-only. If everything selected is already anchored this un-anchors them, otherwise it anchors the lot.
+  function handleBulkAnchor() {
+    const live = selectedMessages.filter((m) => !m.is_deleted);
+    if (!live.length) return;
+    const anchored = !live.every((m) => !!m.anchored_at);
+    setAnchorBulk.mutate(
+      { messageIds: live.map((m) => m.id), anchored },
+      {
+        onSuccess: () => {
+          toast(anchored ? "Anchored. New members will always see these." : "Unanchored.", { variant: "success" });
+          exitSelectMode();
+        },
+        onError: (err) => toast(err instanceof Error ? err.message : "Couldn't update the anchors.", { variant: "error" }),
+      }
+    );
   }
   function handleBulkShare() {
     const text = selectedMessages
@@ -1079,6 +1114,24 @@ export function MessageThread({ conversationId: conversationIdProp, group }: { c
               <X size={22} />
             </button>
             <span className="flex-1 text-sm font-medium text-ink">{selectedIds.size} selected</span>
+            {group?.isHost && (
+              <button
+                onClick={handleBulkAnchor}
+                disabled={!selectionHasForwardableContent || setAnchorBulk.isPending}
+                className="text-ink-muted disabled:opacity-30 flex-shrink-0"
+                aria-label="Anchor"
+              >
+                <Anchor size={19} />
+              </button>
+            )}
+            <button
+              onClick={() => void handleBulkCopy()}
+              disabled={!selectionHasForwardableContent}
+              className="text-ink-muted disabled:opacity-30 flex-shrink-0"
+              aria-label="Copy"
+            >
+              <Copy size={19} />
+            </button>
             <button
               onClick={handleBulkStar}
               disabled={!selectedIds.size}
@@ -1675,10 +1728,11 @@ export function MessageThread({ conversationId: conversationIdProp, group }: { c
           }
           onOpenFullPicker={() => setEmojiPickerTarget({ mode: "reaction", messageId: activeMessage.message.id })}
           onCopy={() => navigator.clipboard.writeText(messagePlainText(activeMessage.message.content))}
+          canModerate={!!group?.isHost}
           onDeletePress={() =>
             setDeleteTarget({
               messageIds: [activeMessage.message.id],
-              allowEveryone: activeMessage.message.sender_id === user?.id && !activeMessage.message.is_deleted,
+              allowEveryone: (activeMessage.message.sender_id === user?.id || !!group?.isHost) && !activeMessage.message.is_deleted,
             })
           }
           onShare={() => {

@@ -74,7 +74,10 @@ const COPY: Record<string, Copy> = {
   room_join_request: { body: "asked to join your Room" },
   room_join_approved: { body: "Your request to join a Room was approved", systemTitle: true },
   room_join_declined: { body: "Your request to join a Room was declined", systemTitle: true },
-  room_member_added: { body: "You were added to a Room", systemTitle: true },
+  room_member_added: { body: "You were added to a group", systemTitle: true },
+  room_invite: { body: "invited you to join a group" },
+  room_invite_accepted: { body: "accepted your invitation to join a group" },
+  room_invite_declined: { body: "declined your invitation to join a group" },
   room_member_removed: { body: "You were removed from a Room", systemTitle: true },
   admin_message: { body: "You have a new message from the Akọ team", systemTitle: true },
 };
