@@ -29,6 +29,7 @@ import {
   Download,
   FileText,
   ChevronRight,
+  MessageCircle,
 } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "../lib/supabase";
@@ -51,6 +52,7 @@ import {
   useToggleHideFollowingList,
   useToggleShowGroupsOnProfile,
   useToggleInviteOnlyGroups,
+  useToggleAcceptGroupMessages,
   useBlockedList,
   useMutedList,
   useToggleBlock,
@@ -78,7 +80,7 @@ function useOwnProfile() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("profiles")
-        .select(`*, ${PROFILE_ROLES_SELECT}, is_private, hide_followers_list, hide_following_list, show_groups_on_profile, group_add_policy`)
+        .select(`*, ${PROFILE_ROLES_SELECT}, is_private, hide_followers_list, hide_following_list, show_groups_on_profile, group_add_policy, accept_group_messages`)
         .eq("id", user!.id)
         .single();
       if (error) throw error;
@@ -453,6 +455,7 @@ export function Settings() {
   const toggleHideFollowing = useToggleHideFollowingList();
   const toggleShowGroups = useToggleShowGroupsOnProfile();
   const toggleInviteOnly = useToggleInviteOnlyGroups();
+  const toggleGroupMessages = useToggleAcceptGroupMessages();
   const { data: blocked } = useBlockedList();
   const { data: muted } = useMutedList();
 
@@ -862,6 +865,15 @@ export function Settings() {
                 onToggle={() => toggleInviteOnly.mutate(profile?.group_add_policy !== "invite_only")}
                 pending={toggleInviteOnly.isPending}
                 error={toggleInviteOnly.isError ? "Couldn't update this setting. Try again." : null}
+              />
+              <ToggleRow
+                icon={<MessageCircle size={18} className="text-ink-muted" />}
+                title="Allow messages from my groups"
+                description="People who share a group or cohort with you can message you directly. Everyone else you don't follow still sends a message request"
+                checked={!!profile?.accept_group_messages}
+                onToggle={() => toggleGroupMessages.mutate(!profile?.accept_group_messages)}
+                pending={toggleGroupMessages.isPending}
+                error={toggleGroupMessages.isError ? "Couldn't update this setting. Try again." : null}
               />
 
               <h3 className="text-sm font-medium text-ink-muted mt-5 mb-2 flex items-center gap-1.5">
